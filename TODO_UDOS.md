@@ -28,8 +28,8 @@
 
 ## Phase 5
 
-- replace the scripted `svc_line_read` seam with real resident line input
-- keep the current resident `HELP`, `VER`, `VOL`, and `MEM` loop working while moving them off the scripted seam
+- expand live line input from token-only parsing to command + argument parsing
+- keep the current resident `HELP`, `VER`, `VOL`, and `MEM` loop working while moving them toward real filesystem/state services
 - implement resident commands:
   - `DIR`
   - `CD`

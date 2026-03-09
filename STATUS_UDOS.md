@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 drive-bind/query seam complete, first Phase 5 scripted command-loop slice complete.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 drive-bind/query seam complete, first Phase 5 live command-loop slice complete.
 
 ## Completed
 
@@ -45,10 +45,12 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - validated the resident image under VICE by checking screen RAM and service snapshots
 - added the first resident command-loop slice:
   - VM-side shell loop with resident prompt rendering
-  - scripted line-input seam for deterministic VICE validation
-  - resident transcript for `HELP`, `VER`, `VOL`, and `MEM`
+  - live `GETIN`-backed line input with tokenization for first resident commands
+  - VICE validation through `-keybuf` instead of the old script-only seam
+  - resident transcript for `HELP`, `VER`, `VOL`, `MEM`, and `QUIT`
   - common response emission path driven from command tokens
   - full-screen cursor handling past the first 256 bytes of screen RAM
+  - dynamic `VER` mode suffix and dynamic `VOL` output from resident state
 
 ## Current Verified Facts
 
@@ -60,19 +62,19 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - Acheron runtime footprint: `$072A`
 - UDOS proof code footprint: `$002E`
 
-### Resident core, drive-bind/query seam, and scripted command loop
+### Resident core, drive-bind/query seam, and live command loop
 - linked resident entrypoint: `$1810`
 - screen transcript seen in VICE:
   - `UDOS CORE`
   - `A:D64> HELP`
   - `HELP VER VOL MEM`
   - `A:D64> VER`
-  - `UDOS ALPHA`
+  - `UDOS ALPHA MOCK`
   - `A:D64> VOL`
   - `A:D64 B:DNP`
   - `A:D64> MEM`
   - `CORE 011E`
-  - final prompt `A:D64>`
+  - `A:D64> QUIT`
 - `A:` bind snapshot at `$CFE8/$CFE9`: `D64/flat`
 - `B:` bind snapshot at `$CFEA/$CFEB`: `DNP/tree`
 - current drive snapshot at `$CFEC`: `A:`
@@ -103,8 +105,10 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - the Phase 1 AcheronVM proof executes in VICE and can be asserted non-interactively
 - the resident bootstrap/core executes in VICE and exposes a first service ABI boundary
 - the drive-bind/query seam can be validated under VICE without pretending real Ultimate hardware exists
-- the resident loop now exercises a deterministic scripted command-input path in VICE
-- the resident shell currently proves prompting plus `HELP`, `VER`, `VOL`, and `MEM` output paths
+- the resident loop now exercises live line input under VICE via `-keybuf`
+- the resident shell currently proves prompting plus `HELP`, `VER`, `VOL`, `MEM`, and `QUIT`
+- `VOL` now renders from resident mount state rather than a fixed literal
+- `VER` now reflects the current transport mode suffix (`MOCK` in emulator validation)
 
 ## What Is Unverified
 
@@ -112,11 +116,12 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - hardware UCI register behavior on target
 - resident memory pressure under actual shell workload
 - real D64/D71/D81/DNP filesystem operations
-- live keyboard-backed command input inside the resident loop
-- real command implementations behind the current `HELP/VER/VOL/MEM` mock transcript
+- real C64 Ultimate keyboard behavior on target hardware
+- argument-bearing commands and live command parsing beyond the first word
+- real filesystem-backed implementations behind the current `HELP/VER/VOL/MEM` resident loop
 
 ## Next Concrete Step
 
-- replace the scripted line-input seam with real resident line input
-- keep `HELP/VER/VOL/MEM` on the resident path, but connect them to non-mock state and services
-- then add the first real filesystem-backed resident commands on top of the existing drive-bind model
+- keep the live line-input path, but expand it from token-only parsing to command + argument parsing
+- land the first real filesystem-backed resident commands on top of the existing drive-bind model
+- start with `DIR`, `CD`, and `VOL`, while enforcing flat-image vs DNP policy in the shell

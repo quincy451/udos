@@ -84,18 +84,19 @@ Validated resident behavior:
 - enters the resident bootstrap/core image
 - binds `A:` as `D64` and `B:` as `DNP`
 - renders the prompt from resident state
-- runs the current scripted command-loop seam
+- runs the current live command loop
+- drives the resident shell under VICE with `-keybuf "help\rver\rvol\rmem\rquit\r"`
 - screen transcript includes:
   - `UDOS CORE`
   - `A:D64> HELP`
   - `HELP VER VOL MEM`
   - `A:D64> VER`
-  - `UDOS ALPHA`
+  - `UDOS ALPHA MOCK`
   - `A:D64> VOL`
   - `A:D64 B:DNP`
   - `A:D64> MEM`
   - `CORE 011E`
-  - final prompt `A:D64>`
+  - `A:D64> QUIT`
 - `$CFE8 == $01`, `$CFE9 == $01` confirm `A:` bind result `D64/flat`
 - `$CFEA == $04`, `$CFEB == $02` confirm `B:` bind result `DNP/tree`
 - `$CFEC == $00` confirms current drive `A:`
@@ -106,8 +107,9 @@ Validated resident behavior:
 - `$CFFF == $52` confirms resident-ready marker
 
 Current note:
-- `svc_line_read` is still a scripted mock input seam for emulator validation
-- the resident transcript is deterministic; this is intentional until live line input exists
+- `svc_line_read` now uses live keyboard input on the resident path
+- emulator validation still remains deterministic because `make vice-resident` injects a fixed VICE key buffer
+- the first resident parser still tokenizes only the first command word
 
 Current validated linked resident entrypoint:
 - `.start = $1810`
@@ -136,19 +138,19 @@ No target hardware validation has been performed from this environment.
 
 For a real C64 Ultimate test, copy either `build/udos-proof.d64` or
 `build/udos-resident.d64` to media the machine can mount and boot the first
-program on the disk. For the resident image, the current expected boot transcript is:
+program on the disk. For the resident image, the current expected interactive smoke sequence is:
 
 ```text
 UDOS CORE
   A:D64> HELP
 HELP VER VOL MEM
   A:D64> VER
-UDOS ALPHA
+UDOS ALPHA MOCK
   A:D64> VOL
 A:D64 B:DNP
   A:D64> MEM
 CORE 011E
-  A:D64>
+  A:D64> QUIT
 ```
 
 Until that run happens on target hardware, all validation here must be described

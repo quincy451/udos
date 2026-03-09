@@ -49,19 +49,33 @@ DRIVE_A = 0
 DRIVE_B = 1
 UCI_IDENT_REG = $DF1D
 UCI_IDENT_MAGIC = $C9
+GETIN = $FFE4
+KEY_RETURN = $0D
+KEY_LINEFEED = $0A
+KEY_BACKSPACE = $14
+MAX_LINE_LEN = 15
 CMD_H = 8
 CMD_E = 5
+CMD_I = 9
+CMD_K = 11
 CMD_L = 12
 CMD_M = 13
 CMD_O = 15
 CMD_P = 16
+CMD_Q = 17
 CMD_R = 18
+CMD_T = 20
+CMD_U = 21
 CMD_V = 22
+CMD_X = 24
 SHELL_CMD_NONE = 0
 SHELL_CMD_HELP = 1
 SHELL_CMD_VER = 2
 SHELL_CMD_VOL = 3
 SHELL_CMD_MEM = 4
+SHELL_CMD_QUIT = 5
+INPUT_MODE_KEYBOARD = 0
+INPUT_MODE_SCRIPT = 1
 
 .code
 
@@ -108,7 +122,8 @@ resident_main:
 shell_loop:
     calln svc_console_write_prompt
     calln svc_line_read
-    case8 SHELL_CMD_NONE, shell_done
+    case8 SHELL_CMD_NONE, shell_loop
+    case8 SHELL_CMD_QUIT, shell_done
     case8 SHELL_CMD_HELP, cmd_emit_response
     case8 SHELL_CMD_VER, cmd_emit_response
     case8 SHELL_CMD_VOL, cmd_emit_response
@@ -253,6 +268,8 @@ svc_console_reset:
     sta CURSOR+1
     lda #$00
     sta script_index
+    sta input_mode
+    sta line_length
     tay
 clear_loop:
     lda #$20
@@ -288,6 +305,25 @@ console_putc:
     bne :+
     inc CURSOR+1
 :
+    rts
+
+console_backspace:
+    lda CURSOR
+    ora CURSOR+1
+    beq backspace_done
+    lda CURSOR
+    bne :+
+    dec CURSOR+1
+:
+    dec CURSOR
+    lda #$20
+    jsr console_putc
+    lda CURSOR
+    bne :+
+    dec CURSOR+1
+:
+    dec CURSOR
+backspace_done:
     rts
 
 console_mod40:
@@ -404,8 +440,53 @@ prompt_gt:
     rts
 
 svc_line_read:
+    lda input_mode
+    bne svc_line_read_script
+    jmp svc_line_read_keyboard
+
+svc_line_read_keyboard:
+    stx saved_rp_x
+    lda #$00
+    sta line_length
+    lda #$20
+    jsr console_putc
+keyboard_wait:
+    jsr GETIN
+    beq keyboard_wait
+    cmp #KEY_RETURN
+    beq keyboard_finish
+    cmp #KEY_LINEFEED
+    beq keyboard_finish
+    cmp #KEY_BACKSPACE
+    beq keyboard_backspace
+    jsr normalize_input_char
+    bcc keyboard_wait
+    ldy line_length
+    cpy #MAX_LINE_LEN
+    bcs keyboard_wait
+    sta line_buffer,y
+    iny
+    sty line_length
+    jsr console_putc
+    jmp keyboard_wait
+keyboard_backspace:
+    lda line_length
+    beq keyboard_wait
+    dec line_length
+    jsr console_backspace
+    jmp keyboard_wait
+keyboard_finish:
+    jsr svc_console_newline
+    jsr tokenize_line_buffer
+    ldx saved_rp_x
+    sta 0,x
+    lda #$00
+    sta 1,x
+    rts
+
+svc_line_read_script:
     ldy script_index
-    cpy #4
+    cpy #5
     bcs line_empty
     lda script_cmd_id,y
     sta 0,x
@@ -457,22 +538,309 @@ shell_resp_help:
     sta 1,x
     rts
 shell_resp_ver:
-    lda #<resp_ver
-    sta 0,x
-    lda #>resp_ver
-    sta 1,x
+    jsr build_ver_response
     rts
 shell_resp_vol:
-    lda #<resp_vol
-    sta 0,x
-    lda #>resp_vol
-    sta 1,x
+    jsr build_vol_response
     rts
 shell_resp_mem:
     lda #<resp_mem
     sta 0,x
     lda #>resp_mem
     sta 1,x
+    rts
+
+normalize_input_char:
+    cmp #$01
+    bcc normalize_reject
+    cmp #$1B
+    bcc normalize_accept
+    cmp #$41
+    bcc normalize_digit_check
+    cmp #$5B
+    bcc normalize_ascii_upper
+    cmp #$61
+    bcc normalize_reject
+    cmp #$7B
+    bcs normalize_reject
+    sec
+    sbc #$60
+    sec
+    rts
+normalize_ascii_upper:
+    sec
+    sbc #$40
+    sec
+    rts
+normalize_digit_check:
+    cmp #$30
+    bcc normalize_reject
+    cmp #$3A
+    bcc normalize_accept
+    cmp #$20
+    beq normalize_accept
+normalize_reject:
+    clc
+    rts
+normalize_accept:
+    sec
+    rts
+
+tokenize_line_buffer:
+    lda line_length
+    bne :+
+    jmp token_none
+:
+    cmp #3
+    beq token_len3
+    cmp #4
+    beq token_len4
+    jmp token_unknown
+token_len3:
+    lda line_buffer+0
+    cmp #CMD_V
+    bne token_len3_mem
+    lda line_buffer+1
+    cmp #CMD_E
+    bne token_len3_vol
+    lda line_buffer+2
+    cmp #CMD_R
+    beq :+
+    jmp token_unknown
+:
+    lda #SHELL_CMD_VER
+    rts
+token_len3_vol:
+    lda line_buffer+1
+    cmp #CMD_O
+    bne token_len3_mem
+    lda line_buffer+2
+    cmp #CMD_L
+    bne token_unknown
+    lda #SHELL_CMD_VOL
+    rts
+token_len3_mem:
+    lda line_buffer+0
+    cmp #CMD_M
+    bne token_unknown
+    lda line_buffer+1
+    cmp #CMD_E
+    bne token_unknown
+    lda line_buffer+2
+    cmp #CMD_M
+    bne token_unknown
+    lda #SHELL_CMD_MEM
+    rts
+token_len4:
+    lda line_buffer+0
+    cmp #CMD_H
+    bne token_len4_quit
+    lda line_buffer+1
+    cmp #CMD_E
+    bne token_unknown
+    lda line_buffer+2
+    cmp #CMD_L
+    bne token_unknown
+    lda line_buffer+3
+    cmp #CMD_P
+    bne token_unknown
+    lda #SHELL_CMD_HELP
+    rts
+token_len4_quit:
+    lda line_buffer+0
+    cmp #CMD_Q
+    bne token_len4_exit
+    lda line_buffer+1
+    cmp #CMD_U
+    bne token_unknown
+    lda line_buffer+2
+    cmp #CMD_I
+    bne token_unknown
+    lda line_buffer+3
+    cmp #CMD_T
+    bne token_unknown
+    lda #SHELL_CMD_QUIT
+    rts
+token_len4_exit:
+    lda line_buffer+0
+    cmp #CMD_E
+    bne token_unknown
+    lda line_buffer+1
+    cmp #CMD_X
+    bne token_unknown
+    lda line_buffer+2
+    cmp #CMD_I
+    bne token_unknown
+    lda line_buffer+3
+    cmp #CMD_T
+    bne token_unknown
+    lda #SHELL_CMD_QUIT
+    rts
+token_none:
+    lda #SHELL_CMD_NONE
+    rts
+token_unknown:
+    lda #$FF
+    rts
+
+build_ver_response:
+    ldy #$00
+copy_ver_prefix:
+    lda ver_prefix,y
+    sta response_buffer,y
+    beq build_ver_done
+    iny
+    bne copy_ver_prefix
+build_ver_done:
+    lda TRANSPORT_SNAPSHOT
+    cmp #TRANSPORT_MODE_UCI_HW
+    beq build_ver_hw
+    cmp #TRANSPORT_MODE_MOCK
+    beq build_ver_mock
+    lda #$20
+    sta response_buffer,y
+    iny
+    lda #$0E
+    sta response_buffer,y
+    iny
+    lda #$0F
+    sta response_buffer,y
+    iny
+    lda #$0E
+    sta response_buffer,y
+    iny
+    lda #$05
+    sta response_buffer,y
+    iny
+    lda #$00
+    sta response_buffer,y
+    jmp build_ver_return
+build_ver_mock:
+    lda #$20
+    sta response_buffer,y
+    iny
+    lda #CMD_M
+    sta response_buffer,y
+    iny
+    lda #CMD_O
+    sta response_buffer,y
+    iny
+    lda #3
+    sta response_buffer,y
+    iny
+    lda #CMD_K
+    sta response_buffer,y
+    iny
+    lda #$00
+    sta response_buffer,y
+    jmp build_ver_return
+build_ver_hw:
+    lda #$20
+    sta response_buffer,y
+    iny
+    lda #CMD_U
+    sta response_buffer,y
+    iny
+    lda #3
+    sta response_buffer,y
+    iny
+    lda #CMD_I
+    sta response_buffer,y
+    iny
+    lda #$00
+    sta response_buffer,y
+build_ver_return:
+    lda #<response_buffer
+    sta 0,x
+    lda #>response_buffer
+    sta 1,x
+    rts
+
+build_vol_response:
+    ldy #$00
+    lda #$01
+    sta response_buffer,y
+    iny
+    lda #$3A
+    sta response_buffer,y
+    iny
+    lda mount_kind_table+0
+    jsr append_mount_kind
+    lda #$20
+    sta response_buffer,y
+    iny
+    lda #$02
+    sta response_buffer,y
+    iny
+    lda #$3A
+    sta response_buffer,y
+    iny
+    lda mount_kind_table+1
+    jsr append_mount_kind
+    lda #$00
+    sta response_buffer,y
+    lda #<response_buffer
+    sta 0,x
+    lda #>response_buffer
+    sta 1,x
+    rts
+
+append_mount_kind:
+    cmp #MOUNT_KIND_D64
+    beq append_d64
+    cmp #MOUNT_KIND_D71
+    beq append_d71
+    cmp #MOUNT_KIND_D81
+    beq append_d81
+    cmp #MOUNT_KIND_DNP
+    beq append_dnp
+    lda #$3F
+    sta response_buffer,y
+    iny
+    rts
+append_d64:
+    lda #$04
+    sta response_buffer,y
+    iny
+    lda #$36
+    sta response_buffer,y
+    iny
+    lda #$34
+    sta response_buffer,y
+    iny
+    rts
+append_d71:
+    lda #$04
+    sta response_buffer,y
+    iny
+    lda #$37
+    sta response_buffer,y
+    iny
+    lda #$31
+    sta response_buffer,y
+    iny
+    rts
+append_d81:
+    lda #$04
+    sta response_buffer,y
+    iny
+    lda #$38
+    sta response_buffer,y
+    iny
+    lda #$31
+    sta response_buffer,y
+    iny
+    rts
+append_dnp:
+    lda #$04
+    sta response_buffer,y
+    iny
+    lda #$0E
+    sta response_buffer,y
+    iny
+    lda #$10
+    sta response_buffer,y
+    iny
     rts
 
 svc_mark_ready:
@@ -486,18 +854,28 @@ idle_loop:
 
 current_drive:
     .byte DRIVE_A
+input_mode:
+    .byte INPUT_MODE_KEYBOARD
+saved_rp_x:
+    .byte 0
 script_index:
+    .byte 0
+line_length:
     .byte 0
 mount_kind_table:
     .byte MOUNT_KIND_NONE, MOUNT_KIND_NONE
 mount_flag_table:
     .byte MOUNT_FLAG_NONE, MOUNT_FLAG_NONE
 script_cmd_id:
-    .byte SHELL_CMD_HELP, SHELL_CMD_VER, SHELL_CMD_VOL, SHELL_CMD_MEM
+    .byte SHELL_CMD_HELP, SHELL_CMD_VER, SHELL_CMD_VOL, SHELL_CMD_MEM, SHELL_CMD_QUIT
 script_ptr_lo:
-    .byte <script_cmd_help, <script_cmd_ver, <script_cmd_vol, <script_cmd_mem
+    .byte <script_cmd_help, <script_cmd_ver, <script_cmd_vol, <script_cmd_mem, <script_cmd_quit
 script_ptr_hi:
-    .byte >script_cmd_help, >script_cmd_ver, >script_cmd_vol, >script_cmd_mem
+    .byte >script_cmd_help, >script_cmd_ver, >script_cmd_vol, >script_cmd_mem, >script_cmd_quit
+line_buffer:
+    .res MAX_LINE_LEN
+response_buffer:
+    .res 32
 
 header_text:
     .byte 21, 4, 15, 19, 32, 3, 15, 18, 5, 0
@@ -509,12 +887,12 @@ script_cmd_vol:
     .byte CMD_V, CMD_O, CMD_L, 0
 script_cmd_mem:
     .byte CMD_M, CMD_E, CMD_M, 0
+script_cmd_quit:
+    .byte CMD_Q, CMD_U, CMD_I, CMD_T, 0
 resp_help:
     .byte CMD_H, CMD_E, CMD_L, CMD_P, 32, CMD_V, CMD_E, CMD_R, 32, CMD_V, CMD_O, CMD_L, 32, CMD_M, CMD_E, CMD_M, 0
-resp_ver:
+ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
-resp_vol:
-    .byte 1, $3A, 4, $36, $34, 32, 2, $3A, 4, $0E, $10, 0
 resp_mem:
     .byte 3, 15, 18, 5, 32, $30, $31, $31, $05, 0
 resp_unknown:

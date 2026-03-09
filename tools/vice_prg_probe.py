@@ -171,7 +171,21 @@ def locate_x64sc() -> Path:
     return Path(candidate).resolve()
 
 
-def launch_vice(image: Path, port: int) -> subprocess.Popen[str]:
+def decode_keybuf(text: str) -> str:
+    return (
+        text.replace("\\r", "\r")
+        .replace("\\n", "\n")
+        .replace("\\t", "\t")
+    )
+
+
+def launch_vice(
+    image: Path,
+    port: int,
+    *,
+    keybuf: str | None = None,
+    keybuf_delay: int | None = None,
+) -> subprocess.Popen[str]:
     cmd = [
         str(locate_x64sc()),
         "-default",
@@ -185,6 +199,10 @@ def launch_vice(image: Path, port: int) -> subprocess.Popen[str]:
         "-sounddev",
         "dummy",
     ]
+    if keybuf is not None:
+        cmd.extend(["-keybuf", decode_keybuf(keybuf)])
+    if keybuf_delay is not None:
+        cmd.extend(["-keybuf-delay", str(keybuf_delay)])
     return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
 
@@ -209,6 +227,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--marker-address", default="0xCFFF", help="hex or decimal address for the ready marker")
     parser.add_argument("--marker-value", default="0x42", help="expected ready marker byte")
     parser.add_argument("--check-byte", action="append", default=[], help="extra checks in addr=value form, hex or decimal")
+    parser.add_argument("--keybuf", help="optional VICE -keybuf string to inject during autostart")
+    parser.add_argument("--keybuf-delay", type=int, help="optional VICE -keybuf-delay value")
     parser.add_argument("--timeout", type=float, default=25.0, help="seconds to wait for the banner")
     args = parser.parse_args(argv)
 
@@ -217,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"disk image not found: {image}")
 
     port = reserve_tcp_port()
-    process = launch_vice(image, port)
+    process = launch_vice(image, port, keybuf=args.keybuf, keybuf_delay=args.keybuf_delay)
     client = BinaryMonitorClient("127.0.0.1", port, timeout=5.0)
     try:
         client.connect(time.monotonic() + 20.0)

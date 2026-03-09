@@ -6,7 +6,7 @@ This is the first concrete resident ABI draft for UDOS.
 
 It started as a Phase 2 console/bootstrap ABI and now includes the first Phase 3
 transport selector, the first Phase 4 drive/bind/query seam, and the first
-Phase 5 scripted command-input seam.
+Phase 5 live command-input seam.
 
 ## Calling Convention
 
@@ -122,16 +122,21 @@ Version policy:
 - input: none
 - output: `rP = command token`
 - current tokens:
-  - `0`: no more scripted input
+  - `0`: empty line / no command token
   - `1`: `HELP`
   - `2`: `VER`
   - `3`: `VOL`
   - `4`: `MEM`
+  - `5`: `QUIT` or `EXIT`
 - current behavior:
-  - acts as a scripted mock seam, not live keyboard input
-  - echoes the scripted command text to the console
+  - reads live keyboard input through C64 KERNAL `GETIN`
+  - echoes typed characters to the console
+  - accepts both carriage return and linefeed as command terminators for VICE automation compatibility
+  - tokenizes the first command word for the current resident loop
   - advances the resident cursor to the next line
-- purpose: provide deterministic resident command-loop validation under VICE before real line input exists
+- current emulator validation:
+  - `make vice-resident` drives this path through VICE `-keybuf`
+- purpose: provide the first real resident shell input path without moving shell control flow out of the VM
 
 ### `svc_mark_ready`
 - input: none
@@ -147,7 +152,7 @@ Version policy:
 
 ## Planned Next ABI Groups
 
-- live console line input
+- command + argument line parsing
 - memory/status queries
 - mounted-image open/bind metadata beyond kind/flags
 - directory enumeration
