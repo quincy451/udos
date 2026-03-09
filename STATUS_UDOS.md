@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 skeleton query seam complete.
 
 ## Completed
 
@@ -30,11 +30,16 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - defined the first command/module loading notes in `COMMAND_MODEL.md`
 - added a resident bootstrap/core image that:
   - enters AcheronVM and stays resident in an idle loop
-  - snapshots ABI version `1` to `$CFFE` from VM-side code
+  - snapshots ABI version `1` from VM-side code
   - uses native services to clear the screen and write VM-provided screen-code strings
-  - presents the resident prompt text `UDOS CORE  A>`
+  - presents the resident prompt text `UDOS CORE  A:D64>`
   - writes the resident-ready marker `$52` to `$CFFF`
-- validated the resident image under VICE by autostarting the D64 and checking screen RAM plus resident markers
+- added the Phase 3/4 skeleton seam:
+  - `svc_transport_get_mode`
+  - `svc_fs_get_mount_type`
+  - mock transport mode `1`
+  - mount-kind query for logical drive `A:` returning `D64`
+- validated the resident image under VICE by checking screen RAM and service snapshots
 
 ## Current Verified Facts
 
@@ -46,23 +51,25 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - Acheron runtime footprint: `$072A`
 - UDOS proof code footprint: `$002E`
 
-### Phase 2 resident core
+### Resident core and query seam
 - linked resident entrypoint: `$1810`
-- screen prompt seen in VICE: `UDOS CORE  A>`
-- ABI snapshot at `$CFFE`: `0x01`
+- screen prompt seen in VICE: `UDOS CORE  A:D64>`
+- transport mode snapshot at `$CFF8`: `0x01`
+- mount-kind snapshot at `$CFFA`: `0x01`
+- ABI snapshot at `$CFFC`: `0x01`
 - ready marker at `$CFFF`: `0x52`
-- resident core code footprint: `$009B`
+- resident core code footprint: `$00A4`
 
 ## In Progress
 
-- expanding the service ABI past console/reset/ready stubs
+- expanding the transport seam beyond mock mode
 - defining the resident command dispatcher shape
 
 ## Not Started
 
-- UCI transport
-- filesystem abstraction
-- logical drive manager
+- hardware UCI transport
+- mounted-image bind/mount operations
+- logical drive directory state
 - shell parser and resident commands
 - overlay command loader
 
@@ -71,16 +78,17 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - the local VM dependency builds in the current environment
 - the new project area and build scripts exist
 - the Phase 1 AcheronVM proof executes in VICE and can be asserted non-interactively
-- the Phase 2 resident bootstrap/core executes in VICE and exposes a first service ABI boundary
+- the resident bootstrap/core executes in VICE and exposes a first service ABI boundary
+- the transport/filesystem query seam can be validated under VICE without pretending real Ultimate hardware exists
 
 ## What Is Unverified
 
 - real C64 Ultimate execution
+- hardware UCI register behavior on target
 - resident memory pressure under actual shell workload
-- UCI hardware contract
-- D64/D71/D81/DNP filesystem layer
+- real D64/D71/D81/DNP filesystem operations
 - command input and dispatch inside the resident loop
 
 ## Next Concrete Step
 
-- implement the Phase 3 transport seam and the Phase 4 filesystem abstraction skeleton so the resident loop can mount/query images before the first real shell commands land
+- replace the mock transport return path with a hardware-or-mock backend selector and add mount/query service expansion before the first real shell commands land

@@ -32,7 +32,7 @@ Expected proof outputs:
 - `build/udosboot.prg`
 - `build/udos-proof.d64`
 
-## Phase 2 Resident Core Build
+## Resident Core Build
 
 Build the resident bootstrap/core slice:
 
@@ -82,9 +82,11 @@ make vice-resident
 Validated resident behavior:
 - autostarts a D64 in `x64sc`
 - enters the resident bootstrap/core image
-- Acheron code calls the native Phase 2 services
-- screen shows `UDOS CORE  A>`
-- `$CFFE == $01` confirms ABI version snapshot from VM-side `stma`
+- Acheron code snapshots service state and writes the prompt through native services
+- screen shows `UDOS CORE  A:D64>`
+- `$CFF8 == $01` confirms transport mode `mock`
+- `$CFFA == $01` confirms mounted `A:` kind `D64`
+- `$CFFC == $01` confirms ABI version snapshot from VM-side `stma`
 - `$CFFF == $52` confirms resident-ready marker
 
 Current validated linked resident entrypoint:
@@ -93,7 +95,7 @@ Current validated linked resident entrypoint:
 Current resident footprint from the map:
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$009B`
+- resident core code: `$00A4`
 
 ## Tests
 

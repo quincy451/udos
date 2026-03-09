@@ -76,11 +76,19 @@ Status:
 - expose UCI through VM-callable services
 - add host/emulator seam where feasible
 
+Status:
+- initial seam complete in mock form
+- hardware backend still unimplemented
+
 ### Phase 4
 - implement filesystem abstraction over mounted images
 - support image types: D64, D71, D81, DNP
 - enforce flat-filesystem semantics on D64/D71/D81
 - restrict subdirectory semantics to DNP
+
+Status:
+- initial mount-kind query seam complete
+- no real image operations yet
 
 ### Phase 5
 - implement shell parser and resident commands
@@ -102,11 +110,12 @@ Status:
 - VICE `x64sc` exists locally for emulator validation
 - a D64-based proof image boots under VICE and executes AcheronVM code
 - a resident bootstrap/core image boots under VICE and exposes a first service ABI
+- the transport/filesystem query seam runs under a mock backend and is asserted in VICE
 
 ### What is unverified
 - target hardware execution on a real C64 Ultimate
-- Ultimate UCI register protocol details in this codebase
+- actual hardware UCI register behavior
 - the final resident memory map for bootstrap + VM + services
 
 ### Next concrete step
-- move into Phase 3 and Phase 4 skeleton work so the resident core can talk to mounted images before the first real commands land
+- add a selectable hardware/mock transport backend and expand mount/query services before the first real command parser lands

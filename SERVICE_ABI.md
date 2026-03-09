@@ -2,10 +2,10 @@
 
 ## Status
 
-This is the first concrete resident ABI draft for UDOS Phase 2.
+This is the first concrete resident ABI draft for UDOS.
 
-It is intentionally small and biased toward getting a resident bootstrap/core
-running under AcheronVM before filesystem and UCI work start.
+It started as a Phase 2 console/bootstrap ABI and now includes the first Phase 3
+transport seam plus the first Phase 4 filesystem query seam.
 
 ## Calling Convention
 
@@ -24,12 +24,32 @@ Version policy:
 - incompatible changes bump the version
 - overlays and later commands must declare the minimum ABI they require
 
-## Phase 2 Services
+## Current Services
 
 ### `svc_get_abi_version`
 - input: none
 - output: `rP = 1`
 - purpose: allow VM code to check the resident service ABI level
+
+### `svc_transport_get_mode`
+- input: none
+- output: `rP = transport mode`
+- current codes:
+  - `0`: unavailable
+  - `1`: mock backend
+  - `2`: hardware UCI backend
+- purpose: keep the hardware seam explicit and testable under emulation
+
+### `svc_fs_get_mount_type`
+- input: `rP = logical drive index`
+- output: `rP = mount kind`
+- current mount-kind codes:
+  - `0`: none
+  - `1`: D64
+  - `2`: D71
+  - `3`: D81
+  - `4`: DNP
+- purpose: expose image-type policy to VM-side shell logic
 
 ### `svc_console_reset`
 - input: none
@@ -57,8 +77,8 @@ Version policy:
 
 - console cursor positioning and line input
 - memory/status queries
-- mounted-image query and binding
+- mounted-image bind/mount operations
 - directory enumeration
 - file open/read/write/rename/delete/copy
 - overlay/program load
-- Ultimate UCI transport
+- hardware Ultimate UCI transport

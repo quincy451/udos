@@ -2,6 +2,8 @@
 
 .export start
 .export svc_get_abi_version
+.export svc_transport_get_mode
+.export svc_fs_get_mount_type
 .export svc_console_reset
 .export svc_console_write_sc0
 .export svc_mark_ready
@@ -13,10 +15,15 @@ SCREEN = $0400
 COLOR = $D800
 CURSOR = $CFF0
 PTR = $FB
-ABI_SNAPSHOT = $CFFE
+TRANSPORT_SNAPSHOT = $CFF8
+MOUNT_SNAPSHOT = $CFFA
+ABI_SNAPSHOT = $CFFC
 READY_MARKER = $CFFF
 READY_VALUE = $52
 ABI_VERSION = 1
+TRANSPORT_MODE_MOCK = 1
+MOUNT_KIND_NONE = 0
+MOUNT_KIND_D64 = 1
 
 .code
 
@@ -33,9 +40,14 @@ resident_main:
     calln svc_console_reset
     calln svc_get_abi_version
     stma ABI_SNAPSHOT
+    calln svc_transport_get_mode
+    stma TRANSPORT_SNAPSHOT
+    setp8 0
+    calln svc_fs_get_mount_type
+    stma MOUNT_SNAPSHOT
     setp16 header_text
     calln svc_console_write_sc0
-    setp16 prompt_text
+    setp16 prompt_d64
     calln svc_console_write_sc0
     calln svc_mark_ready
     calln svc_idle
@@ -45,6 +57,21 @@ svc_get_abi_version:
     lda #<ABI_VERSION
     sta 0,x
     lda #>ABI_VERSION
+    sta 1,x
+    rts
+
+svc_transport_get_mode:
+    lda #<TRANSPORT_MODE_MOCK
+    sta 0,x
+    lda #>$0000
+    sta 1,x
+    rts
+
+svc_fs_get_mount_type:
+    ldy 0,x
+    lda mount_kind_table,y
+    sta 0,x
+    lda #$00
     sta 1,x
     rts
 
@@ -91,7 +118,6 @@ write_loop:
     iny
     bne write_loop
 write_done:
-    ldx pptr
     rts
 
 svc_mark_ready:
@@ -103,7 +129,12 @@ svc_idle:
 idle_loop:
     jmp idle_loop
 
+mount_kind_table:
+    .byte MOUNT_KIND_D64, MOUNT_KIND_NONE
+
 header_text:
     .byte 21, 4, 15, 19, 32, 3, 15, 18, 5, 0
-prompt_text:
-    .byte 32, 32, 1, 62, 0
+prompt_d64:
+    .byte 32, 32, 1, $3A, 4, $36, $34, $3E, 0
+prompt_unknown:
+    .byte 32, 32, 1, $3A, 21, 14, 11, $3E, 0
