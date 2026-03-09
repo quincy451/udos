@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 skeleton query seam complete.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 state-query seam complete.
 
 ## Completed
 
@@ -34,11 +34,12 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
   - uses native services to clear the screen and write VM-provided screen-code strings
   - presents the resident prompt text `UDOS CORE  A:D64>`
   - writes the resident-ready marker `$52` to `$CFFF`
-- added the Phase 3/4 skeleton seam:
-  - `svc_transport_get_mode`
-  - `svc_fs_get_mount_type`
-  - mock transport mode `1`
-  - mount-kind query for logical drive `A:` returning `D64`
+- added the Phase 3/4 state-query seam:
+  - transport selector based on the documented UCI ident register
+  - current drive query/set boundary
+  - mount-kind query for logical drive
+  - mount-flags query for logical drive
+  - mock-mode fallback under VICE
 - validated the resident image under VICE by checking screen RAM and service snapshots
 
 ## Current Verified Facts
@@ -51,18 +52,20 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - Acheron runtime footprint: `$072A`
 - UDOS proof code footprint: `$002E`
 
-### Resident core and query seam
+### Resident core and state-query seam
 - linked resident entrypoint: `$1810`
 - screen prompt seen in VICE: `UDOS CORE  A:D64>`
+- current drive snapshot at `$CFF4`: `0x00`
+- mount-flags snapshot at `$CFF6`: `0x01`
 - transport mode snapshot at `$CFF8`: `0x01`
 - mount-kind snapshot at `$CFFA`: `0x01`
 - ABI snapshot at `$CFFC`: `0x01`
 - ready marker at `$CFFF`: `0x52`
-- resident core code footprint: `$00A4`
+- resident core code footprint: `$00BD`
 
 ## In Progress
 
-- expanding the transport seam beyond mock mode
+- expanding the transport selector into a real backend
 - defining the resident command dispatcher shape
 
 ## Not Started
@@ -79,7 +82,7 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - the new project area and build scripts exist
 - the Phase 1 AcheronVM proof executes in VICE and can be asserted non-interactively
 - the resident bootstrap/core executes in VICE and exposes a first service ABI boundary
-- the transport/filesystem query seam can be validated under VICE without pretending real Ultimate hardware exists
+- the state-query seam can be validated under VICE without pretending real Ultimate hardware exists
 
 ## What Is Unverified
 
@@ -91,4 +94,4 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 
 ## Next Concrete Step
 
-- replace the mock transport return path with a hardware-or-mock backend selector and add mount/query service expansion before the first real shell commands land
+- add mounted-image bind/query expansion and make the transport selector feed a real hardware backend when the UCI ident probe succeeds

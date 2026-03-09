@@ -84,6 +84,8 @@ Validated resident behavior:
 - enters the resident bootstrap/core image
 - Acheron code snapshots service state and writes the prompt through native services
 - screen shows `UDOS CORE  A:D64>`
+- `$CFF4 == $00` confirms current drive `A:`
+- `$CFF6 == $01` confirms flat-filesystem flags
 - `$CFF8 == $01` confirms transport mode `mock`
 - `$CFFA == $01` confirms mounted `A:` kind `D64`
 - `$CFFC == $01` confirms ABI version snapshot from VM-side `stma`
@@ -95,7 +97,7 @@ Current validated linked resident entrypoint:
 Current resident footprint from the map:
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$00A4`
+- resident core code: `$00BD`
 
 ## Tests
 

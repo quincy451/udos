@@ -14,17 +14,22 @@ Key transport facts used here:
 - targets are selected by the first command byte
 - target `$01` / `$02` are Ultimate DOS instances in the documented baseline
 
-## Phase 3 Reality
+## Current Selector Policy
 
 No real Ultimate hardware validation has been performed here, and VICE does not
 provide the Ultimate UCI block.
 
-Therefore the current codebase uses a transport mode seam:
+Therefore the current codebase uses a transport selector:
 - `0`: unavailable
 - `1`: mock backend
 - `2`: hardware UCI backend
 
-The resident build currently validates the mock backend only.
+Current implementation policy:
+- if `$DF1D == $C9`, report `2`
+- otherwise report `1`
+
+That gives us a real hardware-detection boundary without claiming the hardware
+backend is finished.
 
 ## Planned Native Transport Routines
 

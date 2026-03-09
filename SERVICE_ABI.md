@@ -5,7 +5,7 @@
 This is the first concrete resident ABI draft for UDOS.
 
 It started as a Phase 2 console/bootstrap ABI and now includes the first Phase 3
-transport seam plus the first Phase 4 filesystem query seam.
+transport selector plus the first Phase 4 filesystem state/query seam.
 
 ## Calling Convention
 
@@ -38,7 +38,26 @@ Version policy:
   - `0`: unavailable
   - `1`: mock backend
   - `2`: hardware UCI backend
+- current selector:
+  - if `$DF1D == $C9`, report hardware mode
+  - otherwise report mock mode
 - purpose: keep the hardware seam explicit and testable under emulation
+
+### `svc_drive_get_current`
+- input: none
+- output: `rP = current logical drive index`
+- current codes:
+  - `0`: `A:`
+  - `1`: `B:`
+- purpose: expose resident drive state to VM-side shell logic
+
+### `svc_drive_set_current`
+- input: `rP = desired logical drive index`
+- output: `rP = resulting logical drive index`
+- current behavior:
+  - accepts `0` or `1`
+  - rejects larger values and leaves the current drive unchanged
+- purpose: establish the resident drive-selection boundary early
 
 ### `svc_fs_get_mount_type`
 - input: `rP = logical drive index`
@@ -50,6 +69,15 @@ Version policy:
   - `3`: D81
   - `4`: DNP
 - purpose: expose image-type policy to VM-side shell logic
+
+### `svc_fs_get_mount_flags`
+- input: `rP = logical drive index`
+- output: `rP = mount flags`
+- current flags:
+  - `0`: none
+  - `1`: flat filesystem
+  - `2`: tree-capable filesystem
+- purpose: let VM code distinguish flat vs tree semantics before command logic exists
 
 ### `svc_console_reset`
 - input: none
@@ -81,4 +109,4 @@ Version policy:
 - directory enumeration
 - file open/read/write/rename/delete/copy
 - overlay/program load
-- hardware Ultimate UCI transport
+- full hardware Ultimate UCI transport

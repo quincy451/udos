@@ -53,6 +53,6 @@ vice-proof: proof
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_DISK) --expected "UDOS VM OK"
 
 vice-resident: resident
-	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) --expected "UDOS CORE  A:D64>" --marker-address 0xCFFF --marker-value 0x52 --check-byte 0xCFF8=0x01 --check-byte 0xCFFA=0x01 --check-byte 0xCFFC=0x01
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) --expected "UDOS CORE  A:D64>" --marker-address 0xCFFF --marker-value 0x52 --check-byte 0xCFF4=0x00 --check-byte 0xCFF6=0x01 --check-byte 0xCFF8=0x01 --check-byte 0xCFFA=0x01 --check-byte 0xCFFC=0x01
 
 test: vice-proof vice-resident
