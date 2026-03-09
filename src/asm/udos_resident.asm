@@ -11,6 +11,8 @@
 .export svc_console_reset
 .export svc_console_write_sc0
 .export svc_console_write_prompt
+.export svc_console_newline
+.export svc_line_read
 .export svc_mark_ready
 .export svc_idle
 .import acheron
@@ -19,6 +21,7 @@
 SCREEN = $0400
 COLOR = $D800
 CURSOR = $CFE0
+SCREEN_PTR = $F9
 PTR = $FB
 BIND_A_SNAPSHOT = $CFE8
 BIND_B_SNAPSHOT = $CFEA
@@ -27,6 +30,7 @@ CURRENT_FLAGS_SNAPSHOT = $CFEE
 TRANSPORT_SNAPSHOT = $CFF0
 MOUNT_SNAPSHOT = $CFF2
 ABI_SNAPSHOT = $CFF4
+STAGE_SNAPSHOT = $CFFD
 READY_MARKER = $CFFF
 READY_VALUE = $52
 ABI_VERSION = 1
@@ -45,6 +49,19 @@ DRIVE_A = 0
 DRIVE_B = 1
 UCI_IDENT_REG = $DF1D
 UCI_IDENT_MAGIC = $C9
+CMD_H = 8
+CMD_E = 5
+CMD_L = 12
+CMD_M = 13
+CMD_O = 15
+CMD_P = 16
+CMD_R = 18
+CMD_V = 22
+SHELL_CMD_NONE = 0
+SHELL_CMD_HELP = 1
+SHELL_CMD_VER = 2
+SHELL_CMD_VOL = 3
+SHELL_CMD_MEM = 4
 
 .code
 
@@ -86,8 +103,35 @@ resident_main:
 
     setp16 header_text
     calln svc_console_write_sc0
+    calln svc_console_newline
+
+shell_loop:
     calln svc_console_write_prompt
+    calln svc_line_read
+    case8 SHELL_CMD_NONE, shell_done
+    case8 SHELL_CMD_HELP, cmd_emit_response
+    case8 SHELL_CMD_VER, cmd_emit_response
+    case8 SHELL_CMD_VOL, cmd_emit_response
+    case8 SHELL_CMD_MEM, cmd_emit_response
+    setp16 resp_unknown
+    calln svc_console_write_sc0
+    calln svc_console_newline
+    jump shell_loop
+
+cmd_emit_response:
+    setp8 $11
+    stma STAGE_SNAPSHOT
+    calln svc_shell_response_ptr
+    calln svc_console_write_sc0
+    calln svc_console_newline
+    jump shell_loop
+
+shell_done:
+    setp8 $F0
+    stma STAGE_SNAPSHOT
     calln svc_mark_ready
+    setp8 $F1
+    stma STAGE_SNAPSHOT
     calln svc_idle
     retm
 
@@ -207,6 +251,8 @@ svc_console_reset:
     lda #$00
     sta CURSOR
     sta CURSOR+1
+    lda #$00
+    sta script_index
     tay
 clear_loop:
     lda #$20
@@ -227,14 +273,56 @@ clear_loop_2:
     rts
 
 console_putc:
-    ldx CURSOR
-    sta SCREEN,x
-    lda #$01
-    sta COLOR,x
+    pha
+    clc
+    lda CURSOR
+    adc #<SCREEN
+    sta SCREEN_PTR
+    lda CURSOR+1
+    adc #>SCREEN
+    sta SCREEN_PTR+1
+    pla
+    ldx #$00
+    sta (SCREEN_PTR,x)
     inc CURSOR
     bne :+
     inc CURSOR+1
 :
+    rts
+
+console_mod40:
+    lda CURSOR
+    sta SCREEN_PTR
+    lda CURSOR+1
+    sta SCREEN_PTR+1
+mod40_loop:
+    lda SCREEN_PTR+1
+    bne mod40_sub
+    lda SCREEN_PTR
+    cmp #40
+    bcc mod40_done
+mod40_sub:
+    sec
+    lda SCREEN_PTR
+    sbc #40
+    sta SCREEN_PTR
+    lda SCREEN_PTR+1
+    sbc #0
+    sta SCREEN_PTR+1
+    jmp mod40_loop
+mod40_done:
+    lda SCREEN_PTR
+    rts
+
+svc_console_newline:
+    jsr console_mod40
+    beq newline_done
+newline_loop:
+    lda #$20
+    jsr console_putc
+    jsr console_mod40
+    bne newline_loop
+newline_done:
     rts
 
 svc_console_write_sc0:
@@ -251,7 +339,6 @@ write_loop:
     bne write_loop
 write_done:
     rts
-
 
 svc_console_write_prompt:
     lda #$20
@@ -316,6 +403,78 @@ prompt_gt:
     jsr console_putc
     rts
 
+svc_line_read:
+    ldy script_index
+    cpy #4
+    bcs line_empty
+    lda script_cmd_id,y
+    sta 0,x
+    lda #$00
+    sta 1,x
+    lda script_ptr_lo,y
+    sta PTR
+    lda script_ptr_hi,y
+    sta PTR+1
+    inc script_index
+    lda #$20
+    jsr console_putc
+    ldy #$00
+line_echo_loop:
+    lda (PTR),y
+    beq line_echo_done
+    jsr console_putc
+    iny
+    bne line_echo_loop
+line_echo_done:
+    jsr svc_console_newline
+    rts
+line_empty:
+    lda #SHELL_CMD_NONE
+    sta 0,x
+    lda #$00
+    sta 1,x
+    rts
+
+svc_shell_response_ptr:
+    lda 0,x
+    cmp #SHELL_CMD_HELP
+    beq shell_resp_help
+    cmp #SHELL_CMD_VER
+    beq shell_resp_ver
+    cmp #SHELL_CMD_VOL
+    beq shell_resp_vol
+    cmp #SHELL_CMD_MEM
+    beq shell_resp_mem
+    lda #<resp_unknown
+    sta 0,x
+    lda #>resp_unknown
+    sta 1,x
+    rts
+shell_resp_help:
+    lda #<resp_help
+    sta 0,x
+    lda #>resp_help
+    sta 1,x
+    rts
+shell_resp_ver:
+    lda #<resp_ver
+    sta 0,x
+    lda #>resp_ver
+    sta 1,x
+    rts
+shell_resp_vol:
+    lda #<resp_vol
+    sta 0,x
+    lda #>resp_vol
+    sta 1,x
+    rts
+shell_resp_mem:
+    lda #<resp_mem
+    sta 0,x
+    lda #>resp_mem
+    sta 1,x
+    rts
+
 svc_mark_ready:
     lda #READY_VALUE
     sta READY_MARKER
@@ -327,10 +486,36 @@ idle_loop:
 
 current_drive:
     .byte DRIVE_A
+script_index:
+    .byte 0
 mount_kind_table:
     .byte MOUNT_KIND_NONE, MOUNT_KIND_NONE
 mount_flag_table:
     .byte MOUNT_FLAG_NONE, MOUNT_FLAG_NONE
+script_cmd_id:
+    .byte SHELL_CMD_HELP, SHELL_CMD_VER, SHELL_CMD_VOL, SHELL_CMD_MEM
+script_ptr_lo:
+    .byte <script_cmd_help, <script_cmd_ver, <script_cmd_vol, <script_cmd_mem
+script_ptr_hi:
+    .byte >script_cmd_help, >script_cmd_ver, >script_cmd_vol, >script_cmd_mem
 
 header_text:
     .byte 21, 4, 15, 19, 32, 3, 15, 18, 5, 0
+script_cmd_help:
+    .byte CMD_H, CMD_E, CMD_L, CMD_P, 0
+script_cmd_ver:
+    .byte CMD_V, CMD_E, CMD_R, 0
+script_cmd_vol:
+    .byte CMD_V, CMD_O, CMD_L, 0
+script_cmd_mem:
+    .byte CMD_M, CMD_E, CMD_M, 0
+resp_help:
+    .byte CMD_H, CMD_E, CMD_L, CMD_P, 32, CMD_V, CMD_E, CMD_R, 32, CMD_V, CMD_O, CMD_L, 32, CMD_M, CMD_E, CMD_M, 0
+resp_ver:
+    .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
+resp_vol:
+    .byte 1, $3A, 4, $36, $34, 32, 2, $3A, 4, $0E, $10, 0
+resp_mem:
+    .byte 3, 15, 18, 5, 32, $30, $31, $31, $05, 0
+resp_unknown:
+    .byte $3F, 0

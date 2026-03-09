@@ -5,7 +5,8 @@
 This is the first concrete resident ABI draft for UDOS.
 
 It started as a Phase 2 console/bootstrap ABI and now includes the first Phase 3
-transport selector plus the first Phase 4 drive/bind/query seam.
+transport selector, the first Phase 4 drive/bind/query seam, and the first
+Phase 5 scripted command-input seam.
 
 ## Calling Convention
 
@@ -110,6 +111,28 @@ Version policy:
   - currently formats `D64`, `D71`, `D81`, `DNP`, or `?`
 - purpose: keep the prompt tied to resident state instead of a fixed string
 
+### `svc_console_newline`
+- input: none
+- output: none
+- current behavior:
+  - advances to the next 40-column boundary using the full 16-bit resident cursor
+- purpose: keep multiline transcript output stable once the shell writes past the first 256 bytes of screen RAM
+
+### `svc_line_read`
+- input: none
+- output: `rP = command token`
+- current tokens:
+  - `0`: no more scripted input
+  - `1`: `HELP`
+  - `2`: `VER`
+  - `3`: `VOL`
+  - `4`: `MEM`
+- current behavior:
+  - acts as a scripted mock seam, not live keyboard input
+  - echoes the scripted command text to the console
+  - advances the resident cursor to the next line
+- purpose: provide deterministic resident command-loop validation under VICE before real line input exists
+
 ### `svc_mark_ready`
 - input: none
 - output: none
@@ -124,7 +147,7 @@ Version policy:
 
 ## Planned Next ABI Groups
 
-- console cursor positioning and line input
+- live console line input
 - memory/status queries
 - mounted-image open/bind metadata beyond kind/flags
 - directory enumeration

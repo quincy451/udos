@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 drive-bind/query seam complete.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 drive-bind/query seam complete, first Phase 5 scripted command-loop slice complete.
 
 ## Completed
 
@@ -43,6 +43,12 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
   - prompt rendering from resident drive/mount state
   - mock-mode fallback under VICE
 - validated the resident image under VICE by checking screen RAM and service snapshots
+- added the first resident command-loop slice:
+  - VM-side shell loop with resident prompt rendering
+  - scripted line-input seam for deterministic VICE validation
+  - resident transcript for `HELP`, `VER`, `VOL`, and `MEM`
+  - common response emission path driven from command tokens
+  - full-screen cursor handling past the first 256 bytes of screen RAM
 
 ## Current Verified Facts
 
@@ -54,9 +60,19 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - Acheron runtime footprint: `$072A`
 - UDOS proof code footprint: `$002E`
 
-### Resident core and drive-bind/query seam
+### Resident core, drive-bind/query seam, and scripted command loop
 - linked resident entrypoint: `$1810`
-- screen prompt seen in VICE: `UDOS CORE  A:D64>`
+- screen transcript seen in VICE:
+  - `UDOS CORE`
+  - `A:D64> HELP`
+  - `HELP VER VOL MEM`
+  - `A:D64> VER`
+  - `UDOS ALPHA`
+  - `A:D64> VOL`
+  - `A:D64 B:DNP`
+  - `A:D64> MEM`
+  - `CORE 011E`
+  - final prompt `A:D64>`
 - `A:` bind snapshot at `$CFE8/$CFE9`: `D64/flat`
 - `B:` bind snapshot at `$CFEA/$CFEB`: `DNP/tree`
 - current drive snapshot at `$CFEC`: `A:`
@@ -87,6 +103,8 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - the Phase 1 AcheronVM proof executes in VICE and can be asserted non-interactively
 - the resident bootstrap/core executes in VICE and exposes a first service ABI boundary
 - the drive-bind/query seam can be validated under VICE without pretending real Ultimate hardware exists
+- the resident loop now exercises a deterministic scripted command-input path in VICE
+- the resident shell currently proves prompting plus `HELP`, `VER`, `VOL`, and `MEM` output paths
 
 ## What Is Unverified
 
@@ -94,8 +112,11 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - hardware UCI register behavior on target
 - resident memory pressure under actual shell workload
 - real D64/D71/D81/DNP filesystem operations
-- command input and dispatch inside the resident loop
+- live keyboard-backed command input inside the resident loop
+- real command implementations behind the current `HELP/VER/VOL/MEM` mock transcript
 
 ## Next Concrete Step
 
-- add mounted-image metadata/bind expansion and then land the first command input/dispatch path on top of the resident drive state model
+- replace the scripted line-input seam with real resident line input
+- keep `HELP/VER/VOL/MEM` on the resident path, but connect them to non-mock state and services
+- then add the first real filesystem-backed resident commands on top of the existing drive-bind model

@@ -28,19 +28,21 @@
 
 ## Phase 5
 
+- replace the scripted `svc_line_read` seam with real resident line input
+- keep the current resident `HELP`, `VER`, `VOL`, and `MEM` loop working while moving them off the scripted seam
 - implement resident commands:
   - `DIR`
   - `CD`
-  - `VOL`
   - `MOUNT`
-  - `MEM`
   - `TYPE`
   - `COPY`
   - `REN`
   - `DEL`
   - `RUN`
-  - `HELP`
-  - `VER`
+  - real `VOL`
+  - real `MEM`
+  - real `HELP`
+  - real `VER`
 
 ## Phase 6
 
