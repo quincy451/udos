@@ -206,6 +206,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Autostart a D64 in VICE and verify the Acheron proof banner")
     parser.add_argument("--disk", required=True, help="path to D64 image")
     parser.add_argument("--expected", required=True, help="screen fragment to wait for")
+    parser.add_argument("--marker-address", default="0xCFFF", help="hex or decimal address for the ready marker")
+    parser.add_argument("--marker-value", default="0x42", help="expected ready marker byte")
+    parser.add_argument("--check-byte", action="append", default=[], help="extra checks in addr=value form, hex or decimal")
     parser.add_argument("--timeout", type=float, default=25.0, help="seconds to wait for the banner")
     args = parser.parse_args(argv)
 
@@ -221,9 +224,18 @@ def main(argv: list[str] | None = None) -> int:
         client.ping()
         client.resume()
         screen = wait_for_screen(client, process, args.expected, timeout=args.timeout)
-        marker = client.memory_get(0xCFFF, 0xCFFF)[0]
-        if marker != 0x42:
-            raise ViceError(f"marker mismatch at $CFFF: expected 0x42 got 0x{marker:02x}")
+        marker_addr = int(args.marker_address, 0)
+        marker_value = int(args.marker_value, 0)
+        marker = client.memory_get(marker_addr, marker_addr)[0]
+        if marker != marker_value:
+            raise ViceError(f"marker mismatch at ${marker_addr:04X}: expected 0x{marker_value:02x} got 0x{marker:02x}")
+        for item in args.check_byte:
+            addr_text, value_text = item.split("=", 1)
+            addr = int(addr_text, 0)
+            value = int(value_text, 0)
+            actual = client.memory_get(addr, addr)[0]
+            if actual != value:
+                raise ViceError(f"byte mismatch at ${addr:04X}: expected 0x{value:02x} got 0x{actual:02x}")
         print(screen)
         return 0
     except ViceError as exc:

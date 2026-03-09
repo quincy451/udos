@@ -67,6 +67,10 @@ Status:
 - define the resident service table ABI
 - define module/overlay loading rules
 
+Status:
+- initial bootstrap/core slice complete
+- resident image validated in VICE with ABI snapshot and ready marker
+
 ### Phase 3
 - implement native Ultimate UCI transport glue
 - expose UCI through VM-callable services
@@ -97,6 +101,7 @@ Status:
 - local AcheronVM build succeeds with `ca65`/`ld65`
 - VICE `x64sc` exists locally for emulator validation
 - a D64-based proof image boots under VICE and executes AcheronVM code
+- a resident bootstrap/core image boots under VICE and exposes a first service ABI
 
 ### What is unverified
 - target hardware execution on a real C64 Ultimate
@@ -104,4 +109,4 @@ Status:
 - the final resident memory map for bootstrap + VM + services
 
 ### Next concrete step
-- move into Phase 2 with a resident bootstrap skeleton and a frozen first-pass service ABI
+- move into Phase 3 and Phase 4 skeleton work so the resident core can talk to mounted images before the first real commands land

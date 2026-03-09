@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete.
 
 ## Completed
 
@@ -24,11 +24,21 @@ Current milestone: Phase 0 complete, Phase 1 complete.
   - stamps `UDOS VM OK` into C64 screen RAM
   - writes a marker byte to `$CFFF`
 - added a BASIC wrapper generator that parses the linked `.start` label and SYSes to the real entrypoint
-- added a D64 build path for the proof image
+- added D64 build paths for the proof and resident images
 - validated the proof under VICE by autostarting the D64 and reading screen RAM through the binary monitor
+- defined the first resident service ABI draft in `SERVICE_ABI.md`
+- defined the first command/module loading notes in `COMMAND_MODEL.md`
+- added a resident bootstrap/core image that:
+  - enters AcheronVM and stays resident in an idle loop
+  - snapshots ABI version `1` to `$CFFE` from VM-side code
+  - uses native services to clear the screen and write VM-provided screen-code strings
+  - presents the resident prompt text `UDOS CORE  A>`
+  - writes the resident-ready marker `$52` to `$CFFF`
+- validated the resident image under VICE by autostarting the D64 and checking screen RAM plus resident markers
 
 ## Current Verified Facts
 
+### Phase 1 proof
 - linked proof entrypoint: `$1810`
 - screen banner seen in VICE: `UDOS VM OK`
 - marker byte at `$CFFF`: `0x42`
@@ -36,15 +46,20 @@ Current milestone: Phase 0 complete, Phase 1 complete.
 - Acheron runtime footprint: `$072A`
 - UDOS proof code footprint: `$002E`
 
+### Phase 2 resident core
+- linked resident entrypoint: `$1810`
+- screen prompt seen in VICE: `UDOS CORE  A>`
+- ABI snapshot at `$CFFE`: `0x01`
+- ready marker at `$CFFF`: `0x52`
+- resident core code footprint: `$009B`
+
 ## In Progress
 
-- resident ABI definition for the first shell-facing services
-- resident bootstrap/core planning beyond the proof
+- expanding the service ABI past console/reset/ready stubs
+- defining the resident command dispatcher shape
 
 ## Not Started
 
-- native bootstrap beyond the proof program
-- resident command dispatcher
 - UCI transport
 - filesystem abstraction
 - logical drive manager
@@ -56,6 +71,7 @@ Current milestone: Phase 0 complete, Phase 1 complete.
 - the local VM dependency builds in the current environment
 - the new project area and build scripts exist
 - the Phase 1 AcheronVM proof executes in VICE and can be asserted non-interactively
+- the Phase 2 resident bootstrap/core executes in VICE and exposes a first service ABI boundary
 
 ## What Is Unverified
 
@@ -63,7 +79,8 @@ Current milestone: Phase 0 complete, Phase 1 complete.
 - resident memory pressure under actual shell workload
 - UCI hardware contract
 - D64/D71/D81/DNP filesystem layer
+- command input and dispatch inside the resident loop
 
 ## Next Concrete Step
 
-- implement the Phase 2 resident bootstrap skeleton and freeze the first service ABI for console, memory, mount/query, and command dispatch entrypoints
+- implement the Phase 3 transport seam and the Phase 4 filesystem abstraction skeleton so the resident loop can mount/query images before the first real shell commands land

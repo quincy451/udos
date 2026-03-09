@@ -13,9 +13,16 @@ PROOF_DISK := $(BUILD_DIR)/udos-proof.d64
 PROOF_LABELS := $(BUILD_DIR)/udos-proof.labels
 PROOF_MAP := $(BUILD_DIR)/udos-proof.map
 
-.PHONY: all clean acheron-dep proof vice-proof test
+RESIDENT_OBJ := $(BUILD_DIR)/udos_resident.o
+RESIDENT_PRG := $(BUILD_DIR)/udos-resident.prg
+RESIDENT_AUTO_PRG := $(BUILD_DIR)/udosres.prg
+RESIDENT_DISK := $(BUILD_DIR)/udos-resident.d64
+RESIDENT_LABELS := $(BUILD_DIR)/udos-resident.labels
+RESIDENT_MAP := $(BUILD_DIR)/udos-resident.map
 
-all: proof
+.PHONY: all clean acheron-dep proof vice-proof resident vice-resident test
+
+all: proof resident
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -34,7 +41,18 @@ proof: acheron-dep $(PROOF_OBJ)
 	$(PYTHON) tools/make_basic_autostart.py --input $(PROOF_PRG) --labels $(PROOF_LABELS) --output $(PROOF_AUTO_PRG)
 	$(C1541) -format "udos,01" d64 $(PROOF_DISK) -write $(PROOF_AUTO_PRG) udosboot
 
+$(RESIDENT_OBJ): $(ASM_DIR)/udos_resident.asm | $(BUILD_DIR)
+	$(CA65) -g -o $@ $< -I $(ACHERON_DIR)/bin -I $(ACHERON_DIR)/src
+
+resident: acheron-dep $(RESIDENT_OBJ)
+	$(LD65) -Ln $(RESIDENT_LABELS) -C $(ASM_DIR)/udos_c64.cfg -m $(RESIDENT_MAP) -o $(RESIDENT_PRG) $(RESIDENT_OBJ) $(ACHERON_DIR)/obj/acheron.o
+	$(PYTHON) tools/make_basic_autostart.py --input $(RESIDENT_PRG) --labels $(RESIDENT_LABELS) --output $(RESIDENT_AUTO_PRG)
+	$(C1541) -format "udos,01" d64 $(RESIDENT_DISK) -write $(RESIDENT_AUTO_PRG) udosres
+
 vice-proof: proof
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_DISK) --expected "UDOS VM OK"
 
-test: vice-proof
+vice-resident: resident
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) --expected "UDOS CORE" --marker-address 0xCFFF --marker-value 0x52 --check-byte 0xCFFE=0x01
+
+test: vice-proof vice-resident
