@@ -5,7 +5,7 @@
 This is the first concrete resident ABI draft for UDOS.
 
 It started as a Phase 2 console/bootstrap ABI and now includes the first Phase 3
-transport selector plus the first Phase 4 filesystem state/query seam.
+transport selector plus the first Phase 4 drive/bind/query seam.
 
 ## Calling Convention
 
@@ -79,6 +79,19 @@ Version policy:
   - `2`: tree-capable filesystem
 - purpose: let VM code distinguish flat vs tree semantics before command logic exists
 
+### `svc_fs_bind_drive`
+- input: packed in `rP`
+  - low byte: logical drive index
+  - high byte: mount kind
+- output: packed in `rP`
+  - low byte: resulting mount kind
+  - high byte: derived mount flags
+- current behavior:
+  - updates the resident mount-kind and mount-flag tables for valid drives
+  - derives flags from kind: `D64/D71/D81 -> flat`, `DNP -> tree`, `none -> none`
+  - invalid drive indices return `none/none`
+- purpose: move from hardcoded query values to actual resident bind state
+
 ### `svc_console_reset`
 - input: none
 - output: none
@@ -88,6 +101,14 @@ Version policy:
 - input: `rP = pointer to null-terminated screen-code string`
 - output: cursor advanced past written text
 - purpose: minimal console output primitive for resident VM code
+
+### `svc_console_write_prompt`
+- input: none
+- output: none
+- current behavior:
+  - renders `"  <drive>:<kind> >"` from resident drive + mount state
+  - currently formats `D64`, `D71`, `D81`, `DNP`, or `?`
+- purpose: keep the prompt tied to resident state instead of a fixed string
 
 ### `svc_mark_ready`
 - input: none
@@ -105,7 +126,7 @@ Version policy:
 
 - console cursor positioning and line input
 - memory/status queries
-- mounted-image bind/mount operations
+- mounted-image open/bind metadata beyond kind/flags
 - directory enumeration
 - file open/read/write/rename/delete/copy
 - overlay/program load

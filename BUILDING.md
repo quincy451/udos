@@ -82,13 +82,16 @@ make vice-resident
 Validated resident behavior:
 - autostarts a D64 in `x64sc`
 - enters the resident bootstrap/core image
-- Acheron code snapshots service state and writes the prompt through native services
+- binds `A:` as `D64` and `B:` as `DNP`
+- renders the prompt from resident state
 - screen shows `UDOS CORE  A:D64>`
-- `$CFF4 == $00` confirms current drive `A:`
-- `$CFF6 == $01` confirms flat-filesystem flags
-- `$CFF8 == $01` confirms transport mode `mock`
-- `$CFFA == $01` confirms mounted `A:` kind `D64`
-- `$CFFC == $01` confirms ABI version snapshot from VM-side `stma`
+- `$CFE8 == $01`, `$CFE9 == $01` confirm `A:` bind result `D64/flat`
+- `$CFEA == $04`, `$CFEB == $02` confirm `B:` bind result `DNP/tree`
+- `$CFEC == $00` confirms current drive `A:`
+- `$CFEE == $01` confirms current-drive mount flags `flat`
+- `$CFF0 == $01` confirms transport mode `mock`
+- `$CFF2 == $01` confirms current-drive mount kind `D64`
+- `$CFF4 == $01` confirms ABI version snapshot from VM-side `stma`
 - `$CFFF == $52` confirms resident-ready marker
 
 Current validated linked resident entrypoint:
@@ -97,7 +100,7 @@ Current validated linked resident entrypoint:
 Current resident footprint from the map:
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$00BD`
+- resident core code: `$011E`
 
 ## Tests
 

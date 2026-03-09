@@ -11,10 +11,10 @@ explicit.
 - `B:` is the workspace drive
 - each drive maintains its own mounted image and current directory state
 
-Current resident skeleton state:
-- current drive defaults to `A:`
-- `A:` mount kind defaults to `D64`
-- `B:` mount kind defaults to `none`
+Current resident skeleton state after bootstrap:
+- `A:` is bound as `D64`
+- `B:` is bound as `DNP`
+- current drive is `A:`
 
 ## Image Kinds
 
@@ -41,10 +41,12 @@ Any tree command on a flat image must fail explicitly.
 
 ## Current Skeleton Surface
 
-The resident image currently exposes query-level state only:
-- current drive query
+The resident image currently exposes:
+- current drive query/set
 - mount-kind query for logical drive
-- mount-flag query for logical drive
+- mount-flags query for logical drive
+- bind-by-kind for logical drive
 
-This is deliberate. Query semantics can be validated in VICE with a mock or
-selector backend before real UCI-backed image operations exist.
+This is still a state model, not real image I/O. That is deliberate: command and
+prompt logic can now consume real resident state before UCI-backed operations
+exist.
