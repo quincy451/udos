@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 drive-bind/query seam complete, second Phase 5 resident shell slice complete.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 drive-bind/query seam complete, third Phase 5 resident shell slice complete.
 
 ## Completed
 
@@ -59,6 +59,13 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
   - explicit flat-image rejection for tree-style `CD`
   - mock directory listings for the current resident mount model
   - VICE-stable inline command shorthand for `CD`/`DIR` because `-keybuf` spacing is not reliable
+- added the third resident shell slice:
+  - resident `MOUNT`
+  - volume-label metadata for `A:` and `B:`
+  - `VOL` now reports `label + kind`
+  - resident filesystem service exports for current directory, volume metadata, and directory listing lookup
+  - `MOUNT` can change `B:` between flat and tree-capable policy during the session
+  - VICE-stable inline `MOUNT` shorthand because `-keybuf` spacing is not reliable
 
 ## Current Verified Facts
 
@@ -75,21 +82,25 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - screen transcript seen in VICE:
   - `UDOS CORE`
   - `A:D64/> HELP`
-  - `HELP VER VOL MEM DIR CD`
-  - `A:D64/> VER`
-  - `UDOS ALPHA MOCK`
+  - `HELP VER VOL MEM DIR CD MOUNT`
   - `A:D64/> VOL`
-  - `A:D64 B:DNP`
+  - `A:SYSTEM D64 B:WORK DNP`
+  - `A:D64/> MOUNTB:D81`
+  - `B:WORK D81`
+  - `A:D64/> VOL`
+  - `A:SYSTEM D64 B:WORK D81`
+  - `A:D64/> CDBIN`
+  - `FLAT IMAGE`
+  - `A:D64/> MOUNTB:DNP`
+  - `B:WORK DNP`
   - `A:D64/> CDB:`
   - `B:DNP/`
   - `B:DNP/> DIR`
   - `B:DNP/ BIN/ SRC/ WORK/`
   - `B:DNP/> CDSRC`
   - `B:DNP/SRC`
-  - `B:DNP/SRC> CDA:SRC`
-  - `FLAT IMAGE`
-  - `B:DNP/SRC> MEM`
-  - `CORE 0AF5`
+  - `B:DNP/SRC> DIR`
+  - `B:DNP/SRC BOOT.ASM FS.AVM`
   - `B:DNP/SRC> QUIT`
 - `A:` bind snapshot at `$CFE8/$CFE9`: `D64/flat`
 - `B:` bind snapshot at `$CFEA/$CFEB`: `DNP/tree`
@@ -99,7 +110,7 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - current mount-kind snapshot at `$CFF2`: `DNP`
 - ABI snapshot at `$CFF4`: `1`
 - ready marker at `$CFFF`: `0x52`
-- resident core code footprint: `$0AF5`
+- resident core code footprint: `$0D57`
 
 ## In Progress
 
@@ -121,10 +132,10 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - the resident bootstrap/core executes in VICE and exposes a first service ABI boundary
 - the drive-bind/query seam can be validated under VICE without pretending real Ultimate hardware exists
 - the resident loop now exercises live line input under VICE via `-keybuf`
-- the resident shell now proves prompting, current-directory state, and `HELP`, `VER`, `VOL`, `DIR`, `CD`, `MEM`, and `QUIT`
-- `VOL` now renders from resident mount state rather than a fixed literal
+- the resident shell now proves prompting, current-directory state, and `HELP`, `VOL`, `DIR`, `CD`, `MOUNT`, and `QUIT`
+- `VOL` now renders resident label + kind metadata rather than a fixed literal
 - `VER` now reflects the current transport mode suffix (`MOCK` in emulator validation)
-- `DIR` and `CD` now enforce the flat-image vs DNP tree policy on the resident path
+- `DIR`, `CD`, and `MOUNT` now exercise the flat-image vs DNP tree policy on the resident path
 
 ## What Is Unverified
 
@@ -134,10 +145,11 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - real D64/D71/D81/DNP filesystem operations
 - real C64 Ultimate keyboard behavior on target hardware
 - image-backed directory enumeration instead of the current resident mock listings
-- file-backed `TYPE`, `COPY`, `REN`, `DEL`, `RUN`, and `MOUNT`
+- file-backed `TYPE`, `COPY`, `REN`, `DEL`, and `RUN`
+- real mounted-image metadata instead of the current resident label mock
 
 ## Next Concrete Step
 
 - replace the current mock `DIR` surface with image-backed enumeration through the filesystem layer
-- add mounted-image metadata beyond kind/flags so `VOL` and `MOUNT` can report real bindings
+- replace the current resident volume-label mock with mounted-image metadata from the filesystem layer
 - keep `CD` semantics and prompt state stable while the underlying image I/O becomes real

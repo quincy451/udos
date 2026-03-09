@@ -28,9 +28,8 @@
 
 ## Phase 5
 
-- keep the current resident `HELP`, `VER`, `VOL`, `DIR`, `CD`, and `MEM` loop working while moving them toward real filesystem/state services
+- keep the current resident `HELP`, `VER`, `VOL`, `DIR`, `CD`, `MOUNT`, and `MEM` loop working while moving them toward real filesystem/state services
 - implement resident commands:
-  - `MOUNT`
   - `TYPE`
   - `COPY`
   - `REN`
@@ -41,6 +40,7 @@
   - real `HELP`
   - real `VER`
 - replace the current mock `DIR` and per-drive path model with image-backed directory state
+- replace the current resident volume-label mock with image-backed metadata
 - define how the resident parser exposes argument buffers to later VM-side command code without growing native glue unnecessarily
 
 ## Phase 6

@@ -8,6 +8,9 @@
 .export svc_fs_get_mount_type
 .export svc_fs_get_mount_flags
 .export svc_fs_bind_drive
+.export svc_fs_get_dir_state
+.export svc_fs_get_volume_ptr
+.export svc_fs_get_dir_listing_ptr
 .export svc_console_reset
 .export svc_console_write_sc0
 .export svc_console_write_prompt
@@ -93,6 +96,7 @@ SHELL_CMD_MEM = 4
 SHELL_CMD_QUIT = 5
 SHELL_CMD_DIR = 6
 SHELL_CMD_CD = 7
+SHELL_CMD_MOUNT = 8
 INPUT_MODE_KEYBOARD = 0
 INPUT_MODE_SCRIPT = 1
 DIR_ID_ROOT = 0
@@ -103,6 +107,8 @@ PATH_STATUS_OK = 0
 PATH_STATUS_FLAT = 1
 PATH_STATUS_BAD = 2
 PATH_STATUS_UNMOUNTED = 3
+MOUNT_STATUS_OK = 0
+MOUNT_STATUS_BAD = 1
 
 .code
 
@@ -151,6 +157,7 @@ shell_loop:
     calln svc_line_read
     case8 SHELL_CMD_NONE, shell_loop
     case8 SHELL_CMD_QUIT, shell_done
+    case8 SHELL_CMD_MOUNT, cmd_emit_response
     case8 SHELL_CMD_DIR, cmd_emit_response
     case8 SHELL_CMD_CD, cmd_emit_response
     case8 SHELL_CMD_HELP, cmd_emit_response
@@ -254,6 +261,57 @@ fs_get_flags_invalid:
     lda #MOUNT_FLAG_NONE
     sta 0,x
     lda #$00
+    sta 1,x
+    rts
+
+svc_fs_get_dir_state:
+    ldy 0,x
+    cpy #2
+    bcs fs_get_dir_invalid
+    lda dir_state_table,y
+    sta 0,x
+    lda #$00
+    sta 1,x
+    rts
+fs_get_dir_invalid:
+    lda #DIR_ID_ROOT
+    sta 0,x
+    lda #$00
+    sta 1,x
+    rts
+
+svc_fs_get_volume_ptr:
+    ldy 0,x
+    cpy #2
+    bcs fs_get_volume_invalid
+    lda volume_ptr_lo,y
+    sta 0,x
+    lda volume_ptr_hi,y
+    sta 1,x
+    rts
+fs_get_volume_invalid:
+    lda #<volume_unknown
+    sta 0,x
+    lda #>volume_unknown
+    sta 1,x
+    rts
+
+svc_fs_get_dir_listing_ptr:
+    ldy 0,x
+    cpy #2
+    bcs fs_get_listing_invalid
+    sty temp_drive
+    lda 1,x
+    jsr select_dir_listing_ptr
+    lda PTR
+    sta 0,x
+    lda PTR+1
+    sta 1,x
+    rts
+fs_get_listing_invalid:
+    lda #<resp_dir_flat
+    sta 0,x
+    lda #>resp_dir_flat
     sta 1,x
     rts
 
@@ -511,6 +569,8 @@ svc_shell_response_ptr:
     lda 0,x
     cmp #SHELL_CMD_HELP
     beq shell_resp_help
+    cmp #SHELL_CMD_MOUNT
+    beq shell_resp_mount
     cmp #SHELL_CMD_DIR
     beq shell_resp_dir
     cmp #SHELL_CMD_CD
@@ -531,6 +591,9 @@ shell_resp_help:
     sta 0,x
     lda #>resp_help
     sta 1,x
+    rts
+shell_resp_mount:
+    jsr build_mount_response
     rts
 shell_resp_dir:
     jsr build_dir_response
@@ -682,6 +745,10 @@ token_dispatch_ready:
     bne :+
     jmp token_len4
 :
+    cmp #5
+    bne :+
+    jmp token_len5
+:
     jmp token_unknown
 token_len2:
     ldy parse_cmd_start
@@ -756,11 +823,15 @@ token_len3_mem:
     iny
     lda line_buffer,y
     cmp #CMD_E
-    bne token_unknown
+    beq :+
+    jmp token_unknown
+:
     iny
     lda line_buffer,y
     cmp #CMD_M
-    bne token_unknown
+    beq :+
+    jmp token_unknown
+:
     lda #SHELL_CMD_MEM
     rts
 token_len4:
@@ -771,11 +842,15 @@ token_len4:
     iny
     lda line_buffer,y
     cmp #CMD_E
-    bne token_unknown
+    beq :+
+    jmp token_unknown
+:
     iny
     lda line_buffer,y
     cmp #CMD_L
-    bne token_unknown
+    beq :+
+    jmp token_unknown
+:
     iny
     lda line_buffer,y
     cmp #CMD_P
@@ -820,6 +895,29 @@ token_len4_exit:
     bne token_unknown
     lda #SHELL_CMD_QUIT
     rts
+token_len5:
+    ldy parse_cmd_start
+    lda line_buffer,y
+    cmp #CMD_M
+    bne token_unknown
+    iny
+    lda line_buffer,y
+    cmp #CMD_O
+    bne token_unknown
+    iny
+    lda line_buffer,y
+    cmp #CMD_U
+    bne token_unknown
+    iny
+    lda line_buffer,y
+    cmp #CMD_N
+    bne token_unknown
+    iny
+    lda line_buffer,y
+    cmp #CMD_T
+    bne token_unknown
+    lda #SHELL_CMD_MOUNT
+    rts
 token_none:
     lda #SHELL_CMD_NONE
     rts
@@ -830,7 +928,9 @@ token_unknown:
 split_inline_command_arg:
     lda cmd_length
     cmp #3
-    bcc split_inline_done
+    bcs :+
+    jmp split_inline_done
+:
     ldy parse_cmd_start
     lda line_buffer,y
     cmp #CMD_C
@@ -841,7 +941,9 @@ split_inline_command_arg:
     bne split_inline_try_dir
     lda cmd_length
     cmp #2
-    beq split_inline_done
+    bne :+
+    jmp split_inline_done
+:
     sec
     sbc #2
     sta arg_length
@@ -854,15 +956,15 @@ split_inline_try_dir:
     ldy parse_cmd_start
     lda line_buffer,y
     cmp #CMD_D
-    bne split_inline_done
+    bne split_inline_try_mount
     iny
     lda line_buffer,y
     cmp #CMD_I
-    bne split_inline_done
+    bne split_inline_try_mount
     iny
     lda line_buffer,y
     cmp #CMD_R
-    bne split_inline_done
+    bne split_inline_try_mount
     lda cmd_length
     cmp #3
     beq split_inline_done
@@ -872,6 +974,38 @@ split_inline_try_dir:
     lda #3
     sta parse_scan_index
     lda #3
+    sta cmd_length
+    jmp split_inline_copy
+split_inline_try_mount:
+    ldy parse_cmd_start
+    lda line_buffer,y
+    cmp #CMD_M
+    bne split_inline_done
+    iny
+    lda line_buffer,y
+    cmp #CMD_O
+    bne split_inline_done
+    iny
+    lda line_buffer,y
+    cmp #CMD_U
+    bne split_inline_done
+    iny
+    lda line_buffer,y
+    cmp #CMD_N
+    bne split_inline_done
+    iny
+    lda line_buffer,y
+    cmp #CMD_T
+    bne split_inline_done
+    lda cmd_length
+    cmp #5
+    beq split_inline_done
+    sec
+    sbc #5
+    sta arg_length
+    lda #5
+    sta parse_scan_index
+    lda #5
     sta cmd_length
 split_inline_copy:
     ldx #$00
@@ -955,49 +1089,8 @@ dir_build_ok:
     lda #ASCII_SPACE
     sta response_buffer,y
     iny
-    ldx temp_drive
-    lda mount_flag_table,x
-    cmp #MOUNT_FLAG_TREE
-    beq dir_build_tree
-    lda #<resp_dir_flat
-    sta PTR
-    lda #>resp_dir_flat
-    sta PTR+1
-    jsr append_ptr_to_response
-    jmp dir_build_done
-dir_build_tree:
     lda temp_dir_id
-    cmp #DIR_ID_BIN
-    beq dir_build_bin
-    cmp #DIR_ID_SRC
-    beq dir_build_src
-    cmp #DIR_ID_WORK
-    beq dir_build_work
-    lda #<resp_dir_root
-    sta PTR
-    lda #>resp_dir_root
-    sta PTR+1
-    jsr append_ptr_to_response
-    jmp dir_build_done
-dir_build_bin:
-    lda #<resp_dir_bin
-    sta PTR
-    lda #>resp_dir_bin
-    sta PTR+1
-    jsr append_ptr_to_response
-    jmp dir_build_done
-dir_build_src:
-    lda #<resp_dir_src
-    sta PTR
-    lda #>resp_dir_src
-    sta PTR+1
-    jsr append_ptr_to_response
-    jmp dir_build_done
-dir_build_work:
-    lda #<resp_dir_work
-    sta PTR
-    lda #>resp_dir_work
-    sta PTR+1
+    jsr select_dir_listing_ptr
     jsr append_ptr_to_response
 dir_build_done:
     lda #$00
@@ -1051,6 +1144,46 @@ cd_build_ok:
     sta MOUNT_SNAPSHOT
     ldy #$00
     jsr append_selected_drive_path
+    lda #$00
+    sta response_buffer,y
+    ldx saved_rp_x
+    lda #<response_buffer
+    sta 0,x
+    lda #>response_buffer
+    sta 1,x
+    rts
+
+build_mount_response:
+    stx saved_rp_x
+    jsr resolve_mount_arg
+    cmp #MOUNT_STATUS_OK
+    beq mount_build_ok
+    ldx saved_rp_x
+    lda #<resp_bad_mount
+    sta 0,x
+    lda #>resp_bad_mount
+    sta 1,x
+    rts
+mount_build_ok:
+    ldy temp_drive
+    lda temp_mount_kind
+    sta mount_kind_table,y
+    jsr kind_to_flags
+    sta mount_flag_table,y
+    lda #DIR_ID_ROOT
+    sta dir_state_table,y
+    lda temp_drive
+    cmp current_drive
+    bne mount_build_reply
+    sta CURRENT_DRIVE_SNAPSHOT
+    tay
+    lda mount_flag_table,y
+    sta CURRENT_FLAGS_SNAPSHOT
+    lda mount_kind_table,y
+    sta MOUNT_SNAPSHOT
+mount_build_reply:
+    ldy #$00
+    jsr append_selected_drive_summary
     lda #$00
     sta response_buffer,y
     ldx saved_rp_x
@@ -1198,6 +1331,80 @@ resolve_ok:
     lda #PATH_STATUS_OK
     rts
 
+resolve_mount_arg:
+    lda current_drive
+    sta temp_drive
+    lda #MOUNT_KIND_NONE
+    sta temp_mount_kind
+    lda arg_length
+    cmp #5
+    beq mount_arg_len5
+    jmp mount_arg_bad
+mount_arg_len5:
+    lda arg_buffer+1
+    cmp #ASCII_COLON
+    bne mount_arg_bad
+    lda arg_buffer+0
+    cmp #$01
+    beq mount_arg_drive_a
+    cmp #$02
+    beq mount_arg_drive_b
+    jmp mount_arg_bad
+mount_arg_drive_a:
+    lda #DRIVE_A
+    sta temp_drive
+    jmp mount_arg_kind
+mount_arg_drive_b:
+    lda #DRIVE_B
+    sta temp_drive
+mount_arg_kind:
+    lda arg_buffer+2
+    cmp #CMD_D
+    bne mount_arg_bad
+    lda arg_buffer+3
+    cmp #$36
+    beq mount_arg_d64
+    cmp #$37
+    beq mount_arg_d71
+    cmp #$38
+    beq mount_arg_d81
+    cmp #CMD_N
+    beq mount_arg_dnp_check
+    jmp mount_arg_bad
+mount_arg_d64:
+    lda arg_buffer+4
+    cmp #$34
+    bne mount_arg_bad
+    lda #MOUNT_KIND_D64
+    sta temp_mount_kind
+    jmp mount_arg_ok
+mount_arg_d71:
+    lda arg_buffer+4
+    cmp #$31
+    bne mount_arg_bad
+    lda #MOUNT_KIND_D71
+    sta temp_mount_kind
+    jmp mount_arg_ok
+mount_arg_d81:
+    lda arg_buffer+4
+    cmp #$31
+    bne mount_arg_bad
+    lda #MOUNT_KIND_D81
+    sta temp_mount_kind
+    jmp mount_arg_ok
+mount_arg_dnp_check:
+    lda arg_buffer+4
+    cmp #CMD_P
+    bne mount_arg_bad
+    lda #MOUNT_KIND_DNP
+    sta temp_mount_kind
+mount_arg_ok:
+    lda #MOUNT_STATUS_OK
+    rts
+mount_arg_bad:
+    lda #MOUNT_STATUS_BAD
+    rts
+
 append_selected_drive_path:
     lda temp_drive
     clc
@@ -1226,6 +1433,28 @@ append_selected_drive_path:
     beq append_dir_work
 append_selected_done:
     rts
+
+append_selected_drive_summary:
+    lda temp_drive
+    clc
+    adc #$01
+    sta response_buffer,y
+    iny
+    lda #ASCII_COLON
+    sta response_buffer,y
+    iny
+    ldx temp_drive
+    lda volume_ptr_lo,x
+    sta PTR
+    lda volume_ptr_hi,x
+    sta PTR+1
+    jsr append_ptr_to_response
+    lda #ASCII_SPACE
+    sta response_buffer,y
+    iny
+    ldx temp_drive
+    lda mount_kind_table,x
+    jmp append_mount_kind
 append_dir_bin:
     lda #<dir_name_bin
     sta PTR
@@ -1244,6 +1473,56 @@ append_dir_work:
     lda #>dir_name_work
     sta PTR+1
     jmp append_ptr_to_response
+
+select_dir_listing_ptr:
+    pha
+    sty saved_response_y
+    ldy temp_drive
+    lda mount_flag_table,y
+    cmp #MOUNT_FLAG_TREE
+    beq select_listing_tree
+    lda #<resp_dir_flat
+    sta PTR
+    lda #>resp_dir_flat
+    sta PTR+1
+    pla
+    ldy saved_response_y
+    rts
+select_listing_tree:
+    pla
+    cmp #DIR_ID_BIN
+    beq select_listing_bin
+    cmp #DIR_ID_SRC
+    beq select_listing_src
+    cmp #DIR_ID_WORK
+    beq select_listing_work
+    lda #<resp_dir_root
+    sta PTR
+    lda #>resp_dir_root
+    sta PTR+1
+    ldy saved_response_y
+    rts
+select_listing_bin:
+    lda #<resp_dir_bin
+    sta PTR
+    lda #>resp_dir_bin
+    sta PTR+1
+    ldy saved_response_y
+    rts
+select_listing_src:
+    lda #<resp_dir_src
+    sta PTR
+    lda #>resp_dir_src
+    sta PTR+1
+    ldy saved_response_y
+    rts
+select_listing_work:
+    lda #<resp_dir_work
+    sta PTR
+    lda #>resp_dir_work
+    sta PTR+1
+    ldy saved_response_y
+    rts
 
 append_ptr_to_response:
     ldx #$00
@@ -1333,6 +1612,7 @@ build_ver_return:
     rts
 
 build_vol_response:
+    stx saved_rp_x
     ldy #$00
     lda #$01
     sta response_buffer,y
@@ -1340,7 +1620,17 @@ build_vol_response:
     lda #$3A
     sta response_buffer,y
     iny
-    lda mount_kind_table+0
+    ldx #DRIVE_A
+    lda volume_ptr_lo,x
+    sta PTR
+    lda volume_ptr_hi,x
+    sta PTR+1
+    jsr append_ptr_to_response
+    lda #ASCII_SPACE
+    sta response_buffer,y
+    iny
+    ldx #DRIVE_A
+    lda mount_kind_table,x
     jsr append_mount_kind
     lda #$20
     sta response_buffer,y
@@ -1351,10 +1641,21 @@ build_vol_response:
     lda #$3A
     sta response_buffer,y
     iny
-    lda mount_kind_table+1
+    ldx #DRIVE_B
+    lda volume_ptr_lo,x
+    sta PTR
+    lda volume_ptr_hi,x
+    sta PTR+1
+    jsr append_ptr_to_response
+    lda #ASCII_SPACE
+    sta response_buffer,y
+    iny
+    ldx #DRIVE_B
+    lda mount_kind_table,x
     jsr append_mount_kind
     lda #$00
     sta response_buffer,y
+    ldx saved_rp_x
     lda #<response_buffer
     sta 0,x
     lda #>response_buffer
@@ -1452,12 +1753,20 @@ temp_drive:
     .byte 0
 temp_dir_id:
     .byte 0
+temp_mount_kind:
+    .byte MOUNT_KIND_NONE
+saved_response_y:
+    .byte 0
 mount_kind_table:
     .byte MOUNT_KIND_NONE, MOUNT_KIND_NONE
 mount_flag_table:
     .byte MOUNT_FLAG_NONE, MOUNT_FLAG_NONE
 dir_state_table:
     .byte DIR_ID_ROOT, DIR_ID_ROOT
+volume_ptr_lo:
+    .byte <volume_system, <volume_work
+volume_ptr_hi:
+    .byte >volume_system, >volume_work
 script_cmd_id:
     .byte SHELL_CMD_HELP, SHELL_CMD_VER, SHELL_CMD_VOL, SHELL_CMD_MEM, SHELL_CMD_QUIT
 script_ptr_lo:
@@ -1484,11 +1793,17 @@ script_cmd_mem:
 script_cmd_quit:
     .byte CMD_Q, CMD_U, CMD_I, CMD_T, 0
 resp_help:
-    .byte "HELP VER VOL MEM DIR CD", 0
+    .byte "HELP VER VOL MEM DIR CD MOUNT", 0
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 0AF5", 0
+    .byte "CORE 0D57", 0
+volume_system:
+    .byte "SYSTEM", 0
+volume_work:
+    .byte "WORK", 0
+volume_unknown:
+    .byte "?", 0
 dir_name_bin:
     .byte "BIN", 0
 dir_name_src:
@@ -1509,6 +1824,8 @@ resp_flat_image:
     .byte "FLAT IMAGE", 0
 resp_bad_dir:
     .byte "NO SUCH DIR", 0
+resp_bad_mount:
+    .byte "BAD MOUNT", 0
 resp_unmounted:
     .byte "UNMOUNTED", 0
 resp_unknown:

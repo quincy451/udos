@@ -53,6 +53,6 @@ vice-proof: proof
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_DISK) --expected "UDOS VM OK"
 
 vice-resident: resident
-	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) --expected "CORE 0AF5" --marker-address 0xCFFF --marker-value 0x52 --keybuf "help\\rver\\rvol\\rcdb:\\rdir\\rcdsrc\\rcda:/src\\rmem\\rquit\\r" --check-byte 0xCFE8=0x01 --check-byte 0xCFE9=0x01 --check-byte 0xCFEA=0x04 --check-byte 0xCFEB=0x02 --check-byte 0xCFEC=0x01 --check-byte 0xCFEE=0x02 --check-byte 0xCFF0=0x01 --check-byte 0xCFF2=0x04 --check-byte 0xCFF4=0x01
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) --expected "BOOT.ASM" --marker-address 0xCFFF --marker-value 0x52 --keybuf "help\\rvol\\rmountb:d81\\rvol\\rcdbin\\rmountb:dnp\\rcdb:\\rdir\\rcdsrc\\rdir\\rquit\\r" --check-byte 0xCFE8=0x01 --check-byte 0xCFE9=0x01 --check-byte 0xCFEA=0x04 --check-byte 0xCFEB=0x02 --check-byte 0xCFEC=0x01 --check-byte 0xCFEE=0x02 --check-byte 0xCFF0=0x01 --check-byte 0xCFF2=0x04 --check-byte 0xCFF4=0x01
 
 test: vice-proof vice-resident

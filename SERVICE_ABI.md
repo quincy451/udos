@@ -93,6 +93,34 @@ Version policy:
   - invalid drive indices return `none/none`
 - purpose: move from hardcoded query values to actual resident bind state
 
+### `svc_fs_get_dir_state`
+- input: `rP = logical drive index`
+- output: `rP = current resident directory id`
+- current directory ids:
+  - `0`: root
+  - `1`: `BIN`
+  - `2`: `SRC`
+  - `3`: `WORK`
+- purpose: expose per-drive current-directory state through the resident filesystem boundary
+
+### `svc_fs_get_volume_ptr`
+- input: `rP = logical drive index`
+- output: `rP = pointer to a null-terminated resident volume-label string`
+- current mock labels:
+  - `A:` -> `SYSTEM`
+  - `B:` -> `WORK`
+- purpose: let `VOL` and later `MOUNT` report metadata beyond mount kind alone
+
+### `svc_fs_get_dir_listing_ptr`
+- input: packed in `rP`
+  - low byte: logical drive index
+  - high byte: resident directory id
+- output: `rP = pointer to a null-terminated resident listing string`
+- current behavior:
+  - returns flat-image root listing for `D64/D71/D81`
+  - returns one of the current mock `DNP` listings for `root`, `BIN`, `SRC`, or `WORK`
+- purpose: give resident shell code a stable directory-enumeration seam before real image-backed I/O exists
+
 ### `svc_console_reset`
 - input: none
 - output: none
@@ -131,12 +159,13 @@ Version policy:
   - `5`: `QUIT` or `EXIT`
   - `6`: `DIR`
   - `7`: `CD`
+  - `8`: `MOUNT`
 - current behavior:
   - reads live keyboard input through C64 KERNAL `GETIN`
   - echoes typed characters to the console
   - accepts both carriage return and linefeed as command terminators for VICE automation compatibility
   - tokenizes a command word plus one resident argument buffer
-  - accepts inline `CD`/`DIR` shorthand such as `CDB:` and `CDSRC` to keep VICE `-keybuf` automation reliable
+  - accepts inline `CD`/`DIR`/`MOUNT` shorthand such as `CDB:`, `CDSRC`, and `MOUNTB:D81` to keep VICE `-keybuf` automation reliable
   - advances the resident cursor to the next line
 - current emulator validation:
   - `make vice-resident` drives this path through VICE `-keybuf`

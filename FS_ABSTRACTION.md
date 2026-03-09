@@ -48,7 +48,10 @@ The resident image currently exposes:
 - mount-flags query for logical drive
 - bind-by-kind for logical drive
 - per-drive current-directory state
+- per-drive resident volume labels
+- directory-listing lookup for the current mock backend
 - resident `CD` policy for flat vs tree-capable mounts
+- resident `MOUNT` policy that can switch a drive between flat and tree-capable kinds
 - resident `DIR` against a mock directory model
 
 This is still a state model, not real image I/O. That is deliberate: command,
@@ -60,6 +63,9 @@ Current mock directory model:
 - `DNP` root reports `BIN/`, `SRC/`, and `WORK/`
 - `DNP` `SRC` reports `BOOT.ASM` and `FS.AVM`
 - `DNP` `BIN` reports `SHELL.AVM` and `DIR.AVM`
+- resident labels are currently:
+  - `A:` -> `SYSTEM`
+  - `B:` -> `WORK`
 
 This mock model exists only to exercise shell semantics. It must be replaced by
 real image-backed enumeration once the filesystem layer exists.
