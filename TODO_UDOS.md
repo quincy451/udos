@@ -28,11 +28,8 @@
 
 ## Phase 5
 
-- expand live line input from token-only parsing to command + argument parsing
-- keep the current resident `HELP`, `VER`, `VOL`, and `MEM` loop working while moving them toward real filesystem/state services
+- keep the current resident `HELP`, `VER`, `VOL`, `DIR`, `CD`, and `MEM` loop working while moving them toward real filesystem/state services
 - implement resident commands:
-  - `DIR`
-  - `CD`
   - `MOUNT`
   - `TYPE`
   - `COPY`
@@ -43,6 +40,8 @@
   - real `MEM`
   - real `HELP`
   - real `VER`
+- replace the current mock `DIR` and per-drive path model with image-backed directory state
+- define how the resident parser exposes argument buffers to later VM-side command code without growing native glue unnecessarily
 
 ## Phase 6
 

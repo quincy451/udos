@@ -107,8 +107,9 @@ Version policy:
 - input: none
 - output: none
 - current behavior:
-  - renders `"  <drive>:<kind> >"` from resident drive + mount state
+  - renders `"  <drive>:<kind>/<dir> >"` from resident drive, mount, and current-directory state
   - currently formats `D64`, `D71`, `D81`, `DNP`, or `?`
+  - flat images stay rooted at `/`
 - purpose: keep the prompt tied to resident state instead of a fixed string
 
 ### `svc_console_newline`
@@ -128,11 +129,14 @@ Version policy:
   - `3`: `VOL`
   - `4`: `MEM`
   - `5`: `QUIT` or `EXIT`
+  - `6`: `DIR`
+  - `7`: `CD`
 - current behavior:
   - reads live keyboard input through C64 KERNAL `GETIN`
   - echoes typed characters to the console
   - accepts both carriage return and linefeed as command terminators for VICE automation compatibility
-  - tokenizes the first command word for the current resident loop
+  - tokenizes a command word plus one resident argument buffer
+  - accepts inline `CD`/`DIR` shorthand such as `CDB:` and `CDSRC` to keep VICE `-keybuf` automation reliable
   - advances the resident cursor to the next line
 - current emulator validation:
   - `make vice-resident` drives this path through VICE `-keybuf`
@@ -152,10 +156,9 @@ Version policy:
 
 ## Planned Next ABI Groups
 
-- command + argument line parsing
 - memory/status queries
 - mounted-image open/bind metadata beyond kind/flags
-- directory enumeration
+- directory enumeration against real mounted images
 - file open/read/write/rename/delete/copy
 - overlay/program load
 - full hardware Ultimate UCI transport

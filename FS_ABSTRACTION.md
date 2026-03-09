@@ -15,6 +15,7 @@ Current resident skeleton state after bootstrap:
 - `A:` is bound as `D64`
 - `B:` is bound as `DNP`
 - current drive is `A:`
+- both drives start at `/`
 
 ## Image Kinds
 
@@ -46,7 +47,19 @@ The resident image currently exposes:
 - mount-kind query for logical drive
 - mount-flags query for logical drive
 - bind-by-kind for logical drive
+- per-drive current-directory state
+- resident `CD` policy for flat vs tree-capable mounts
+- resident `DIR` against a mock directory model
 
-This is still a state model, not real image I/O. That is deliberate: command and
-prompt logic can now consume real resident state before UCI-backed operations
-exist.
+This is still a state model, not real image I/O. That is deliberate: command,
+prompt, and path-policy logic can now consume resident state before UCI-backed
+operations exist.
+
+Current mock directory model:
+- flat images report a root-only listing
+- `DNP` root reports `BIN/`, `SRC/`, and `WORK/`
+- `DNP` `SRC` reports `BOOT.ASM` and `FS.AVM`
+- `DNP` `BIN` reports `SHELL.AVM` and `DIR.AVM`
+
+This mock model exists only to exercise shell semantics. It must be replaced by
+real image-backed enumeration once the filesystem layer exists.

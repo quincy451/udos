@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 drive-bind/query seam complete, first Phase 5 live command-loop slice complete.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 drive-bind/query seam complete, second Phase 5 resident shell slice complete.
 
 ## Completed
 
@@ -51,6 +51,14 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
   - common response emission path driven from command tokens
   - full-screen cursor handling past the first 256 bytes of screen RAM
   - dynamic `VER` mode suffix and dynamic `VOL` output from resident state
+- added the second resident shell slice:
+  - command + single-argument parsing in the resident line path
+  - resident `DIR` and `CD`
+  - per-drive current-directory state
+  - path-aware prompt rendering
+  - explicit flat-image rejection for tree-style `CD`
+  - mock directory listings for the current resident mount model
+  - VICE-stable inline command shorthand for `CD`/`DIR` because `-keybuf` spacing is not reliable
 
 ## Current Verified Facts
 
@@ -62,28 +70,36 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - Acheron runtime footprint: `$072A`
 - UDOS proof code footprint: `$002E`
 
-### Resident core, drive-bind/query seam, and live command loop
+### Resident core, drive-bind/query seam, and resident shell
 - linked resident entrypoint: `$1810`
 - screen transcript seen in VICE:
   - `UDOS CORE`
-  - `A:D64> HELP`
-  - `HELP VER VOL MEM`
-  - `A:D64> VER`
+  - `A:D64/> HELP`
+  - `HELP VER VOL MEM DIR CD`
+  - `A:D64/> VER`
   - `UDOS ALPHA MOCK`
-  - `A:D64> VOL`
+  - `A:D64/> VOL`
   - `A:D64 B:DNP`
-  - `A:D64> MEM`
-  - `CORE 011E`
-  - `A:D64> QUIT`
+  - `A:D64/> CDB:`
+  - `B:DNP/`
+  - `B:DNP/> DIR`
+  - `B:DNP/ BIN/ SRC/ WORK/`
+  - `B:DNP/> CDSRC`
+  - `B:DNP/SRC`
+  - `B:DNP/SRC> CDA:SRC`
+  - `FLAT IMAGE`
+  - `B:DNP/SRC> MEM`
+  - `CORE 0AF5`
+  - `B:DNP/SRC> QUIT`
 - `A:` bind snapshot at `$CFE8/$CFE9`: `D64/flat`
 - `B:` bind snapshot at `$CFEA/$CFEB`: `DNP/tree`
-- current drive snapshot at `$CFEC`: `A:`
-- current flags snapshot at `$CFEE`: `flat`
+- current drive snapshot at `$CFEC`: `B:`
+- current flags snapshot at `$CFEE`: `tree`
 - transport mode snapshot at `$CFF0`: `mock`
-- current mount-kind snapshot at `$CFF2`: `D64`
+- current mount-kind snapshot at `$CFF2`: `DNP`
 - ABI snapshot at `$CFF4`: `1`
 - ready marker at `$CFFF`: `0x52`
-- resident core code footprint: `$011E`
+- resident core code footprint: `$0AF5`
 
 ## In Progress
 
@@ -94,8 +110,7 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 
 - hardware UCI transport
 - mounted-image metadata and open/bind operations beyond kind/flags
-- logical drive directory state
-- shell parser and resident commands
+- real directory enumeration and file operations
 - overlay command loader
 
 ## What Works
@@ -106,9 +121,10 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - the resident bootstrap/core executes in VICE and exposes a first service ABI boundary
 - the drive-bind/query seam can be validated under VICE without pretending real Ultimate hardware exists
 - the resident loop now exercises live line input under VICE via `-keybuf`
-- the resident shell currently proves prompting plus `HELP`, `VER`, `VOL`, `MEM`, and `QUIT`
+- the resident shell now proves prompting, current-directory state, and `HELP`, `VER`, `VOL`, `DIR`, `CD`, `MEM`, and `QUIT`
 - `VOL` now renders from resident mount state rather than a fixed literal
 - `VER` now reflects the current transport mode suffix (`MOCK` in emulator validation)
+- `DIR` and `CD` now enforce the flat-image vs DNP tree policy on the resident path
 
 ## What Is Unverified
 
@@ -117,11 +133,11 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - resident memory pressure under actual shell workload
 - real D64/D71/D81/DNP filesystem operations
 - real C64 Ultimate keyboard behavior on target hardware
-- argument-bearing commands and live command parsing beyond the first word
-- real filesystem-backed implementations behind the current `HELP/VER/VOL/MEM` resident loop
+- image-backed directory enumeration instead of the current resident mock listings
+- file-backed `TYPE`, `COPY`, `REN`, `DEL`, `RUN`, and `MOUNT`
 
 ## Next Concrete Step
 
-- keep the live line-input path, but expand it from token-only parsing to command + argument parsing
-- land the first real filesystem-backed resident commands on top of the existing drive-bind model
-- start with `DIR`, `CD`, and `VOL`, while enforcing flat-image vs DNP policy in the shell
+- replace the current mock `DIR` surface with image-backed enumeration through the filesystem layer
+- add mounted-image metadata beyond kind/flags so `VOL` and `MOUNT` can report real bindings
+- keep `CD` semantics and prompt state stable while the underlying image I/O becomes real
