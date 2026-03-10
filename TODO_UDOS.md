@@ -30,8 +30,6 @@
 
 - keep the current resident `HELP`, `VER`, `VOL`, `DIR`, `CD`, `MOUNT`, and `MEM` loop working while moving them toward real filesystem/state services
 - implement resident commands:
-  - `REN`
-  - `DEL`
   - `RUN`
   - real `VOL`
   - real `MEM`
@@ -40,7 +38,7 @@
 - replace the current descriptor-backed mock `DIR` and per-drive path model with image-backed directory state
 - replace the current resident `svc_fs_enum_*` descriptor-backed mock tables with real mounted-image enumeration
 - replace the current descriptor-backed resident volume metadata with image-backed metadata
-- replace the current mutable `WORK` slot mock used by `COPY` with real image-backed create/update semantics
+- replace the current mutable `WORK` slot mock used by `COPY`, `REN`, and `DEL` with real image-backed create/update semantics
 - define how the resident parser exposes argument buffers to later VM-side command code without growing native glue unnecessarily
 
 ## Phase 6

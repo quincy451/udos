@@ -58,7 +58,7 @@ The resident image currently exposes:
 - resident `MOUNT` policy that can switch a drive between flat and tree-capable kinds
 - resident `DIR` against a mock directory model
 - resident `TYPE` against a mock file-content model
-- resident `COPY` into the mutable `WORK` model
+- resident `COPY`, `REN`, and `DEL` against the mutable `WORK` model
 
 This is still a state model, not real image I/O. That is deliberate: command,
 prompt, and path-policy logic can now consume resident state before UCI-backed
@@ -95,6 +95,7 @@ Current mock directory model:
 - resident mutable copy model currently supports:
   - a small `WORK` file table per logical drive
   - create/update semantics for `COPY`
+  - rename/delete semantics for `REN` and `DEL`
   - immediate visibility through `DIR` and `TYPE`
 
 This mock model now sits behind both a resident mounted-image descriptor layer

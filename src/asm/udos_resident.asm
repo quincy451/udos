@@ -102,6 +102,8 @@ SHELL_CMD_CD = 7
 SHELL_CMD_MOUNT = 8
 SHELL_CMD_TYPE = 9
 SHELL_CMD_COPY = 10
+SHELL_CMD_REN = 11
+SHELL_CMD_DEL = 12
 INPUT_MODE_KEYBOARD = 0
 INPUT_MODE_SCRIPT = 1
 DIR_ID_ROOT = 0
@@ -201,6 +203,8 @@ shell_loop:
     case8 SHELL_CMD_QUIT, shell_done
     case8 SHELL_CMD_MOUNT, cmd_emit_response
     case8 SHELL_CMD_COPY, cmd_emit_response
+    case8 SHELL_CMD_REN, cmd_emit_response
+    case8 SHELL_CMD_DEL, cmd_emit_response
     case8 SHELL_CMD_TYPE, cmd_emit_response
     case8 SHELL_CMD_DIR, cmd_emit_response
     case8 SHELL_CMD_CD, cmd_emit_response
@@ -753,6 +757,10 @@ svc_shell_response_ptr:
     beq shell_resp_mount
     cmp #SHELL_CMD_COPY
     beq shell_resp_copy
+    cmp #SHELL_CMD_REN
+    beq shell_resp_ren
+    cmp #SHELL_CMD_DEL
+    beq shell_resp_del
     cmp #SHELL_CMD_TYPE
     beq shell_resp_type
     cmp #SHELL_CMD_DIR
@@ -781,6 +789,12 @@ shell_resp_mount:
     rts
 shell_resp_copy:
     jsr build_copy_response
+    rts
+shell_resp_ren:
+    jsr build_ren_response
+    rts
+shell_resp_del:
+    jsr build_del_response
     rts
 shell_resp_type:
     jsr build_type_response
@@ -958,6 +972,40 @@ token_len2:
     lda #SHELL_CMD_CD
     rts
 token_len3:
+    ldy parse_cmd_start
+    lda line_buffer,y
+    cmp #CMD_R
+    bne token_len3_del
+    iny
+    lda line_buffer,y
+    cmp #CMD_E
+    beq :+
+    jmp token_unknown
+:
+    iny
+    lda line_buffer,y
+    cmp #CMD_N
+    beq :+
+    jmp token_unknown
+:
+    lda #SHELL_CMD_REN
+    rts
+token_len3_del:
+    ldy parse_cmd_start
+    lda line_buffer,y
+    cmp #CMD_D
+    bne token_len3_dir
+    iny
+    lda line_buffer,y
+    cmp #CMD_E
+    bne token_len3_dir
+    iny
+    lda line_buffer,y
+    cmp #CMD_L
+    bne token_len3_dir
+    lda #SHELL_CMD_DEL
+    rts
+token_len3_dir:
     ldy parse_cmd_start
     lda line_buffer,y
     cmp #CMD_D
@@ -1182,7 +1230,9 @@ split_inline_command_arg:
     iny
     lda line_buffer,y
     cmp #CMD_D
-    bne split_inline_try_copy
+    beq :+
+    jmp split_inline_try_copy
+:
     lda cmd_length
     cmp #2
     bne :+
@@ -1197,6 +1247,58 @@ split_inline_command_arg:
     sta cmd_length
     jmp split_inline_copy
 split_inline_try_dir:
+    ldy parse_cmd_start
+    lda line_buffer,y
+    cmp #CMD_D
+    bne split_inline_try_ren
+    iny
+    lda line_buffer,y
+    cmp #CMD_E
+    bne split_inline_try_dir_real
+    iny
+    lda line_buffer,y
+    cmp #CMD_L
+    bne split_inline_try_dir_real
+    lda cmd_length
+    cmp #3
+    bne :+
+    jmp split_inline_done
+:
+    sec
+    sbc #3
+    sta arg_length
+    lda #3
+    sta parse_scan_index
+    lda #3
+    sta cmd_length
+    jmp split_inline_copy
+split_inline_try_ren:
+    ldy parse_cmd_start
+    lda line_buffer,y
+    cmp #CMD_R
+    bne split_inline_try_dir_real
+    iny
+    lda line_buffer,y
+    cmp #CMD_E
+    bne split_inline_try_dir_real
+    iny
+    lda line_buffer,y
+    cmp #CMD_N
+    bne split_inline_try_dir_real
+    lda cmd_length
+    cmp #3
+    bne :+
+    jmp split_inline_done
+:
+    sec
+    sbc #3
+    sta arg_length
+    lda #3
+    sta parse_scan_index
+    lda #3
+    sta cmd_length
+    jmp split_inline_copy
+split_inline_try_dir_real:
     ldy parse_cmd_start
     lda line_buffer,y
     cmp #CMD_D
@@ -1599,6 +1701,182 @@ copy_build_ok:
     sta 1,x
     rts
 
+build_ren_response:
+    stx saved_rp_x
+    jsr split_ren_args
+    bcc ren_source_ready
+    ldx saved_rp_x
+    lda #<resp_bad_ren
+    sta 0,x
+    lda #>resp_bad_ren
+    sta 1,x
+    rts
+ren_source_ready:
+    jsr resolve_file_target
+    cmp #PATH_STATUS_OK
+    beq ren_source_lookup
+    cmp #PATH_STATUS_FLAT
+    bne :+
+    jmp ren_build_flat
+:
+    cmp #PATH_STATUS_UNMOUNTED
+    bne :+
+    jmp ren_build_unmounted
+:
+    ldx saved_rp_x
+    lda #<resp_bad_file
+    sta 0,x
+    lda #>resp_bad_file
+    sta 1,x
+    rts
+ren_source_lookup:
+    lda temp_dir_id
+    cmp #DIR_ID_WORK
+    beq :+
+    jmp ren_build_read_only
+:
+    jsr lookup_file_content
+    bcc ren_have_source
+    ldx saved_rp_x
+    lda #<resp_bad_file
+    sta 0,x
+    lda #>resp_bad_file
+    sta 1,x
+    rts
+ren_have_source:
+    lda temp_drive
+    sta source_drive
+    lda file_index
+    sta source_slot
+    jsr load_copy_dest_arg
+    jsr resolve_copy_dest
+    cmp #PATH_STATUS_OK
+    beq ren_dest_ready
+    cmp #PATH_STATUS_FLAT
+    beq ren_build_flat
+    cmp #PATH_STATUS_UNMOUNTED
+    beq ren_build_unmounted
+    cmp #PATH_STATUS_BAD
+    beq ren_build_bad
+    jmp ren_build_read_only
+ren_dest_ready:
+    lda temp_drive
+    cmp source_drive
+    beq :+
+    jmp ren_build_bad
+:
+    jsr find_work_file_by_path_name
+    bcs ren_apply_name
+    lda file_index
+    cmp source_slot
+    beq ren_apply_name
+    ldx saved_rp_x
+    lda #<resp_exists
+    sta 0,x
+    lda #>resp_exists
+    sta 1,x
+    rts
+ren_apply_name:
+    lda source_drive
+    sta temp_drive
+    lda source_slot
+    sta file_index
+    jsr select_dynamic_work_name_slot
+    jsr copy_path_name_to_slot_ascii
+    ldx saved_rp_x
+    lda #<resp_renamed
+    sta 0,x
+    lda #>resp_renamed
+    sta 1,x
+    rts
+ren_build_flat:
+    ldx saved_rp_x
+    lda #<resp_flat_image
+    sta 0,x
+    lda #>resp_flat_image
+    sta 1,x
+    rts
+ren_build_unmounted:
+    ldx saved_rp_x
+    lda #<resp_unmounted
+    sta 0,x
+    lda #>resp_unmounted
+    sta 1,x
+    rts
+ren_build_read_only:
+    ldx saved_rp_x
+    lda #<resp_read_only
+    sta 0,x
+    lda #>resp_read_only
+    sta 1,x
+    rts
+ren_build_bad:
+    ldx saved_rp_x
+    lda #<resp_bad_ren
+    sta 0,x
+    lda #>resp_bad_ren
+    sta 1,x
+    rts
+
+build_del_response:
+    stx saved_rp_x
+    jsr resolve_file_target
+    cmp #PATH_STATUS_OK
+    beq del_source_lookup
+    cmp #PATH_STATUS_FLAT
+    beq del_build_flat
+    cmp #PATH_STATUS_UNMOUNTED
+    beq del_build_unmounted
+    ldx saved_rp_x
+    lda #<resp_bad_file
+    sta 0,x
+    lda #>resp_bad_file
+    sta 1,x
+    rts
+del_source_lookup:
+    lda temp_dir_id
+    cmp #DIR_ID_WORK
+    beq :+
+    jmp del_build_read_only
+:
+    jsr lookup_file_content
+    bcc del_have_source
+    ldx saved_rp_x
+    lda #<resp_bad_file
+    sta 0,x
+    lda #>resp_bad_file
+    sta 1,x
+    rts
+del_have_source:
+    jsr delete_work_slot
+    ldx saved_rp_x
+    lda #<resp_deleted
+    sta 0,x
+    lda #>resp_deleted
+    sta 1,x
+    rts
+del_build_flat:
+    ldx saved_rp_x
+    lda #<resp_flat_image
+    sta 0,x
+    lda #>resp_flat_image
+    sta 1,x
+    rts
+del_build_unmounted:
+    ldx saved_rp_x
+    lda #<resp_unmounted
+    sta 0,x
+    lda #>resp_unmounted
+    sta 1,x
+    rts
+del_build_read_only:
+    ldx saved_rp_x
+    lda #<resp_read_only
+    sta 0,x
+    lda #>resp_read_only
+    sta 1,x
+    rts
+
 split_copy_args:
     lda arg_length
     sta cmd_length
@@ -1740,6 +2018,191 @@ split_copy_inline_next:
     iny
     jmp split_copy_inline_scan
 split_copy_fail:
+    sec
+    rts
+
+split_ren_args:
+    lda arg_length
+    sta cmd_length
+    bne :+
+    jmp split_ren_fail
+:
+    ldy #$00
+split_ren_find_sep:
+    cpy cmd_length
+    bcs split_ren_try_inline
+    lda arg_buffer,y
+    cmp #ASCII_SPACE
+    beq split_ren_have_sep
+    cmp #ASCII_COMMA
+    beq split_ren_have_sep
+    iny
+    bne split_ren_find_sep
+split_ren_have_sep:
+    cpy #$00
+    bne :+
+    jmp split_ren_fail
+:
+    sty arg_length
+    lda #$00
+    sta arg_buffer,y
+    iny
+split_ren_skip_gap:
+    cpy cmd_length
+    bcc :+
+    jmp split_ren_fail
+:
+    lda arg_buffer,y
+    cmp #ASCII_SPACE
+    beq split_ren_skip_next
+    cmp #ASCII_COMMA
+    beq split_ren_skip_next
+    bne split_ren_copy_dest
+split_ren_skip_next:
+    iny
+    bne split_ren_skip_gap
+split_ren_copy_dest:
+    lda #$00
+    sta copy_dst_length
+    sta copy_trim_length
+split_ren_dest_loop:
+    cpy cmd_length
+    bcs split_ren_done
+    ldx copy_dst_length
+    cpx #MAX_LINE_LEN
+    bcs split_ren_done
+    lda arg_buffer,y
+    sta copy_dst_buffer,x
+    inx
+    stx copy_dst_length
+    cmp #ASCII_SPACE
+    beq split_ren_dest_next
+    stx copy_trim_length
+split_ren_dest_next:
+    iny
+    bne split_ren_dest_loop
+split_ren_done:
+    ldx copy_trim_length
+    bne :+
+    jmp split_ren_fail
+:
+    stx copy_dst_length
+    lda #$00
+    sta copy_dst_buffer,x
+    clc
+    rts
+split_ren_try_inline:
+    jsr split_ren_inline_work
+    bcc split_ren_inline_ok
+    jmp split_ren_fail
+split_ren_inline_ok:
+    clc
+    rts
+split_ren_fail:
+    sec
+    rts
+
+split_ren_inline_work:
+    lda current_drive
+    sta temp_drive
+    tay
+    lda dir_state_table,y
+    cmp #DIR_ID_WORK
+    beq :+
+    sec
+    rts
+:
+    jsr select_dynamic_work_file_table
+    ldx temp_drive
+    lda work_count_table,x
+    sta file_count
+    lda #$00
+    sta file_index
+split_ren_inline_find:
+    lda file_index
+    cmp file_count
+    bcs split_ren_inline_fail
+    asl
+    asl
+    tay
+    lda (SCREEN_PTR),y
+    sta PTR
+    iny
+    lda (SCREEN_PTR),y
+    sta PTR+1
+    jsr match_ptr_prefix_to_arg_buffer
+    bcc split_ren_inline_split
+    inc file_index
+    bne split_ren_inline_find
+split_ren_inline_split:
+    ldx prefix_length
+    lda arg_buffer,x
+    bne :+
+    sec
+    rts
+:
+    stx arg_length
+    lda #$00
+    sta copy_dst_length
+    sta copy_trim_length
+split_ren_inline_copy:
+    lda arg_buffer,x
+    beq split_ren_inline_done
+    ldy copy_dst_length
+    cpy #MAX_LINE_LEN
+    bcs split_ren_inline_done
+    sta copy_dst_buffer,y
+    iny
+    sty copy_dst_length
+    sty copy_trim_length
+    inx
+    bne split_ren_inline_copy
+split_ren_inline_done:
+    ldy copy_trim_length
+    bne :+
+    sec
+    rts
+:
+    lda #$00
+    sta copy_dst_buffer,y
+    clc
+    rts
+split_ren_inline_fail:
+    sec
+    rts
+
+match_ptr_prefix_to_arg_buffer:
+    ldy #$00
+    ldx #$00
+match_prefix_loop:
+    lda (PTR),y
+    cmp #ASCII_DOT
+    beq match_prefix_skip_candidate_dot
+    lda arg_buffer,x
+    cmp #ASCII_DOT
+    beq match_prefix_skip_input_dot
+    lda (PTR),y
+    beq match_prefix_end
+    lda arg_buffer,x
+    beq match_prefix_fail
+    lda (PTR),y
+    jsr normalize_output_char
+    cmp arg_buffer,x
+    bne match_prefix_fail
+    iny
+    inx
+    bne match_prefix_loop
+match_prefix_skip_candidate_dot:
+    iny
+    bne match_prefix_loop
+match_prefix_skip_input_dot:
+    inx
+    bne match_prefix_loop
+match_prefix_end:
+    stx prefix_length
+    clc
+    rts
+match_prefix_fail:
     sec
     rts
 
@@ -2201,6 +2664,135 @@ store_copy_update:
     lda copy_content_hi
     sta (SCREEN_PTR),y
     clc
+    rts
+
+find_work_file_by_path_name:
+    jsr select_dynamic_work_file_table
+    ldx temp_drive
+    lda work_count_table,x
+    sta file_count
+    lda #$00
+    sta file_index
+find_work_file_loop:
+    lda file_index
+    cmp file_count
+    bcs find_work_file_miss
+    asl
+    asl
+    tay
+    lda (SCREEN_PTR),y
+    sta PTR
+    iny
+    lda (SCREEN_PTR),y
+    sta PTR+1
+    jsr compare_ptr_to_path_name
+    bcc find_work_file_hit
+    inc file_index
+    bne find_work_file_loop
+find_work_file_miss:
+    sec
+    rts
+find_work_file_hit:
+    clc
+    rts
+
+delete_work_slot:
+    lda file_index
+    pha
+    ldx temp_drive
+    lda work_count_table,x
+    cmp #2
+    bne delete_work_single
+    pla
+    cmp #$00
+    bne delete_work_drop_last
+    lda #$01
+    sta file_index
+    jsr select_dynamic_work_name_slot
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    lda #$00
+    sta file_index
+    jsr select_dynamic_work_name_slot
+    jsr copy_slot_name_between_ptrs
+    jsr select_dynamic_work_file_table
+    ldy #$06
+    lda (SCREEN_PTR),y
+    sta copy_content_lo
+    iny
+    lda (SCREEN_PTR),y
+    sta copy_content_hi
+    jsr select_dynamic_work_file_table
+    lda #$00
+    sta file_index
+    lda file_index
+    asl
+    asl
+    tay
+    iny
+    iny
+    lda copy_content_lo
+    sta (SCREEN_PTR),y
+    iny
+    lda copy_content_hi
+    sta (SCREEN_PTR),y
+    lda #$01
+    sta file_index
+    jsr clear_dynamic_work_slot
+    ldx temp_drive
+    dec work_count_table,x
+    rts
+delete_work_drop_last:
+    lda #$01
+    sta file_index
+    jsr clear_dynamic_work_slot
+    ldx temp_drive
+    dec work_count_table,x
+    rts
+delete_work_single:
+    pla
+    jsr clear_dynamic_work_slot
+    ldx temp_drive
+    lda #$00
+    sta work_count_table,x
+    rts
+
+clear_dynamic_work_slot:
+    pha
+    jsr select_dynamic_work_name_slot
+    ldy #$00
+    lda #$00
+    sta (PTR),y
+    pla
+    sta file_index
+    jsr select_dynamic_work_file_table
+    lda file_index
+    asl
+    asl
+    tay
+    iny
+    iny
+    lda #$00
+    sta (SCREEN_PTR),y
+    iny
+    sta (SCREEN_PTR),y
+    rts
+
+copy_slot_name_between_ptrs:
+    ldy #$00
+copy_slot_name_between_loop:
+    lda (SCREEN_PTR),y
+    sta (PTR),y
+    beq copy_slot_name_between_done
+    iny
+    cpy #WORK_NAME_MAX
+    bcc copy_slot_name_between_loop
+    dey
+    lda #$00
+    sta (PTR),y
+copy_slot_name_between_done:
     rts
 
 copy_path_name_to_slot_ascii:
@@ -3148,6 +3740,12 @@ file_count:
     .byte 0
 file_index:
     .byte 0
+source_drive:
+    .byte 0
+source_slot:
+    .byte 0
+prefix_length:
+    .byte 0
 copy_dst_length:
     .byte 0
 copy_trim_length:
@@ -3202,11 +3800,11 @@ script_cmd_mem:
 script_cmd_quit:
     .byte CMD_Q, CMD_U, CMD_I, CMD_T, 0
 resp_help:
-    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY", 0
+    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL", 0
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 1A64", 0
+    .byte "CORE 1EDB", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:
@@ -3238,7 +3836,7 @@ entry_work_empty:
 content_flat_system:
     .byte "UDOS SYSTEM VOLUME", 0
 content_flat_commands:
-    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY", 0
+    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL", 0
 content_flat_readme:
     .byte "MOCK FLAT IMAGE CONTENT", 0
 content_bin_shell:
@@ -3427,6 +4025,14 @@ resp_bad_file:
     .byte "NO SUCH FILE", 0
 resp_bad_copy:
     .byte "BAD COPY", 0
+resp_bad_ren:
+    .byte "BAD REN", 0
+resp_deleted:
+    .byte "DELETED", 0
+resp_renamed:
+    .byte "RENAMED", 0
+resp_exists:
+    .byte "EXISTS", 0
 resp_copied:
     .byte "COPIED", 0
 resp_read_only:

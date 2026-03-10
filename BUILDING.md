@@ -86,7 +86,7 @@ Validated resident behavior:
 - binds `A:` as `D64` and `B:` as `DNP`
 - renders the prompt from resident drive/path state
 - runs the current live command loop
-- drives the resident shell under VICE with `-keybuf "cdb:\rcdsrc\rcopybootasmworkbootasm\rcdwork\rtypebootasm\r"`
+- drives the resident shell under VICE with `-keybuf "cdb:\rcdsrc\rcopybootasmworkbootasm\rcdwork\rdir\rrenbootasmboot2asm\rdir\rtypeboot2asm\rdelboot2asm\rdir\r"`
 - applies `-keybuf-delay 300` so the injected shell transcript does not race VICE's own autostart sequence
 - screen transcript includes:
   - `UDOS CORE`
@@ -98,8 +98,18 @@ Validated resident behavior:
   - `COPIED`
   - `B:DNP/SRC> CDWORK`
   - `B:DNP/WORK`
-  - `B:DNP/WORK> TYPEBOOTASM`
+  - `B:DNP/WORK> DIR`
+  - `B:DNP/WORK BOOTASM`
+  - `B:DNP/WORK> RENBOOTASMBOOT2ASM`
+  - `RENAMED`
+  - `B:DNP/WORK> DIR`
+  - `B:DNP/WORK BOOT2ASM`
+  - `B:DNP/WORK> TYPEBOOT2ASM`
   - `; BOOT.ASM MOCK SOURCE`
+  - `B:DNP/WORK> DELBOOT2ASM`
+  - `DELETED`
+  - `B:DNP/WORK> DIR`
+  - `B:DNP/WORK EMPTY`
 - `$CFE8 == $01`, `$CFE9 == $01` confirm `A:` bind result `D64/flat`
 - `$CFEA == $04`, `$CFEB == $02` confirm `B:` bind result `DNP/tree`
 - `$CFEC == $01` confirms current drive `B:` after the `CD`/`COPY` sequence
@@ -112,10 +122,10 @@ Current note:
 - `svc_line_read` now uses live keyboard input on the resident path
 - emulator validation still remains deterministic because `make vice-resident` injects a fixed VICE key buffer
 - the resident parser now accepts a command word plus one argument
-- `CD`, `DIR`, `MOUNT`, `TYPE`, and `COPY` also accept inline shorthand such as `CDB:`, `CDSRC`, `MOUNTB:D81`, `TYPEBOOTASM`, and `COPYBOOTASMWORKBOOTASM` because VICE `-keybuf` spacing is not reliable
+- `CD`, `DIR`, `MOUNT`, `TYPE`, `COPY`, `REN`, and `DEL` also accept inline shorthand such as `CDB:`, `CDSRC`, `MOUNTB:D81`, `TYPEBOOTASM`, `COPYBOOTASMWORKBOOTASM`, `RENBOOTASMBOOT2ASM`, and `DELBOOT2ASM` because VICE `-keybuf` spacing is not reliable
 - `VOL` now renders resident volume labels plus mount kind
 - `TYPE` resolves descriptor-backed mock file content and currently tolerates optional `.` in filename matching
-- `COPY` currently writes into a small mutable `WORK` directory model per logical drive
+- `COPY`, `REN`, and `DEL` currently operate on a small mutable `WORK` directory model per logical drive
 
 Current validated linked resident entrypoint:
 - `.start = $1810`
@@ -123,15 +133,16 @@ Current validated linked resident entrypoint:
 Current resident footprint from the map:
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$1A64`
+- resident core code: `$1EDB`
 
 Current validation note:
 - `make vice-resident` now waits for the copied-file `TYPE` output plus the resident snapshot bytes
+- `make vice-resident` now waits for the final empty `WORK` listing plus the resident snapshot bytes
 - it autostarts `build/udosres.prg` instead of the D64 image because repeated VICE disk autostarts were timing-sensitive
 - it delays the injected shell commands so VICE autostart can finish before resident input begins
 - it no longer relies on a final `QUIT` marker because VICE kept dropping the last command terminator on longer transcripts
 - disk-image creation is still verified by `make resident` and the build tests
-- the resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg) is now `$2400` bytes
+- the resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg) is now `$2800` bytes
 
 ## Tests
 
@@ -165,8 +176,12 @@ B:DNP/SRC
 COPIED
   B:DNP/SRC> CDWORK
 B:DNP/WORK
-  B:DNP/WORK> TYPE BOOTASM
+  B:DNP/WORK> REN BOOTASM BOOT2ASM
+RENAMED
+  B:DNP/WORK> TYPE BOOT2ASM
 ; BOOT.ASM MOCK SOURCE
+  B:DNP/WORK> DEL BOOT2ASM
+DELETED
 ```
 
 Until that run happens on target hardware, all validation here must be described

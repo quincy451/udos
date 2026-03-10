@@ -53,6 +53,6 @@ vice-proof: proof
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_DISK) --expected "UDOS VM OK"
 
 vice-resident: resident
-	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) --expected "; BOOT.ASM MOCK SOURCE" --keybuf "cdb:\\rcdsrc\\rcopybootasmworkbootasm\\rcdwork\\rtypebootasm\\r" --keybuf-delay 300 --check-byte 0xCFE8=0x01 --check-byte 0xCFE9=0x01 --check-byte 0xCFEA=0x04 --check-byte 0xCFEB=0x02 --check-byte 0xCFEC=0x01 --check-byte 0xCFEE=0x02 --check-byte 0xCFF0=0x01 --check-byte 0xCFF2=0x04 --check-byte 0xCFF4=0x01
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) --expected "B:DNP/WORK EMPTY" --keybuf "cdb:\\rcdsrc\\rcopybootasmworkbootasm\\rcdwork\\rdir\\rrenbootasmboot2asm\\rdir\\rtypeboot2asm\\rdelboot2asm\\rdir\\r" --keybuf-delay 300 --check-byte 0xCFE8=0x01 --check-byte 0xCFE9=0x01 --check-byte 0xCFEA=0x04 --check-byte 0xCFEB=0x02 --check-byte 0xCFEC=0x01 --check-byte 0xCFEE=0x02 --check-byte 0xCFF0=0x01 --check-byte 0xCFF2=0x04 --check-byte 0xCFF4=0x01
 
 test: vice-proof vice-resident
