@@ -138,6 +138,16 @@ Current ABI version:
 - input: none
 - output: `rP = pointer to next entry name`, or `0` when exhausted
 
+### `TYPE` backend note
+- the resident `TYPE` command now attempts a real file read when hardware UCI is present
+- current sequence:
+  - `DOS_CMD_CHANGE_DIR (0x11)`
+  - `DOS_CMD_OPEN_FILE (0x02)` with `FA_READ`
+  - `DOS_CMD_READ_DATA (0x04)`
+  - `DOS_CMD_CLOSE_FILE (0x03)`
+- reads are bounded to the resident response buffer
+- on failure the command falls back to the current descriptor-backed mock content
+
 ### `svc_console_reset`
 - input: none
 - output: none
@@ -260,7 +270,7 @@ Current VICE validation uses these resident snapshots:
 
 - real mounted-image metadata
 - real image-backed directory enumeration
-- real file open/read/write/rename/delete/copy
+- real file write/rename/delete/copy
 - real program-image lookup/load behind implicit program launch
 - overlay/program module loading
 - full hardware UCI transport

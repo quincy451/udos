@@ -113,6 +113,16 @@ and the resident enumeration seam. It still must be replaced by real
 image-backed file lookup, mutation, and mounted-image metadata once the
 filesystem layer exists.
 
+Current file-read seam:
+- `TYPE` now attempts a real Ultimate DOS file read when UCI hardware is present
+- the current call sequence is:
+  - `CHANGE_DIR`
+  - `OPEN_FILE`
+  - `READ_DATA`
+  - `CLOSE_FILE`
+- reads are currently bounded to the resident response buffer for text display
+- on hardware/query failure the shell falls back to the resident mock content tables
+
 Current backend-path seam:
 - `svc_fs_get_backend_path_ptr` returns a path-like metadata string per drive
 - hardware mode now attempts to push the resident drive/path state into the mapped Ultimate DOS target before calling `GET_PATH`

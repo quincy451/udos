@@ -19,6 +19,10 @@ Current milestone:
   - backend-path refresh through `GET_PATH`
   - directory cache fill through `OPEN_DIR` / `READ_DIR`
   - mock fallback retained for VICE and failure cases
+- Phase 5 now also includes a hardware-backed `TYPE` read path in code:
+  - resident path synchronization through `CHANGE_DIR`
+  - file open/read/close through `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
+  - mock fallback retained for VICE and failure cases
 
 Current command parser rule:
 - shell keywords require a separator before arguments

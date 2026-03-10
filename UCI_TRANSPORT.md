@@ -55,6 +55,10 @@ Current resident users of the native transport:
 - directory enumeration:
   - `OPEN_DIR`
   - `READ_DIR`
+- file read for `TYPE`:
+  - `OPEN_FILE`
+  - `READ_DATA`
+  - `CLOSE_FILE`
 
 Current implementation notes:
 - `svc_transport_get_mode` now delegates to `uci_probe` instead of reading the ident register directly
