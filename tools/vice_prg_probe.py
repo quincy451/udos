@@ -206,23 +206,44 @@ def launch_vice(
     return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
 
-def wait_for_screen(client: BinaryMonitorClient, process: subprocess.Popen[str], fragment: str, timeout: float) -> str:
+def wait_for_screen_and_state(
+    client: BinaryMonitorClient,
+    process: subprocess.Popen[str],
+    fragment: str,
+    *,
+    marker_addr: int,
+    marker_value: int,
+    extra_checks: list[tuple[int, int]],
+    timeout: float,
+) -> str:
     deadline = time.monotonic() + timeout
     last_screen = ""
+    saw_fragment = False
     while time.monotonic() < deadline:
         if process.poll() is not None:
             stdout, stderr = process.communicate()
             raise ViceError(f"x64sc exited early while waiting for screen text\nstdout:\n{stdout}\nstderr:\n{stderr}")
         last_screen = screen_ram_to_text(client.memory_get(0x0400, 0x07E7))
         if fragment in last_screen:
-            return last_screen
+            saw_fragment = True
+        if saw_fragment:
+            marker = client.memory_get(marker_addr, marker_addr)[0]
+            if marker == marker_value:
+                checks_ok = True
+                for addr, value in extra_checks:
+                    actual = client.memory_get(addr, addr)[0]
+                    if actual != value:
+                        checks_ok = False
+                        break
+                if checks_ok:
+                    return last_screen
         time.sleep(0.2)
     raise ViceError(f"timed out waiting for screen text {fragment!r}; last screen was:\n{last_screen}")
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Autostart a D64 in VICE and verify the Acheron proof banner")
-    parser.add_argument("--disk", required=True, help="path to D64 image")
+    parser = argparse.ArgumentParser(description="Autostart a PRG or disk image in VICE and verify the expected runtime state")
+    parser.add_argument("--disk", required=True, help="path to a PRG or disk image to autostart")
     parser.add_argument("--expected", required=True, help="screen fragment to wait for")
     parser.add_argument("--marker-address", default="0xCFFF", help="hex or decimal address for the ready marker")
     parser.add_argument("--marker-value", default="0x42", help="expected ready marker byte")
@@ -243,19 +264,23 @@ def main(argv: list[str] | None = None) -> int:
         client.connect(time.monotonic() + 20.0)
         client.ping()
         client.resume()
-        screen = wait_for_screen(client, process, args.expected, timeout=args.timeout)
         marker_addr = int(args.marker_address, 0)
         marker_value = int(args.marker_value, 0)
-        marker = client.memory_get(marker_addr, marker_addr)[0]
-        if marker != marker_value:
-            raise ViceError(f"marker mismatch at ${marker_addr:04X}: expected 0x{marker_value:02x} got 0x{marker:02x}")
+        extra_checks: list[tuple[int, int]] = []
         for item in args.check_byte:
             addr_text, value_text = item.split("=", 1)
             addr = int(addr_text, 0)
             value = int(value_text, 0)
-            actual = client.memory_get(addr, addr)[0]
-            if actual != value:
-                raise ViceError(f"byte mismatch at ${addr:04X}: expected 0x{value:02x} got 0x{actual:02x}")
+            extra_checks.append((addr, value))
+        screen = wait_for_screen_and_state(
+            client,
+            process,
+            args.expected,
+            marker_addr=marker_addr,
+            marker_value=marker_value,
+            extra_checks=extra_checks,
+            timeout=args.timeout,
+        )
         print(screen)
         return 0
     except ViceError as exc:

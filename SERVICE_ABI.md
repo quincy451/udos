@@ -90,6 +90,7 @@ Version policy:
 - current behavior:
   - updates the resident mount-kind and mount-flag tables for valid drives
   - derives flags from kind: `D64/D71/D81 -> flat`, `DNP -> tree`, `none -> none`
+  - installs the current drive's mounted-image descriptor and volume pointer cache
   - invalid drive indices return `none/none`
 - purpose: move from hardcoded query values to actual resident bind state
 
@@ -109,6 +110,8 @@ Version policy:
 - current mock labels:
   - `A:` -> `SYSTEM`
   - `B:` -> `WORK`
+- current behavior:
+  - returns the volume pointer from the current drive's mounted-image descriptor
 - purpose: let `VOL` and later `MOUNT` report metadata beyond mount kind alone
 
 ### `svc_fs_get_dir_listing_ptr`
@@ -127,7 +130,8 @@ Version policy:
   - high byte: resident directory id
 - output: `rP = entry count`
 - current behavior:
-  - selects the current resident mock entry table for the requested drive and directory
+  - selects the current resident mounted-image descriptor for the requested drive
+  - chooses the root or subtree entry table from that descriptor
   - resets the resident enumeration cursor
 - purpose: establish a directory-enumeration ABI shape that can later be backed by real mounted-image I/O
 
@@ -178,12 +182,13 @@ Version policy:
   - `6`: `DIR`
   - `7`: `CD`
   - `8`: `MOUNT`
+  - `9`: `TYPE`
 - current behavior:
   - reads live keyboard input through C64 KERNAL `GETIN`
   - echoes typed characters to the console
   - accepts both carriage return and linefeed as command terminators for VICE automation compatibility
   - tokenizes a command word plus one resident argument buffer
-  - accepts inline `CD`/`DIR`/`MOUNT` shorthand such as `CDB:`, `CDSRC`, and `MOUNTB:D81` to keep VICE `-keybuf` automation reliable
+  - accepts inline `CD`/`DIR`/`MOUNT`/`TYPE` shorthand such as `CDB:`, `CDSRC`, `MOUNTB:D81`, and `TYPEBOOTASM` to keep VICE `-keybuf` automation reliable
   - advances the resident cursor to the next line
 - current emulator validation:
   - `make vice-resident` drives this path through VICE `-keybuf`

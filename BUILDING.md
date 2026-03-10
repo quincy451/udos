@@ -80,16 +80,18 @@ make vice-resident
 ```
 
 Validated resident behavior:
-- autostarts a D64 in `x64sc`
+- builds the resident D64 image and BASIC wrapper
+- autostarts the BASIC wrapper PRG in `x64sc` for more reliable repeated emulator runs
 - enters the resident bootstrap/core image
 - binds `A:` as `D64` and `B:` as `DNP`
 - renders the prompt from resident drive/path state
 - runs the current live command loop
-- drives the resident shell under VICE with `-keybuf "help\rvol\rmountb:d81\rvol\rcdbin\rmountb:dnp\rcdb:\rdir\rcdsrc\rdir\rquit\r"`
+- drives the resident shell under VICE with `-keybuf "help\rvol\rmountb:d81\rvol\rcdbin\rmountb:dnp\rcdb:\rdir\rcdsrc\rtypebootasm\rdir\rquit\r"`
+- applies `-keybuf-delay 300` so the injected shell transcript does not race VICE's own autostart sequence
 - screen transcript includes:
   - `UDOS CORE`
   - `A:D64/> HELP`
-  - `HELP VER VOL MEM DIR CD MOUNT`
+  - `HELP VER VOL MEM DIR CD MOUNT TYPE`
   - `A:D64/> VOL`
   - `A:SYSTEM D64 B:WORK DNP`
   - `A:D64/> MOUNTB:D81`
@@ -106,6 +108,8 @@ Validated resident behavior:
   - `B:DNP/ BIN/ SRC/ WORK/`
   - `B:DNP/> CDSRC`
   - `B:DNP/SRC`
+  - `B:DNP/SRC> TYPEBOOTASM`
+  - `; BOOT.ASM MOCK SOURCE`
   - `B:DNP/SRC> DIR`
   - `B:DNP/SRC BOOT.ASM FS.AVM`
   - `B:DNP/SRC> QUIT`
@@ -122,8 +126,9 @@ Current note:
 - `svc_line_read` now uses live keyboard input on the resident path
 - emulator validation still remains deterministic because `make vice-resident` injects a fixed VICE key buffer
 - the resident parser now accepts a command word plus one argument
-- `CD`, `DIR`, and `MOUNT` also accept inline shorthand such as `CDB:`, `CDSRC`, and `MOUNTB:D81` because VICE `-keybuf` spacing is not reliable
+- `CD`, `DIR`, `MOUNT`, and `TYPE` also accept inline shorthand such as `CDB:`, `CDSRC`, `MOUNTB:D81`, and `TYPEBOOTASM` because VICE `-keybuf` spacing is not reliable
 - `VOL` now renders resident volume labels plus mount kind
+- `TYPE` resolves descriptor-backed mock file content and currently tolerates optional `.` in filename matching
 
 Current validated linked resident entrypoint:
 - `.start = $1810`
@@ -131,7 +136,13 @@ Current validated linked resident entrypoint:
 Current resident footprint from the map:
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$0EEB`
+- resident core code: `$14FC`
+
+Current validation note:
+- `make vice-resident` now waits for the stable `UDOS CORE` banner plus the ready marker and byte snapshots
+- it autostarts `build/udosres.prg` instead of the D64 image because repeated VICE disk autostarts were timing-sensitive
+- it delays the injected shell commands so VICE autostart can finish before resident input begins
+- disk-image creation is still verified by `make resident` and the build tests
 
 ## Tests
 
@@ -174,6 +185,8 @@ B:DNP/
 B:DNP/ BIN/ SRC/ WORK/
   B:DNP/> CDSRC
 B:DNP/SRC
+  B:DNP/SRC> TYPEBOOTASM
+; BOOT.ASM MOCK SOURCE
   B:DNP/SRC> DIR
 B:DNP/SRC BOOT.ASM FS.AVM
   B:DNP/SRC> QUIT

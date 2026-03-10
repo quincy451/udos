@@ -99,6 +99,7 @@ SHELL_CMD_QUIT = 5
 SHELL_CMD_DIR = 6
 SHELL_CMD_CD = 7
 SHELL_CMD_MOUNT = 8
+SHELL_CMD_TYPE = 9
 INPUT_MODE_KEYBOARD = 0
 INPUT_MODE_SCRIPT = 1
 DIR_ID_ROOT = 0
@@ -111,6 +112,40 @@ PATH_STATUS_BAD = 2
 PATH_STATUS_UNMOUNTED = 3
 MOUNT_STATUS_OK = 0
 MOUNT_STATUS_BAD = 1
+IMG_VOL_LO = 0
+IMG_VOL_HI = 1
+IMG_ROOT_LO_LO = 2
+IMG_ROOT_LO_HI = 3
+IMG_ROOT_HI_LO = 4
+IMG_ROOT_HI_HI = 5
+IMG_ROOT_COUNT = 6
+IMG_BIN_LO_LO = 7
+IMG_BIN_LO_HI = 8
+IMG_BIN_HI_LO = 9
+IMG_BIN_HI_HI = 10
+IMG_BIN_COUNT = 11
+IMG_SRC_LO_LO = 12
+IMG_SRC_LO_HI = 13
+IMG_SRC_HI_LO = 14
+IMG_SRC_HI_HI = 15
+IMG_SRC_COUNT = 16
+IMG_WORK_LO_LO = 17
+IMG_WORK_LO_HI = 18
+IMG_WORK_HI_LO = 19
+IMG_WORK_HI_HI = 20
+IMG_WORK_COUNT = 21
+IMG_FILE_ROOT_TABLE_LO = 22
+IMG_FILE_ROOT_TABLE_HI = 23
+IMG_FILE_ROOT_COUNT = 24
+IMG_FILE_BIN_TABLE_LO = 25
+IMG_FILE_BIN_TABLE_HI = 26
+IMG_FILE_BIN_COUNT = 27
+IMG_FILE_SRC_TABLE_LO = 28
+IMG_FILE_SRC_TABLE_HI = 29
+IMG_FILE_SRC_COUNT = 30
+IMG_FILE_WORK_TABLE_LO = 31
+IMG_FILE_WORK_TABLE_HI = 32
+IMG_FILE_WORK_COUNT = 33
 
 .code
 
@@ -160,6 +195,7 @@ shell_loop:
     case8 SHELL_CMD_NONE, shell_loop
     case8 SHELL_CMD_QUIT, shell_done
     case8 SHELL_CMD_MOUNT, cmd_emit_response
+    case8 SHELL_CMD_TYPE, cmd_emit_response
     case8 SHELL_CMD_DIR, cmd_emit_response
     case8 SHELL_CMD_CD, cmd_emit_response
     case8 SHELL_CMD_HELP, cmd_emit_response
@@ -356,10 +392,14 @@ svc_fs_bind_drive:
     bcs fs_bind_invalid
     lda 1,x
     sta mount_kind_table,y
+    sta temp_mount_kind
+    sty temp_drive
     jsr kind_to_flags
     sta mount_flag_table,y
     lda #DIR_ID_ROOT
     sta dir_state_table,y
+    jsr install_mounted_image
+    ldy temp_drive
     lda mount_kind_table,y
     sta 0,x
     lda mount_flag_table,y
@@ -370,6 +410,104 @@ fs_bind_invalid:
     sta 0,x
     lda #MOUNT_FLAG_NONE
     sta 1,x
+    rts
+
+install_mounted_image:
+    lda temp_mount_kind
+    jsr select_image_descriptor
+    ldy temp_drive
+    lda PTR
+    sta mounted_image_lo,y
+    lda PTR+1
+    sta mounted_image_hi,y
+    ldy #IMG_VOL_LO
+    lda (PTR),y
+    ldy temp_drive
+    sta volume_ptr_lo,y
+    ldy #IMG_VOL_HI
+    lda (PTR),y
+    ldy temp_drive
+    sta volume_ptr_hi,y
+    rts
+
+select_image_descriptor:
+    ldy temp_drive
+    cpy #DRIVE_A
+    beq select_image_a
+    cmp #MOUNT_KIND_D64
+    beq select_image_b_d64
+    cmp #MOUNT_KIND_D71
+    beq select_image_b_d71
+    cmp #MOUNT_KIND_D81
+    beq select_image_b_d81
+    cmp #MOUNT_KIND_DNP
+    beq select_image_b_dnp
+    lda #<image_none_b
+    sta PTR
+    lda #>image_none_b
+    sta PTR+1
+    rts
+select_image_a:
+    cmp #MOUNT_KIND_D64
+    beq select_image_a_d64
+    cmp #MOUNT_KIND_D71
+    beq select_image_a_d71
+    cmp #MOUNT_KIND_D81
+    beq select_image_a_d81
+    cmp #MOUNT_KIND_DNP
+    beq select_image_a_dnp
+    lda #<image_none_a
+    sta PTR
+    lda #>image_none_a
+    sta PTR+1
+    rts
+select_image_a_d64:
+    lda #<image_a_d64
+    sta PTR
+    lda #>image_a_d64
+    sta PTR+1
+    rts
+select_image_a_d71:
+    lda #<image_a_d71
+    sta PTR
+    lda #>image_a_d71
+    sta PTR+1
+    rts
+select_image_a_d81:
+    lda #<image_a_d81
+    sta PTR
+    lda #>image_a_d81
+    sta PTR+1
+    rts
+select_image_a_dnp:
+    lda #<image_a_dnp
+    sta PTR
+    lda #>image_a_dnp
+    sta PTR+1
+    rts
+select_image_b_d64:
+    lda #<image_b_d64
+    sta PTR
+    lda #>image_b_d64
+    sta PTR+1
+    rts
+select_image_b_d71:
+    lda #<image_b_d71
+    sta PTR
+    lda #>image_b_d71
+    sta PTR+1
+    rts
+select_image_b_d81:
+    lda #<image_b_d81
+    sta PTR
+    lda #>image_b_d81
+    sta PTR+1
+    rts
+select_image_b_dnp:
+    lda #<image_b_dnp
+    sta PTR
+    lda #>image_b_dnp
+    sta PTR+1
     rts
 
 kind_to_flags:
@@ -606,6 +744,8 @@ svc_shell_response_ptr:
     beq shell_resp_help
     cmp #SHELL_CMD_MOUNT
     beq shell_resp_mount
+    cmp #SHELL_CMD_TYPE
+    beq shell_resp_type
     cmp #SHELL_CMD_DIR
     beq shell_resp_dir
     cmp #SHELL_CMD_CD
@@ -629,6 +769,9 @@ shell_resp_help:
     rts
 shell_resp_mount:
     jsr build_mount_response
+    rts
+shell_resp_type:
+    jsr build_type_response
     rts
 shell_resp_dir:
     jsr build_dir_response
@@ -873,7 +1016,7 @@ token_len4:
     ldy parse_cmd_start
     lda line_buffer,y
     cmp #CMD_H
-    bne token_len4_quit
+    bne token_len4_type
     iny
     lda line_buffer,y
     cmp #CMD_E
@@ -889,8 +1032,35 @@ token_len4:
     iny
     lda line_buffer,y
     cmp #CMD_P
-    bne token_unknown
+    beq :+
+    jmp token_unknown
+:
     lda #SHELL_CMD_HELP
+    rts
+token_len4_type:
+    ldy parse_cmd_start
+    lda line_buffer,y
+    cmp #CMD_T
+    bne token_len4_quit
+    iny
+    lda line_buffer,y
+    cmp #CMD_Y
+    beq :+
+    jmp token_unknown
+:
+    iny
+    lda line_buffer,y
+    cmp #CMD_P
+    beq :+
+    jmp token_unknown
+:
+    iny
+    lda line_buffer,y
+    cmp #CMD_E
+    beq :+
+    jmp token_unknown
+:
+    lda #SHELL_CMD_TYPE
     rts
 token_len4_quit:
     ldy parse_cmd_start
@@ -991,24 +1161,54 @@ split_inline_try_dir:
     ldy parse_cmd_start
     lda line_buffer,y
     cmp #CMD_D
-    bne split_inline_try_mount
+    bne split_inline_try_type
     iny
     lda line_buffer,y
     cmp #CMD_I
-    bne split_inline_try_mount
+    bne split_inline_try_type
     iny
     lda line_buffer,y
     cmp #CMD_R
-    bne split_inline_try_mount
+    bne split_inline_try_type
     lda cmd_length
     cmp #3
-    beq split_inline_done
+    bne :+
+    jmp split_inline_done
+:
     sec
     sbc #3
     sta arg_length
     lda #3
     sta parse_scan_index
     lda #3
+    sta cmd_length
+    jmp split_inline_copy
+split_inline_try_type:
+    ldy parse_cmd_start
+    lda line_buffer,y
+    cmp #CMD_T
+    bne split_inline_try_mount
+    iny
+    lda line_buffer,y
+    cmp #CMD_Y
+    bne split_inline_try_mount
+    iny
+    lda line_buffer,y
+    cmp #CMD_P
+    bne split_inline_try_mount
+    iny
+    lda line_buffer,y
+    cmp #CMD_E
+    bne split_inline_try_mount
+    lda cmd_length
+    cmp #4
+    beq split_inline_done
+    sec
+    sbc #4
+    sta arg_length
+    lda #4
+    sta parse_scan_index
+    lda #4
     sta cmd_length
     jmp split_inline_copy
 split_inline_try_mount:
@@ -1216,6 +1416,7 @@ mount_build_ok:
     sta mount_flag_table,y
     lda #DIR_ID_ROOT
     sta dir_state_table,y
+    jsr install_mounted_image
     lda temp_drive
     cmp current_drive
     bne mount_build_reply
@@ -1235,6 +1436,281 @@ mount_build_reply:
     sta 0,x
     lda #>response_buffer
     sta 1,x
+    rts
+
+build_type_response:
+    stx saved_rp_x
+    jsr resolve_file_target
+    cmp #PATH_STATUS_OK
+    beq type_build_lookup
+    cmp #PATH_STATUS_FLAT
+    beq type_build_flat
+    cmp #PATH_STATUS_UNMOUNTED
+    beq type_build_unmounted
+    ldx saved_rp_x
+    lda #<resp_bad_file
+    sta 0,x
+    lda #>resp_bad_file
+    sta 1,x
+    rts
+type_build_flat:
+    ldx saved_rp_x
+    lda #<resp_flat_image
+    sta 0,x
+    lda #>resp_flat_image
+    sta 1,x
+    rts
+type_build_unmounted:
+    ldx saved_rp_x
+    lda #<resp_unmounted
+    sta 0,x
+    lda #>resp_unmounted
+    sta 1,x
+    rts
+type_build_lookup:
+    jsr lookup_file_content
+    bcc type_build_found
+    ldx saved_rp_x
+    lda #<resp_bad_file
+    sta 0,x
+    lda #>resp_bad_file
+    sta 1,x
+    rts
+type_build_found:
+    ldx saved_rp_x
+    lda PTR
+    sta 0,x
+    lda PTR+1
+    sta 1,x
+    rts
+
+resolve_file_target:
+    lda current_drive
+    sta temp_drive
+    tay
+    lda dir_state_table,y
+    sta temp_dir_id
+    lda #$00
+    sta parse_scan_index
+    lda arg_length
+    bne :+
+    lda #PATH_STATUS_BAD
+    rts
+:
+    lda arg_length
+    cmp #2
+    bcc file_after_prefix
+    lda arg_buffer+1
+    cmp #ASCII_COLON
+    bne file_after_prefix
+    lda arg_buffer+0
+    cmp #$01
+    beq file_drive_a
+    cmp #$02
+    beq file_drive_b
+    lda #PATH_STATUS_BAD
+    rts
+file_drive_a:
+    lda #DRIVE_A
+    sta temp_drive
+    lda #2
+    sta parse_scan_index
+    jmp file_after_drive
+file_drive_b:
+    lda #DRIVE_B
+    sta temp_drive
+    lda #2
+    sta parse_scan_index
+file_after_drive:
+    ldy temp_drive
+    lda dir_state_table,y
+    sta temp_dir_id
+file_after_prefix:
+    ldy temp_drive
+    lda mount_kind_table,y
+    bne :+
+    jmp file_unmounted
+:
+    lda mount_flag_table,y
+    cmp #MOUNT_FLAG_TREE
+    beq file_tree
+file_flat:
+    ldy parse_scan_index
+    cpy arg_length
+    bcc :+
+    jmp file_bad
+:
+    lda arg_buffer,y
+    cmp #ASCII_SLASH
+    bne file_flat_scan
+    lda #DIR_ID_ROOT
+    sta temp_dir_id
+    iny
+    sty parse_scan_index
+    cpy arg_length
+    bcc :+
+    jmp file_bad
+:
+file_flat_scan:
+    ldy parse_scan_index
+file_flat_scan_loop:
+    cpy arg_length
+    bcs file_copy_name
+    lda arg_buffer,y
+    cmp #ASCII_SLASH
+    beq file_flat_error
+    iny
+    bne file_flat_scan_loop
+file_tree:
+    ldy parse_scan_index
+    cpy arg_length
+    bcs file_bad
+    lda arg_buffer,y
+    cmp #ASCII_SLASH
+    bne file_tree_find_sep
+    lda #DIR_ID_ROOT
+    sta temp_dir_id
+    iny
+    sty parse_scan_index
+    cpy arg_length
+    bcs file_bad
+file_tree_find_sep:
+    ldy parse_scan_index
+file_tree_scan_loop:
+    cpy arg_length
+    bcs file_copy_name
+    lda arg_buffer,y
+    cmp #ASCII_SLASH
+    beq file_tree_component
+    iny
+    bne file_tree_scan_loop
+file_tree_component:
+    sty saved_response_y
+    lda parse_scan_index
+    sta parse_cmd_start
+    tya
+    sec
+    sbc parse_scan_index
+    sta cmd_length
+    beq file_bad
+    jsr match_path_component
+    bcs file_bad
+    sta temp_dir_id
+    ldy saved_response_y
+    iny
+    sty parse_scan_index
+    cpy arg_length
+    bcs file_bad
+    ldy parse_scan_index
+file_tree_filename_scan:
+    cpy arg_length
+    bcs file_copy_name
+    lda arg_buffer,y
+    cmp #ASCII_SLASH
+    beq file_bad
+    iny
+    bne file_tree_filename_scan
+file_copy_name:
+    jsr copy_path_name_from_parse
+    bcs file_bad
+    lda #PATH_STATUS_OK
+    rts
+file_flat_error:
+    lda #PATH_STATUS_FLAT
+    rts
+file_unmounted:
+    lda #PATH_STATUS_UNMOUNTED
+    rts
+file_bad:
+    lda #PATH_STATUS_BAD
+    rts
+
+match_path_component:
+    lda cmd_length
+    cmp #3
+    beq match_path_len3
+    cmp #4
+    beq match_path_len4
+    sec
+    rts
+match_path_len3:
+    ldy parse_cmd_start
+    lda arg_buffer,y
+    cmp #CMD_B
+    bne match_path_src
+    iny
+    lda arg_buffer,y
+    cmp #CMD_I
+    bne match_path_fail
+    iny
+    lda arg_buffer,y
+    cmp #CMD_N
+    bne match_path_fail
+    lda #DIR_ID_BIN
+    clc
+    rts
+match_path_src:
+    ldy parse_cmd_start
+    lda arg_buffer,y
+    cmp #CMD_S
+    bne match_path_fail
+    iny
+    lda arg_buffer,y
+    cmp #CMD_R
+    bne match_path_fail
+    iny
+    lda arg_buffer,y
+    cmp #CMD_C
+    bne match_path_fail
+    lda #DIR_ID_SRC
+    clc
+    rts
+match_path_len4:
+    ldy parse_cmd_start
+    lda arg_buffer,y
+    cmp #CMD_W
+    bne match_path_fail
+    iny
+    lda arg_buffer,y
+    cmp #CMD_O
+    bne match_path_fail
+    iny
+    lda arg_buffer,y
+    cmp #CMD_R
+    bne match_path_fail
+    iny
+    lda arg_buffer,y
+    cmp #CMD_K
+    bne match_path_fail
+    lda #DIR_ID_WORK
+    clc
+    rts
+match_path_fail:
+    sec
+    rts
+
+copy_path_name_from_parse:
+    ldx #$00
+    ldy parse_scan_index
+copy_path_name_loop:
+    cpy arg_length
+    bcs copy_path_name_done
+    cpx #MAX_LINE_LEN
+    bcs copy_path_name_done
+    lda arg_buffer,y
+    sta path_name_buffer,x
+    inx
+    iny
+    bne copy_path_name_loop
+copy_path_name_done:
+    lda #$00
+    sta path_name_buffer,x
+    cpx #$00
+    beq copy_path_name_empty
+    clc
+    rts
+copy_path_name_empty:
+    sec
     rts
 
 resolve_arg_target:
@@ -1555,20 +2031,15 @@ fs_enum_next_ptr:
 
 select_enum_table:
     ldy temp_drive
+    lda mounted_image_lo,y
+    sta PTR
+    lda mounted_image_hi,y
+    sta PTR+1
     lda mount_flag_table,y
     cmp #MOUNT_FLAG_TREE
     beq select_enum_tree
-    lda #<flat_entry_lo
-    sta enum_lo_ptr_lo
-    lda #>flat_entry_lo
-    sta enum_lo_ptr_hi
-    lda #<flat_entry_hi
-    sta enum_hi_ptr_lo
-    lda #>flat_entry_hi
-    sta enum_hi_ptr_hi
-    lda #3
-    sta enum_count
-    rts
+    ldy #IMG_ROOT_LO_LO
+    jmp load_enum_from_descriptor
 select_enum_tree:
     lda temp_dir_id
     cmp #DIR_ID_BIN
@@ -1577,52 +2048,150 @@ select_enum_tree:
     beq select_enum_src
     cmp #DIR_ID_WORK
     beq select_enum_work
-    lda #<root_entry_lo
-    sta enum_lo_ptr_lo
-    lda #>root_entry_lo
-    sta enum_lo_ptr_hi
-    lda #<root_entry_hi
-    sta enum_hi_ptr_lo
-    lda #>root_entry_hi
-    sta enum_hi_ptr_hi
-    lda #3
-    sta enum_count
-    rts
+    ldy #IMG_ROOT_LO_LO
+    jmp load_enum_from_descriptor
 select_enum_bin:
-    lda #<bin_entry_lo
-    sta enum_lo_ptr_lo
-    lda #>bin_entry_lo
-    sta enum_lo_ptr_hi
-    lda #<bin_entry_hi
-    sta enum_hi_ptr_lo
-    lda #>bin_entry_hi
-    sta enum_hi_ptr_hi
-    lda #2
-    sta enum_count
-    rts
+    ldy #IMG_BIN_LO_LO
+    jmp load_enum_from_descriptor
 select_enum_src:
-    lda #<src_entry_lo
+    ldy #IMG_SRC_LO_LO
+    jmp load_enum_from_descriptor
+select_enum_work:
+    ldy #IMG_WORK_LO_LO
+load_enum_from_descriptor:
+    lda (PTR),y
     sta enum_lo_ptr_lo
-    lda #>src_entry_lo
+    iny
+    lda (PTR),y
     sta enum_lo_ptr_hi
-    lda #<src_entry_hi
+    iny
+    lda (PTR),y
     sta enum_hi_ptr_lo
-    lda #>src_entry_hi
+    iny
+    lda (PTR),y
     sta enum_hi_ptr_hi
-    lda #2
+    iny
+    lda (PTR),y
     sta enum_count
     rts
-select_enum_work:
-    lda #<work_entry_lo
-    sta enum_lo_ptr_lo
-    lda #>work_entry_lo
-    sta enum_lo_ptr_hi
-    lda #<work_entry_hi
-    sta enum_hi_ptr_lo
-    lda #>work_entry_hi
-    sta enum_hi_ptr_hi
-    lda #1
-    sta enum_count
+
+lookup_file_content:
+    jsr select_file_table
+    lda #$00
+    sta file_index
+lookup_file_loop:
+    lda file_index
+    cmp file_count
+    bcs lookup_file_miss
+    asl
+    asl
+    tay
+    lda file_table_lo
+    sta SCREEN_PTR
+    lda file_table_hi
+    sta SCREEN_PTR+1
+    lda (SCREEN_PTR),y
+    sta PTR
+    iny
+    lda (SCREEN_PTR),y
+    sta PTR+1
+    jsr compare_ptr_to_path_name
+    bcc lookup_file_hit
+    inc file_index
+    bne lookup_file_loop
+lookup_file_miss:
+    sec
+    rts
+lookup_file_hit:
+    lda file_index
+    asl
+    asl
+    tay
+    lda file_table_lo
+    sta SCREEN_PTR
+    lda file_table_hi
+    sta SCREEN_PTR+1
+    iny
+    iny
+    lda (SCREEN_PTR),y
+    sta PTR
+    iny
+    lda (SCREEN_PTR),y
+    sta PTR+1
+    clc
+    rts
+
+compare_ptr_to_path_name:
+    ldy #$00
+    ldx #$00
+compare_path_loop:
+    lda (PTR),y
+    cmp #ASCII_DOT
+    beq compare_path_skip_candidate_dot
+    lda path_name_buffer,x
+    cmp #ASCII_DOT
+    beq compare_path_skip_input_dot
+    lda (PTR),y
+    beq compare_path_end
+    lda path_name_buffer,x
+    beq compare_path_fail
+    lda (PTR),y
+    jsr normalize_output_char
+    cmp path_name_buffer,x
+    bne compare_path_fail
+    iny
+    inx
+    bne compare_path_loop
+compare_path_skip_candidate_dot:
+    iny
+    bne compare_path_loop
+compare_path_skip_input_dot:
+    inx
+    bne compare_path_loop
+compare_path_end:
+    lda path_name_buffer,x
+    beq compare_path_ok
+    cmp #ASCII_DOT
+    beq compare_path_skip_input_dot
+compare_path_fail:
+    sec
+    rts
+compare_path_ok:
+    clc
+    rts
+
+select_file_table:
+    ldy temp_drive
+    lda mounted_image_lo,y
+    sta PTR
+    lda mounted_image_hi,y
+    sta PTR+1
+    lda temp_dir_id
+    cmp #DIR_ID_BIN
+    beq select_file_bin
+    cmp #DIR_ID_SRC
+    beq select_file_src
+    cmp #DIR_ID_WORK
+    beq select_file_work
+    ldy #IMG_FILE_ROOT_TABLE_LO
+    jmp load_file_table_from_descriptor
+select_file_bin:
+    ldy #IMG_FILE_BIN_TABLE_LO
+    jmp load_file_table_from_descriptor
+select_file_src:
+    ldy #IMG_FILE_SRC_TABLE_LO
+    jmp load_file_table_from_descriptor
+select_file_work:
+    ldy #IMG_FILE_WORK_TABLE_LO
+load_file_table_from_descriptor:
+    lda (PTR),y
+    sta file_table_lo
+    iny
+    lda (PTR),y
+    sta file_table_hi
+    iny
+    lda (PTR),y
+    sta file_count
     rts
 
 select_dir_listing_ptr:
@@ -1920,12 +2489,24 @@ enum_count:
     .byte 0
 enum_index:
     .byte 0
+file_table_lo:
+    .byte 0
+file_table_hi:
+    .byte 0
+file_count:
+    .byte 0
+file_index:
+    .byte 0
 mount_kind_table:
     .byte MOUNT_KIND_NONE, MOUNT_KIND_NONE
 mount_flag_table:
     .byte MOUNT_FLAG_NONE, MOUNT_FLAG_NONE
 dir_state_table:
     .byte DIR_ID_ROOT, DIR_ID_ROOT
+mounted_image_lo:
+    .byte <image_none_a, <image_none_b
+mounted_image_hi:
+    .byte >image_none_a, >image_none_b
 volume_ptr_lo:
     .byte <volume_system, <volume_work
 volume_ptr_hi:
@@ -1939,6 +2520,8 @@ script_ptr_hi:
 line_buffer:
     .res MAX_LINE_LEN
 arg_buffer:
+    .res MAX_LINE_LEN+1
+path_name_buffer:
     .res MAX_LINE_LEN+1
 response_buffer:
     .res MAX_RESPONSE_LEN
@@ -1956,11 +2539,11 @@ script_cmd_mem:
 script_cmd_quit:
     .byte CMD_Q, CMD_U, CMD_I, CMD_T, 0
 resp_help:
-    .byte "HELP VER VOL MEM DIR CD MOUNT", 0
+    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE", 0
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 0EEB", 0
+    .byte "CORE 14FC", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:
@@ -1989,6 +2572,20 @@ entry_src_fs:
     .byte "FS.AVM", 0
 entry_work_empty:
     .byte "EMPTY", 0
+content_flat_system:
+    .byte "UDOS SYSTEM VOLUME", 0
+content_flat_commands:
+    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE", 0
+content_flat_readme:
+    .byte "MOCK FLAT IMAGE CONTENT", 0
+content_bin_shell:
+    .byte "SHELL OVERLAY PLACEHOLDER", 0
+content_bin_dir:
+    .byte "DIR OVERLAY PLACEHOLDER", 0
+content_src_boot:
+    .byte "; BOOT.ASM MOCK SOURCE", 0
+content_src_fs:
+    .byte "; FS.AVM MOCK SOURCE", 0
 flat_entry_lo:
     .byte <entry_flat_system, <entry_flat_commands, <entry_flat_readme
 flat_entry_hi:
@@ -2009,6 +2606,118 @@ work_entry_lo:
     .byte <entry_work_empty
 work_entry_hi:
     .byte >entry_work_empty
+empty_file_records:
+    .byte 0, 0, 0, 0
+flat_file_records:
+    .byte <entry_flat_system, >entry_flat_system, <content_flat_system, >content_flat_system
+    .byte <entry_flat_commands, >entry_flat_commands, <content_flat_commands, >content_flat_commands
+    .byte <entry_flat_readme, >entry_flat_readme, <content_flat_readme, >content_flat_readme
+bin_file_records:
+    .byte <entry_bin_shell, >entry_bin_shell, <content_bin_shell, >content_bin_shell
+    .byte <entry_bin_dir, >entry_bin_dir, <content_bin_dir, >content_bin_dir
+src_file_records:
+    .byte <entry_src_boot, >entry_src_boot, <content_src_boot, >content_src_boot
+    .byte <entry_src_fs, >entry_src_fs, <content_src_fs, >content_src_fs
+image_none_a:
+    .byte <volume_unknown, >volume_unknown
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+image_none_b:
+    .byte <volume_unknown, >volume_unknown
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+image_a_d64:
+    .byte <volume_system, >volume_system
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 3
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_file_records, >flat_file_records, 3
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+image_a_d71:
+    .byte <volume_system, >volume_system
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 3
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_file_records, >flat_file_records, 3
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+image_a_d81:
+    .byte <volume_system, >volume_system
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 3
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_file_records, >flat_file_records, 3
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+image_a_dnp:
+    .byte <volume_system, >volume_system
+    .byte <root_entry_lo, >root_entry_lo, <root_entry_hi, >root_entry_hi, 3
+    .byte <bin_entry_lo, >bin_entry_lo, <bin_entry_hi, >bin_entry_hi, 2
+    .byte <src_entry_lo, >src_entry_lo, <src_entry_hi, >src_entry_hi, 2
+    .byte <work_entry_lo, >work_entry_lo, <work_entry_hi, >work_entry_hi, 1
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <bin_file_records, >bin_file_records, 2
+    .byte <src_file_records, >src_file_records, 2
+    .byte <empty_file_records, >empty_file_records, 0
+image_b_d64:
+    .byte <volume_work, >volume_work
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 3
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_file_records, >flat_file_records, 3
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+image_b_d71:
+    .byte <volume_work, >volume_work
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 3
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_file_records, >flat_file_records, 3
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+image_b_d81:
+    .byte <volume_work, >volume_work
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 3
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
+    .byte <flat_file_records, >flat_file_records, 3
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <empty_file_records, >empty_file_records, 0
+image_b_dnp:
+    .byte <volume_work, >volume_work
+    .byte <root_entry_lo, >root_entry_lo, <root_entry_hi, >root_entry_hi, 3
+    .byte <bin_entry_lo, >bin_entry_lo, <bin_entry_hi, >bin_entry_hi, 2
+    .byte <src_entry_lo, >src_entry_lo, <src_entry_hi, >src_entry_hi, 2
+    .byte <work_entry_lo, >work_entry_lo, <work_entry_hi, >work_entry_hi, 1
+    .byte <empty_file_records, >empty_file_records, 0
+    .byte <bin_file_records, >bin_file_records, 2
+    .byte <src_file_records, >src_file_records, 2
+    .byte <empty_file_records, >empty_file_records, 0
 dir_name_bin:
     .byte "BIN", 0
 dir_name_src:
@@ -2029,6 +2738,8 @@ resp_flat_image:
     .byte "FLAT IMAGE", 0
 resp_bad_dir:
     .byte "NO SUCH DIR", 0
+resp_bad_file:
+    .byte "NO SUCH FILE", 0
 resp_bad_mount:
     .byte "BAD MOUNT", 0
 resp_unmounted:
