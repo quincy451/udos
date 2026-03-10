@@ -13,10 +13,17 @@ import time
 API_VERSION = 0x02
 STX = 0x02
 CMD_MEMORY_GET = 0x01
+CMD_MEMORY_SET = 0x02
+CMD_KEYBOARD_FEED = 0x72
 CMD_PING = 0x81
 CMD_EXIT = 0xAA
 CMD_QUIT = 0xBB
 RESP_RESUMED = 0x63
+KEYBUF_COUNT = 0x00C6
+KEYBUF_DATA = 0x0277
+INPUT_MODE_SCRIPT = 0x01
+SCRIPT_LINE_STRIDE = 32
+SCRIPT_LINE_MAX = 10
 
 
 class ViceError(RuntimeError):
@@ -108,6 +115,13 @@ class BinaryMonitorClient:
     def ping(self) -> None:
         self.command(CMD_PING)
 
+    def keyboard_feed(self, text: str) -> None:
+        encoded = decode_escapes(text).encode("ascii", errors="strict")
+        if len(encoded) > 0xFF:
+            raise ViceError("keyboard feed text is too long for a single packet")
+        self.command(CMD_KEYBOARD_FEED, bytes((len(encoded),)) + encoded)
+        self.resume()
+
     def resume(self) -> None:
         self.command(CMD_EXIT)
         deadline = time.monotonic() + self.timeout
@@ -136,6 +150,28 @@ class BinaryMonitorClient:
             raise ViceError(f"memory-get length mismatch: header={segment_len} actual={len(data)}")
         self.resume()
         return data
+
+    def memory_set(self, start: int, data: bytes, *, memspace: int = 0, bank: int = 0) -> None:
+        if not data:
+            return
+        end = start + len(data) - 1
+        body = bytes((0,)) + struct.pack("<HHBH", start, end, memspace, bank) + data
+        self.command(CMD_MEMORY_SET, body)
+        self.resume()
+
+    def keyboard_type(self, text: str) -> None:
+        encoded = decode_escapes(text).encode("ascii", errors="strict")
+        for byte in encoded:
+            deadline = time.monotonic() + self.timeout
+            while time.monotonic() < deadline:
+                pending = self.memory_get(KEYBUF_COUNT, KEYBUF_COUNT)[0]
+                if pending == 0:
+                    break
+                time.sleep(0.02)
+            else:
+                raise ViceError("timed out waiting for C64 keyboard buffer to drain")
+            self.memory_set(KEYBUF_DATA, bytes((byte,)))
+            self.memory_set(KEYBUF_COUNT, b"\x01")
 
 
 def reserve_tcp_port() -> int:
@@ -171,7 +207,24 @@ def locate_x64sc() -> Path:
     return Path(candidate).resolve()
 
 
-def decode_keybuf(text: str) -> str:
+def load_ld65_labels(path: Path) -> dict[str, int]:
+    symbols: dict[str, int] = {}
+    for line in path.read_text(errors="ignore").splitlines():
+        parts = line.split()
+        if len(parts) != 3 or parts[0] != "al":
+            continue
+        try:
+            addr = int(parts[1], 16)
+        except ValueError:
+            continue
+        name = parts[2]
+        symbols[name] = addr
+        if name.startswith("."):
+            symbols[name[1:]] = addr
+    return symbols
+
+
+def decode_escapes(text: str) -> str:
     return (
         text.replace("\\r", "\r")
         .replace("\\n", "\n")
@@ -200,7 +253,7 @@ def launch_vice(
         "dummy",
     ]
     if keybuf is not None:
-        cmd.extend(["-keybuf", decode_keybuf(keybuf)])
+        cmd.extend(["-keybuf", decode_escapes(keybuf)])
     if keybuf_delay is not None:
         cmd.extend(["-keybuf-delay", str(keybuf_delay)])
     return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -251,8 +304,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--marker-address", help="optional hex or decimal address for a marker byte")
     parser.add_argument("--marker-value", help="optional expected marker byte value")
     parser.add_argument("--check-byte", action="append", default=[], help="extra checks in addr=value form, hex or decimal")
+    parser.add_argument("--contains", action="append", default=[], help="extra screen fragments that must be present in the final screen")
     parser.add_argument("--keybuf", help="optional VICE -keybuf string to inject during autostart")
     parser.add_argument("--keybuf-delay", type=int, help="optional VICE -keybuf-delay value")
+    parser.add_argument("--feed-after", help="optional screen fragment to wait for before binary-monitor keyboard feed")
+    parser.add_argument("--feed-text", help="optional text to feed through the VICE binary monitor after startup")
+    parser.add_argument("--labels", help="optional ld65 labels file for scripted resident input injection")
+    parser.add_argument("--script-line", action="append", default=[], help="scripted input line to inject through UDOS script mode")
     parser.add_argument("--timeout", type=float, default=25.0, help="seconds to wait for the banner")
     args = parser.parse_args(argv)
 
@@ -275,6 +333,50 @@ def main(argv: list[str] | None = None) -> int:
             addr = int(addr_text, 0)
             value = int(value_text, 0)
             extra_checks.append((addr, value))
+        if args.script_line:
+            if args.labels is None:
+                raise ViceError("--script-line requires --labels")
+            if args.feed_after is None:
+                raise ViceError("--script-line requires --feed-after so the live prompt can be reached first")
+            labels = load_ld65_labels(Path(args.labels).resolve())
+            required = ["input_mode", "script_index", "script_line_count", "script_line_data"]
+            missing = [name for name in required if name not in labels]
+            if missing:
+                raise ViceError(f"labels file missing symbols: {', '.join(missing)}")
+            wait_for_screen_and_state(
+                client,
+                process,
+                args.feed_after,
+                marker_addr=None,
+                marker_value=None,
+                extra_checks=[],
+                timeout=args.timeout,
+            )
+            if len(args.script_line) > SCRIPT_LINE_MAX:
+                raise ViceError(f"at most {SCRIPT_LINE_MAX} --script-line values are supported")
+            blob = bytearray(SCRIPT_LINE_STRIDE * SCRIPT_LINE_MAX)
+            for index, line in enumerate(args.script_line):
+                encoded = line.encode("ascii", errors="strict")
+                if len(encoded) > SCRIPT_LINE_STRIDE - 1:
+                    raise ViceError(f"script line {index + 1} is too long")
+                start = index * SCRIPT_LINE_STRIDE
+                blob[start : start + len(encoded)] = encoded
+            client.memory_set(labels["script_line_data"], bytes(blob))
+            client.memory_set(labels["script_index"], b"\x00")
+            client.memory_set(labels["script_line_count"], bytes((len(args.script_line),)))
+            client.memory_set(labels["input_mode"], bytes((INPUT_MODE_SCRIPT,)))
+        if args.feed_text is not None:
+            if args.feed_after:
+                wait_for_screen_and_state(
+                    client,
+                    process,
+                    args.feed_after,
+                    marker_addr=None,
+                    marker_value=None,
+                    extra_checks=[],
+                    timeout=args.timeout,
+                )
+            client.keyboard_type(args.feed_text)
         screen = wait_for_screen_and_state(
             client,
             process,
@@ -284,6 +386,9 @@ def main(argv: list[str] | None = None) -> int:
             extra_checks=extra_checks,
             timeout=args.timeout,
         )
+        for fragment in args.contains:
+            if fragment not in screen:
+                raise ViceError(f"expected screen fragment {fragment!r} was not present in final screen:\n{screen}")
         print(screen)
         return 0
     except ViceError as exc:

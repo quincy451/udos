@@ -20,6 +20,7 @@
 .export svc_console_newline
 .export svc_line_read
 .export svc_program_prepare_run
+.export svc_program_get_status
 .export svc_program_error_ptr
 .export svc_program_get_target_ptr
 .export svc_program_get_cmdline_ptr
@@ -248,10 +249,9 @@ cmd_run_program:
     setp8 $12
     stma STAGE_SNAPSHOT
     calln svc_program_prepare_run
-    case8 RUN_STATUS_BAD, cmd_run_error
-    case8 RUN_STATUS_FLAT, cmd_run_error
-    case8 RUN_STATUS_UNMOUNTED, cmd_run_error
-    case8 RUN_STATUS_NOFILE, cmd_run_error
+    calln svc_program_get_status
+    case8 RUN_STATUS_OK, cmd_run_execute
+    jump cmd_run_error
 
 cmd_run_execute:
     setp8 $13
@@ -595,6 +595,7 @@ svc_console_reset:
     sta CURSOR+1
     lda #$00
     sta script_index
+    sta script_line_count
     sta input_mode
     sta line_length
     tay
@@ -738,6 +739,8 @@ svc_line_read_keyboard:
     lda #$20
     jsr console_putc
 keyboard_wait:
+    lda input_mode
+    bne svc_line_read_script
     jsr GETIN
     beq keyboard_wait
     cmp #KEY_RETURN
@@ -772,31 +775,57 @@ keyboard_finish:
     rts
 
 svc_line_read_script:
+    stx saved_rp_x
     ldy script_index
-    cpy #5
+    cpy script_line_count
     bcs line_empty
-    lda script_cmd_id,y
-    sta 0,x
-    lda #$00
-    sta 1,x
-    lda script_ptr_lo,y
+    tya
+    asl
+    asl
+    asl
+    asl
+    asl
+    clc
+    adc #<script_line_data
     sta PTR
-    lda script_ptr_hi,y
+    lda #>script_line_data
+    adc #$00
     sta PTR+1
     inc script_index
+    lda #$00
+    sta line_length
     lda #$20
     jsr console_putc
     ldy #$00
 line_echo_loop:
     lda (PTR),y
     beq line_echo_done
+    jsr normalize_input_char
+    bcc line_echo_next
+    ldx line_length
+    cpx #MAX_LINE_LEN
+    bcs line_echo_done
+    sta line_buffer,x
+    inx
+    stx line_length
     jsr console_putc
+line_echo_next:
     iny
     bne line_echo_loop
 line_echo_done:
+    ldx line_length
+    lda #$00
+    sta line_buffer,x
     jsr svc_console_newline
+    jsr tokenize_line_buffer
+    ldx saved_rp_x
+    sta 0,x
+    lda #$00
+    sta 1,x
     rts
 line_empty:
+    lda #INPUT_MODE_KEYBOARD
+    sta input_mode
     lda #SHELL_CMD_NONE
     sta 0,x
     lda #$00
@@ -877,10 +906,28 @@ normalize_input_char:
     bcc normalize_reject
     cmp #$1B
     bcc normalize_accept
+    cmp #ASCII_SPACE
+    beq normalize_accept
+    cmp #ASCII_COMMA
+    beq normalize_accept
+    cmp #ASCII_DASH
+    beq normalize_accept
+    cmp #ASCII_DOT
+    beq normalize_accept
+    cmp #ASCII_SLASH
+    beq normalize_accept
+    cmp #$30
+    bcc normalize_reject
+    cmp #$3A
+    bcc normalize_accept
+    cmp #ASCII_COLON
+    beq normalize_accept
     cmp #$41
-    bcc normalize_digit_check
+    bcc normalize_reject
     cmp #$5B
     bcc normalize_ascii_upper
+    cmp #ASCII_UNDERSCORE
+    beq normalize_accept
     cmp #$61
     bcc normalize_reject
     cmp #$7B
@@ -894,25 +941,6 @@ normalize_ascii_upper:
     sbc #$40
     sec
     rts
-normalize_digit_check:
-    cmp #$30
-    bcc normalize_reject
-    cmp #$3A
-    bcc normalize_accept
-    cmp #ASCII_SPACE
-    beq normalize_accept
-    cmp #ASCII_COMMA
-    beq normalize_accept
-    cmp #ASCII_COLON
-    beq normalize_accept
-    cmp #ASCII_SLASH
-    beq normalize_accept
-    cmp #ASCII_DOT
-    beq normalize_accept
-    cmp #ASCII_DASH
-    beq normalize_accept
-    cmp #ASCII_UNDERSCORE
-    beq normalize_accept
 normalize_reject:
     clc
     rts
@@ -988,10 +1016,6 @@ token_arg_done:
     lda #$00
     sta arg_buffer,x
 token_dispatch:
-    lda arg_length
-    bne token_dispatch_ready
-    jsr split_inline_command_arg
-token_dispatch_ready:
     lda line_length
     bne :+
     jmp token_none
@@ -1279,7 +1303,32 @@ token_none:
     lda #SHELL_CMD_NONE
     rts
 token_unknown:
+    lda arg_length
+    bne token_unknown_fail
+    lda cmd_length
+    beq token_unknown_fail
+    jsr copy_cmd_token_to_arg
+    lda #SHELL_CMD_RUN
+    rts
+token_unknown_fail:
     lda #$FF
+    rts
+
+copy_cmd_token_to_arg:
+    ldx #$00
+    ldy parse_cmd_start
+copy_cmd_token_loop:
+    cpx cmd_length
+    bcs copy_cmd_token_done
+    lda line_buffer,y
+    sta arg_buffer,x
+    inx
+    iny
+    bne copy_cmd_token_loop
+copy_cmd_token_done:
+    stx arg_length
+    lda #$00
+    sta arg_buffer,x
     rts
 
 split_inline_command_arg:
@@ -2046,6 +2095,8 @@ split_run_fail:
 
 svc_program_prepare_run:
     stx saved_rp_x
+    lda #RUN_STATUS_BAD
+    sta program_status
     lda #PROGRAM_STATE_NONE
     sta PROGRAM_STATE_SNAPSHOT
     lda #$00
@@ -2096,7 +2147,15 @@ program_ready:
     sta PROGRAM_STATE_SNAPSHOT
     lda #RUN_STATUS_OK
 program_status_return:
+    sta program_status
     ldx saved_rp_x
+    sta 0,x
+    lda #$00
+    sta 1,x
+    rts
+
+svc_program_get_status:
+    lda program_status
     sta 0,x
     lda #$00
     sta 1,x
@@ -3992,6 +4051,8 @@ saved_rp_x:
     .byte 0
 script_index:
     .byte 0
+script_line_count:
+    .byte 0
 line_length:
     .byte 0
 arg_length:
@@ -4046,6 +4107,8 @@ program_arg_limit:
     .byte 0
 program_cmdline_len:
     .byte 0
+program_status:
+    .byte RUN_STATUS_BAD
 program_target_lo:
     .byte 0
 program_target_hi:
@@ -4074,12 +4137,6 @@ volume_ptr_lo:
     .byte <volume_system, <volume_work
 volume_ptr_hi:
     .byte >volume_system, >volume_work
-script_cmd_id:
-    .byte SHELL_CMD_HELP, SHELL_CMD_VER, SHELL_CMD_VOL, SHELL_CMD_MEM, SHELL_CMD_QUIT
-script_ptr_lo:
-    .byte <script_cmd_help, <script_cmd_ver, <script_cmd_vol, <script_cmd_mem, <script_cmd_quit
-script_ptr_hi:
-    .byte >script_cmd_help, >script_cmd_ver, >script_cmd_vol, >script_cmd_mem, >script_cmd_quit
 line_buffer:
     .res MAX_LINE_LEN
 arg_buffer:
@@ -4092,19 +4149,11 @@ path_name_buffer:
     .res MAX_LINE_LEN+1
 response_buffer:
     .res MAX_RESPONSE_LEN
+script_line_data:
+    .res (MAX_LINE_LEN+1) * 10
 
 header_text:
     .byte "UDOS FOR COMMODORE 64", 0
-script_cmd_help:
-    .byte CMD_H, CMD_E, CMD_L, CMD_P, 0
-script_cmd_ver:
-    .byte CMD_V, CMD_E, CMD_R, 0
-script_cmd_vol:
-    .byte CMD_V, CMD_O, CMD_L, 0
-script_cmd_mem:
-    .byte CMD_M, CMD_E, CMD_M, 0
-script_cmd_quit:
-    .byte CMD_Q, CMD_U, CMD_I, CMD_T, 0
 resp_help:
     .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL RUN", 0
 ver_prefix:
@@ -4346,7 +4395,7 @@ resp_read_only:
 resp_no_space:
     .byte "NO SPACE", 0
 resp_no_program:
-    .byte "NO PROGRAM", 0
+    .byte "PROGRAM NOT FOUND", 0
 resp_bad_mount:
     .byte "BAD MOUNT", 0
 resp_bad_run:

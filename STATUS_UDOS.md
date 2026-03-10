@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 resident bootstrap/core complete, Phase 3 native UCI seam complete, Phase 4 filesystem abstraction seam complete, ninth Phase 5 resident shell slice complete.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 resident bootstrap/core complete, Phase 3 native UCI seam complete, Phase 4 filesystem abstraction seam complete, tenth Phase 5 resident shell slice complete.
 
 UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runtime environment for this work.
 
@@ -59,22 +59,27 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 ### Resident shell milestone
 
 - linked resident entrypoint: `$1810`
+- command keywords now require a separator before arguments:
+  - `DEL BOOT2ASM` -> delete `BOOT2ASM`
+  - `DELBOOT2ASM` -> bare program token, resolved through `RUN`, then `PROGRAM NOT FOUND`
 - current VICE-validated transcript:
   - `UDOS FOR COMMODORE 64`
-  - `A:D64/> CDB:`
+  - `A:D64/> CD B:`
   - `B:DNP/`
-  - `B:DNP/> CDSRC`
+  - `B:DNP/> CD SRC`
   - `B:DNP/SRC`
-  - `B:DNP/SRC> COPYBOOTASMWORKBOOTASM`
+  - `B:DNP/SRC> COPY BOOT.ASM WORK/BOOTASM`
   - `COPIED`
-  - `B:DNP/SRC> CDWORK`
+  - `B:DNP/SRC> CD WORK`
   - `B:DNP/WORK`
-  - `B:DNP/WORK> RENBOOTASMBOOT2ASM`
+  - `B:DNP/WORK> REN BOOTASM BOOT2ASM`
   - `RENAMED`
-  - `B:DNP/WORK> RUNBOOT2ASM:DIR`
+  - `B:DNP/WORK> DELBOOT2ASM`
+  - `PROGRAM NOT FOUND`
+  - `B:DNP/WORK> RUN BOOT2ASM DIR`
   - `RUN BOOT2ASM`
   - `ARGS DIR`
-  - `B:DNP/WORK> DELBOOT2ASM`
+  - `B:DNP/WORK> DEL BOOT2ASM`
   - `DELETED`
   - `B:DNP/WORK> DIR`
   - `B:DNP/WORK EMPTY`
@@ -92,7 +97,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFF7 = $00` -> exit status `0`
   - `$CFF8 = $01` -> program drive `B:`
   - `$CFF9 = $03` -> program directory `WORK`
-- resident core code footprint: `$2171`
+- resident core code footprint: `$2304`
 - resident load window in `udos_c64.cfg`: `$3000`
 
 ## What Works
@@ -112,7 +117,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `DEL`
 - resident program-handoff mock workflow:
   - `RUN`
-  - command-line separation with `:` for VICE-stable inline automation
+  - command-line separation with normal spaces
   - return to shell after program exit
 
 ## What Is Unverified

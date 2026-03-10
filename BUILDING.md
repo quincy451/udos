@@ -75,15 +75,19 @@ Current `vice-resident` behavior:
 - builds `build/udosres.prg`
 - autostarts the BASIC wrapper PRG in `x64sc`
 - binds `A:` as `D64` and `B:` as `DNP`
-- drives the live resident shell with:
-  - `CDB:`
-  - `CDSRC`
-  - `COPYBOOTASMWORKBOOTASM`
-  - `CDWORK`
-  - `RENBOOTASMBOOT2ASM`
-  - `RUNBOOT2ASM:DIR`
+- drives the live resident shell with explicit separators:
+  - `CD B:`
+  - `CD SRC`
+  - `COPY BOOT.ASM WORK/BOOTASM`
+  - `CD WORK`
+  - `REN BOOTASM BOOT2ASM`
   - `DELBOOT2ASM`
+  - `RUN BOOT2ASM DIR`
+  - `DEL BOOT2ASM`
   - `DIR`
+- verifies command-keyword separation:
+  - `DELBOOT2ASM` must not be treated as `DEL BOOT2ASM`
+  - it is treated as a bare program token and returns `PROGRAM NOT FOUND`
 - verifies the final listing `B:DNP/WORK EMPTY`
 - verifies resident snapshots:
   - `A:` bind = `D64/flat`
@@ -98,20 +102,22 @@ Current validated resident transcript:
 
 ```text
 UDOS FOR COMMODORE 64
-  A:D64/> CDB:
+  A:D64/> CD B:
 B:DNP/
-  B:DNP/> CDSRC
+  B:DNP/> CD SRC
 B:DNP/SRC
-  B:DNP/SRC> COPYBOOTASMWORKBOOTASM
+  B:DNP/SRC> COPY BOOT.ASM WORK/BOOTASM
 COPIED
-  B:DNP/SRC> CDWORK
+  B:DNP/SRC> CD WORK
 B:DNP/WORK
-  B:DNP/WORK> RENBOOTASMBOOT2ASM
+  B:DNP/WORK> REN BOOTASM BOOT2ASM
 RENAMED
-  B:DNP/WORK> RUNBOOT2ASM:DIR
+  B:DNP/WORK> DELBOOT2ASM
+PROGRAM NOT FOUND
+  B:DNP/WORK> RUN BOOT2ASM DIR
 RUN BOOT2ASM
 ARGS DIR
-  B:DNP/WORK> DELBOOT2ASM
+  B:DNP/WORK> DEL BOOT2ASM
 DELETED
   B:DNP/WORK> DIR
 B:DNP/WORK EMPTY
@@ -122,7 +128,7 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$2171`
+- resident core code: `$2304`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$3000`
 
 ## Tests
@@ -147,20 +153,22 @@ If you want to try the current resident image on real C64 Ultimate hardware:
 3. Reproduce this smoke sequence manually:
 
 ```text
-  A:D64/> CDB:
+  A:D64/> CD B:
 B:DNP/
-  B:DNP/> CDSRC
+  B:DNP/> CD SRC
 B:DNP/SRC
-  B:DNP/SRC> COPYBOOTASMWORKBOOTASM
+  B:DNP/SRC> COPY BOOT.ASM WORK/BOOTASM
 COPIED
-  B:DNP/SRC> CDWORK
+  B:DNP/SRC> CD WORK
 B:DNP/WORK
-  B:DNP/WORK> RENBOOTASMBOOT2ASM
+  B:DNP/WORK> REN BOOTASM BOOT2ASM
 RENAMED
-  B:DNP/WORK> RUNBOOT2ASM:DIR
+  B:DNP/WORK> DELBOOT2ASM
+PROGRAM NOT FOUND
+  B:DNP/WORK> RUN BOOT2ASM DIR
 RUN BOOT2ASM
 ARGS DIR
-  B:DNP/WORK> DELBOOT2ASM
+  B:DNP/WORK> DEL BOOT2ASM
 DELETED
   B:DNP/WORK> DIR
 B:DNP/WORK EMPTY

@@ -156,15 +156,11 @@ Current ABI version:
 - current behavior:
   - uses live C64 KERNAL `GETIN`
   - tokenizes one command plus one argument buffer
-  - supports VICE-stable inline shorthand:
-    - `CDB:`
-    - `CDSRC`
-    - `MOUNTB:D81`
-    - `TYPEBOOTASM`
-    - `COPYBOOTASMWORKBOOTASM`
-    - `RENBOOTASMBOOT2ASM`
-    - `DELBOOT2ASM`
-    - `RUNBOOT2ASM:DIR`
+  - command keywords require a separator before arguments
+  - a bare unknown token falls back to `RUN <token>`
+  - example:
+    - `DEL BOOT2ASM` -> `DEL` with `BOOT2ASM`
+    - `DELBOOT2ASM` -> bare token, then `RUN DELBOOT2ASM`
 
 ### `svc_program_prepare_run`
 - input: current shell argument buffer
@@ -176,10 +172,17 @@ Current ABI version:
   - `3`: unmounted
   - `4`: target not found
 - current behavior:
-  - splits the command target from the inline command line
+  - splits the command target from the command line
   - resolves the current file target through the same resident path logic used by `TYPE`
   - snapshots the drive and directory context for the program
   - marks program state as running on success
+
+### `svc_program_get_status`
+- input: none
+- output: `rP = last run status`
+- current behavior:
+  - exposes the resident `RUN_STATUS_*` result stored by `svc_program_prepare_run`
+  - used by the shell to branch cleanly between `RUN` execution and error reporting
 
 ### `svc_program_error_ptr`
 - input: `rP = run status`

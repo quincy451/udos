@@ -14,6 +14,10 @@ Current milestone:
 - Phase 5 resident shell milestone in progress with `DIR`, `CD`, `VOL`, `MOUNT`,
   `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, and `RUN` validated under VICE.
 
+Current command parser rule:
+- shell keywords require a separator before arguments
+- example: `DEL BOOT2ASM` deletes the file, while `DELBOOT2ASM` is treated as a bare program token and returns `PROGRAM NOT FOUND`
+
 See:
 - `PIVOT_PLAN.md`
 - `ARCHITECTURE.md`
