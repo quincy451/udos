@@ -53,10 +53,12 @@ The resident image currently exposes:
 - directory-listing lookup for the current mock backend
 - directory enumeration begin/next over resident mock entry tables
 - descriptor-backed mock file record tables
+- mutable `WORK` directory slots per logical drive
 - resident `CD` policy for flat vs tree-capable mounts
 - resident `MOUNT` policy that can switch a drive between flat and tree-capable kinds
 - resident `DIR` against a mock directory model
 - resident `TYPE` against a mock file-content model
+- resident `COPY` into the mutable `WORK` model
 
 This is still a state model, not real image I/O. That is deliberate: command,
 prompt, and path-policy logic can now consume resident state before UCI-backed
@@ -76,6 +78,7 @@ Current resident mounted-image model:
   - `WORK` file-record table pointer and count
 - flat images still expose only the root listing to shell logic
 - tree-capable images can expose the subtree tables when current-directory state changes
+- the `WORK` subtree can override descriptor tables with mutable resident slots when files are copied in
 
 Current mock directory model:
 - flat images report a root-only listing
@@ -89,6 +92,10 @@ Current mock directory model:
   - flat root `SYSTEM`, `COMMANDS`, `README`
   - `DNP/SRC` `BOOT.ASM`, `FS.AVM`
   - `DNP/BIN` `SHELL.AVM`, `DIR.AVM`
+- resident mutable copy model currently supports:
+  - a small `WORK` file table per logical drive
+  - create/update semantics for `COPY`
+  - immediate visibility through `DIR` and `TYPE`
 
 This mock model now sits behind both a resident mounted-image descriptor layer
 and the resident enumeration seam. It still must be replaced by real

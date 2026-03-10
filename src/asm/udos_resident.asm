@@ -63,6 +63,7 @@ MAX_RESPONSE_LEN = 64
 ASCII_COLON = $3A
 ASCII_SLASH = $2F
 ASCII_SPACE = $20
+ASCII_COMMA = $2C
 ASCII_DOT = $2E
 ASCII_DASH = $2D
 ASCII_UNDERSCORE = $5F
@@ -100,6 +101,7 @@ SHELL_CMD_DIR = 6
 SHELL_CMD_CD = 7
 SHELL_CMD_MOUNT = 8
 SHELL_CMD_TYPE = 9
+SHELL_CMD_COPY = 10
 INPUT_MODE_KEYBOARD = 0
 INPUT_MODE_SCRIPT = 1
 DIR_ID_ROOT = 0
@@ -110,8 +112,11 @@ PATH_STATUS_OK = 0
 PATH_STATUS_FLAT = 1
 PATH_STATUS_BAD = 2
 PATH_STATUS_UNMOUNTED = 3
+PATH_STATUS_READ_ONLY = 4
 MOUNT_STATUS_OK = 0
 MOUNT_STATUS_BAD = 1
+WORK_DYNAMIC_MAX = 2
+WORK_NAME_MAX = 16
 IMG_VOL_LO = 0
 IMG_VOL_HI = 1
 IMG_ROOT_LO_LO = 2
@@ -195,6 +200,7 @@ shell_loop:
     case8 SHELL_CMD_NONE, shell_loop
     case8 SHELL_CMD_QUIT, shell_done
     case8 SHELL_CMD_MOUNT, cmd_emit_response
+    case8 SHELL_CMD_COPY, cmd_emit_response
     case8 SHELL_CMD_TYPE, cmd_emit_response
     case8 SHELL_CMD_DIR, cmd_emit_response
     case8 SHELL_CMD_CD, cmd_emit_response
@@ -428,6 +434,7 @@ install_mounted_image:
     lda (PTR),y
     ldy temp_drive
     sta volume_ptr_hi,y
+    jsr clear_dynamic_work_drive
     rts
 
 select_image_descriptor:
@@ -744,6 +751,8 @@ svc_shell_response_ptr:
     beq shell_resp_help
     cmp #SHELL_CMD_MOUNT
     beq shell_resp_mount
+    cmp #SHELL_CMD_COPY
+    beq shell_resp_copy
     cmp #SHELL_CMD_TYPE
     beq shell_resp_type
     cmp #SHELL_CMD_DIR
@@ -769,6 +778,9 @@ shell_resp_help:
     rts
 shell_resp_mount:
     jsr build_mount_response
+    rts
+shell_resp_copy:
+    jsr build_copy_response
     rts
 shell_resp_type:
     jsr build_type_response
@@ -820,6 +832,8 @@ normalize_digit_check:
     cmp #$3A
     bcc normalize_accept
     cmp #ASCII_SPACE
+    beq normalize_accept
+    cmp #ASCII_COMMA
     beq normalize_accept
     cmp #ASCII_COLON
     beq normalize_accept
@@ -1041,7 +1055,7 @@ token_len4_type:
     ldy parse_cmd_start
     lda line_buffer,y
     cmp #CMD_T
-    bne token_len4_quit
+    bne token_len4_copy
     iny
     lda line_buffer,y
     cmp #CMD_Y
@@ -1061,6 +1075,31 @@ token_len4_type:
     jmp token_unknown
 :
     lda #SHELL_CMD_TYPE
+    rts
+token_len4_copy:
+    ldy parse_cmd_start
+    lda line_buffer,y
+    cmp #CMD_C
+    bne token_len4_quit
+    iny
+    lda line_buffer,y
+    cmp #CMD_O
+    beq :+
+    jmp token_unknown
+:
+    iny
+    lda line_buffer,y
+    cmp #CMD_P
+    beq :+
+    jmp token_unknown
+:
+    iny
+    lda line_buffer,y
+    cmp #CMD_Y
+    beq :+
+    jmp token_unknown
+:
+    lda #SHELL_CMD_COPY
     rts
 token_len4_quit:
     ldy parse_cmd_start
@@ -1143,7 +1182,7 @@ split_inline_command_arg:
     iny
     lda line_buffer,y
     cmp #CMD_D
-    bne split_inline_try_dir
+    bne split_inline_try_copy
     lda cmd_length
     cmp #2
     bne :+
@@ -1181,6 +1220,36 @@ split_inline_try_dir:
     lda #3
     sta parse_scan_index
     lda #3
+    sta cmd_length
+    jmp split_inline_copy
+split_inline_try_copy:
+    ldy parse_cmd_start
+    lda line_buffer,y
+    cmp #CMD_C
+    bne split_inline_try_type
+    iny
+    lda line_buffer,y
+    cmp #CMD_O
+    bne split_inline_try_type
+    iny
+    lda line_buffer,y
+    cmp #CMD_P
+    bne split_inline_try_type
+    iny
+    lda line_buffer,y
+    cmp #CMD_Y
+    bne split_inline_try_type
+    lda cmd_length
+    cmp #4
+    bne :+
+    jmp split_inline_done
+:
+    sec
+    sbc #4
+    sta arg_length
+    lda #4
+    sta parse_scan_index
+    lda #4
     sta cmd_length
     jmp split_inline_copy
 split_inline_try_type:
@@ -1436,6 +1505,257 @@ mount_build_reply:
     sta 0,x
     lda #>response_buffer
     sta 1,x
+    rts
+
+build_copy_response:
+    stx saved_rp_x
+    jsr split_copy_args
+    bcc copy_source_ready
+    ldx saved_rp_x
+    lda #<resp_bad_copy
+    sta 0,x
+    lda #>resp_bad_copy
+    sta 1,x
+    rts
+copy_source_ready:
+    jsr resolve_file_target
+    cmp #PATH_STATUS_OK
+    beq copy_source_lookup
+    cmp #PATH_STATUS_FLAT
+    beq copy_build_flat
+    cmp #PATH_STATUS_UNMOUNTED
+    beq copy_build_unmounted
+    ldx saved_rp_x
+    lda #<resp_bad_file
+    sta 0,x
+    lda #>resp_bad_file
+    sta 1,x
+    rts
+copy_source_lookup:
+    jsr lookup_file_content
+    bcc copy_have_source
+    ldx saved_rp_x
+    lda #<resp_bad_file
+    sta 0,x
+    lda #>resp_bad_file
+    sta 1,x
+    rts
+copy_have_source:
+    lda PTR
+    sta copy_content_lo
+    lda PTR+1
+    sta copy_content_hi
+    jsr load_copy_dest_arg
+    jsr resolve_copy_dest
+    cmp #PATH_STATUS_OK
+    beq copy_store_target
+    cmp #PATH_STATUS_FLAT
+    beq copy_build_flat
+    cmp #PATH_STATUS_UNMOUNTED
+    beq copy_build_unmounted
+    cmp #PATH_STATUS_BAD
+    beq copy_build_bad
+    ldx saved_rp_x
+    lda #<resp_read_only
+    sta 0,x
+    lda #>resp_read_only
+    sta 1,x
+    rts
+copy_store_target:
+    jsr store_copy_to_work
+    bcc copy_build_ok
+    ldx saved_rp_x
+    lda #<resp_no_space
+    sta 0,x
+    lda #>resp_no_space
+    sta 1,x
+    rts
+copy_build_flat:
+    ldx saved_rp_x
+    lda #<resp_flat_image
+    sta 0,x
+    lda #>resp_flat_image
+    sta 1,x
+    rts
+copy_build_unmounted:
+    ldx saved_rp_x
+    lda #<resp_unmounted
+    sta 0,x
+    lda #>resp_unmounted
+    sta 1,x
+    rts
+copy_build_bad:
+    ldx saved_rp_x
+    lda #<resp_bad_copy
+    sta 0,x
+    lda #>resp_bad_copy
+    sta 1,x
+    rts
+copy_build_ok:
+    ldx saved_rp_x
+    lda #<resp_copied
+    sta 0,x
+    lda #>resp_copied
+    sta 1,x
+    rts
+
+split_copy_args:
+    lda arg_length
+    sta cmd_length
+    bne :+
+    jmp split_copy_fail
+:
+    ldy #$00
+split_copy_find_sep:
+    cpy cmd_length
+    bcs split_copy_try_inline_work
+    lda arg_buffer,y
+    cmp #ASCII_SPACE
+    beq split_copy_have_sep
+    cmp #ASCII_COMMA
+    beq split_copy_have_sep
+    iny
+    bne split_copy_find_sep
+split_copy_have_sep:
+    cpy #$00
+    bne :+
+    jmp split_copy_fail
+:
+    sty arg_length
+    lda #$00
+    sta arg_buffer,y
+    iny
+split_copy_skip_gap:
+    cpy cmd_length
+    bcc :+
+    jmp split_copy_fail
+:
+    lda arg_buffer,y
+    cmp #ASCII_SPACE
+    beq split_copy_skip_advance
+    cmp #ASCII_COMMA
+    beq split_copy_skip_advance
+    bne split_copy_copy_dest
+split_copy_skip_advance:
+    iny
+    bne split_copy_skip_gap
+split_copy_copy_dest:
+    lda #$00
+    sta copy_dst_length
+    sta copy_trim_length
+split_copy_dest_loop:
+    cpy cmd_length
+    bcs split_copy_done
+    ldx copy_dst_length
+    cpx #MAX_LINE_LEN
+    bcs split_copy_done
+    lda arg_buffer,y
+    sta copy_dst_buffer,x
+    inx
+    stx copy_dst_length
+    cmp #ASCII_SPACE
+    beq split_copy_dest_next
+    stx copy_trim_length
+split_copy_dest_next:
+    iny
+    bne split_copy_dest_loop
+split_copy_done:
+    ldx copy_trim_length
+    bne :+
+    jmp split_copy_fail
+:
+    stx copy_dst_length
+    lda #$00
+    sta copy_dst_buffer,x
+    clc
+    rts
+split_copy_try_inline_work:
+    ldy #$01
+split_copy_inline_scan:
+    tya
+    clc
+    adc #4
+    cmp cmd_length
+    bcc :+
+    jmp split_copy_fail
+:
+    lda arg_buffer,y
+    cmp #CMD_W
+    bne split_copy_inline_next
+    lda arg_buffer+1,y
+    cmp #CMD_O
+    bne split_copy_inline_next
+    lda arg_buffer+2,y
+    cmp #CMD_R
+    bne split_copy_inline_next
+    lda arg_buffer+3,y
+    cmp #CMD_K
+    bne split_copy_inline_next
+    sty arg_length
+    lda #$00
+    sta arg_buffer,y
+    tya
+    clc
+    adc #4
+    cmp cmd_length
+    bcc :+
+    jmp split_copy_fail
+:
+    lda #CMD_W
+    sta copy_dst_buffer+0
+    lda #CMD_O
+    sta copy_dst_buffer+1
+    lda #CMD_R
+    sta copy_dst_buffer+2
+    lda #CMD_K
+    sta copy_dst_buffer+3
+    lda #ASCII_SLASH
+    sta copy_dst_buffer+4
+    tya
+    clc
+    adc #4
+    tay
+    ldx #5
+split_copy_inline_copy:
+    cpy cmd_length
+    bcs split_copy_inline_done
+    cpx #MAX_LINE_LEN
+    bcs split_copy_inline_done
+    lda arg_buffer,y
+    sta copy_dst_buffer,x
+    inx
+    iny
+    bne split_copy_inline_copy
+split_copy_inline_done:
+    cpx #5
+    bne :+
+    jmp split_copy_fail
+:
+    stx copy_dst_length
+    lda #$00
+    sta copy_dst_buffer,x
+    clc
+    rts
+split_copy_inline_next:
+    iny
+    jmp split_copy_inline_scan
+split_copy_fail:
+    sec
+    rts
+
+load_copy_dest_arg:
+    ldy #$00
+load_copy_dest_loop:
+    cpy copy_dst_length
+    bcs load_copy_dest_done
+    lda copy_dst_buffer,y
+    sta arg_buffer,y
+    iny
+    bne load_copy_dest_loop
+load_copy_dest_done:
+    lda #$00
+    sta arg_buffer,y
+    sty arg_length
     rts
 
 build_type_response:
@@ -1711,6 +2031,229 @@ copy_path_name_done:
     rts
 copy_path_name_empty:
     sec
+    rts
+
+resolve_copy_dest:
+    lda current_drive
+    sta temp_drive
+    tay
+    lda dir_state_table,y
+    sta temp_dir_id
+    lda #$00
+    sta parse_scan_index
+    lda arg_length
+    bne :+
+    lda #PATH_STATUS_BAD
+    rts
+:
+    lda arg_length
+    cmp #2
+    bcc copy_dest_after_prefix
+    lda arg_buffer+1
+    cmp #ASCII_COLON
+    bne copy_dest_after_prefix
+    lda arg_buffer+0
+    cmp #$01
+    beq copy_dest_drive_a
+    cmp #$02
+    beq copy_dest_drive_b
+    lda #PATH_STATUS_BAD
+    rts
+copy_dest_drive_a:
+    lda #DRIVE_A
+    sta temp_drive
+    lda #2
+    sta parse_scan_index
+    jmp copy_dest_after_drive
+copy_dest_drive_b:
+    lda #DRIVE_B
+    sta temp_drive
+    lda #2
+    sta parse_scan_index
+copy_dest_after_drive:
+    ldy temp_drive
+    lda dir_state_table,y
+    sta temp_dir_id
+copy_dest_after_prefix:
+    ldy temp_drive
+    lda mount_kind_table,y
+    bne :+
+    jmp copy_dest_unmounted
+:
+    lda mount_flag_table,y
+    cmp #MOUNT_FLAG_TREE
+    bne copy_dest_flat
+    ldy parse_scan_index
+    cpy arg_length
+    bcs copy_dest_bad
+    lda arg_buffer,y
+    cmp #ASCII_SLASH
+    bne copy_dest_find_sep
+    lda #DIR_ID_ROOT
+    sta temp_dir_id
+    iny
+    sty parse_scan_index
+    cpy arg_length
+    bcs copy_dest_bad
+copy_dest_find_sep:
+    ldy parse_scan_index
+copy_dest_scan_loop:
+    cpy arg_length
+    bcs copy_dest_name
+    lda arg_buffer,y
+    cmp #ASCII_SLASH
+    beq copy_dest_component
+    iny
+    bne copy_dest_scan_loop
+copy_dest_component:
+    sty saved_response_y
+    lda parse_scan_index
+    sta parse_cmd_start
+    tya
+    sec
+    sbc parse_scan_index
+    sta cmd_length
+    beq copy_dest_bad
+    jsr match_path_component
+    bcs copy_dest_bad
+    sta temp_dir_id
+    ldy saved_response_y
+    iny
+    sty parse_scan_index
+    cpy arg_length
+    bcs copy_dest_bad
+    ldy parse_scan_index
+copy_dest_name_scan:
+    cpy arg_length
+    bcs copy_dest_name
+    lda arg_buffer,y
+    cmp #ASCII_SLASH
+    beq copy_dest_bad
+    iny
+    bne copy_dest_name_scan
+copy_dest_name:
+    jsr copy_path_name_from_parse
+    bcs copy_dest_bad
+    lda temp_dir_id
+    cmp #DIR_ID_WORK
+    beq copy_dest_ok
+    lda #PATH_STATUS_READ_ONLY
+    rts
+copy_dest_flat:
+    lda #PATH_STATUS_FLAT
+    rts
+copy_dest_unmounted:
+    lda #PATH_STATUS_UNMOUNTED
+    rts
+copy_dest_bad:
+    lda #PATH_STATUS_BAD
+    rts
+copy_dest_ok:
+    lda #PATH_STATUS_OK
+    rts
+
+store_copy_to_work:
+    jsr select_dynamic_work_file_table
+    ldx temp_drive
+    lda work_count_table,x
+    sta file_count
+    lda #$00
+    sta file_index
+store_copy_find_loop:
+    lda file_index
+    cmp file_count
+    bcs store_copy_append
+    asl
+    asl
+    tay
+    lda (SCREEN_PTR),y
+    sta PTR
+    iny
+    lda (SCREEN_PTR),y
+    sta PTR+1
+    jsr compare_ptr_to_path_name
+    bcc store_copy_update
+    inc file_index
+    bne store_copy_find_loop
+store_copy_append:
+    ldx temp_drive
+    lda work_count_table,x
+    cmp #WORK_DYNAMIC_MAX
+    bcc :+
+    sec
+    rts
+:
+    sta file_index
+    inc work_count_table,x
+store_copy_update:
+    jsr select_dynamic_work_name_slot
+    jsr copy_path_name_to_slot_ascii
+    jsr select_dynamic_work_file_table
+    lda file_index
+    asl
+    asl
+    tay
+    iny
+    iny
+    lda copy_content_lo
+    sta (SCREEN_PTR),y
+    iny
+    lda copy_content_hi
+    sta (SCREEN_PTR),y
+    clc
+    rts
+
+copy_path_name_to_slot_ascii:
+    ldy #$00
+copy_slot_name_loop:
+    lda path_name_buffer,y
+    beq copy_slot_name_done
+    cpy #WORK_NAME_MAX-1
+    bcs copy_slot_name_done
+    jsr screen_code_to_ascii
+    sta (PTR),y
+    iny
+    bne copy_slot_name_loop
+copy_slot_name_done:
+    lda #$00
+    sta (PTR),y
+    rts
+
+screen_code_to_ascii:
+    cmp #$01
+    bcc screen_code_ascii_done
+    cmp #$1B
+    bcs screen_code_ascii_done
+    clc
+    adc #$40
+screen_code_ascii_done:
+    rts
+
+clear_dynamic_work_drive:
+    stx saved_rp_x
+    ldy temp_drive
+    lda #$00
+    sta work_count_table,y
+    jsr select_dynamic_work_name_slot_zero
+    ldy #$00
+    lda #$00
+    sta (PTR),y
+    jsr select_dynamic_work_name_slot_one
+    ldy #$00
+    lda #$00
+    sta (PTR),y
+    jsr select_dynamic_work_file_table
+    ldy #2
+    lda #$00
+    sta (SCREEN_PTR),y
+    iny
+    sta (SCREEN_PTR),y
+    iny
+    iny
+    sta (SCREEN_PTR),y
+    iny
+    sta (SCREEN_PTR),y
+    ldx saved_rp_x
     rts
 
 resolve_arg_target:
@@ -2057,6 +2600,11 @@ select_enum_src:
     ldy #IMG_SRC_LO_LO
     jmp load_enum_from_descriptor
 select_enum_work:
+    ldx temp_drive
+    lda work_count_table,x
+    beq :+
+    jmp load_dynamic_work_enum
+:
     ldy #IMG_WORK_LO_LO
 load_enum_from_descriptor:
     lda (PTR),y
@@ -2072,6 +2620,34 @@ load_enum_from_descriptor:
     sta enum_hi_ptr_hi
     iny
     lda (PTR),y
+    sta enum_count
+    rts
+
+load_dynamic_work_enum:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq load_dynamic_work_enum_a
+    lda #<work_b_entry_lo
+    sta enum_lo_ptr_lo
+    lda #>work_b_entry_lo
+    sta enum_lo_ptr_hi
+    lda #<work_b_entry_hi
+    sta enum_hi_ptr_lo
+    lda #>work_b_entry_hi
+    sta enum_hi_ptr_hi
+    lda work_count_table,x
+    sta enum_count
+    rts
+load_dynamic_work_enum_a:
+    lda #<work_a_entry_lo
+    sta enum_lo_ptr_lo
+    lda #>work_a_entry_lo
+    sta enum_lo_ptr_hi
+    lda #<work_a_entry_hi
+    sta enum_hi_ptr_lo
+    lda #>work_a_entry_hi
+    sta enum_hi_ptr_hi
+    lda work_count_table,x
     sta enum_count
     rts
 
@@ -2182,6 +2758,11 @@ select_file_src:
     ldy #IMG_FILE_SRC_TABLE_LO
     jmp load_file_table_from_descriptor
 select_file_work:
+    ldx temp_drive
+    lda work_count_table,x
+    beq :+
+    jmp load_dynamic_work_files
+:
     ldy #IMG_FILE_WORK_TABLE_LO
 load_file_table_from_descriptor:
     lda (PTR),y
@@ -2192,6 +2773,76 @@ load_file_table_from_descriptor:
     iny
     lda (PTR),y
     sta file_count
+    rts
+
+load_dynamic_work_files:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq load_dynamic_work_files_a
+    lda #<work_b_file_records
+    sta file_table_lo
+    lda #>work_b_file_records
+    sta file_table_hi
+    lda work_count_table,x
+    sta file_count
+    rts
+load_dynamic_work_files_a:
+    lda #<work_a_file_records
+    sta file_table_lo
+    lda #>work_a_file_records
+    sta file_table_hi
+    lda work_count_table,x
+    sta file_count
+    rts
+
+select_dynamic_work_file_table:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq select_dynamic_work_file_table_a
+    lda #<work_b_file_records
+    sta SCREEN_PTR
+    lda #>work_b_file_records
+    sta SCREEN_PTR+1
+    rts
+select_dynamic_work_file_table_a:
+    lda #<work_a_file_records
+    sta SCREEN_PTR
+    lda #>work_a_file_records
+    sta SCREEN_PTR+1
+    rts
+
+select_dynamic_work_name_slot:
+    lda file_index
+    beq select_dynamic_work_name_slot_zero
+select_dynamic_work_name_slot_one:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq select_dynamic_work_name_slot_one_a
+    lda #<work_b_name_1
+    sta PTR
+    lda #>work_b_name_1
+    sta PTR+1
+    rts
+select_dynamic_work_name_slot_one_a:
+    lda #<work_a_name_1
+    sta PTR
+    lda #>work_a_name_1
+    sta PTR+1
+    rts
+select_dynamic_work_name_slot_zero:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq select_dynamic_work_name_slot_zero_a
+    lda #<work_b_name_0
+    sta PTR
+    lda #>work_b_name_0
+    sta PTR+1
+    rts
+select_dynamic_work_name_slot_zero_a:
+    lda #<work_a_name_0
+    sta PTR
+    lda #>work_a_name_0
+    sta PTR+1
     rts
 
 select_dir_listing_ptr:
@@ -2497,6 +3148,16 @@ file_count:
     .byte 0
 file_index:
     .byte 0
+copy_dst_length:
+    .byte 0
+copy_trim_length:
+    .byte 0
+copy_content_lo:
+    .byte 0
+copy_content_hi:
+    .byte 0
+work_count_table:
+    .byte 0, 0
 mount_kind_table:
     .byte MOUNT_KIND_NONE, MOUNT_KIND_NONE
 mount_flag_table:
@@ -2521,6 +3182,8 @@ line_buffer:
     .res MAX_LINE_LEN
 arg_buffer:
     .res MAX_LINE_LEN+1
+copy_dst_buffer:
+    .res MAX_LINE_LEN+1
 path_name_buffer:
     .res MAX_LINE_LEN+1
 response_buffer:
@@ -2539,11 +3202,11 @@ script_cmd_mem:
 script_cmd_quit:
     .byte CMD_Q, CMD_U, CMD_I, CMD_T, 0
 resp_help:
-    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE", 0
+    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY", 0
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 14FC", 0
+    .byte "CORE 1A64", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:
@@ -2575,7 +3238,7 @@ entry_work_empty:
 content_flat_system:
     .byte "UDOS SYSTEM VOLUME", 0
 content_flat_commands:
-    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE", 0
+    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY", 0
 content_flat_readme:
     .byte "MOCK FLAT IMAGE CONTENT", 0
 content_bin_shell:
@@ -2618,6 +3281,28 @@ bin_file_records:
 src_file_records:
     .byte <entry_src_boot, >entry_src_boot, <content_src_boot, >content_src_boot
     .byte <entry_src_fs, >entry_src_fs, <content_src_fs, >content_src_fs
+work_a_name_0:
+    .res WORK_NAME_MAX
+work_a_name_1:
+    .res WORK_NAME_MAX
+work_b_name_0:
+    .res WORK_NAME_MAX
+work_b_name_1:
+    .res WORK_NAME_MAX
+work_a_entry_lo:
+    .byte <work_a_name_0, <work_a_name_1
+work_a_entry_hi:
+    .byte >work_a_name_0, >work_a_name_1
+work_b_entry_lo:
+    .byte <work_b_name_0, <work_b_name_1
+work_b_entry_hi:
+    .byte >work_b_name_0, >work_b_name_1
+work_a_file_records:
+    .byte <work_a_name_0, >work_a_name_0, 0, 0
+    .byte <work_a_name_1, >work_a_name_1, 0, 0
+work_b_file_records:
+    .byte <work_b_name_0, >work_b_name_0, 0, 0
+    .byte <work_b_name_1, >work_b_name_1, 0, 0
 image_none_a:
     .byte <volume_unknown, >volume_unknown
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
@@ -2740,6 +3425,14 @@ resp_bad_dir:
     .byte "NO SUCH DIR", 0
 resp_bad_file:
     .byte "NO SUCH FILE", 0
+resp_bad_copy:
+    .byte "BAD COPY", 0
+resp_copied:
+    .byte "COPIED", 0
+resp_read_only:
+    .byte "READ ONLY", 0
+resp_no_space:
+    .byte "NO SPACE", 0
 resp_bad_mount:
     .byte "BAD MOUNT", 0
 resp_unmounted:

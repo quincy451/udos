@@ -211,8 +211,8 @@ def wait_for_screen_and_state(
     process: subprocess.Popen[str],
     fragment: str,
     *,
-    marker_addr: int,
-    marker_value: int,
+    marker_addr: int | None,
+    marker_value: int | None,
     extra_checks: list[tuple[int, int]],
     timeout: float,
 ) -> str:
@@ -227,8 +227,11 @@ def wait_for_screen_and_state(
         if fragment in last_screen:
             saw_fragment = True
         if saw_fragment:
-            marker = client.memory_get(marker_addr, marker_addr)[0]
-            if marker == marker_value:
+            marker_ok = True
+            if marker_addr is not None and marker_value is not None:
+                marker = client.memory_get(marker_addr, marker_addr)[0]
+                marker_ok = marker == marker_value
+            if marker_ok:
                 checks_ok = True
                 for addr, value in extra_checks:
                     actual = client.memory_get(addr, addr)[0]
@@ -245,8 +248,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Autostart a PRG or disk image in VICE and verify the expected runtime state")
     parser.add_argument("--disk", required=True, help="path to a PRG or disk image to autostart")
     parser.add_argument("--expected", required=True, help="screen fragment to wait for")
-    parser.add_argument("--marker-address", default="0xCFFF", help="hex or decimal address for the ready marker")
-    parser.add_argument("--marker-value", default="0x42", help="expected ready marker byte")
+    parser.add_argument("--marker-address", help="optional hex or decimal address for a marker byte")
+    parser.add_argument("--marker-value", help="optional expected marker byte value")
     parser.add_argument("--check-byte", action="append", default=[], help="extra checks in addr=value form, hex or decimal")
     parser.add_argument("--keybuf", help="optional VICE -keybuf string to inject during autostart")
     parser.add_argument("--keybuf-delay", type=int, help="optional VICE -keybuf-delay value")
@@ -264,8 +267,8 @@ def main(argv: list[str] | None = None) -> int:
         client.connect(time.monotonic() + 20.0)
         client.ping()
         client.resume()
-        marker_addr = int(args.marker_address, 0)
-        marker_value = int(args.marker_value, 0)
+        marker_addr = int(args.marker_address, 0) if args.marker_address is not None else None
+        marker_value = int(args.marker_value, 0) if args.marker_value is not None else None
         extra_checks: list[tuple[int, int]] = []
         for item in args.check_byte:
             addr_text, value_text = item.split("=", 1)

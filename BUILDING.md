@@ -86,49 +86,36 @@ Validated resident behavior:
 - binds `A:` as `D64` and `B:` as `DNP`
 - renders the prompt from resident drive/path state
 - runs the current live command loop
-- drives the resident shell under VICE with `-keybuf "help\rvol\rmountb:d81\rvol\rcdbin\rmountb:dnp\rcdb:\rdir\rcdsrc\rtypebootasm\rdir\rquit\r"`
+- drives the resident shell under VICE with `-keybuf "cdb:\rcdsrc\rcopybootasmworkbootasm\rcdwork\rtypebootasm\r"`
 - applies `-keybuf-delay 300` so the injected shell transcript does not race VICE's own autostart sequence
 - screen transcript includes:
   - `UDOS CORE`
-  - `A:D64/> HELP`
-  - `HELP VER VOL MEM DIR CD MOUNT TYPE`
-  - `A:D64/> VOL`
-  - `A:SYSTEM D64 B:WORK DNP`
-  - `A:D64/> MOUNTB:D81`
-  - `B:WORK D81`
-  - `A:D64/> VOL`
-  - `A:SYSTEM D64 B:WORK D81`
-  - `A:D64/> CDBIN`
-  - `FLAT IMAGE`
-  - `A:D64/> MOUNTB:DNP`
-  - `B:WORK DNP`
   - `A:D64/> CDB:`
   - `B:DNP/`
-  - `B:DNP/> DIR`
-  - `B:DNP/ BIN/ SRC/ WORK/`
   - `B:DNP/> CDSRC`
   - `B:DNP/SRC`
-  - `B:DNP/SRC> TYPEBOOTASM`
+  - `B:DNP/SRC> COPYBOOTASMWORKBOOTASM`
+  - `COPIED`
+  - `B:DNP/SRC> CDWORK`
+  - `B:DNP/WORK`
+  - `B:DNP/WORK> TYPEBOOTASM`
   - `; BOOT.ASM MOCK SOURCE`
-  - `B:DNP/SRC> DIR`
-  - `B:DNP/SRC BOOT.ASM FS.AVM`
-  - `B:DNP/SRC> QUIT`
 - `$CFE8 == $01`, `$CFE9 == $01` confirm `A:` bind result `D64/flat`
 - `$CFEA == $04`, `$CFEB == $02` confirm `B:` bind result `DNP/tree`
-- `$CFEC == $01` confirms current drive `B:` after the `CD` sequence
+- `$CFEC == $01` confirms current drive `B:` after the `CD`/`COPY` sequence
 - `$CFEE == $02` confirms current-drive mount flags `tree`
 - `$CFF0 == $01` confirms transport mode `mock`
 - `$CFF2 == $04` confirms current-drive mount kind `DNP`
 - `$CFF4 == $01` confirms ABI version snapshot from VM-side `stma`
-- `$CFFF == $52` confirms resident-ready marker
 
 Current note:
 - `svc_line_read` now uses live keyboard input on the resident path
 - emulator validation still remains deterministic because `make vice-resident` injects a fixed VICE key buffer
 - the resident parser now accepts a command word plus one argument
-- `CD`, `DIR`, `MOUNT`, and `TYPE` also accept inline shorthand such as `CDB:`, `CDSRC`, `MOUNTB:D81`, and `TYPEBOOTASM` because VICE `-keybuf` spacing is not reliable
+- `CD`, `DIR`, `MOUNT`, `TYPE`, and `COPY` also accept inline shorthand such as `CDB:`, `CDSRC`, `MOUNTB:D81`, `TYPEBOOTASM`, and `COPYBOOTASMWORKBOOTASM` because VICE `-keybuf` spacing is not reliable
 - `VOL` now renders resident volume labels plus mount kind
 - `TYPE` resolves descriptor-backed mock file content and currently tolerates optional `.` in filename matching
+- `COPY` currently writes into a small mutable `WORK` directory model per logical drive
 
 Current validated linked resident entrypoint:
 - `.start = $1810`
@@ -136,13 +123,15 @@ Current validated linked resident entrypoint:
 Current resident footprint from the map:
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$14FC`
+- resident core code: `$1A64`
 
 Current validation note:
-- `make vice-resident` now waits for the stable `UDOS CORE` banner plus the ready marker and byte snapshots
+- `make vice-resident` now waits for the copied-file `TYPE` output plus the resident snapshot bytes
 - it autostarts `build/udosres.prg` instead of the D64 image because repeated VICE disk autostarts were timing-sensitive
 - it delays the injected shell commands so VICE autostart can finish before resident input begins
+- it no longer relies on a final `QUIT` marker because VICE kept dropping the last command terminator on longer transcripts
 - disk-image creation is still verified by `make resident` and the build tests
+- the resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg) is now `$2400` bytes
 
 ## Tests
 
@@ -166,30 +155,18 @@ For a real C64 Ultimate test, copy either `build/udos-proof.d64` or
 program on the disk. For the resident image, the current expected interactive smoke sequence is:
 
 ```text
-UDOS CORE
-  A:D64/> HELP
-HELP VER VOL MEM DIR CD MOUNT
-  A:D64/> VOL
-A:SYSTEM D64 B:WORK DNP
-  A:D64/> MOUNTB:D81
-B:WORK D81
-  A:D64/> VOL
-A:SYSTEM D64 B:WORK D81
-  A:D64/> CDBIN
-FLAT IMAGE
   A:D64/> MOUNTB:DNP
 B:WORK DNP
   A:D64/> CDB:
 B:DNP/
-  B:DNP/> DIR
-B:DNP/ BIN/ SRC/ WORK/
   B:DNP/> CDSRC
 B:DNP/SRC
-  B:DNP/SRC> TYPEBOOTASM
+  B:DNP/SRC> COPY BOOT.ASM WORK/BOOTASM
+COPIED
+  B:DNP/SRC> CDWORK
+B:DNP/WORK
+  B:DNP/WORK> TYPE BOOTASM
 ; BOOT.ASM MOCK SOURCE
-  B:DNP/SRC> DIR
-B:DNP/SRC BOOT.ASM FS.AVM
-  B:DNP/SRC> QUIT
 ```
 
 Until that run happens on target hardware, all validation here must be described

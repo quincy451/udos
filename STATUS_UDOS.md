@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 drive-bind/query seam complete, sixth Phase 5 resident shell slice complete.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 drive-bind/query seam complete, seventh Phase 5 resident shell slice complete.
 
 ## Completed
 
@@ -81,6 +81,11 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
   - descriptor-backed mock file record tables under the mounted-image model
   - file path resolution for current directory, explicit drive prefixes, and one directory component
   - dot-tolerant filename matching so emulator automation and normal dotted names resolve the same file
+- added the seventh resident shell slice:
+  - resident `COPY`
+  - mutable `WORK` directory slots per logical drive
+  - `DIR` and `TYPE` now observe copied files through the same resident state
+  - VICE validation now uses a shorter copy-focused script and checks final screen state plus resident snapshots instead of a late `QUIT` marker
 
 ## Current Verified Facts
 
@@ -96,29 +101,16 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - linked resident entrypoint: `$1810`
 - screen transcript seen in VICE:
   - `UDOS CORE`
-  - `A:D64/> HELP`
-  - `HELP VER VOL MEM DIR CD MOUNT TYPE`
-  - `A:D64/> VOL`
-  - `A:SYSTEM D64 B:WORK DNP`
-  - `A:D64/> MOUNTB:D81`
-  - `B:WORK D81`
-  - `A:D64/> VOL`
-  - `A:SYSTEM D64 B:WORK D81`
-  - `A:D64/> CDBIN`
-  - `FLAT IMAGE`
-  - `A:D64/> MOUNTB:DNP`
-  - `B:WORK DNP`
   - `A:D64/> CDB:`
   - `B:DNP/`
-  - `B:DNP/> DIR`
-  - `B:DNP/ BIN/ SRC/ WORK/`
   - `B:DNP/> CDSRC`
   - `B:DNP/SRC`
-  - `B:DNP/SRC> TYPEBOOTASM`
+  - `B:DNP/SRC> COPYBOOTASMWORKBOOTASM`
+  - `COPIED`
+  - `B:DNP/SRC> CDWORK`
+  - `B:DNP/WORK`
+  - `B:DNP/WORK> TYPEBOOTASM`
   - `; BOOT.ASM MOCK SOURCE`
-  - `B:DNP/SRC> DIR`
-  - `B:DNP/SRC BOOT.ASM FS.AVM`
-  - `B:DNP/SRC> QUIT`
 - `A:` bind snapshot at `$CFE8/$CFE9`: `D64/flat`
 - `B:` bind snapshot at `$CFEA/$CFEB`: `DNP/tree`
 - current drive snapshot at `$CFEC`: `B:`
@@ -126,8 +118,8 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - transport mode snapshot at `$CFF0`: `mock`
 - current mount-kind snapshot at `$CFF2`: `DNP`
 - ABI snapshot at `$CFF4`: `1`
-- ready marker at `$CFFF`: `0x52`
-- resident core code footprint: `$14FC`
+- resident core code footprint: `$1A64`
+- resident load window in `udos_c64.cfg`: `$2400`
 
 ## In Progress
 
@@ -149,13 +141,14 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - the resident bootstrap/core executes in VICE and exposes a first service ABI boundary
 - the drive-bind/query seam can be validated under VICE without pretending real Ultimate hardware exists
 - the resident loop now exercises live line input under VICE via `-keybuf`
-- the resident shell now proves prompting, current-directory state, and `HELP`, `VOL`, `DIR`, `CD`, `MOUNT`, `TYPE`, and `QUIT`
+- the resident shell now proves prompting, current-directory state, and `HELP`, `VOL`, `DIR`, `CD`, `MOUNT`, `TYPE`, `COPY`, and `QUIT`
 - `VOL` now renders resident label + kind metadata rather than a fixed literal
 - `VER` now reflects the current transport mode suffix (`MOCK` in emulator validation)
 - `DIR`, `CD`, and `MOUNT` now exercise the flat-image vs DNP tree policy on the resident path
 - `DIR` now walks a resident entry iterator instead of reading a prebuilt listing string
 - `VOL` and `DIR` now share a descriptor-backed mounted-image mock model per logical drive
 - `TYPE` now resolves mock file content through the mounted-image descriptor model
+- `COPY` now mutates a resident `WORK` directory model that `DIR` and `TYPE` can read back immediately
 
 ## What Is Unverified
 
@@ -166,6 +159,7 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - real C64 Ultimate keyboard behavior on target hardware
 - image-backed directory enumeration instead of the current descriptor-backed resident mock listings
 - image-backed file metadata and content instead of the current descriptor-backed resident mock file tables
+- image-backed mutable file operations instead of the current resident `WORK` slot mock for `COPY`
 - file-backed `TYPE`, `COPY`, `REN`, `DEL`, and `RUN`
 - real mounted-image metadata instead of the current descriptor-backed resident mock
 
@@ -173,5 +167,6 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 
 - replace the current resident enum tables with image-backed enumeration through the existing `svc_fs_enum_*` seam
 - replace the current descriptor-backed mock file tables behind `TYPE` with image-backed file lookup/content
+- replace the current mutable `WORK` slot mock behind `COPY` with real image-backed create/update semantics
 - replace the current resident volume-label mock with mounted-image metadata from the filesystem layer
 - keep `CD` semantics and prompt state stable while the underlying image I/O becomes real

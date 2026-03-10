@@ -183,12 +183,13 @@ Version policy:
   - `7`: `CD`
   - `8`: `MOUNT`
   - `9`: `TYPE`
+  - `10`: `COPY`
 - current behavior:
   - reads live keyboard input through C64 KERNAL `GETIN`
   - echoes typed characters to the console
   - accepts both carriage return and linefeed as command terminators for VICE automation compatibility
   - tokenizes a command word plus one resident argument buffer
-  - accepts inline `CD`/`DIR`/`MOUNT`/`TYPE` shorthand such as `CDB:`, `CDSRC`, `MOUNTB:D81`, and `TYPEBOOTASM` to keep VICE `-keybuf` automation reliable
+  - accepts inline `CD`/`DIR`/`MOUNT`/`TYPE`/`COPY` shorthand such as `CDB:`, `CDSRC`, `MOUNTB:D81`, `TYPEBOOTASM`, and `COPYBOOTASMWORKBOOTASM` to keep VICE `-keybuf` automation reliable
   - advances the resident cursor to the next line
 - current emulator validation:
   - `make vice-resident` drives this path through VICE `-keybuf`
