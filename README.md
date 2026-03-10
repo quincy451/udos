@@ -12,7 +12,8 @@ Current milestone:
 - Phase 3 native UCI seam complete at the control/status boundary.
 - Phase 4 mounted-image abstraction seam complete with flat-vs-tree policy.
 - Phase 5 resident shell milestone in progress with `DIR`, `CD`, `VOL`, `MOUNT`,
-  `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, and `RUN` validated under VICE.
+  `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, direct `A:`/`B:` drive switching, and
+  implicit program launch validated under VICE.
 - Phase 5 now also includes a hardware-backed directory-enumeration path in code:
   - resident path synchronization through Ultimate DOS `CHANGE_DIR`
   - backend-path refresh through `GET_PATH`
@@ -21,7 +22,9 @@ Current milestone:
 
 Current command parser rule:
 - shell keywords require a separator before arguments
-- example: `DEL BOOT2ASM` deletes the file, while `DELBOOT2ASM` is treated as a bare program token and returns `PROGRAM NOT FOUND`
+- direct drive tokens like `A:` and `B:` switch the current logical drive
+- a non-keyword token implies program launch; if it has no extension, `.PRG` is appended
+- example: `DEL BOOT3.PRG` deletes the file, while `DELBOOT3` is treated as a bare program token and returns `PROGRAM NOT FOUND`
 
 See:
 - `PIVOT_PLAN.md`

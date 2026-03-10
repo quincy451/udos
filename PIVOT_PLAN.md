@@ -92,7 +92,7 @@ Status:
 
 ### Phase 5
 - implement shell parser and resident commands
-- first resident commands: `DIR`, `CD`, `VOL`, `MOUNT`, `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, `RUN`, `HELP`, `VER`
+- first resident commands: `DIR`, `CD`, `VOL`, `MOUNT`, `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, `HELP`, `VER`, plus implicit program launch
 
 ### Phase 6
 - implement overlays: `XCOPY`, `DELTREE`, `TREE`, batch support

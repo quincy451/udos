@@ -23,7 +23,8 @@ The resident shell currently also validates:
 - `TYPE`
 - `REN`
 - `DEL`
-- `RUN`
+- direct `A:` / `B:` drive switching
+- implicit program launch
 
 ## What Works
 
@@ -34,27 +35,27 @@ Validated in VICE:
 - writable `WORK` flow works through the current mock backend:
   - copy
   - rename
-  - run
+  - implicit launch
   - delete
 
 Current validated transcript:
 
 ```text
 UDOS FOR COMMODORE 64
-  A:D64/> CDB:
+  A:D64/> B:
 B:DNP/
-  B:DNP/> CDSRC
+  B:DNP/> CD SRC
 B:DNP/SRC
-  B:DNP/SRC> COPYBOOTASMWORKBOOTASM
+  B:DNP/SRC> COPY BOOT.ASM WORK/BOOT2.PRG
 COPIED
-  B:DNP/SRC> CDWORK
+  B:DNP/SRC> CD WORK
 B:DNP/WORK
-  B:DNP/WORK> RENBOOTASMBOOT2ASM
+  B:DNP/WORK> REN BOOT2.PRG BOOT3.PRG
 RENAMED
-  B:DNP/WORK> RUNBOOT2ASM:DIR
-RUN BOOT2ASM
+  B:DNP/WORK> BOOT3 DIR
+RUN BOOT3.PRG
 ARGS DIR
-  B:DNP/WORK> DELBOOT2ASM
+  B:DNP/WORK> DEL BOOT3.PRG
 DELETED
   B:DNP/WORK> DIR
 B:DNP/WORK EMPTY

@@ -34,7 +34,7 @@
   - real `MEM`
   - real `HELP`
   - real `VER`
-- replace the current mock `RUN` stub with real image-backed program lookup/load semantics behind the same program ABI
+- replace the current mock implicit program-launch stub with real image-backed lookup/load semantics behind the same program ABI
 - replace the current descriptor-backed mock `DIR` and per-drive path model with image-backed directory state
 - hardware-validate the current `svc_fs_enum_*` Ultimate DOS path and harden its end-of-directory/error handling on target
 - replace the current descriptor-backed resident volume metadata with image-backed metadata

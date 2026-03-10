@@ -75,19 +75,22 @@ Current `vice-resident` behavior:
 - builds `build/udosres.prg`
 - autostarts the BASIC wrapper PRG in `x64sc`
 - binds `A:` as `D64` and `B:` as `DNP`
-- drives the live resident shell with explicit separators:
-  - `CD B:`
+- drives the live resident shell with direct drive switching and explicit separators:
+  - `B:`
   - `CD SRC`
-  - `COPY BOOT.ASM WORK/BOOTASM`
+  - `COPY BOOT.ASM WORK/BOOT2.PRG`
   - `CD WORK`
-  - `REN BOOTASM BOOT2ASM`
-  - `DELBOOT2ASM`
-  - `RUN BOOT2ASM DIR`
-  - `DEL BOOT2ASM`
+  - `REN BOOT2.PRG BOOT3.PRG`
+  - `DELBOOT3`
+  - `BOOT3 DIR`
+  - `DEL BOOT3.PRG`
   - `DIR`
 - verifies command-keyword separation:
-  - `DELBOOT2ASM` must not be treated as `DEL BOOT2ASM`
+  - `DELBOOT3` must not be treated as `DEL BOOT3.PRG`
   - it is treated as a bare program token and returns `PROGRAM NOT FOUND`
+- verifies implicit program launch:
+  - `BOOT3 DIR` resolves as `BOOT3.PRG`
+  - `DIR` is passed as the command line
 - verifies the final listing `B:DNP/WORK EMPTY`
 - verifies resident snapshots:
   - cached backend-path length:
@@ -99,28 +102,28 @@ Current `vice-resident` behavior:
   - transport mode = `mock`
   - mount kind = `DNP`
   - ABI version = `1`
-  - program state after `RUN` = exited with `0` status on `B:/WORK`
+  - program state after implicit launch = exited with `0` status on `B:/WORK`
 
 Current validated resident transcript:
 
 ```text
 UDOS FOR COMMODORE 64
-  A:D64/> CD B:
+  A:D64/> B:
 B:DNP/
   B:DNP/> CD SRC
 B:DNP/SRC
-  B:DNP/SRC> COPY BOOT.ASM WORK/BOOTASM
+  B:DNP/SRC> COPY BOOT.ASM WORK/BOOT2.PRG
 COPIED
   B:DNP/SRC> CD WORK
 B:DNP/WORK
-  B:DNP/WORK> REN BOOTASM BOOT2ASM
+  B:DNP/WORK> REN BOOT2.PRG BOOT3.PRG
 RENAMED
-  B:DNP/WORK> DELBOOT2ASM
+  B:DNP/WORK> DELBOOT3
 PROGRAM NOT FOUND
-  B:DNP/WORK> RUN BOOT2ASM DIR
-RUN BOOT2ASM
+  B:DNP/WORK> BOOT3 DIR
+RUN BOOT3.PRG
 ARGS DIR
-  B:DNP/WORK> DEL BOOT2ASM
+  B:DNP/WORK> DEL BOOT3.PRG
 DELETED
   B:DNP/WORK> DIR
 B:DNP/WORK EMPTY
@@ -131,7 +134,7 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$294F`
+- resident core code: `$29F3`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4000`
 - hardware directory cache budget:
   - `6` entries per drive
@@ -159,22 +162,22 @@ If you want to try the current resident image on real C64 Ultimate hardware:
 3. Reproduce this smoke sequence manually:
 
 ```text
-  A:D64/> CD B:
+  A:D64/> B:
 B:DNP/
   B:DNP/> CD SRC
 B:DNP/SRC
-  B:DNP/SRC> COPY BOOT.ASM WORK/BOOTASM
+  B:DNP/SRC> COPY BOOT.ASM WORK/BOOT2.PRG
 COPIED
   B:DNP/SRC> CD WORK
 B:DNP/WORK
-  B:DNP/WORK> REN BOOTASM BOOT2ASM
+  B:DNP/WORK> REN BOOT2.PRG BOOT3.PRG
 RENAMED
-  B:DNP/WORK> DELBOOT2ASM
+  B:DNP/WORK> DELBOOT3
 PROGRAM NOT FOUND
-  B:DNP/WORK> RUN BOOT2ASM DIR
-RUN BOOT2ASM
+  B:DNP/WORK> BOOT3 DIR
+RUN BOOT3.PRG
 ARGS DIR
-  B:DNP/WORK> DEL BOOT2ASM
+  B:DNP/WORK> DEL BOOT3.PRG
 DELETED
   B:DNP/WORK> DIR
 B:DNP/WORK EMPTY

@@ -11,7 +11,7 @@ It now covers:
 - filesystem enumeration and metadata seams
 - console I/O
 - live command input
-- first program handoff/return services for `RUN`
+- first program handoff/return services for implicit program launch
 
 ## Calling Convention
 
@@ -175,15 +175,17 @@ Current ABI version:
   - `10`: `COPY`
   - `11`: `REN`
   - `12`: `DEL`
-  - `13`: `RUN`
+  - `13`: internal program-launch dispatch
 - current behavior:
   - uses live C64 KERNAL `GETIN`
   - tokenizes one command plus one argument buffer
   - command keywords require a separator before arguments
-  - a bare unknown token falls back to `RUN <token>`
+  - direct drive tokens `A:` and `B:` dispatch through the resident `CD` path
+  - a bare non-keyword line falls back to implicit program launch
   - example:
-    - `DEL BOOT2ASM` -> `DEL` with `BOOT2ASM`
-    - `DELBOOT2ASM` -> bare token, then `RUN DELBOOT2ASM`
+    - `DEL BOOT3.PRG` -> `DEL` with `BOOT3.PRG`
+    - `DELBOOT3` -> bare token, then implicit launch of `DELBOOT3.PRG`
+    - `BOOT3 DIR` -> implicit launch of `BOOT3.PRG` with command line `DIR`
 
 ### `svc_program_prepare_run`
 - input: current shell argument buffer
@@ -196,6 +198,7 @@ Current ABI version:
   - `4`: target not found
 - current behavior:
   - splits the command target from the command line
+  - appends `.PRG` when the target name has no extension
   - resolves the current file target through the same resident path logic used by `TYPE`
   - snapshots the drive and directory context for the program
   - marks program state as running on success
@@ -205,7 +208,7 @@ Current ABI version:
 - output: `rP = last run status`
 - current behavior:
   - exposes the resident `RUN_STATUS_*` result stored by `svc_program_prepare_run`
-  - used by the shell to branch cleanly between `RUN` execution and error reporting
+  - used by the shell to branch cleanly between implicit launch and error reporting
 
 ### `svc_program_error_ptr`
 - input: `rP = run status`
@@ -258,6 +261,6 @@ Current VICE validation uses these resident snapshots:
 - real mounted-image metadata
 - real image-backed directory enumeration
 - real file open/read/write/rename/delete/copy
-- real program-image lookup/load behind `RUN`
+- real program-image lookup/load behind implicit program launch
 - overlay/program module loading
 - full hardware UCI transport

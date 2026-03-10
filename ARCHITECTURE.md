@@ -59,7 +59,8 @@ The resident core is planned as these layers:
    - lookup of built-in vs overlay command
    - argument handoff
 7. Resident commands
-   - `DIR`, `CD`, `VOL`, `MOUNT`, `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, `RUN`, `HELP`, `VER`
+   - `DIR`, `CD`, `VOL`, `MOUNT`, `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, `HELP`, `VER`
+   - implicit program launch for bare non-keyword input
 
 ## Overlay Model
 

@@ -40,9 +40,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `COPY`
   - `REN`
   - `DEL`
-  - `RUN`
   - `QUIT` / `EXIT`
-- added a first resident program ABI slice for `RUN`:
+- added a first resident program ABI slice for implicit program launch:
   - prepare program handoff
   - expose resolved target pointer
   - expose command-line pointer and length
@@ -64,9 +63,14 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 ### Resident shell milestone
 
 - linked resident entrypoint: `$1810`
-- command keywords now require a separator before arguments:
-  - `DEL BOOT2ASM` -> delete `BOOT2ASM`
-  - `DELBOOT2ASM` -> bare program token, resolved through `RUN`, then `PROGRAM NOT FOUND`
+- command keywords now require a separator before arguments
+- direct drive tokens now work on the resident path:
+  - `A:` -> switch to logical drive `A:`
+  - `B:` -> switch to logical drive `B:`
+- bare non-keyword input now implies program launch:
+  - `DEL BOOT3.PRG` -> delete `BOOT3.PRG`
+  - `DELBOOT3` -> implicit launch attempt of `DELBOOT3.PRG`, then `PROGRAM NOT FOUND`
+  - `BOOT3 DIR` -> implicit launch of `BOOT3.PRG` with command line `DIR`
 - backend-path cache seam is now live behind the filesystem ABI:
   - mock mode synthesizes `/`, `/BIN`, `/SRC`, `/WORK`
   - hardware mode now synchronizes through Ultimate DOS `CHANGE_DIR` and queries `GET_PATH`, but remains unverified
@@ -76,22 +80,22 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - VICE still validates only the mock path because no Ultimate UCI transport exists there
 - current VICE-validated transcript:
   - `UDOS FOR COMMODORE 64`
-  - `A:D64/> CD B:`
+  - `A:D64/> B:`
   - `B:DNP/`
   - `B:DNP/> CD SRC`
   - `B:DNP/SRC`
-  - `B:DNP/SRC> COPY BOOT.ASM WORK/BOOTASM`
+  - `B:DNP/SRC> COPY BOOT.ASM WORK/BOOT2.PRG`
   - `COPIED`
   - `B:DNP/SRC> CD WORK`
   - `B:DNP/WORK`
-  - `B:DNP/WORK> REN BOOTASM BOOT2ASM`
+  - `B:DNP/WORK> REN BOOT2.PRG BOOT3.PRG`
   - `RENAMED`
-  - `B:DNP/WORK> DELBOOT2ASM`
+  - `B:DNP/WORK> DELBOOT3`
   - `PROGRAM NOT FOUND`
-  - `B:DNP/WORK> RUN BOOT2ASM DIR`
-  - `RUN BOOT2ASM`
+  - `B:DNP/WORK> BOOT3 DIR`
+  - `RUN BOOT3.PRG`
   - `ARGS DIR`
-  - `B:DNP/WORK> DEL BOOT2ASM`
+  - `B:DNP/WORK> DEL BOOT3.PRG`
   - `DELETED`
   - `B:DNP/WORK> DIR`
   - `B:DNP/WORK EMPTY`
@@ -106,12 +110,12 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFF0 = $01` -> transport mode `mock`
   - `$CFF2 = $04` -> current-drive mount kind `DNP`
   - `$CFF4 = $01` -> ABI version
-- program ABI snapshots after `RUN`:
+- program ABI snapshots after implicit launch:
   - `$CFF6 = $02` -> program exited
   - `$CFF7 = $00` -> exit status `0`
   - `$CFF8 = $01` -> program drive `B:`
   - `$CFF9 = $03` -> program directory `WORK`
-- resident core code footprint: `$294F`
+- resident core code footprint: `$29F3`
 - resident load window in `udos_c64.cfg`: `$4000`
 
 ## What Works
@@ -126,6 +130,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - directory enumeration seam with hardware `OPEN_DIR` / `READ_DIR` attempt plus mock fallback
 - flat-image rejection for directory-tree semantics
 - prompt rendering from live drive/kind/path state
+- direct drive-token switching for `A:` and `B:`
 - resident file-oriented mock workflow:
   - `DIR`
   - `TYPE`
@@ -133,7 +138,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `REN`
   - `DEL`
 - resident program-handoff mock workflow:
-  - `RUN`
+  - implicit program launch from a bare non-keyword line
+  - `.PRG` suffix added when the target has no extension
   - command-line separation with normal spaces
   - return to shell after program exit
 
@@ -143,7 +149,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - no hardware-validated UCI command/data path
 - no real mounted-image metadata yet
 - no real image-backed file mutation yet
-- no real program-image loading yet behind `RUN`
+- no real program-image loading yet behind implicit program launch
 - no overlay command loader yet
 
 ## Next Concrete Step
@@ -152,5 +158,5 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - first targets:
   - real mounted-image metadata for `VOL` / `MOUNT`
   - real file lookup/read/write/rename/delete behind `TYPE` / `COPY` / `REN` / `DEL`
-  - real program lookup/load behind `RUN`
+  - real program lookup/load behind implicit program launch
 - keep shell semantics stable while swapping the backend

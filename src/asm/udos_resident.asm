@@ -1363,15 +1363,29 @@ token_len2:
     ldy parse_cmd_start
     lda line_buffer,y
     cmp #CMD_C
-    beq :+
+    beq token_len2_cd
+    cmp #$01
+    beq token_len2_drive
+    cmp #$02
+    beq token_len2_drive
     jmp token_unknown
-:
+token_len2_cd:
     iny
     lda line_buffer,y
     cmp #CMD_D
     beq :+
     jmp token_unknown
 :
+    lda #SHELL_CMD_CD
+    rts
+token_len2_drive:
+    iny
+    lda line_buffer,y
+    cmp #ASCII_COLON
+    beq :+
+    jmp token_unknown
+:
+    jsr copy_cmd_token_to_arg
     lda #SHELL_CMD_CD
     rts
 token_len3:
@@ -1383,8 +1397,6 @@ token_len3:
     lda line_buffer,y
     cmp #CMD_E
     beq token_len3_ren_tail
-    cmp #CMD_U
-    beq token_len3_run_tail
     jmp token_unknown
 token_len3_ren_tail:
     iny
@@ -1394,15 +1406,6 @@ token_len3_ren_tail:
     jmp token_unknown
 :
     lda #SHELL_CMD_REN
-    rts
-token_len3_run_tail:
-    iny
-    lda line_buffer,y
-    cmp #CMD_N
-    beq :+
-    jmp token_unknown
-:
-    lda #SHELL_CMD_RUN
     rts
 token_len3_del:
     ldy parse_cmd_start
@@ -1628,11 +1631,10 @@ token_none:
     lda #SHELL_CMD_NONE
     rts
 token_unknown:
-    lda arg_length
-    bne token_unknown_fail
     lda cmd_length
     beq token_unknown_fail
-    jsr copy_cmd_token_to_arg
+    jsr copy_full_line_to_arg
+    bcs token_unknown_fail
     lda #SHELL_CMD_RUN
     rts
 token_unknown_fail:
@@ -1654,6 +1656,39 @@ copy_cmd_token_done:
     stx arg_length
     lda #$00
     sta arg_buffer,x
+    rts
+
+copy_full_line_to_arg:
+    lda #$00
+    sta arg_length
+    sta arg_trim_length
+    ldx #$00
+    ldy parse_cmd_start
+copy_full_line_loop:
+    cpy line_length
+    bcs copy_full_line_done
+    cpx #MAX_LINE_LEN
+    bcs copy_full_line_done
+    lda line_buffer,y
+    sta arg_buffer,x
+    inx
+    cmp #ASCII_SPACE
+    beq copy_full_line_next
+    stx arg_trim_length
+copy_full_line_next:
+    iny
+    bne copy_full_line_loop
+copy_full_line_done:
+    ldx arg_trim_length
+    stx arg_length
+    lda #$00
+    sta arg_buffer,x
+    cpx #$00
+    beq copy_full_line_fail
+    clc
+    rts
+copy_full_line_fail:
+    sec
     rts
 
 split_inline_command_arg:
@@ -2443,6 +2478,11 @@ svc_program_prepare_run:
     lda #RUN_STATUS_BAD
     jmp program_status_return
 program_have_target:
+    jsr ensure_run_target_extension
+    bcc :+
+    lda #RUN_STATUS_BAD
+    jmp program_status_return
+:
     jsr resolve_file_target
     cmp #PATH_STATUS_OK
     beq program_lookup
@@ -2481,6 +2521,62 @@ program_status_return:
     sta 0,x
     lda #$00
     sta 1,x
+    rts
+
+ensure_run_target_extension:
+    lda #$00
+    sta parse_scan_index
+    sta prefix_length
+    ldy #$00
+ensure_run_target_scan:
+    cpy arg_length
+    bcs ensure_run_target_done_scan
+    lda arg_buffer,y
+    cmp #ASCII_SLASH
+    bne ensure_run_target_check_dot
+    tya
+    clc
+    adc #1
+    sta parse_scan_index
+    lda #$00
+    sta prefix_length
+    iny
+    bne ensure_run_target_scan
+ensure_run_target_check_dot:
+    cmp #ASCII_DOT
+    bne ensure_run_target_next
+    sty parse_scan_index
+    lda #$01
+    sta prefix_length
+ensure_run_target_next:
+    iny
+    bne ensure_run_target_scan
+ensure_run_target_done_scan:
+    lda prefix_length
+    bne ensure_run_target_ok
+    ldx arg_length
+    cpx #MAX_LINE_LEN-4
+    bcs ensure_run_target_fail
+    lda #ASCII_DOT
+    sta arg_buffer,x
+    inx
+    lda #CMD_P
+    sta arg_buffer,x
+    inx
+    lda #CMD_R
+    sta arg_buffer,x
+    inx
+    lda #CMD_G
+    sta arg_buffer,x
+    inx
+    stx arg_length
+    lda #$00
+    sta arg_buffer,x
+ensure_run_target_ok:
+    clc
+    rts
+ensure_run_target_fail:
+    sec
     rts
 
 svc_program_get_status:
@@ -4716,11 +4812,11 @@ hw_dir_names_b:
 header_text:
     .byte "UDOS FOR COMMODORE 64", 0
 resp_help:
-    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL RUN", 0
+    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL", 0
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 294F", 0
+    .byte "CORE 29F3", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:
@@ -4752,7 +4848,7 @@ entry_work_empty:
 content_flat_system:
     .byte "UDOS SYSTEM VOLUME", 0
 content_flat_commands:
-    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL RUN", 0
+    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL", 0
 content_flat_readme:
     .byte "MOCK FLAT IMAGE CONTENT", 0
 content_bin_shell:
