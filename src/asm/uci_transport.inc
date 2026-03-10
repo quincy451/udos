@@ -55,6 +55,106 @@ uci_wait_idle_done:
     clc
     rts
 
+uci_wait_reply:
+    ldy #$00
+uci_wait_reply_loop:
+    lda UCI_STATUS_REG
+    sta uci_last_status
+    and #UCI_STATUS_STATE_MASK
+    cmp #UCI_STATUS_STATE_BUSY
+    bne uci_wait_reply_done
+    dey
+    bne uci_wait_reply_loop
+    lda uci_last_status
+    sec
+    rts
+uci_wait_reply_done:
+    lda uci_last_status
+    clc
+    rts
+
+; Input: PTR points to command bytes, A = byte length (0..255)
+; Output: A = raw status byte, C clear on accepted push, set on idle/error failure
+uci_push_command:
+    sta uci_xfer_limit
+    lda UCI_STATUS_REG
+    and #UCI_STATUS_ERROR
+    beq :+
+    jsr uci_clear_error
+:
+    jsr uci_wait_idle
+    bcs uci_push_fail
+    ldy #$00
+uci_push_loop:
+    cpy uci_xfer_limit
+    bcs uci_push_commit
+    lda (PTR),y
+    sta UCI_CMD_REG
+    iny
+    bne uci_push_loop
+uci_push_commit:
+    lda #UCI_CTRL_PUSH_CMD
+    sta UCI_CTRL_REG
+    lda UCI_STATUS_REG
+    and #UCI_STATUS_ERROR
+    beq uci_push_ok
+uci_push_fail:
+    lda UCI_STATUS_REG
+    sec
+    rts
+uci_push_ok:
+    lda UCI_STATUS_REG
+    clc
+    rts
+
+; Input: PTR points to destination, A = max byte count (0..255)
+; Output: A = bytes copied, C clear when queue drained, set when buffer filled first
+uci_read_data_block:
+    sta uci_xfer_limit
+    ldy #$00
+uci_read_data_loop:
+    lda UCI_STATUS_REG
+    and #UCI_STATUS_DATA_AV
+    beq uci_read_data_done
+    cpy uci_xfer_limit
+    bcs uci_read_data_full
+    lda UCI_DATA_REG
+    sta (PTR),y
+    iny
+    bne uci_read_data_loop
+uci_read_data_full:
+    tya
+    sec
+    rts
+uci_read_data_done:
+    tya
+    clc
+    rts
+
+; Input: PTR points to destination, A = max byte count (0..255)
+; Output: A = bytes copied, C clear when queue drained, set when buffer filled first
+uci_read_status_block:
+    sta uci_xfer_limit
+    ldy #$00
+uci_read_status_loop:
+    lda UCI_STATUS_REG
+    and #UCI_STATUS_STAT_AV
+    beq uci_read_status_done
+    cpy uci_xfer_limit
+    bcs uci_read_status_full
+    lda UCI_STATUS_DATA_REG
+    sta (PTR),y
+    iny
+    bne uci_read_status_loop
+uci_read_status_full:
+    tya
+    sec
+    rts
+uci_read_status_done:
+    tya
+    clc
+    rts
+
 uci_accept_data:
     lda #UCI_CTRL_DATA_ACC
     sta UCI_CTRL_REG

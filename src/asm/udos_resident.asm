@@ -4107,6 +4107,10 @@ program_arg_limit:
     .byte 0
 program_cmdline_len:
     .byte 0
+uci_xfer_limit:
+    .byte 0
+uci_last_status:
+    .byte 0
 program_status:
     .byte RUN_STATUS_BAD
 program_target_lo:
