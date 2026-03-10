@@ -14,5 +14,6 @@ See:
 - `PIVOT_PLAN.md`
 - `ARCHITECTURE.md`
 - `BUILDING.md`
+- `MILESTONE_HANDOFF.md`
 - `STATUS_UDOS.md`
 - `TODO_UDOS.md`
