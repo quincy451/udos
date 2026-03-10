@@ -40,6 +40,7 @@
   - real `HELP`
   - real `VER`
 - replace the current mock `DIR` and per-drive path model with image-backed directory state
+- replace the current resident `svc_fs_enum_*` mock tables with real mounted-image enumeration
 - replace the current resident volume-label mock with image-backed metadata
 - define how the resident parser exposes argument buffers to later VM-side command code without growing native glue unnecessarily
 

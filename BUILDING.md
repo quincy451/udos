@@ -131,7 +131,7 @@ Current validated linked resident entrypoint:
 Current resident footprint from the map:
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$0D57`
+- resident core code: `$0EEB`
 
 ## Tests
 

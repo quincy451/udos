@@ -11,6 +11,8 @@
 .export svc_fs_get_dir_state
 .export svc_fs_get_volume_ptr
 .export svc_fs_get_dir_listing_ptr
+.export svc_fs_enum_begin
+.export svc_fs_enum_next
 .export svc_console_reset
 .export svc_console_write_sc0
 .export svc_console_write_prompt
@@ -312,6 +314,39 @@ fs_get_listing_invalid:
     lda #<resp_dir_flat
     sta 0,x
     lda #>resp_dir_flat
+    sta 1,x
+    rts
+
+svc_fs_enum_begin:
+    ldy 0,x
+    cpy #2
+    bcs fs_enum_begin_invalid
+    sty temp_drive
+    lda 1,x
+    sta temp_dir_id
+    jsr fs_enum_begin_current
+    lda enum_count
+    sta 0,x
+    lda #$00
+    sta 1,x
+    rts
+fs_enum_begin_invalid:
+    lda #$00
+    sta 0,x
+    sta 1,x
+    rts
+
+svc_fs_enum_next:
+    jsr fs_enum_next_ptr
+    bcc fs_enum_next_ok
+    lda #$00
+    sta 0,x
+    sta 1,x
+    rts
+fs_enum_next_ok:
+    lda PTR
+    sta 0,x
+    lda PTR+1
     sta 1,x
     rts
 
@@ -1089,9 +1124,18 @@ dir_build_ok:
     lda #ASCII_SPACE
     sta response_buffer,y
     iny
-    lda temp_dir_id
-    jsr select_dir_listing_ptr
+    jsr fs_enum_begin_current
+dir_append_loop:
+    jsr fs_enum_next_ptr
+    bcs dir_build_done
     jsr append_ptr_to_response
+    lda enum_index
+    cmp enum_count
+    bcs dir_build_done
+    lda #ASCII_SPACE
+    sta response_buffer,y
+    iny
+    jmp dir_append_loop
 dir_build_done:
     lda #$00
     sta response_buffer,y
@@ -1474,6 +1518,113 @@ append_dir_work:
     sta PTR+1
     jmp append_ptr_to_response
 
+fs_enum_begin_current:
+    sty saved_response_y
+    lda #$00
+    sta enum_index
+    jsr select_enum_table
+    ldy saved_response_y
+    rts
+
+fs_enum_next_ptr:
+    sty saved_response_y
+    lda enum_index
+    cmp enum_count
+    bcc :+
+    sec
+    ldy saved_response_y
+    rts
+:
+    tay
+    lda enum_lo_ptr_lo
+    sta PTR
+    lda enum_lo_ptr_hi
+    sta PTR+1
+    lda (PTR),y
+    sta PTR
+    lda enum_hi_ptr_lo
+    sta SCREEN_PTR
+    lda enum_hi_ptr_hi
+    sta SCREEN_PTR+1
+    lda (SCREEN_PTR),y
+    sta PTR+1
+    inc enum_index
+    clc
+    ldy saved_response_y
+    rts
+
+select_enum_table:
+    ldy temp_drive
+    lda mount_flag_table,y
+    cmp #MOUNT_FLAG_TREE
+    beq select_enum_tree
+    lda #<flat_entry_lo
+    sta enum_lo_ptr_lo
+    lda #>flat_entry_lo
+    sta enum_lo_ptr_hi
+    lda #<flat_entry_hi
+    sta enum_hi_ptr_lo
+    lda #>flat_entry_hi
+    sta enum_hi_ptr_hi
+    lda #3
+    sta enum_count
+    rts
+select_enum_tree:
+    lda temp_dir_id
+    cmp #DIR_ID_BIN
+    beq select_enum_bin
+    cmp #DIR_ID_SRC
+    beq select_enum_src
+    cmp #DIR_ID_WORK
+    beq select_enum_work
+    lda #<root_entry_lo
+    sta enum_lo_ptr_lo
+    lda #>root_entry_lo
+    sta enum_lo_ptr_hi
+    lda #<root_entry_hi
+    sta enum_hi_ptr_lo
+    lda #>root_entry_hi
+    sta enum_hi_ptr_hi
+    lda #3
+    sta enum_count
+    rts
+select_enum_bin:
+    lda #<bin_entry_lo
+    sta enum_lo_ptr_lo
+    lda #>bin_entry_lo
+    sta enum_lo_ptr_hi
+    lda #<bin_entry_hi
+    sta enum_hi_ptr_lo
+    lda #>bin_entry_hi
+    sta enum_hi_ptr_hi
+    lda #2
+    sta enum_count
+    rts
+select_enum_src:
+    lda #<src_entry_lo
+    sta enum_lo_ptr_lo
+    lda #>src_entry_lo
+    sta enum_lo_ptr_hi
+    lda #<src_entry_hi
+    sta enum_hi_ptr_lo
+    lda #>src_entry_hi
+    sta enum_hi_ptr_hi
+    lda #2
+    sta enum_count
+    rts
+select_enum_work:
+    lda #<work_entry_lo
+    sta enum_lo_ptr_lo
+    lda #>work_entry_lo
+    sta enum_lo_ptr_hi
+    lda #<work_entry_hi
+    sta enum_hi_ptr_lo
+    lda #>work_entry_hi
+    sta enum_hi_ptr_hi
+    lda #1
+    sta enum_count
+    rts
+
 select_dir_listing_ptr:
     pha
     sty saved_response_y
@@ -1757,6 +1908,18 @@ temp_mount_kind:
     .byte MOUNT_KIND_NONE
 saved_response_y:
     .byte 0
+enum_lo_ptr_lo:
+    .byte 0
+enum_lo_ptr_hi:
+    .byte 0
+enum_hi_ptr_lo:
+    .byte 0
+enum_hi_ptr_hi:
+    .byte 0
+enum_count:
+    .byte 0
+enum_index:
+    .byte 0
 mount_kind_table:
     .byte MOUNT_KIND_NONE, MOUNT_KIND_NONE
 mount_flag_table:
@@ -1797,13 +1960,55 @@ resp_help:
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 0D57", 0
+    .byte "CORE 0EEB", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:
     .byte "WORK", 0
 volume_unknown:
     .byte "?", 0
+entry_flat_system:
+    .byte "SYSTEM", 0
+entry_flat_commands:
+    .byte "COMMANDS", 0
+entry_flat_readme:
+    .byte "README", 0
+entry_root_bin:
+    .byte "BIN/", 0
+entry_root_src:
+    .byte "SRC/", 0
+entry_root_work:
+    .byte "WORK/", 0
+entry_bin_shell:
+    .byte "SHELL.AVM", 0
+entry_bin_dir:
+    .byte "DIR.AVM", 0
+entry_src_boot:
+    .byte "BOOT.ASM", 0
+entry_src_fs:
+    .byte "FS.AVM", 0
+entry_work_empty:
+    .byte "EMPTY", 0
+flat_entry_lo:
+    .byte <entry_flat_system, <entry_flat_commands, <entry_flat_readme
+flat_entry_hi:
+    .byte >entry_flat_system, >entry_flat_commands, >entry_flat_readme
+root_entry_lo:
+    .byte <entry_root_bin, <entry_root_src, <entry_root_work
+root_entry_hi:
+    .byte >entry_root_bin, >entry_root_src, >entry_root_work
+bin_entry_lo:
+    .byte <entry_bin_shell, <entry_bin_dir
+bin_entry_hi:
+    .byte >entry_bin_shell, >entry_bin_dir
+src_entry_lo:
+    .byte <entry_src_boot, <entry_src_fs
+src_entry_hi:
+    .byte >entry_src_boot, >entry_src_fs
+work_entry_lo:
+    .byte <entry_work_empty
+work_entry_hi:
+    .byte >entry_work_empty
 dir_name_bin:
     .byte "BIN", 0
 dir_name_src:

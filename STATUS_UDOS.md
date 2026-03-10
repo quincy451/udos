@@ -66,6 +66,10 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
   - resident filesystem service exports for current directory, volume metadata, and directory listing lookup
   - `MOUNT` can change `B:` between flat and tree-capable policy during the session
   - VICE-stable inline `MOUNT` shorthand because `-keybuf` spacing is not reliable
+- added the fourth resident shell slice:
+  - `DIR` now iterates resident entry tables instead of emitting prebuilt listing strings
+  - resident `svc_fs_enum_begin` / `svc_fs_enum_next` services
+  - directory output stays stable while the shell moves onto an enumeration seam closer to the final filesystem layer
 
 ## Current Verified Facts
 
@@ -110,7 +114,7 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - current mount-kind snapshot at `$CFF2`: `DNP`
 - ABI snapshot at `$CFF4`: `1`
 - ready marker at `$CFFF`: `0x52`
-- resident core code footprint: `$0D57`
+- resident core code footprint: `$0EEB`
 
 ## In Progress
 
@@ -136,6 +140,7 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - `VOL` now renders resident label + kind metadata rather than a fixed literal
 - `VER` now reflects the current transport mode suffix (`MOCK` in emulator validation)
 - `DIR`, `CD`, and `MOUNT` now exercise the flat-image vs DNP tree policy on the resident path
+- `DIR` now walks a resident entry iterator instead of reading a prebuilt listing string
 
 ## What Is Unverified
 
@@ -150,6 +155,6 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 
 ## Next Concrete Step
 
-- replace the current mock `DIR` surface with image-backed enumeration through the filesystem layer
+- replace the current resident enum tables with image-backed enumeration through the existing `svc_fs_enum_*` seam
 - replace the current resident volume-label mock with mounted-image metadata from the filesystem layer
 - keep `CD` semantics and prompt state stable while the underlying image I/O becomes real

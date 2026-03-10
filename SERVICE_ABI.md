@@ -117,9 +117,27 @@ Version policy:
   - high byte: resident directory id
 - output: `rP = pointer to a null-terminated resident listing string`
 - current behavior:
-  - returns flat-image root listing for `D64/D71/D81`
-  - returns one of the current mock `DNP` listings for `root`, `BIN`, `SRC`, or `WORK`
-- purpose: give resident shell code a stable directory-enumeration seam before real image-backed I/O exists
+  - returns the current compatibility listing string for the requested resident directory
+  - remains available while the shell moves to entry-by-entry enumeration
+- purpose: preserve a simple listing-pointer seam while the resident shell transitions to iterator-style enumeration
+
+### `svc_fs_enum_begin`
+- input: packed in `rP`
+  - low byte: logical drive index
+  - high byte: resident directory id
+- output: `rP = entry count`
+- current behavior:
+  - selects the current resident mock entry table for the requested drive and directory
+  - resets the resident enumeration cursor
+- purpose: establish a directory-enumeration ABI shape that can later be backed by real mounted-image I/O
+
+### `svc_fs_enum_next`
+- input: none
+- output: `rP = pointer to the next entry name`, or `0` when enumeration is exhausted
+- current behavior:
+  - walks the currently selected resident mock entry table
+  - is the path the built-in `DIR` command now uses
+- purpose: move the shell off prebuilt listing strings and toward real filesystem iteration
 
 ### `svc_console_reset`
 - input: none
@@ -187,7 +205,7 @@ Version policy:
 
 - memory/status queries
 - mounted-image open/bind metadata beyond kind/flags
-- directory enumeration against real mounted images
+- directory enumeration against real mounted images behind the current `svc_fs_enum_*` seam
 - file open/read/write/rename/delete/copy
 - overlay/program load
 - full hardware Ultimate UCI transport

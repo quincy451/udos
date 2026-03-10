@@ -50,6 +50,7 @@ The resident image currently exposes:
 - per-drive current-directory state
 - per-drive resident volume labels
 - directory-listing lookup for the current mock backend
+- directory enumeration begin/next over resident mock entry tables
 - resident `CD` policy for flat vs tree-capable mounts
 - resident `MOUNT` policy that can switch a drive between flat and tree-capable kinds
 - resident `DIR` against a mock directory model
@@ -67,5 +68,6 @@ Current mock directory model:
   - `A:` -> `SYSTEM`
   - `B:` -> `WORK`
 
-This mock model exists only to exercise shell semantics. It must be replaced by
-real image-backed enumeration once the filesystem layer exists.
+This mock model now sits behind a resident enumeration seam, not just fixed
+listing strings. It still must be replaced by real image-backed enumeration
+once the filesystem layer exists.
