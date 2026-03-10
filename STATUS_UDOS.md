@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 resident bootstrap/core complete, Phase 3 native UCI seam complete, Phase 4 filesystem abstraction seam complete, tenth Phase 5 resident shell slice complete.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 resident bootstrap/core complete, Phase 3 native UCI seam complete, Phase 4 filesystem abstraction seam complete, eleventh Phase 5 resident shell slice complete.
 
 UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runtime environment for this work.
 
@@ -19,6 +19,11 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - renders a state-driven shell prompt
 - added a native UCI transport seam in `src/asm/uci_transport.inc`
 - added the mounted-image abstraction seam for `A:` and `B:`
+- added a hardware-backed directory-cache path behind `svc_fs_enum_*`
+  - synchronizes the Ultimate DOS backend path with resident drive/directory state through `CHANGE_DIR`
+  - queries backend path through `GET_PATH`
+  - fills a small resident directory cache through `OPEN_DIR` / `READ_DIR`
+  - falls back to the descriptor-backed mock model when hardware transport is unavailable or a query fails
 - enforced flat-vs-tree policy:
   - `D64`/`D71`/`D81` -> flat
   - `DNP` -> tree-capable
@@ -64,7 +69,11 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `DELBOOT2ASM` -> bare program token, resolved through `RUN`, then `PROGRAM NOT FOUND`
 - backend-path cache seam is now live behind the filesystem ABI:
   - mock mode synthesizes `/`, `/BIN`, `/SRC`, `/WORK`
-  - hardware mode is wired for Ultimate DOS `GET_PATH`, but remains unverified
+  - hardware mode now synchronizes through Ultimate DOS `CHANGE_DIR` and queries `GET_PATH`, but remains unverified
+- hardware-backed directory enumeration is now wired behind `svc_fs_enum_*`:
+  - hardware mode issues `OPEN_DIR` / `READ_DIR` into a small resident cache
+  - current cache budget is `6` entries with names capped at `20` bytes plus terminator
+  - VICE still validates only the mock path because no Ultimate UCI transport exists there
 - current VICE-validated transcript:
   - `UDOS FOR COMMODORE 64`
   - `A:D64/> CD B:`
@@ -102,8 +111,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFF7 = $00` -> exit status `0`
   - `$CFF8 = $01` -> program drive `B:`
   - `$CFF9 = $03` -> program directory `WORK`
-- resident core code footprint: `$2560`
-- resident load window in `udos_c64.cfg`: `$3000`
+- resident core code footprint: `$294F`
+- resident load window in `udos_c64.cfg`: `$4000`
 
 ## What Works
 
@@ -113,7 +122,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - native UCI detection seam
 - synchronous native UCI transfer primitives
 - drive bind/query abstraction
-- backend-path metadata query seam with mock fallback
+- backend-path metadata query seam with hardware `CHANGE_DIR` / `GET_PATH` attempt plus mock fallback
+- directory enumeration seam with hardware `OPEN_DIR` / `READ_DIR` attempt plus mock fallback
 - flat-image rejection for directory-tree semantics
 - prompt rendering from live drive/kind/path state
 - resident file-oriented mock workflow:
@@ -131,7 +141,6 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 
 - no real C64 Ultimate hardware execution
 - no hardware-validated UCI command/data path
-- no real image-backed `D64`/`D71`/`D81`/`DNP` enumeration yet
 - no real mounted-image metadata yet
 - no real image-backed file mutation yet
 - no real program-image loading yet behind `RUN`
@@ -142,7 +151,6 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - replace the current descriptor-backed mock filesystem with real image-backed services behind the existing ABI
 - first targets:
   - real mounted-image metadata for `VOL` / `MOUNT`
-  - real directory enumeration for `DIR`
   - real file lookup/read/write/rename/delete behind `TYPE` / `COPY` / `REN` / `DEL`
   - real program lookup/load behind `RUN`
 - keep shell semantics stable while swapping the backend

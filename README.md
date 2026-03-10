@@ -13,6 +13,11 @@ Current milestone:
 - Phase 4 mounted-image abstraction seam complete with flat-vs-tree policy.
 - Phase 5 resident shell milestone in progress with `DIR`, `CD`, `VOL`, `MOUNT`,
   `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, and `RUN` validated under VICE.
+- Phase 5 now also includes a hardware-backed directory-enumeration path in code:
+  - resident path synchronization through Ultimate DOS `CHANGE_DIR`
+  - backend-path refresh through `GET_PATH`
+  - directory cache fill through `OPEN_DIR` / `READ_DIR`
+  - mock fallback retained for VICE and failure cases
 
 Current command parser rule:
 - shell keywords require a separator before arguments

@@ -36,7 +36,7 @@
   - real `VER`
 - replace the current mock `RUN` stub with real image-backed program lookup/load semantics behind the same program ABI
 - replace the current descriptor-backed mock `DIR` and per-drive path model with image-backed directory state
-- replace the current resident `svc_fs_enum_*` descriptor-backed mock tables with real mounted-image enumeration
+- hardware-validate the current `svc_fs_enum_*` Ultimate DOS path and harden its end-of-directory/error handling on target
 - replace the current descriptor-backed resident volume metadata with image-backed metadata
 - replace the current mutable `WORK` slot mock used by `COPY`, `REN`, and `DEL` with real image-backed create/update semantics
 - define how the resident parser exposes argument buffers to later VM-side command code without growing native glue unnecessarily

@@ -72,7 +72,7 @@ KEY_RETURN = $0D
 KEY_LINEFEED = $0A
 KEY_BACKSPACE = $14
 MAX_LINE_LEN = 31
-MAX_RESPONSE_LEN = 64
+MAX_RESPONSE_LEN = 128
 ASCII_COLON = $3A
 ASCII_SLASH = $2F
 ASCII_SPACE = $20
@@ -143,7 +143,14 @@ WORK_DYNAMIC_MAX = 2
 WORK_NAME_MAX = 16
 DOS_TARGET_A = 1
 DOS_TARGET_B = 2
+DOS_CMD_CHANGE_DIR = $11
 DOS_CMD_GET_PATH = $12
+DOS_CMD_OPEN_DIR = $13
+DOS_CMD_READ_DIR = $14
+DOS_ATTR_DIR = $10
+HW_DIR_CACHE_MAX = 6
+HW_DIR_NAME_MAX = 20
+HW_DIR_NAME_STRIDE = HW_DIR_NAME_MAX + 1
 IMG_VOL_LO = 0
 IMG_VOL_HI = 1
 IMG_ROOT_LO_LO = 2
@@ -534,6 +541,8 @@ refresh_drive_backend_path:
     sta SCREEN_PTR+1
     jsr uci_probe
     bcs refresh_drive_backend_path_mock
+    jsr sync_drive_backend_path_hw
+    bcs refresh_drive_backend_path_mock
     jsr fill_backend_path_hw
     bcc refresh_drive_backend_path_done
 refresh_drive_backend_path_mock:
@@ -623,15 +632,7 @@ fill_backend_path_mock_done:
     rts
 
 fill_backend_path_hw:
-    lda temp_drive
-    cmp #DRIVE_A
-    beq fill_backend_path_hw_a
-    lda #DOS_TARGET_B
-    bne fill_backend_path_hw_store_target
-fill_backend_path_hw_a:
-    lda #DOS_TARGET_A
-fill_backend_path_hw_store_target:
-    sta uci_cmd_buffer+0
+    jsr build_uci_target_header
     lda #DOS_CMD_GET_PATH
     sta uci_cmd_buffer+1
     lda #<uci_cmd_buffer
@@ -639,43 +640,162 @@ fill_backend_path_hw_store_target:
     lda #>uci_cmd_buffer
     sta PTR+1
     lda #2
-    jsr uci_push_command
+    jsr uci_issue_data_status
     bcs fill_backend_path_hw_fail
-    jsr uci_wait_reply
+    jsr uci_status_is_ok
     bcs fill_backend_path_hw_fail
-
     lda SCREEN_PTR
     sta PTR
     lda SCREEN_PTR+1
     sta PTR+1
-    lda #MAX_LINE_LEN
-    jsr uci_read_data_block
-    tay
+    ldy #$00
+fill_backend_path_hw_copy:
+    cpy uci_data_length
+    bcs fill_backend_path_hw_done
+    lda uci_data_buffer,y
+    sta (PTR),y
+    iny
+    cpy #MAX_LINE_LEN
+    bcc fill_backend_path_hw_copy
+fill_backend_path_hw_done:
     lda #$00
     sta (PTR),y
+    clc
+    rts
+fill_backend_path_hw_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
 
+sync_drive_backend_path_hw:
+    lda #<desired_path_buffer
+    sta SCREEN_PTR
+    lda #>desired_path_buffer
+    sta SCREEN_PTR+1
+    jsr fill_backend_path_mock
+    jsr build_uci_target_header
+    lda #DOS_CMD_CHANGE_DIR
+    sta uci_cmd_buffer+1
+    ldy #$00
+sync_drive_backend_path_copy:
+    lda desired_path_buffer,y
+    beq sync_drive_backend_path_send
+    sta uci_cmd_buffer+2,y
+    iny
+    cpy #MAX_LINE_LEN
+    bcc sync_drive_backend_path_copy
+sync_drive_backend_path_send:
+    tya
+    clc
+    adc #2
+    pha
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    pla
+    jsr uci_issue_status_only
+    bcs sync_drive_backend_path_fail
+    jsr uci_status_is_ok
+    bcs sync_drive_backend_path_fail
+    clc
+    rts
+sync_drive_backend_path_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
+build_uci_target_header:
+    lda temp_drive
+    cmp #DRIVE_A
+    beq build_uci_target_header_a
+    lda #DOS_TARGET_B
+    sta uci_cmd_buffer+0
+    rts
+build_uci_target_header_a:
+    lda #DOS_TARGET_A
+    sta uci_cmd_buffer+0
+    rts
+
+uci_issue_status_only:
+    jsr uci_push_command
+    bcs uci_issue_status_only_fail
+    jsr uci_wait_reply
+    bcs uci_issue_status_only_fail
     lda #<uci_status_buffer
     sta PTR
     lda #>uci_status_buffer
     sta PTR+1
     lda #MAX_LINE_LEN
     jsr uci_read_status_block
+    sta uci_status_length
     tay
     lda #$00
     sta (PTR),y
     jsr uci_accept_data
-
-    lda uci_status_buffer+0
-    cmp #'0'
-    bne fill_backend_path_hw_fail
-    lda uci_status_buffer+1
-    cmp #'0'
-    bne fill_backend_path_hw_fail
     clc
     rts
-fill_backend_path_hw_fail:
-    jsr uci_abort_transfer
-    jsr uci_clear_error
+uci_issue_status_only_fail:
+    sec
+    rts
+
+uci_issue_data_status:
+    jsr uci_push_command
+    bcs uci_issue_data_status_fail
+    jsr uci_wait_reply
+    bcs uci_issue_data_status_fail
+    lda #<uci_data_buffer
+    sta PTR
+    lda #>uci_data_buffer
+    sta PTR+1
+    lda #MAX_LINE_LEN
+    jsr uci_read_data_block
+    sta uci_data_length
+    tay
+    lda #$00
+    sta (PTR),y
+    lda #<uci_status_buffer
+    sta PTR
+    lda #>uci_status_buffer
+    sta PTR+1
+    lda #MAX_LINE_LEN
+    jsr uci_read_status_block
+    sta uci_status_length
+    tay
+    lda #$00
+    sta (PTR),y
+    jsr uci_accept_data
+    clc
+    rts
+uci_issue_data_status_fail:
+    sec
+    rts
+
+uci_status_is_ok:
+    lda uci_status_buffer+0
+    cmp #'0'
+    bne uci_status_is_ok_fail
+    lda uci_status_buffer+1
+    cmp #'0'
+    bne uci_status_is_ok_fail
+    clc
+    rts
+uci_status_is_ok_fail:
+    sec
+    rts
+
+uci_status_is_dir_empty:
+    lda uci_status_buffer+0
+    cmp #'0'
+    bne uci_status_is_dir_empty_fail
+    lda uci_status_buffer+1
+    cmp #'1'
+    bne uci_status_is_dir_empty_fail
+    clc
+    rts
+uci_status_is_dir_empty_fail:
     sec
     rts
 
@@ -3686,7 +3806,13 @@ fs_enum_begin_current:
     sty saved_response_y
     lda #$00
     sta enum_index
+    jsr uci_probe
+    bcs fs_enum_begin_current_mock
+    jsr fill_hw_dir_cache_current
+    bcc fs_enum_begin_current_done
+fs_enum_begin_current_mock:
     jsr select_enum_table
+fs_enum_begin_current_done:
     ldy saved_response_y
     rts
 
@@ -3766,6 +3892,198 @@ load_enum_from_descriptor:
     iny
     lda (PTR),y
     sta enum_count
+    rts
+
+fill_hw_dir_cache_current:
+    jsr sync_drive_backend_path_hw
+    bcs fill_hw_dir_cache_current_fail
+    jsr select_hw_dir_tables
+    lda #$00
+    sta enum_count
+    ldx temp_drive
+    sta hw_dir_count_table,x
+    jsr build_uci_target_header
+    lda #DOS_CMD_OPEN_DIR
+    sta uci_cmd_buffer+1
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    lda #2
+    jsr uci_issue_status_only
+    bcs fill_hw_dir_cache_current_fail
+    jsr uci_status_is_ok
+    bcc fill_hw_dir_cache_current_loop
+    jsr uci_status_is_dir_empty
+    bcs fill_hw_dir_cache_current_fail
+    ldx temp_drive
+    lda #$00
+    sta hw_dir_count_table,x
+    sta enum_count
+    clc
+    rts
+fill_hw_dir_cache_current_loop:
+    lda enum_count
+    cmp #HW_DIR_CACHE_MAX
+    bcs fill_hw_dir_cache_current_done
+    jsr build_uci_target_header
+    lda #DOS_CMD_READ_DIR
+    sta uci_cmd_buffer+1
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    lda #2
+    jsr uci_issue_data_status
+    bcs fill_hw_dir_cache_current_done
+    lda uci_data_length
+    cmp #2
+    bcc fill_hw_dir_cache_current_done
+    jsr store_hw_dir_entry
+    bcs fill_hw_dir_cache_current_done
+    inc enum_count
+    ldx temp_drive
+    lda enum_count
+    sta hw_dir_count_table,x
+    jsr uci_status_is_ok
+    bcc fill_hw_dir_cache_current_loop
+fill_hw_dir_cache_current_done:
+    clc
+    rts
+fill_hw_dir_cache_current_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
+select_hw_dir_tables:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq select_hw_dir_tables_a
+    lda #<hw_dir_entry_lo_b
+    sta enum_lo_ptr_lo
+    lda #>hw_dir_entry_lo_b
+    sta enum_lo_ptr_hi
+    lda #<hw_dir_entry_hi_b
+    sta enum_hi_ptr_lo
+    lda #>hw_dir_entry_hi_b
+    sta enum_hi_ptr_hi
+    lda hw_dir_count_table,x
+    sta enum_count
+    rts
+select_hw_dir_tables_a:
+    lda #<hw_dir_entry_lo_a
+    sta enum_lo_ptr_lo
+    lda #>hw_dir_entry_lo_a
+    sta enum_lo_ptr_hi
+    lda #<hw_dir_entry_hi_a
+    sta enum_hi_ptr_lo
+    lda #>hw_dir_entry_hi_a
+    sta enum_hi_ptr_hi
+    lda hw_dir_count_table,x
+    sta enum_count
+    rts
+
+store_hw_dir_entry:
+    jsr select_hw_dir_name_slot
+    ldy enum_count
+    lda PTR
+    sta (SCREEN_PTR),y
+    lda PTR+1
+    pha
+    lda SCREEN_PTR
+    clc
+    adc #HW_DIR_CACHE_MAX
+    sta SCREEN_PTR
+    bcc :+
+    inc SCREEN_PTR+1
+:
+    pla
+    sta (SCREEN_PTR),y
+    jsr restore_hw_dir_entry_lo_table
+    ldx #$01
+    lda #$00
+    sta saved_response_y
+store_hw_dir_entry_copy:
+    cpx uci_data_length
+    bcs store_hw_dir_entry_finalize
+    ldy saved_response_y
+    cpy #HW_DIR_NAME_MAX
+    bcs store_hw_dir_entry_finalize
+    lda uci_data_buffer,x
+    beq store_hw_dir_entry_finalize
+    sta (PTR),y
+    inc saved_response_y
+    inx
+    bne store_hw_dir_entry_copy
+store_hw_dir_entry_finalize:
+    ldy saved_response_y
+    lda uci_data_buffer+0
+    and #DOS_ATTR_DIR
+    beq store_hw_dir_entry_null
+    cpy #HW_DIR_NAME_MAX
+    bcs store_hw_dir_entry_null
+    lda #ASCII_SLASH
+    sta (PTR),y
+    iny
+store_hw_dir_entry_null:
+    lda #$00
+    sta (PTR),y
+    clc
+    rts
+
+select_hw_dir_name_slot:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq select_hw_dir_name_slot_a
+    lda #<hw_dir_entry_lo_b
+    sta SCREEN_PTR
+    lda #>hw_dir_entry_lo_b
+    sta SCREEN_PTR+1
+    lda #<hw_dir_names_b
+    sta PTR
+    lda #>hw_dir_names_b
+    sta PTR+1
+    jmp advance_hw_dir_name_slot
+select_hw_dir_name_slot_a:
+    lda #<hw_dir_entry_lo_a
+    sta SCREEN_PTR
+    lda #>hw_dir_entry_lo_a
+    sta SCREEN_PTR+1
+    lda #<hw_dir_names_a
+    sta PTR
+    lda #>hw_dir_names_a
+    sta PTR+1
+advance_hw_dir_name_slot:
+    ldy enum_count
+    beq select_hw_dir_name_slot_done
+select_hw_dir_name_slot_loop:
+    clc
+    lda PTR
+    adc #HW_DIR_NAME_STRIDE
+    sta PTR
+    bcc :+
+    inc PTR+1
+:
+    dey
+    bne select_hw_dir_name_slot_loop
+select_hw_dir_name_slot_done:
+    rts
+
+restore_hw_dir_entry_lo_table:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq restore_hw_dir_entry_lo_table_a
+    lda #<hw_dir_entry_lo_b
+    sta SCREEN_PTR
+    lda #>hw_dir_entry_lo_b
+    sta SCREEN_PTR+1
+    rts
+restore_hw_dir_entry_lo_table_a:
+    lda #<hw_dir_entry_lo_a
+    sta SCREEN_PTR
+    lda #>hw_dir_entry_lo_a
+    sta SCREEN_PTR+1
     rts
 
 load_dynamic_work_enum:
@@ -4320,6 +4638,10 @@ uci_xfer_limit:
     .byte 0
 uci_last_status:
     .byte 0
+uci_data_length:
+    .byte 0
+uci_status_length:
+    .byte 0
 program_status:
     .byte RUN_STATUS_BAD
 program_target_lo:
@@ -4335,6 +4657,8 @@ copy_content_lo:
 copy_content_hi:
     .byte 0
 work_count_table:
+    .byte 0, 0
+hw_dir_count_table:
     .byte 0, 0
 mount_kind_table:
     .byte MOUNT_KIND_NONE, MOUNT_KIND_NONE
@@ -4365,13 +4689,29 @@ response_buffer:
 script_line_data:
     .res (MAX_LINE_LEN+1) * 10
 uci_cmd_buffer:
-    .res 2
+    .res MAX_LINE_LEN+3
+uci_data_buffer:
+    .res MAX_LINE_LEN+1
 uci_status_buffer:
+    .res MAX_LINE_LEN+1
+desired_path_buffer:
     .res MAX_LINE_LEN+1
 backend_path_cache_a:
     .res MAX_LINE_LEN+1
 backend_path_cache_b:
     .res MAX_LINE_LEN+1
+hw_dir_entry_lo_a:
+    .res HW_DIR_CACHE_MAX
+hw_dir_entry_hi_a:
+    .res HW_DIR_CACHE_MAX
+hw_dir_entry_lo_b:
+    .res HW_DIR_CACHE_MAX
+hw_dir_entry_hi_b:
+    .res HW_DIR_CACHE_MAX
+hw_dir_names_a:
+    .res HW_DIR_NAME_STRIDE * HW_DIR_CACHE_MAX
+hw_dir_names_b:
+    .res HW_DIR_NAME_STRIDE * HW_DIR_CACHE_MAX
 
 header_text:
     .byte "UDOS FOR COMMODORE 64", 0
@@ -4380,7 +4720,7 @@ resp_help:
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 2171", 0
+    .byte "CORE 294F", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:

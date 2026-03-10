@@ -82,7 +82,13 @@ Current resident mounted-image model:
 - the `WORK` subtree can override descriptor tables with mutable resident slots when files are copied in
 - each drive also maintains a small backend-path cache buffer
   - mock mode fills this from resident directory state
-  - hardware mode is intended to fill it through Ultimate DOS `GET_PATH`
+  - hardware mode first synchronizes the Ultimate DOS target path through `CHANGE_DIR`
+  - hardware mode then refreshes the cache through Ultimate DOS `GET_PATH`
+- each drive now also has a small hardware directory cache
+  - current cache budget is `6` entries per drive
+  - each cached name is capped at `20` bytes plus a terminator
+  - directory attributes with the `DIR` bit set are surfaced with a trailing `/`
+  - on transport/query failure the shell falls back to the resident descriptor tables
 
 Current mock directory model:
 - flat images report a root-only listing
@@ -104,14 +110,24 @@ Current mock directory model:
 
 This mock model now sits behind both a resident mounted-image descriptor layer
 and the resident enumeration seam. It still must be replaced by real
-image-backed enumeration, file lookup, and metadata once the filesystem layer
-exists.
+image-backed file lookup, mutation, and mounted-image metadata once the
+filesystem layer exists.
 
 Current backend-path seam:
 - `svc_fs_get_backend_path_ptr` returns a path-like metadata string per drive
+- hardware mode now attempts to push the resident drive/path state into the mapped Ultimate DOS target before calling `GET_PATH`
 - in VICE/mock mode the cache currently validates as:
   - `A:` -> `/`
   - `B:` -> `/WORK` after the resident smoke sequence
 - fixed VICE snapshots currently record the cached path lengths:
   - `$CFE4 = 1` for `A:`
   - `$CFE5 = 5` for `B:` after `CD WORK`
+
+Current hardware enumeration seam:
+- `svc_fs_enum_begin` now attempts a real Ultimate DOS directory walk when UCI hardware is detected
+- the current call sequence is:
+  - `CHANGE_DIR`
+  - `OPEN_DIR`
+  - repeated `READ_DIR`
+- cached entries are then exposed back to the shell through the existing iterator ABI
+- this path is build-complete, but not hardware-validated from this environment

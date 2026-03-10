@@ -106,7 +106,8 @@ Current ABI version:
     - `/BIN`
     - `/SRC`
     - `/WORK`
-  - hardware mode attempts a real Ultimate DOS `DOS_CMD_GET_PATH (0x12)` query for the mapped DOS target
+  - hardware mode first attempts to synchronize the mapped Ultimate DOS target through `DOS_CMD_CHANGE_DIR (0x11)`
+  - hardware mode then attempts a real Ultimate DOS `DOS_CMD_GET_PATH (0x12)` query for the mapped DOS target
   - on hardware query failure, the service falls back to the mock path text
 
 ### `svc_fs_get_dir_listing_ptr`
@@ -122,6 +123,16 @@ Current ABI version:
   - low byte: logical drive
   - high byte: resident directory id
 - output: `rP = entry count`
+- current behavior:
+  - mock mode selects the resident descriptor-backed entry tables
+  - hardware mode attempts:
+    - `DOS_CMD_CHANGE_DIR (0x11)`
+    - `DOS_CMD_OPEN_DIR (0x13)`
+    - repeated `DOS_CMD_READ_DIR (0x14)`
+  - hardware results are cached into a small resident table:
+    - up to `6` entries
+    - names capped at `20` bytes
+  - on hardware failure it falls back to the mock tables
 
 ### `svc_fs_enum_next`
 - input: none

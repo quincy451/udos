@@ -131,8 +131,11 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$2560`
-- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$3000`
+- resident core code: `$294F`
+- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4000`
+- hardware directory cache budget:
+  - `6` entries per drive
+  - `20` bytes per cached name
 
 ## Tests
 
@@ -178,3 +181,8 @@ B:DNP/WORK EMPTY
 ```
 
 Until that run happens on real hardware, all current validation should be described as emulator validation only.
+
+Hardware-specific note:
+- the resident image now contains a real Ultimate DOS directory-enumeration path using `CHANGE_DIR`, `GET_PATH`, `OPEN_DIR`, and `READ_DIR`
+- this path has been build-validated only
+- it has not been executed on real Ultimate hardware from this environment

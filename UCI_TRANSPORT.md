@@ -48,6 +48,14 @@ Implemented routines:
 - `uci_abort_transfer`
 - `uci_clear_error`
 
+Current resident users of the native transport:
+- backend-path synchronization/query:
+  - `CHANGE_DIR`
+  - `GET_PATH`
+- directory enumeration:
+  - `OPEN_DIR`
+  - `READ_DIR`
+
 Current implementation notes:
 - `svc_transport_get_mode` now delegates to `uci_probe` instead of reading the ident register directly
 - control/status bit assignments are taken from the published command-interface register table
@@ -56,6 +64,9 @@ Current implementation notes:
   - data/status drain length is currently one byte (`0..255`)
   - higher layers will chunk larger exchanges instead of growing the native edge first
 - `uci_wait_reply` treats any non-busy transport state as a completed reply boundary and returns the raw status byte
+- current directory-enumeration use is intentionally bounded:
+  - up to `6` cached entries per drive
+  - names capped at `20` bytes
 - no real hardware execution has been performed from this environment, so these routines are structured and built, but not hardware-validated
 
 The first hardware-facing implementation stays tiny and synchronous.
