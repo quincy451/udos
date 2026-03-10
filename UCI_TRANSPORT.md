@@ -31,15 +31,28 @@ Current implementation policy:
 That gives us a real hardware-detection boundary without claiming the hardware
 backend is finished.
 
-## Planned Native Transport Routines
+## Native Transport Layer
 
+The current tree now includes a native transport include:
+- [src/asm/uci_transport.inc](/mnt/c/test/action/udos/src/asm/uci_transport.inc)
+
+Implemented routines:
 - `uci_probe`
+- `uci_read_status`
 - `uci_wait_idle`
+- `uci_accept_data`
+- `uci_abort_transfer`
+- `uci_clear_error`
+
+Current implementation notes:
+- `svc_transport_get_mode` now delegates to `uci_probe` instead of reading the ident register directly
+- control/status bit assignments are taken from the published command-interface register table
+- no real hardware execution has been performed from this environment, so these routines are structured and built, but not hardware-validated
+
+Still planned:
 - `uci_push_command`
 - `uci_read_data_block`
 - `uci_read_status_block`
-- `uci_accept_data`
-- `uci_abort`
 
-The first hardware-facing implementation should stay tiny and synchronous.
+The first hardware-facing implementation stays tiny and synchronous.
 Higher-level filesystem semantics stay above this layer.

@@ -1,4 +1,5 @@
 .include "acheron.inc"
+.include "uci_transport.inc"
 
 .export start
 .export svc_get_abi_version
@@ -52,8 +53,6 @@ MOUNT_FLAG_FLAT = 1
 MOUNT_FLAG_TREE = 2
 DRIVE_A = 0
 DRIVE_B = 1
-UCI_IDENT_REG = $DF1D
-UCI_IDENT_MAGIC = $C9
 GETIN = $FFE4
 KEY_RETURN = $0D
 KEY_LINEFEED = $0A
@@ -242,9 +241,8 @@ svc_get_abi_version:
     rts
 
 svc_transport_get_mode:
-    lda UCI_IDENT_REG
-    cmp #UCI_IDENT_MAGIC
-    beq :+
+    jsr uci_probe
+    bcc :+
     lda #<TRANSPORT_MODE_MOCK
     sta 0,x
     lda #$00

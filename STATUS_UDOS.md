@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 drive-bind/query seam complete, eighth Phase 5 resident shell slice complete.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core slice complete, Phase 3/4 drive-bind/query seam complete, eighth Phase 5 resident shell slice complete, first native UCI transport slice complete.
 
 ## Completed
 
@@ -92,6 +92,10 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
   - VICE-safe inline `RENBOOTASMBOOT2ASM` parsing for punctuation-stripped emulator input
   - mutable `WORK` entries can now be renamed and deleted in place
   - `DIR` and `TYPE` now validate the full writable lifecycle: copy, rename, read back, delete
+- added the first native UCI transport slice:
+  - extracted hardware-edge register and bit definitions into `src/asm/uci_transport.inc`
+  - implemented `uci_probe`, `uci_read_status`, `uci_wait_idle`, `uci_accept_data`, `uci_abort_transfer`, and `uci_clear_error`
+  - rewired `svc_transport_get_mode` to delegate to the native transport layer instead of reading the ident register inline
 
 ## Current Verified Facts
 
@@ -156,6 +160,7 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 - the Phase 1 AcheronVM proof executes in VICE and can be asserted non-interactively
 - the resident bootstrap/core executes in VICE and exposes a first service ABI boundary
 - the drive-bind/query seam can be validated under VICE without pretending real Ultimate hardware exists
+- the resident service layer now has a separate native UCI transport include instead of embedding the probe logic directly in shell/service code
 - the resident loop now exercises live line input under VICE via `-keybuf`
 - the resident shell now proves prompting, current-directory state, and `HELP`, `VOL`, `DIR`, `CD`, `MOUNT`, `TYPE`, `COPY`, `REN`, `DEL`, and `QUIT`
 - `VOL` now renders resident label + kind metadata rather than a fixed literal
@@ -170,6 +175,7 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 bootstrap/core sl
 
 - real C64 Ultimate execution
 - hardware UCI register behavior on target
+- correctness of the new native UCI control/status bit assignments on target hardware
 - resident memory pressure under actual shell workload
 - real D64/D71/D81/DNP filesystem operations
 - real C64 Ultimate keyboard behavior on target hardware
