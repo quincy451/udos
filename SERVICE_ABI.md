@@ -97,6 +97,18 @@ Current ABI version:
 - input: `rP = logical drive`
 - output: `rP = pointer to null-terminated volume label`
 
+### `svc_fs_get_backend_path_ptr`
+- input: `rP = logical drive`
+- output: `rP = pointer to null-terminated backend path text`
+- current behavior:
+  - mock mode synthesizes a path from resident directory state:
+    - `/`
+    - `/BIN`
+    - `/SRC`
+    - `/WORK`
+  - hardware mode attempts a real Ultimate DOS `DOS_CMD_GET_PATH (0x12)` query for the mapped DOS target
+  - on hardware query failure, the service falls back to the mock path text
+
 ### `svc_fs_get_dir_listing_ptr`
 - input: packed in `rP`
   - low byte: logical drive
@@ -220,6 +232,8 @@ Current ABI version:
 ## Program Snapshot Bytes
 
 Current VICE validation uses these resident snapshots:
+- `$CFE4`: cached backend-path length for `A:`
+- `$CFE5`: cached backend-path length for `B:`
 - `$CFF6`: program state
   - `0`: none
   - `1`: running

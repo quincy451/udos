@@ -62,6 +62,9 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - command keywords now require a separator before arguments:
   - `DEL BOOT2ASM` -> delete `BOOT2ASM`
   - `DELBOOT2ASM` -> bare program token, resolved through `RUN`, then `PROGRAM NOT FOUND`
+- backend-path cache seam is now live behind the filesystem ABI:
+  - mock mode synthesizes `/`, `/BIN`, `/SRC`, `/WORK`
+  - hardware mode is wired for Ultimate DOS `GET_PATH`, but remains unverified
 - current VICE-validated transcript:
   - `UDOS FOR COMMODORE 64`
   - `A:D64/> CD B:`
@@ -84,6 +87,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `B:DNP/WORK> DIR`
   - `B:DNP/WORK EMPTY`
 - bind snapshots:
+  - `$CFE4 = $01` -> cached backend-path length for `A:` (`/`)
+  - `$CFE5 = $05` -> cached backend-path length for `B:` (`/WORK`) after the smoke sequence
   - `$CFE8/$CFE9 = $01/$01` -> `A:` = `D64/flat`
   - `$CFEA/$CFEB = $04/$02` -> `B:` = `DNP/tree`
 - current-drive snapshots:
@@ -97,7 +102,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFF7 = $00` -> exit status `0`
   - `$CFF8 = $01` -> program drive `B:`
   - `$CFF9 = $03` -> program directory `WORK`
-- resident core code footprint: `$2304`
+- resident core code footprint: `$2560`
 - resident load window in `udos_c64.cfg`: `$3000`
 
 ## What Works
@@ -106,7 +111,9 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - resident AcheronVM runtime
 - resident service ABI
 - native UCI detection seam
+- synchronous native UCI transfer primitives
 - drive bind/query abstraction
+- backend-path metadata query seam with mock fallback
 - flat-image rejection for directory-tree semantics
 - prompt rendering from live drive/kind/path state
 - resident file-oriented mock workflow:

@@ -47,6 +47,7 @@ The resident image currently exposes:
 - mount-kind query for logical drive
 - mount-flags query for logical drive
 - bind-by-kind for logical drive
+- backend-path query per logical drive
 - per-drive mounted-image descriptors
 - per-drive current-directory state
 - per-drive resident volume labels
@@ -79,6 +80,9 @@ Current resident mounted-image model:
 - flat images still expose only the root listing to shell logic
 - tree-capable images can expose the subtree tables when current-directory state changes
 - the `WORK` subtree can override descriptor tables with mutable resident slots when files are copied in
+- each drive also maintains a small backend-path cache buffer
+  - mock mode fills this from resident directory state
+  - hardware mode is intended to fill it through Ultimate DOS `GET_PATH`
 
 Current mock directory model:
 - flat images report a root-only listing
@@ -102,3 +106,12 @@ This mock model now sits behind both a resident mounted-image descriptor layer
 and the resident enumeration seam. It still must be replaced by real
 image-backed enumeration, file lookup, and metadata once the filesystem layer
 exists.
+
+Current backend-path seam:
+- `svc_fs_get_backend_path_ptr` returns a path-like metadata string per drive
+- in VICE/mock mode the cache currently validates as:
+  - `A:` -> `/`
+  - `B:` -> `/WORK` after the resident smoke sequence
+- fixed VICE snapshots currently record the cached path lengths:
+  - `$CFE4 = 1` for `A:`
+  - `$CFE5 = 5` for `B:` after `CD WORK`

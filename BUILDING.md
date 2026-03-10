@@ -90,6 +90,9 @@ Current `vice-resident` behavior:
   - it is treated as a bare program token and returns `PROGRAM NOT FOUND`
 - verifies the final listing `B:DNP/WORK EMPTY`
 - verifies resident snapshots:
+  - cached backend-path length:
+    - `A:` = `1` (`/`)
+    - `B:` = `5` (`/WORK`) after the smoke sequence
   - `A:` bind = `D64/flat`
   - `B:` bind = `DNP/tree`
   - current drive = `B:`
@@ -128,7 +131,7 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$2304`
+- resident core code: `$2560`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$3000`
 
 ## Tests

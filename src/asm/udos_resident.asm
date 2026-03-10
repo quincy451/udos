@@ -11,6 +11,7 @@
 .export svc_fs_bind_drive
 .export svc_fs_get_dir_state
 .export svc_fs_get_volume_ptr
+.export svc_fs_get_backend_path_ptr
 .export svc_fs_get_dir_listing_ptr
 .export svc_fs_enum_begin
 .export svc_fs_enum_next
@@ -36,6 +37,8 @@ COLOR = $D800
 CURSOR = $CFE0
 SCREEN_PTR = $F9
 PTR = $FB
+BACKEND_A_PATH_LEN_SNAPSHOT = $CFE4
+BACKEND_B_PATH_LEN_SNAPSHOT = $CFE5
 BIND_A_SNAPSHOT = $CFE8
 BIND_B_SNAPSHOT = $CFEA
 CURRENT_DRIVE_SNAPSHOT = $CFEC
@@ -138,6 +141,9 @@ PROGRAM_STATE_RUNNING = 1
 PROGRAM_STATE_EXITED = 2
 WORK_DYNAMIC_MAX = 2
 WORK_NAME_MAX = 16
+DOS_TARGET_A = 1
+DOS_TARGET_B = 2
+DOS_CMD_GET_PATH = $12
 IMG_VOL_LO = 0
 IMG_VOL_HI = 1
 IMG_ROOT_LO_LO = 2
@@ -398,6 +404,27 @@ fs_get_volume_invalid:
     sta 1,x
     rts
 
+svc_fs_get_backend_path_ptr:
+    stx saved_rp_x
+    ldy 0,x
+    cpy #2
+    bcs fs_get_backend_path_invalid
+    sty temp_drive
+    jsr refresh_drive_backend_path
+    ldx saved_rp_x
+    lda PTR
+    sta 0,x
+    lda PTR+1
+    sta 1,x
+    rts
+fs_get_backend_path_invalid:
+    ldx saved_rp_x
+    lda #<volume_unknown
+    sta 0,x
+    lda #>volume_unknown
+    sta 1,x
+    rts
+
 svc_fs_get_dir_listing_ptr:
     ldy 0,x
     cpy #2
@@ -451,6 +478,7 @@ fs_enum_next_ok:
     rts
 
 svc_fs_bind_drive:
+    stx saved_rp_x
     ldy 0,x
     cpy #2
     bcs fs_bind_invalid
@@ -463,13 +491,16 @@ svc_fs_bind_drive:
     lda #DIR_ID_ROOT
     sta dir_state_table,y
     jsr install_mounted_image
+    jsr refresh_drive_backend_path
     ldy temp_drive
+    ldx saved_rp_x
     lda mount_kind_table,y
     sta 0,x
     lda mount_flag_table,y
     sta 1,x
     rts
 fs_bind_invalid:
+    ldx saved_rp_x
     lda #MOUNT_KIND_NONE
     sta 0,x
     lda #MOUNT_FLAG_NONE
@@ -493,6 +524,180 @@ install_mounted_image:
     ldy temp_drive
     sta volume_ptr_hi,y
     jsr clear_dynamic_work_drive
+    rts
+
+refresh_drive_backend_path:
+    jsr select_backend_path_cache
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    jsr uci_probe
+    bcs refresh_drive_backend_path_mock
+    jsr fill_backend_path_hw
+    bcc refresh_drive_backend_path_done
+refresh_drive_backend_path_mock:
+    jsr fill_backend_path_mock
+refresh_drive_backend_path_done:
+    jsr snapshot_backend_path_length
+    lda SCREEN_PTR
+    sta PTR
+    lda SCREEN_PTR+1
+    sta PTR+1
+    rts
+
+select_backend_path_cache:
+    ldy temp_drive
+    cpy #DRIVE_A
+    beq select_backend_path_cache_a
+    lda #<backend_path_cache_b
+    sta PTR
+    lda #>backend_path_cache_b
+    sta PTR+1
+    rts
+select_backend_path_cache_a:
+    lda #<backend_path_cache_a
+    sta PTR
+    lda #>backend_path_cache_a
+    sta PTR+1
+    rts
+
+fill_backend_path_mock:
+    lda SCREEN_PTR
+    sta PTR
+    lda SCREEN_PTR+1
+    sta PTR+1
+    ldy #$00
+    lda #ASCII_SLASH
+    sta (PTR),y
+    iny
+    ldx temp_drive
+    lda dir_state_table,x
+    beq fill_backend_path_mock_done
+    cmp #DIR_ID_BIN
+    beq fill_backend_path_mock_bin
+    cmp #DIR_ID_SRC
+    beq fill_backend_path_mock_src
+    cmp #DIR_ID_WORK
+    beq fill_backend_path_mock_work
+    jmp fill_backend_path_mock_done
+fill_backend_path_mock_bin:
+    lda #'B'
+    sta (PTR),y
+    iny
+    lda #'I'
+    sta (PTR),y
+    iny
+    lda #'N'
+    sta (PTR),y
+    iny
+    jmp fill_backend_path_mock_done
+fill_backend_path_mock_src:
+    lda #'S'
+    sta (PTR),y
+    iny
+    lda #'R'
+    sta (PTR),y
+    iny
+    lda #'C'
+    sta (PTR),y
+    iny
+    jmp fill_backend_path_mock_done
+fill_backend_path_mock_work:
+    lda #'W'
+    sta (PTR),y
+    iny
+    lda #'O'
+    sta (PTR),y
+    iny
+    lda #'R'
+    sta (PTR),y
+    iny
+    lda #'K'
+    sta (PTR),y
+    iny
+fill_backend_path_mock_done:
+    lda #$00
+    sta (PTR),y
+    clc
+    rts
+
+fill_backend_path_hw:
+    lda temp_drive
+    cmp #DRIVE_A
+    beq fill_backend_path_hw_a
+    lda #DOS_TARGET_B
+    bne fill_backend_path_hw_store_target
+fill_backend_path_hw_a:
+    lda #DOS_TARGET_A
+fill_backend_path_hw_store_target:
+    sta uci_cmd_buffer+0
+    lda #DOS_CMD_GET_PATH
+    sta uci_cmd_buffer+1
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    lda #2
+    jsr uci_push_command
+    bcs fill_backend_path_hw_fail
+    jsr uci_wait_reply
+    bcs fill_backend_path_hw_fail
+
+    lda SCREEN_PTR
+    sta PTR
+    lda SCREEN_PTR+1
+    sta PTR+1
+    lda #MAX_LINE_LEN
+    jsr uci_read_data_block
+    tay
+    lda #$00
+    sta (PTR),y
+
+    lda #<uci_status_buffer
+    sta PTR
+    lda #>uci_status_buffer
+    sta PTR+1
+    lda #MAX_LINE_LEN
+    jsr uci_read_status_block
+    tay
+    lda #$00
+    sta (PTR),y
+    jsr uci_accept_data
+
+    lda uci_status_buffer+0
+    cmp #'0'
+    bne fill_backend_path_hw_fail
+    lda uci_status_buffer+1
+    cmp #'0'
+    bne fill_backend_path_hw_fail
+    clc
+    rts
+fill_backend_path_hw_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
+snapshot_backend_path_length:
+    lda SCREEN_PTR
+    sta PTR
+    lda SCREEN_PTR+1
+    sta PTR+1
+    ldy #$00
+snapshot_backend_path_scan:
+    lda (PTR),y
+    beq snapshot_backend_path_store
+    iny
+    bne snapshot_backend_path_scan
+snapshot_backend_path_store:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq snapshot_backend_path_store_a
+    sty BACKEND_B_PATH_LEN_SNAPSHOT
+    rts
+snapshot_backend_path_store_a:
+    sty BACKEND_A_PATH_LEN_SNAPSHOT
     rts
 
 select_image_descriptor:
@@ -1697,6 +1902,9 @@ cd_build_ok:
     tay
     lda temp_dir_id
     sta dir_state_table,y
+    sty temp_drive
+    jsr refresh_drive_backend_path
+    ldy temp_drive
     lda mount_flag_table,y
     sta CURRENT_FLAGS_SNAPSHOT
     lda mount_kind_table,y
@@ -1732,6 +1940,7 @@ mount_build_ok:
     lda #DIR_ID_ROOT
     sta dir_state_table,y
     jsr install_mounted_image
+    jsr refresh_drive_backend_path
     lda temp_drive
     cmp current_drive
     bne mount_build_reply
@@ -4155,6 +4364,14 @@ response_buffer:
     .res MAX_RESPONSE_LEN
 script_line_data:
     .res (MAX_LINE_LEN+1) * 10
+uci_cmd_buffer:
+    .res 2
+uci_status_buffer:
+    .res MAX_LINE_LEN+1
+backend_path_cache_a:
+    .res MAX_LINE_LEN+1
+backend_path_cache_b:
+    .res MAX_LINE_LEN+1
 
 header_text:
     .byte "UDOS FOR COMMODORE 64", 0
