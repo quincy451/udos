@@ -2,183 +2,149 @@
 
 ## Status
 
-This is the first concrete resident ABI draft for UDOS.
+This is the current resident ABI draft for standalone UDOS.
 
-It started as a Phase 2 console/bootstrap ABI and now includes the first Phase 3
-transport selector, the first Phase 4 drive/bind/query seam, and the first
-Phase 5 live command-input seam.
+It now covers:
+- resident bootstrap/core services
+- transport selection
+- drive bind/query state
+- filesystem enumeration and metadata seams
+- console I/O
+- live command input
+- first program handoff/return services for `RUN`
 
 ## Calling Convention
 
 - VM code calls native services with AcheronVM `calln`.
 - `rP` carries the primary argument or return value.
-- Native code sees `.X` pointing at the current `rP` storage.
-- Return values are written back to `0,X` and `1,X`.
-- Native services must preserve VM invariants and return with `RTS`.
+- native code sees `.X` pointing at the current `rP` storage.
+- return values are written back through `0,X` and `1,X`.
+- native services return with `RTS`.
 
 ## ABI Version
 
 Current ABI version:
 - `1`
 
-Version policy:
-- incompatible changes bump the version
-- overlays and later commands must declare the minimum ABI they require
-
 ## Current Services
 
 ### `svc_get_abi_version`
 - input: none
 - output: `rP = 1`
-- purpose: allow VM code to check the resident service ABI level
 
 ### `svc_transport_get_mode`
 - input: none
 - output: `rP = transport mode`
-- current codes:
+- current values:
   - `0`: unavailable
   - `1`: mock backend
   - `2`: hardware UCI backend
-- current selector:
-  - if `$DF1D == $C9`, report hardware mode
-  - otherwise report mock mode
-- purpose: keep the hardware seam explicit and testable under emulation
 
 ### `svc_drive_get_current`
 - input: none
-- output: `rP = current logical drive index`
-- current codes:
+- output: `rP = current logical drive`
+- current values:
   - `0`: `A:`
   - `1`: `B:`
-- purpose: expose resident drive state to VM-side shell logic
 
 ### `svc_drive_set_current`
-- input: `rP = desired logical drive index`
-- output: `rP = resulting logical drive index`
+- input: `rP = logical drive`
+- output: `rP = resulting logical drive`
 - current behavior:
   - accepts `0` or `1`
-  - rejects larger values and leaves the current drive unchanged
-- purpose: establish the resident drive-selection boundary early
+  - rejects larger values
 
 ### `svc_fs_get_mount_type`
-- input: `rP = logical drive index`
+- input: `rP = logical drive`
 - output: `rP = mount kind`
-- current mount-kind codes:
+- current values:
   - `0`: none
-  - `1`: D64
-  - `2`: D71
-  - `3`: D81
-  - `4`: DNP
-- purpose: expose image-type policy to VM-side shell logic
+  - `1`: `D64`
+  - `2`: `D71`
+  - `3`: `D81`
+  - `4`: `DNP`
 
 ### `svc_fs_get_mount_flags`
-- input: `rP = logical drive index`
+- input: `rP = logical drive`
 - output: `rP = mount flags`
-- current flags:
+- current values:
   - `0`: none
-  - `1`: flat filesystem
-  - `2`: tree-capable filesystem
-- purpose: let VM code distinguish flat vs tree semantics before command logic exists
+  - `1`: flat
+  - `2`: tree-capable
 
 ### `svc_fs_bind_drive`
 - input: packed in `rP`
-  - low byte: logical drive index
+  - low byte: logical drive
   - high byte: mount kind
 - output: packed in `rP`
   - low byte: resulting mount kind
   - high byte: derived mount flags
 - current behavior:
-  - updates the resident mount-kind and mount-flag tables for valid drives
-  - derives flags from kind: `D64/D71/D81 -> flat`, `DNP -> tree`, `none -> none`
-  - installs the current drive's mounted-image descriptor and volume pointer cache
-  - invalid drive indices return `none/none`
-- purpose: move from hardcoded query values to actual resident bind state
+  - `D64` / `D71` / `D81` -> flat
+  - `DNP` -> tree-capable
+  - installs the current mounted-image descriptor for the drive
 
 ### `svc_fs_get_dir_state`
-- input: `rP = logical drive index`
-- output: `rP = current resident directory id`
-- current directory ids:
+- input: `rP = logical drive`
+- output: `rP = resident directory id`
+- current values:
   - `0`: root
   - `1`: `BIN`
   - `2`: `SRC`
   - `3`: `WORK`
-- purpose: expose per-drive current-directory state through the resident filesystem boundary
 
 ### `svc_fs_get_volume_ptr`
-- input: `rP = logical drive index`
-- output: `rP = pointer to a null-terminated resident volume-label string`
-- current mock labels:
-  - `A:` -> `SYSTEM`
-  - `B:` -> `WORK`
-- current behavior:
-  - returns the volume pointer from the current drive's mounted-image descriptor
-- purpose: let `VOL` and later `MOUNT` report metadata beyond mount kind alone
+- input: `rP = logical drive`
+- output: `rP = pointer to null-terminated volume label`
 
 ### `svc_fs_get_dir_listing_ptr`
 - input: packed in `rP`
-  - low byte: logical drive index
+  - low byte: logical drive
   - high byte: resident directory id
-- output: `rP = pointer to a null-terminated resident listing string`
-- current behavior:
-  - returns the current compatibility listing string for the requested resident directory
-  - remains available while the shell moves to entry-by-entry enumeration
-- purpose: preserve a simple listing-pointer seam while the resident shell transitions to iterator-style enumeration
+- output: `rP = pointer to a compatibility listing string`
+- note:
+  - kept only as a compatibility seam while `DIR` uses iterator-backed enumeration
 
 ### `svc_fs_enum_begin`
 - input: packed in `rP`
-  - low byte: logical drive index
+  - low byte: logical drive
   - high byte: resident directory id
 - output: `rP = entry count`
-- current behavior:
-  - selects the current resident mounted-image descriptor for the requested drive
-  - chooses the root or subtree entry table from that descriptor
-  - resets the resident enumeration cursor
-- purpose: establish a directory-enumeration ABI shape that can later be backed by real mounted-image I/O
 
 ### `svc_fs_enum_next`
 - input: none
-- output: `rP = pointer to the next entry name`, or `0` when enumeration is exhausted
-- current behavior:
-  - walks the currently selected resident mock entry table
-  - is the path the built-in `DIR` command now uses
-- purpose: move the shell off prebuilt listing strings and toward real filesystem iteration
+- output: `rP = pointer to next entry name`, or `0` when exhausted
 
 ### `svc_console_reset`
 - input: none
 - output: none
-- purpose: clear screen RAM and reset the resident text cursor to home
 
 ### `svc_console_write_sc0`
-- input: `rP = pointer to null-terminated screen-code string`
-- output: cursor advanced past written text
-- purpose: minimal console output primitive for resident VM code
+- input: `rP = pointer to null-terminated text`
+- output: none
+- note:
+  - current implementation normalizes ASCII uppercase text into C64 screen codes on write
 
 ### `svc_console_write_prompt`
 - input: none
 - output: none
 - current behavior:
-  - renders `"  <drive>:<kind>/<dir> >"` from resident drive, mount, and current-directory state
-  - currently formats `D64`, `D71`, `D81`, `DNP`, or `?`
-  - flat images stay rooted at `/`
-- purpose: keep the prompt tied to resident state instead of a fixed string
+  - renders the resident prompt from drive, mount kind, and directory state
 
 ### `svc_console_newline`
 - input: none
 - output: none
-- current behavior:
-  - advances to the next 40-column boundary using the full 16-bit resident cursor
-- purpose: keep multiline transcript output stable once the shell writes past the first 256 bytes of screen RAM
 
 ### `svc_line_read`
 - input: none
-- output: `rP = command token`
-- current tokens:
-  - `0`: empty line / no command token
+- output: `rP = shell command token`
+- current values:
+  - `0`: none
   - `1`: `HELP`
   - `2`: `VER`
   - `3`: `VOL`
   - `4`: `MEM`
-  - `5`: `QUIT` or `EXIT`
+  - `5`: `QUIT` / `EXIT`
   - `6`: `DIR`
   - `7`: `CD`
   - `8`: `MOUNT`
@@ -186,34 +152,84 @@ Version policy:
   - `10`: `COPY`
   - `11`: `REN`
   - `12`: `DEL`
+  - `13`: `RUN`
 - current behavior:
-  - reads live keyboard input through C64 KERNAL `GETIN`
-  - echoes typed characters to the console
-  - accepts both carriage return and linefeed as command terminators for VICE automation compatibility
-  - tokenizes a command word plus one resident argument buffer
-  - accepts inline `CD`/`DIR`/`MOUNT`/`TYPE`/`COPY`/`REN`/`DEL` shorthand such as `CDB:`, `CDSRC`, `MOUNTB:D81`, `TYPEBOOTASM`, `COPYBOOTASMWORKBOOTASM`, `RENBOOTASMBOOT2ASM`, and `DELBOOT2ASM` to keep VICE `-keybuf` automation reliable
-  - advances the resident cursor to the next line
-- current emulator validation:
-  - `make vice-resident` drives this path through VICE `-keybuf`
-- purpose: provide the first real resident shell input path without moving shell control flow out of the VM
+  - uses live C64 KERNAL `GETIN`
+  - tokenizes one command plus one argument buffer
+  - supports VICE-stable inline shorthand:
+    - `CDB:`
+    - `CDSRC`
+    - `MOUNTB:D81`
+    - `TYPEBOOTASM`
+    - `COPYBOOTASMWORKBOOTASM`
+    - `RENBOOTASMBOOT2ASM`
+    - `DELBOOT2ASM`
+    - `RUNBOOT2ASM:DIR`
+
+### `svc_program_prepare_run`
+- input: current shell argument buffer
+- output: `rP = run status`
+- current values:
+  - `0`: ready
+  - `1`: bad invocation
+  - `2`: flat-image path error
+  - `3`: unmounted
+  - `4`: target not found
+- current behavior:
+  - splits the command target from the inline command line
+  - resolves the current file target through the same resident path logic used by `TYPE`
+  - snapshots the drive and directory context for the program
+  - marks program state as running on success
+
+### `svc_program_error_ptr`
+- input: `rP = run status`
+- output: `rP = pointer to error text`
+
+### `svc_program_get_target_ptr`
+- input: none
+- output: `rP = pointer to resolved target name`
+
+### `svc_program_get_cmdline_ptr`
+- input: none
+- output: `rP = pointer to the command-line buffer`
+
+### `svc_program_get_cmdline_len`
+- input: none
+- output: `rP = command-line length`
+
+### `svc_program_exit`
+- input: none
+- output: none
+- current behavior:
+  - marks program state as exited
+  - records exit status `0`
 
 ### `svc_mark_ready`
 - input: none
 - output: none
-- side effects:
-  - writes ready marker at `$CFFF`
-- purpose: deterministic validation hook for emulator tests
+- side effect:
+  - writes `$52` to `$CFFF`
 
 ### `svc_idle`
 - input: none
 - output: none
-- purpose: hold the resident environment in a stable loop after bootstrap
+
+## Program Snapshot Bytes
+
+Current VICE validation uses these resident snapshots:
+- `$CFF6`: program state
+  - `0`: none
+  - `1`: running
+  - `2`: exited
+- `$CFF7`: exit status
+- `$CFF8`: program drive
+- `$CFF9`: program directory
 
 ## Planned Next ABI Groups
 
-- memory/status queries
-- mounted-image open/bind metadata beyond kind/flags
-- directory enumeration against real mounted images behind the current `svc_fs_enum_*` seam
-- file open/read/write/rename/delete/copy
-- overlay/program load
-- full hardware Ultimate UCI transport
+- real mounted-image metadata
+- real image-backed directory enumeration
+- real file open/read/write/rename/delete/copy
+- real program-image lookup/load behind `RUN`
+- overlay/program module loading
+- full hardware UCI transport

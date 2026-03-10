@@ -7,8 +7,12 @@ work so the shell/runtime can move forward without continuing CP/M-65 feature wo
 
 Current milestone:
 - Phase 0 complete: pivot notes and project area established.
-- Phase 1 in progress: local AcheronVM audit completed, native build verified,
-  and a minimal C64 proof uses AcheronVM to invoke a native banner service.
+- Phase 1 complete.
+- Phase 2 bootstrap/core slice complete.
+- Phase 3 native UCI seam complete at the control/status boundary.
+- Phase 4 mounted-image abstraction seam complete with flat-vs-tree policy.
+- Phase 5 resident shell milestone in progress with `DIR`, `CD`, `VOL`, `MOUNT`,
+  `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, and `RUN` validated under VICE.
 
 See:
 - `PIVOT_PLAN.md`

@@ -30,11 +30,11 @@
 
 - keep the current resident `HELP`, `VER`, `VOL`, `DIR`, `CD`, `MOUNT`, and `MEM` loop working while moving them toward real filesystem/state services
 - implement resident commands:
-  - `RUN`
   - real `VOL`
   - real `MEM`
   - real `HELP`
   - real `VER`
+- replace the current mock `RUN` stub with real image-backed program lookup/load semantics behind the same program ABI
 - replace the current descriptor-backed mock `DIR` and per-drive path model with image-backed directory state
 - replace the current resident `svc_fs_enum_*` descriptor-backed mock tables with real mounted-image enumeration
 - replace the current descriptor-backed resident volume metadata with image-backed metadata

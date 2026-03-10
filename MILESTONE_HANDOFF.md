@@ -23,6 +23,7 @@ The resident shell currently also validates:
 - `TYPE`
 - `REN`
 - `DEL`
+- `RUN`
 
 ## What Works
 
@@ -33,13 +34,13 @@ Validated in VICE:
 - writable `WORK` flow works through the current mock backend:
   - copy
   - rename
-  - type
+  - run
   - delete
 
 Current validated transcript:
 
 ```text
-UDOS CORE
+UDOS FOR COMMODORE 64
   A:D64/> CDB:
 B:DNP/
   B:DNP/> CDSRC
@@ -48,14 +49,11 @@ B:DNP/SRC
 COPIED
   B:DNP/SRC> CDWORK
 B:DNP/WORK
-  B:DNP/WORK> DIR
-B:DNP/WORK BOOTASM
   B:DNP/WORK> RENBOOTASMBOOT2ASM
 RENAMED
-  B:DNP/WORK> DIR
-B:DNP/WORK BOOT2ASM
-  B:DNP/WORK> TYPEBOOT2ASM
-; BOOT.ASM MOCK SOURCE
+  B:DNP/WORK> RUNBOOT2ASM:DIR
+RUN BOOT2ASM
+ARGS DIR
   B:DNP/WORK> DELBOOT2ASM
 DELETED
   B:DNP/WORK> DIR
@@ -73,9 +71,10 @@ B:DNP/WORK EMPTY
 
 ## Resume Point
 
-Per the pivot plan, Action Development System work resumes here.
+The first credible resident milestone is complete and the Action resume point is
+still preserved.
 
-Resume target repo:
+Resume target repo when UDOS is ready to host those tools:
 - [actionc64u](/mnt/c/test/action/actionc64u)
 
 Preserved Action repo state at pivot:
@@ -88,6 +87,6 @@ Preserved Action repo state at pivot:
 
 ## Next Concrete Step
 
-Resume Action tool work by extending the Action VM/runtime surface needed by the
-editor/compiler/debugger path, starting with file I/O intrinsics in
-`actionc64u`.
+Keep UDOS on the standalone path and replace the current descriptor-backed mock
+filesystem and program backends with real image-backed services, then resume the
+Action Development System tools against that resident ABI.

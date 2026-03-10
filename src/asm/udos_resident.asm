@@ -19,6 +19,12 @@
 .export svc_console_write_prompt
 .export svc_console_newline
 .export svc_line_read
+.export svc_program_prepare_run
+.export svc_program_error_ptr
+.export svc_program_get_target_ptr
+.export svc_program_get_cmdline_ptr
+.export svc_program_get_cmdline_len
+.export svc_program_exit
 .export svc_mark_ready
 .export svc_idle
 .import acheron
@@ -36,6 +42,10 @@ CURRENT_FLAGS_SNAPSHOT = $CFEE
 TRANSPORT_SNAPSHOT = $CFF0
 MOUNT_SNAPSHOT = $CFF2
 ABI_SNAPSHOT = $CFF4
+PROGRAM_STATE_SNAPSHOT = $CFF6
+PROGRAM_EXIT_SNAPSHOT = $CFF7
+PROGRAM_DRIVE_SNAPSHOT = $CFF8
+PROGRAM_DIR_SNAPSHOT = $CFF9
 STAGE_SNAPSHOT = $CFFD
 READY_MARKER = $CFFF
 READY_VALUE = $52
@@ -103,6 +113,7 @@ SHELL_CMD_TYPE = 9
 SHELL_CMD_COPY = 10
 SHELL_CMD_REN = 11
 SHELL_CMD_DEL = 12
+SHELL_CMD_RUN = 13
 INPUT_MODE_KEYBOARD = 0
 INPUT_MODE_SCRIPT = 1
 DIR_ID_ROOT = 0
@@ -116,6 +127,14 @@ PATH_STATUS_UNMOUNTED = 3
 PATH_STATUS_READ_ONLY = 4
 MOUNT_STATUS_OK = 0
 MOUNT_STATUS_BAD = 1
+RUN_STATUS_OK = 0
+RUN_STATUS_BAD = 1
+RUN_STATUS_FLAT = 2
+RUN_STATUS_UNMOUNTED = 3
+RUN_STATUS_NOFILE = 4
+PROGRAM_STATE_NONE = 0
+PROGRAM_STATE_RUNNING = 1
+PROGRAM_STATE_EXITED = 2
 WORK_DYNAMIC_MAX = 2
 WORK_NAME_MAX = 16
 IMG_VOL_LO = 0
@@ -200,6 +219,7 @@ shell_loop:
     calln svc_line_read
     case8 SHELL_CMD_NONE, shell_loop
     case8 SHELL_CMD_QUIT, shell_done
+    case8 SHELL_CMD_RUN, cmd_run_program
     case8 SHELL_CMD_MOUNT, cmd_emit_response
     case8 SHELL_CMD_COPY, cmd_emit_response
     case8 SHELL_CMD_REN, cmd_emit_response
@@ -220,6 +240,42 @@ cmd_emit_response:
     setp8 $11
     stma STAGE_SNAPSHOT
     calln svc_shell_response_ptr
+    calln svc_console_write_sc0
+    calln svc_console_newline
+    jump shell_loop
+
+cmd_run_program:
+    setp8 $12
+    stma STAGE_SNAPSHOT
+    calln svc_program_prepare_run
+    case8 RUN_STATUS_BAD, cmd_run_error
+    case8 RUN_STATUS_FLAT, cmd_run_error
+    case8 RUN_STATUS_UNMOUNTED, cmd_run_error
+    case8 RUN_STATUS_NOFILE, cmd_run_error
+
+cmd_run_execute:
+    setp8 $13
+    stma STAGE_SNAPSHOT
+    setp16 resp_run_prefix
+    calln svc_console_write_sc0
+    calln svc_program_get_target_ptr
+    calln svc_console_write_sc0
+    calln svc_console_newline
+    calln svc_program_get_cmdline_len
+    case8 0, cmd_run_done
+    setp16 resp_args_prefix
+    calln svc_console_write_sc0
+    calln svc_program_get_cmdline_ptr
+    calln svc_console_write_sc0
+    calln svc_console_newline
+cmd_run_done:
+    setp8 $14
+    stma STAGE_SNAPSHOT
+    calln svc_program_exit
+    jump shell_loop
+
+cmd_run_error:
+    calln svc_program_error_ptr
     calln svc_console_write_sc0
     calln svc_console_newline
     jump shell_loop
@@ -977,9 +1033,11 @@ token_len3:
     iny
     lda line_buffer,y
     cmp #CMD_E
-    beq :+
+    beq token_len3_ren_tail
+    cmp #CMD_U
+    beq token_len3_run_tail
     jmp token_unknown
-:
+token_len3_ren_tail:
     iny
     lda line_buffer,y
     cmp #CMD_N
@@ -987,6 +1045,15 @@ token_len3:
     jmp token_unknown
 :
     lda #SHELL_CMD_REN
+    rts
+token_len3_run_tail:
+    iny
+    lda line_buffer,y
+    cmp #CMD_N
+    beq :+
+    jmp token_unknown
+:
+    lda #SHELL_CMD_RUN
     rts
 token_len3_del:
     ldy parse_cmd_start
@@ -1252,11 +1319,15 @@ split_inline_try_dir:
     iny
     lda line_buffer,y
     cmp #CMD_E
-    bne split_inline_try_dir_real
+    beq :+
+    jmp split_inline_try_dir_real
+:
     iny
     lda line_buffer,y
     cmp #CMD_L
-    bne split_inline_try_dir_real
+    beq :+
+    jmp split_inline_try_dir_real
+:
     lda cmd_length
     cmp #3
     bne :+
@@ -1274,10 +1345,36 @@ split_inline_try_ren:
     ldy parse_cmd_start
     lda line_buffer,y
     cmp #CMD_R
-    bne split_inline_try_dir_real
+    bne split_inline_try_run
     iny
     lda line_buffer,y
     cmp #CMD_E
+    bne split_inline_try_run
+    iny
+    lda line_buffer,y
+    cmp #CMD_N
+    bne split_inline_try_run
+    lda cmd_length
+    cmp #3
+    bne :+
+    jmp split_inline_done
+:
+    sec
+    sbc #3
+    sta arg_length
+    lda #3
+    sta parse_scan_index
+    lda #3
+    sta cmd_length
+    jmp split_inline_copy
+split_inline_try_run:
+    ldy parse_cmd_start
+    lda line_buffer,y
+    cmp #CMD_R
+    bne split_inline_try_dir_real
+    iny
+    lda line_buffer,y
+    cmp #CMD_U
     bne split_inline_try_dir_real
     iny
     lda line_buffer,y
@@ -1873,6 +1970,196 @@ del_build_read_only:
     sta 0,x
     lda #>resp_read_only
     sta 1,x
+    rts
+
+split_run_args:
+    lda #$00
+    sta program_cmdline_len
+    sta program_cmdline_buffer
+    lda arg_length
+    bne :+
+    sec
+    rts
+:
+    sta program_arg_limit
+    ldy #$00
+split_run_find_sep:
+    cpy program_arg_limit
+    bcs split_run_no_cmdline
+    lda arg_buffer,y
+    cmp #ASCII_SPACE
+    beq split_run_found_sep
+    cmp #ASCII_COMMA
+    beq split_run_found_sep
+    cmp #ASCII_COLON
+    bne :+
+    cpy #$01
+    bne split_run_found_sep
+:
+    iny
+    bne split_run_find_sep
+split_run_no_cmdline:
+    lda arg_length
+    beq split_run_fail
+    clc
+    rts
+split_run_found_sep:
+    cpy #$00
+    beq split_run_fail
+    sty arg_length
+    lda #$00
+    sta arg_buffer,y
+split_run_skip_sep:
+    iny
+    cpy program_arg_limit
+    bcs split_run_cmdline_done
+    lda arg_buffer,y
+    cmp #ASCII_SPACE
+    beq split_run_skip_sep
+    cmp #ASCII_COMMA
+    beq split_run_skip_sep
+    cmp #ASCII_COLON
+    beq split_run_skip_sep
+    ldx #$00
+split_run_copy_cmdline:
+    cpy program_arg_limit
+    bcs split_run_store_cmdline
+    cpx #MAX_LINE_LEN
+    bcs split_run_store_cmdline
+    lda arg_buffer,y
+    sta program_cmdline_buffer,x
+    inx
+    iny
+    bne split_run_copy_cmdline
+split_run_store_cmdline:
+    stx program_cmdline_len
+    lda #$00
+    sta program_cmdline_buffer,x
+split_run_cmdline_done:
+    lda arg_length
+    beq split_run_fail
+    clc
+    rts
+split_run_fail:
+    sec
+    rts
+
+svc_program_prepare_run:
+    stx saved_rp_x
+    lda #PROGRAM_STATE_NONE
+    sta PROGRAM_STATE_SNAPSHOT
+    lda #$00
+    sta PROGRAM_EXIT_SNAPSHOT
+    lda current_drive
+    sta PROGRAM_DRIVE_SNAPSHOT
+    tay
+    lda dir_state_table,y
+    sta PROGRAM_DIR_SNAPSHOT
+    lda #$00
+    sta program_target_lo
+    sta program_target_hi
+    jsr split_run_args
+    bcc program_have_target
+    lda #RUN_STATUS_BAD
+    jmp program_status_return
+program_have_target:
+    jsr resolve_file_target
+    cmp #PATH_STATUS_OK
+    beq program_lookup
+    cmp #PATH_STATUS_FLAT
+    beq program_status_flat
+    cmp #PATH_STATUS_UNMOUNTED
+    beq program_status_unmounted
+    lda #RUN_STATUS_BAD
+    jmp program_status_return
+program_status_flat:
+    lda #RUN_STATUS_FLAT
+    jmp program_status_return
+program_status_unmounted:
+    lda #RUN_STATUS_UNMOUNTED
+    jmp program_status_return
+program_lookup:
+    jsr lookup_file_content
+    bcc program_ready
+    lda #RUN_STATUS_NOFILE
+    jmp program_status_return
+program_ready:
+    lda matched_name_lo
+    sta program_target_lo
+    lda matched_name_hi
+    sta program_target_hi
+    lda temp_drive
+    sta PROGRAM_DRIVE_SNAPSHOT
+    lda temp_dir_id
+    sta PROGRAM_DIR_SNAPSHOT
+    lda #PROGRAM_STATE_RUNNING
+    sta PROGRAM_STATE_SNAPSHOT
+    lda #RUN_STATUS_OK
+program_status_return:
+    ldx saved_rp_x
+    sta 0,x
+    lda #$00
+    sta 1,x
+    rts
+
+svc_program_error_ptr:
+    lda 0,x
+    cmp #RUN_STATUS_FLAT
+    beq program_error_flat
+    cmp #RUN_STATUS_UNMOUNTED
+    beq program_error_unmounted
+    cmp #RUN_STATUS_NOFILE
+    beq program_error_missing
+    lda #<resp_bad_run
+    sta 0,x
+    lda #>resp_bad_run
+    sta 1,x
+    rts
+program_error_flat:
+    lda #<resp_flat_image
+    sta 0,x
+    lda #>resp_flat_image
+    sta 1,x
+    rts
+program_error_unmounted:
+    lda #<resp_unmounted
+    sta 0,x
+    lda #>resp_unmounted
+    sta 1,x
+    rts
+program_error_missing:
+    lda #<resp_no_program
+    sta 0,x
+    lda #>resp_no_program
+    sta 1,x
+    rts
+
+svc_program_get_target_ptr:
+    lda program_target_lo
+    sta 0,x
+    lda program_target_hi
+    sta 1,x
+    rts
+
+svc_program_get_cmdline_ptr:
+    lda #<program_cmdline_buffer
+    sta 0,x
+    lda #>program_cmdline_buffer
+    sta 1,x
+    rts
+
+svc_program_get_cmdline_len:
+    lda program_cmdline_len
+    sta 0,x
+    lda #$00
+    sta 1,x
+    rts
+
+svc_program_exit:
+    lda #PROGRAM_STATE_EXITED
+    sta PROGRAM_STATE_SNAPSHOT
+    lda #$00
+    sta PROGRAM_EXIT_SNAPSHOT
     rts
 
 split_copy_args:
@@ -3266,9 +3553,16 @@ lookup_file_loop:
     inc file_index
     bne lookup_file_loop
 lookup_file_miss:
+    lda #$00
+    sta matched_name_lo
+    sta matched_name_hi
     sec
     rts
 lookup_file_hit:
+    lda PTR
+    sta matched_name_lo
+    lda PTR+1
+    sta matched_name_hi
     lda file_index
     asl
     asl
@@ -3748,6 +4042,18 @@ copy_dst_length:
     .byte 0
 copy_trim_length:
     .byte 0
+program_arg_limit:
+    .byte 0
+program_cmdline_len:
+    .byte 0
+program_target_lo:
+    .byte 0
+program_target_hi:
+    .byte 0
+matched_name_lo:
+    .byte 0
+matched_name_hi:
+    .byte 0
 copy_content_lo:
     .byte 0
 copy_content_hi:
@@ -3780,13 +4086,15 @@ arg_buffer:
     .res MAX_LINE_LEN+1
 copy_dst_buffer:
     .res MAX_LINE_LEN+1
+program_cmdline_buffer:
+    .res MAX_LINE_LEN+1
 path_name_buffer:
     .res MAX_LINE_LEN+1
 response_buffer:
     .res MAX_RESPONSE_LEN
 
 header_text:
-    .byte 21, 4, 15, 19, 32, 3, 15, 18, 5, 0
+    .byte "UDOS FOR COMMODORE 64", 0
 script_cmd_help:
     .byte CMD_H, CMD_E, CMD_L, CMD_P, 0
 script_cmd_ver:
@@ -3798,11 +4106,11 @@ script_cmd_mem:
 script_cmd_quit:
     .byte CMD_Q, CMD_U, CMD_I, CMD_T, 0
 resp_help:
-    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL", 0
+    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL RUN", 0
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 1EDB", 0
+    .byte "CORE 2171", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:
@@ -3834,7 +4142,7 @@ entry_work_empty:
 content_flat_system:
     .byte "UDOS SYSTEM VOLUME", 0
 content_flat_commands:
-    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL", 0
+    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL RUN", 0
 content_flat_readme:
     .byte "MOCK FLAT IMAGE CONTENT", 0
 content_bin_shell:
@@ -4037,9 +4345,17 @@ resp_read_only:
     .byte "READ ONLY", 0
 resp_no_space:
     .byte "NO SPACE", 0
+resp_no_program:
+    .byte "NO PROGRAM", 0
 resp_bad_mount:
     .byte "BAD MOUNT", 0
+resp_bad_run:
+    .byte "BAD RUN", 0
 resp_unmounted:
     .byte "UNMOUNTED", 0
 resp_unknown:
     .byte $3F, 0
+resp_run_prefix:
+    .byte "RUN ", 0
+resp_args_prefix:
+    .byte "ARGS ", 0

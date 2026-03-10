@@ -1,8 +1,13 @@
 # Building UDOS
 
+## Scope
+
+UDOS is currently built and validated as a standalone Commodore 64 program path.
+This build does not depend on CP/M-65.
+
 ## Prerequisites
 
-Required in the current environment:
+Required:
 - `make`
 - `ca65`
 - `ld65`
@@ -15,33 +20,28 @@ Optional for emulator validation:
 Local dependency path assumed by this repo:
 - AcheronVM source at `/mnt/c/test/action/acheronvm`
 
-## Phase 1 Proof Build
-
-Build the local AcheronVM dependency, the UDOS proof PRG, a BASIC wrapper, and a
-D64 image:
+## Build The Proof Image
 
 ```sh
 cd /mnt/c/test/action/udos
 make proof
 ```
 
-Expected proof outputs:
+Outputs:
 - `build/udos-proof.prg`
 - `build/udos-proof.labels`
 - `build/udos-proof.map`
 - `build/udosboot.prg`
 - `build/udos-proof.d64`
 
-## Resident Core Build
-
-Build the resident bootstrap/core slice:
+## Build The Resident Image
 
 ```sh
 cd /mnt/c/test/action/udos
 make resident
 ```
 
-Expected resident outputs:
+Outputs:
 - `build/udos-resident.prg`
 - `build/udos-resident.labels`
 - `build/udos-resident.map`
@@ -57,96 +57,75 @@ cd /mnt/c/test/action/udos
 make vice-proof
 ```
 
-Validated proof behavior:
-- autostarts a D64 in `x64sc`
-- runs the BASIC wrapper into the linked Acheron entrypoint
-- reads screen RAM through the VICE binary monitor
-- verifies `UDOS VM OK`
-- verifies `$CFFF == $42`
+Current validated proof facts:
+- autostarts `build/udosboot.prg` in `x64sc`
+- linked entrypoint: `$1810`
+- banner: `UDOS VM OK`
+- marker byte: `$CFFF = $42`
+- proof code footprint: `$002E`
 
-Current validated linked proof entrypoint:
-- `.start = $1810`
-
-Current proof footprint from the map:
-- Acheron dispatcher: `$00E6`
-- Acheron runtime body: `$072A`
-- UDOS proof code: `$002E`
-
-### Resident Core
+### Resident
 
 ```sh
 cd /mnt/c/test/action/udos
 make vice-resident
 ```
 
-Validated resident behavior:
-- builds the resident D64 image and BASIC wrapper
-- autostarts the BASIC wrapper PRG in `x64sc` for more reliable repeated emulator runs
-- enters the resident bootstrap/core image
+Current `vice-resident` behavior:
+- builds `build/udosres.prg`
+- autostarts the BASIC wrapper PRG in `x64sc`
 - binds `A:` as `D64` and `B:` as `DNP`
-- renders the prompt from resident drive/path state
-- runs the current live command loop
-- drives the resident shell under VICE with `-keybuf "cdb:\rcdsrc\rcopybootasmworkbootasm\rcdwork\rdir\rrenbootasmboot2asm\rdir\rtypeboot2asm\rdelboot2asm\rdir\r"`
-- applies `-keybuf-delay 300` so the injected shell transcript does not race VICE's own autostart sequence
-- screen transcript includes:
-  - `UDOS CORE`
-  - `A:D64/> CDB:`
-  - `B:DNP/`
-  - `B:DNP/> CDSRC`
-  - `B:DNP/SRC`
-  - `B:DNP/SRC> COPYBOOTASMWORKBOOTASM`
-  - `COPIED`
-  - `B:DNP/SRC> CDWORK`
-  - `B:DNP/WORK`
-  - `B:DNP/WORK> DIR`
-  - `B:DNP/WORK BOOTASM`
-  - `B:DNP/WORK> RENBOOTASMBOOT2ASM`
-  - `RENAMED`
-  - `B:DNP/WORK> DIR`
-  - `B:DNP/WORK BOOT2ASM`
-  - `B:DNP/WORK> TYPEBOOT2ASM`
-  - `; BOOT.ASM MOCK SOURCE`
-  - `B:DNP/WORK> DELBOOT2ASM`
-  - `DELETED`
-  - `B:DNP/WORK> DIR`
-  - `B:DNP/WORK EMPTY`
-- `$CFE8 == $01`, `$CFE9 == $01` confirm `A:` bind result `D64/flat`
-- `$CFEA == $04`, `$CFEB == $02` confirm `B:` bind result `DNP/tree`
-- `$CFEC == $01` confirms current drive `B:` after the `CD`/`COPY` sequence
-- `$CFEE == $02` confirms current-drive mount flags `tree`
-- `$CFF0 == $01` confirms transport mode `mock`
-- `$CFF2 == $04` confirms current-drive mount kind `DNP`
-- `$CFF4 == $01` confirms ABI version snapshot from VM-side `stma`
+- drives the live resident shell with:
+  - `CDB:`
+  - `CDSRC`
+  - `COPYBOOTASMWORKBOOTASM`
+  - `CDWORK`
+  - `RENBOOTASMBOOT2ASM`
+  - `RUNBOOT2ASM:DIR`
+  - `DELBOOT2ASM`
+  - `DIR`
+- verifies the final listing `B:DNP/WORK EMPTY`
+- verifies resident snapshots:
+  - `A:` bind = `D64/flat`
+  - `B:` bind = `DNP/tree`
+  - current drive = `B:`
+  - transport mode = `mock`
+  - mount kind = `DNP`
+  - ABI version = `1`
+  - program state after `RUN` = exited with `0` status on `B:/WORK`
 
-Current note:
-- `svc_line_read` now uses live keyboard input on the resident path
-- emulator validation still remains deterministic because `make vice-resident` injects a fixed VICE key buffer
-- the resident parser now accepts a command word plus one argument
-- `CD`, `DIR`, `MOUNT`, `TYPE`, `COPY`, `REN`, and `DEL` also accept inline shorthand such as `CDB:`, `CDSRC`, `MOUNTB:D81`, `TYPEBOOTASM`, `COPYBOOTASMWORKBOOTASM`, `RENBOOTASMBOOT2ASM`, and `DELBOOT2ASM` because VICE `-keybuf` spacing is not reliable
-- `VOL` now renders resident volume labels plus mount kind
-- `TYPE` resolves descriptor-backed mock file content and currently tolerates optional `.` in filename matching
-- `COPY`, `REN`, and `DEL` currently operate on a small mutable `WORK` directory model per logical drive
+Current validated resident transcript:
 
-Current validated linked resident entrypoint:
-- `.start = $1810`
+```text
+UDOS FOR COMMODORE 64
+  A:D64/> CDB:
+B:DNP/
+  B:DNP/> CDSRC
+B:DNP/SRC
+  B:DNP/SRC> COPYBOOTASMWORKBOOTASM
+COPIED
+  B:DNP/SRC> CDWORK
+B:DNP/WORK
+  B:DNP/WORK> RENBOOTASMBOOT2ASM
+RENAMED
+  B:DNP/WORK> RUNBOOT2ASM:DIR
+RUN BOOT2ASM
+ARGS DIR
+  B:DNP/WORK> DELBOOT2ASM
+DELETED
+  B:DNP/WORK> DIR
+B:DNP/WORK EMPTY
+  B:DNP/WORK>
+```
 
-Current resident footprint from the map:
+Current resident map facts:
+- linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$1EDB`
-
-Current validation note:
-- `make vice-resident` now waits for the copied-file `TYPE` output plus the resident snapshot bytes
-- `make vice-resident` now waits for the final empty `WORK` listing plus the resident snapshot bytes
-- it autostarts `build/udosres.prg` instead of the D64 image because repeated VICE disk autostarts were timing-sensitive
-- it delays the injected shell commands so VICE autostart can finish before resident input begins
-- it no longer relies on a final `QUIT` marker because VICE kept dropping the last command terminator on longer transcripts
-- disk-image creation is still verified by `make resident` and the build tests
-- the resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg) is now `$2800` bytes
+- resident core code: `$2171`
+- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$3000`
 
 ## Tests
-
-Run the current test surface with the standard library test runner:
 
 ```sh
 cd /mnt/c/test/action/udos
@@ -161,28 +140,30 @@ Notes:
 
 No target hardware validation has been performed from this environment.
 
-For a real C64 Ultimate test, copy either `build/udos-proof.d64` or
-`build/udos-resident.d64` to media the machine can mount and boot the first
-program on the disk. For the resident image, the current expected interactive smoke sequence is:
+If you want to try the current resident image on real C64 Ultimate hardware:
+
+1. Copy `build/udos-resident.d64` or `build/udosres.prg` to media the machine can mount.
+2. Boot or autostart the program.
+3. Reproduce this smoke sequence manually:
 
 ```text
-  A:D64/> MOUNTB:DNP
-B:WORK DNP
   A:D64/> CDB:
 B:DNP/
   B:DNP/> CDSRC
 B:DNP/SRC
-  B:DNP/SRC> COPY BOOT.ASM WORK/BOOTASM
+  B:DNP/SRC> COPYBOOTASMWORKBOOTASM
 COPIED
   B:DNP/SRC> CDWORK
 B:DNP/WORK
-  B:DNP/WORK> REN BOOTASM BOOT2ASM
+  B:DNP/WORK> RENBOOTASMBOOT2ASM
 RENAMED
-  B:DNP/WORK> TYPE BOOT2ASM
-; BOOT.ASM MOCK SOURCE
-  B:DNP/WORK> DEL BOOT2ASM
+  B:DNP/WORK> RUNBOOT2ASM:DIR
+RUN BOOT2ASM
+ARGS DIR
+  B:DNP/WORK> DELBOOT2ASM
 DELETED
+  B:DNP/WORK> DIR
+B:DNP/WORK EMPTY
 ```
 
-Until that run happens on target hardware, all validation here must be described
-as emulator validation only.
+Until that run happens on real hardware, all current validation should be described as emulator validation only.
