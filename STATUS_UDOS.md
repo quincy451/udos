@@ -181,6 +181,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - separate VICE-validated wildcard copy smoke:
   - `B:DNP/SRC> COPY *.* WORK`
   - `B:DNP/WORK BOOT.ASM FS.AVM`
+  - resident mock wildcard copy now walks the shared `fs_enum_*` iterator instead of a dedicated file-table scan
 - separate VICE-validated reserved-drive smoke:
   - `A:D64/> C:`
   - `DRIVE NOT PRESENT`
@@ -205,8 +206,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
 - resident `MEM` now reports:
-  - `RAM USED 16027 FREE 49508 REU USED 0 FREE 16777216`
-- resident core code footprint: `$3E9B`
+  - `RAM USED 15976 FREE 49559 REU USED 0 FREE 16777216`
+- resident core code footprint: `$3E68`
 - resident load window in `udos_c64.cfg`: `$4700`
 
 ## What Works

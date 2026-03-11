@@ -5252,30 +5252,16 @@ copy_matching_work_files:
     sta temp_drive
     lda source_dir_id
     sta temp_dir_id
-    jsr select_file_table
-    lda #$00
-    sta file_index
+    jsr fs_enum_begin_current
 copy_matching_work_loop:
-    lda file_index
-    cmp file_count
+    jsr fs_enum_next_ptr
     bcs copy_matching_work_done
-    asl
-    asl
-    tay
-    lda file_table_lo
-    sta SCREEN_PTR
-    lda file_table_hi
-    sta SCREEN_PTR+1
-    lda (SCREEN_PTR),y
-    sta PTR
-    iny
-    lda (SCREEN_PTR),y
-    sta PTR+1
     jsr copy_program_target_to_source_buffer
     jsr wildcard_match_ptr_to_source_name
     bcs copy_matching_work_next
     jsr copy_ptr_name_to_path_buffer
-    jsr select_file_content_for_file_index
+    jsr lookup_file_content
+    bcs copy_matching_work_fail
     lda PTR
     sta copy_content_lo
     lda PTR+1
@@ -5284,15 +5270,7 @@ copy_matching_work_loop:
     sta temp_drive
     lda dest_dir_id
     sta temp_dir_id
-    lda file_index
-    sta wildcard_saved_index
-    lda file_count
-    sta wildcard_saved_count
     jsr store_copy_to_work
-    lda wildcard_saved_index
-    sta file_index
-    lda wildcard_saved_count
-    sta file_count
     bcs copy_matching_work_nospace
     inc wildcard_match_count
     lda source_drive
@@ -5300,7 +5278,6 @@ copy_matching_work_loop:
     lda source_dir_id
     sta temp_dir_id
 copy_matching_work_next:
-    inc file_index
     jmp copy_matching_work_loop
 copy_matching_work_done:
     lda wildcard_match_count
@@ -5309,6 +5286,10 @@ copy_matching_work_done:
     rts
 copy_matching_work_nomatch:
     lda #WILDCARD_RESULT_NOMATCH
+    sec
+    rts
+copy_matching_work_fail:
+    lda #WILDCARD_RESULT_FAILED
     sec
     rts
 copy_matching_work_nospace:
