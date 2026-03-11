@@ -167,6 +167,21 @@ Current ABI version:
 - when hardware UCI is unavailable, the shell still uses the current resident mutable `WORK` model
 - when hardware UCI is present and the rename request fails, the shell returns an explicit rename error instead of mutating mock state
 
+### `COPY` backend note
+- the resident `COPY` command now attempts a real file copy when hardware UCI is present
+- current same-drive sequence:
+  - `DOS_CMD_COPY_FILE (0x0b)`
+- current cross-drive sequence:
+  - source `DOS_CMD_CHANGE_DIR (0x11)`
+  - source `DOS_CMD_OPEN_FILE (0x02)` with `FA_READ`
+  - repeated source `DOS_CMD_READ_DATA (0x04)`
+  - destination `DOS_CMD_CHANGE_DIR (0x11)`
+  - destination `DOS_CMD_OPEN_FILE (0x02)` with write/create flags
+  - repeated destination `DOS_CMD_WRITE_DATA (0x05)`
+  - source and destination `DOS_CMD_CLOSE_FILE (0x03)`
+- when hardware UCI is unavailable, the shell still uses the current resident mutable `WORK` model
+- when hardware UCI is present and the copy request fails, the shell returns an explicit copy error instead of mutating mock state
+
 ### `svc_console_reset`
 - input: none
 - output: none
@@ -289,7 +304,6 @@ Current VICE validation uses these resident snapshots:
 
 - real mounted-image metadata
 - real image-backed directory enumeration
-- real file write/copy
 - real program-image lookup/load behind implicit program launch
 - overlay/program module loading
 - full hardware UCI transport

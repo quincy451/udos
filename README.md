@@ -33,6 +33,11 @@ Current milestone:
   - file rename through `RENAME_FILE`
   - mock rename is used only when hardware UCI is unavailable
   - hardware-side rename failures return an explicit shell error
+- Phase 5 now also includes a hardware-backed `COPY` path in code:
+  - same-drive copy through `COPY_FILE`
+  - cross-drive copy through source `OPEN_FILE`/`READ_DATA` and destination `OPEN_FILE`/`WRITE_DATA`
+  - mock copy is used only when hardware UCI is unavailable
+  - hardware-side copy failures return an explicit shell error
 
 Current command parser rule:
 - shell keywords require a separator before arguments

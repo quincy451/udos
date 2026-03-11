@@ -59,7 +59,7 @@ The resident image currently exposes:
 - resident `MOUNT` policy that can switch a drive between flat and tree-capable kinds
 - resident `DIR` against a mock directory model
 - resident `TYPE` against a mock file-content model
-- resident `COPY` against the mutable `WORK` model
+- resident `COPY` against the mutable `WORK` model when hardware UCI is unavailable
 - resident `DEL` against the mutable `WORK` model when hardware UCI is unavailable
 - resident `REN` against the mutable `WORK` model when hardware UCI is unavailable
 
@@ -143,6 +143,21 @@ Current file-rename seam:
   - source and destination must stay in the same resolved resident directory
 - when hardware UCI is unavailable, the shell still uses the resident mutable `WORK` model
 - when hardware UCI is present and rename fails, the shell returns an explicit rename error instead of mutating mock state
+
+Current file-copy seam:
+- `COPY` now attempts a real Ultimate DOS copy when UCI hardware is present
+- same-drive copies currently use:
+  - `COPY_FILE`
+- cross-drive copies currently use:
+  - source `CHANGE_DIR`
+  - source `OPEN_FILE`
+  - repeated source `READ_DATA`
+  - destination `CHANGE_DIR`
+  - destination `OPEN_FILE`
+  - repeated destination `WRITE_DATA`
+  - source and destination `CLOSE_FILE`
+- when hardware UCI is unavailable, the shell still uses the resident mutable `WORK` model
+- when hardware UCI is present and copy fails, the shell returns an explicit copy error instead of mutating mock state
 
 Current backend-path seam:
 - `svc_fs_get_backend_path_ptr` returns a path-like metadata string per drive

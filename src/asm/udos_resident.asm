@@ -146,17 +146,24 @@ DOS_TARGET_B = 2
 DOS_CMD_OPEN_FILE = $02
 DOS_CMD_CLOSE_FILE = $03
 DOS_CMD_READ_DATA = $04
+DOS_CMD_WRITE_DATA = $05
 DOS_CMD_DELETE_FILE = $09
 DOS_CMD_RENAME_FILE = $0A
+DOS_CMD_COPY_FILE = $0B
 DOS_CMD_CHANGE_DIR = $11
 DOS_CMD_GET_PATH = $12
 DOS_CMD_OPEN_DIR = $13
 DOS_CMD_READ_DIR = $14
 FA_READ = $01
+FA_WRITE = $02
+FA_CREATE_NEW = $04
+FA_CREATE_ALWAYS = $08
+FA_WRITE_OVERWRITE = FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS
 DOS_ATTR_DIR = $10
 HW_DIR_CACHE_MAX = 6
 HW_DIR_NAME_MAX = 20
 HW_DIR_NAME_STRIDE = HW_DIR_NAME_MAX + 1
+FULL_PATH_BUF_LEN = MAX_LINE_LEN + 8
 IMG_VOL_LO = 0
 IMG_VOL_HI = 1
 IMG_ROOT_LO_LO = 2
@@ -648,7 +655,7 @@ fill_backend_path_hw:
     lda #2
     jsr uci_issue_data_status
     bcs fill_backend_path_hw_fail
-    jsr uci_status_is_ok
+    jsr uci_status_is_ok_or_empty
     bcs fill_backend_path_hw_fail
     lda SCREEN_PTR
     sta PTR
@@ -790,6 +797,14 @@ uci_status_is_ok:
     rts
 uci_status_is_ok_fail:
     sec
+    rts
+
+uci_status_is_ok_or_empty:
+    lda uci_status_length
+    beq uci_status_is_ok_or_empty_done
+    jmp uci_status_is_ok
+uci_status_is_ok_or_empty_done:
+    clc
     rts
 
 uci_status_is_dir_empty:
@@ -2136,15 +2151,58 @@ build_copy_response:
 copy_source_ready:
     jsr resolve_file_target
     cmp #PATH_STATUS_OK
-    beq copy_source_lookup
+    beq copy_source_hw
     cmp #PATH_STATUS_FLAT
-    beq copy_build_flat
+    bne copy_source_not_flat
+    jmp copy_build_flat
+copy_source_not_flat:
     cmp #PATH_STATUS_UNMOUNTED
-    beq copy_build_unmounted
+    bne copy_source_not_unmounted
+    jmp copy_build_unmounted
+copy_source_not_unmounted:
     ldx saved_rp_x
     lda #<resp_bad_file
     sta 0,x
     lda #>resp_bad_file
+    sta 1,x
+    rts
+copy_source_hw:
+    lda temp_drive
+    sta source_drive
+    lda temp_dir_id
+    sta source_dir_id
+    jsr copy_path_name_to_source_buffer
+    jsr uci_probe
+    bcs copy_source_lookup
+    jsr load_copy_dest_arg
+    jsr resolve_copy_dest
+    cmp #PATH_STATUS_OK
+    beq copy_hw_target_ready
+    cmp #PATH_STATUS_FLAT
+    bne copy_hw_not_flat
+    jmp copy_build_flat
+copy_hw_not_flat:
+    cmp #PATH_STATUS_UNMOUNTED
+    bne copy_hw_not_unmounted
+    jmp copy_build_unmounted
+copy_hw_not_unmounted:
+    cmp #PATH_STATUS_BAD
+    bne copy_hw_not_bad
+    jmp copy_build_bad
+copy_hw_not_bad:
+    ldx saved_rp_x
+    lda #<resp_read_only
+    sta 0,x
+    lda #>resp_read_only
+    sta 1,x
+    rts
+copy_hw_target_ready:
+    jsr copy_file_hw
+    bcc copy_build_ok
+    ldx saved_rp_x
+    lda #<resp_copy_failed
+    sta 0,x
+    lda #>resp_copy_failed
     sta 1,x
     rts
 copy_source_lookup:
@@ -3146,6 +3204,22 @@ read_file_response_hw_ok:
     clc
     rts
 
+copy_file_hw:
+    lda temp_drive
+    sta dest_drive
+    lda temp_dir_id
+    sta dest_dir_id
+    lda source_drive
+    cmp dest_drive
+    beq copy_file_hw_same_drive
+    jmp copy_file_hw_cross_drive
+copy_file_hw_same_drive:
+    jsr copy_file_same_drive_hw
+    rts
+copy_file_hw_cross_drive:
+    jsr copy_file_cross_drive_hw
+    rts
+
 delete_file_hw:
     jsr sync_drive_backend_path_hw
     bcs delete_file_hw_fail
@@ -3187,6 +3261,83 @@ rename_file_hw:
 rename_file_hw_fail:
     jsr uci_abort_transfer
     jsr uci_clear_error
+    sec
+    rts
+
+copy_file_same_drive_hw:
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+    jsr build_source_full_path
+    lda dest_drive
+    sta temp_drive
+    lda dest_dir_id
+    sta temp_dir_id
+    jsr build_dest_full_path
+    lda source_drive
+    sta temp_drive
+    jsr build_uci_copy_command
+    pha
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    pla
+    jsr uci_issue_status_only
+    bcs copy_file_same_drive_fail
+    jsr uci_status_is_ok
+    bcs copy_file_same_drive_fail
+    clc
+    rts
+copy_file_same_drive_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
+copy_file_cross_drive_hw:
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+    jsr open_source_file_hw
+    bcs copy_file_cross_drive_fail
+    lda dest_drive
+    sta temp_drive
+    lda dest_dir_id
+    sta temp_dir_id
+    jsr open_dest_file_hw
+    bcs copy_file_cross_drive_fail_close_source
+copy_file_cross_drive_loop:
+    lda source_drive
+    sta temp_drive
+    jsr read_source_chunk_hw
+    bcs copy_file_cross_drive_fail_close_both
+    lda uci_data_length
+    beq copy_file_cross_drive_done
+    lda dest_drive
+    sta temp_drive
+    jsr write_dest_chunk_hw
+    bcs copy_file_cross_drive_fail_close_both
+    jmp copy_file_cross_drive_loop
+copy_file_cross_drive_done:
+    jsr close_cross_drive_files_hw
+    clc
+    rts
+copy_file_cross_drive_fail_close_both:
+    php
+    jsr close_cross_drive_files_hw
+    plp
+    sec
+    rts
+copy_file_cross_drive_fail_close_source:
+    php
+    lda source_drive
+    sta temp_drive
+    jsr close_current_file_hw
+    plp
+copy_file_cross_drive_fail:
     sec
     rts
 
@@ -3261,6 +3412,367 @@ build_uci_rename_done:
     tya
     clc
     adc #2
+    rts
+
+build_uci_copy_command:
+    jsr build_uci_target_header
+    lda #DOS_CMD_COPY_FILE
+    sta uci_cmd_buffer+1
+    ldy #$00
+build_uci_copy_source_copy:
+    lda source_fullpath_buffer,y
+    beq build_uci_copy_source_done
+    sta uci_cmd_buffer+2,y
+    iny
+    cpy #FULL_PATH_BUF_LEN
+    bcc build_uci_copy_source_copy
+build_uci_copy_source_done:
+    lda #$00
+    sta uci_cmd_buffer+2,y
+    iny
+    ldx #$00
+build_uci_copy_dest_copy:
+    lda dest_fullpath_buffer,x
+    beq build_uci_copy_done
+    sta uci_cmd_buffer+2,y
+    iny
+    inx
+    cpx #FULL_PATH_BUF_LEN
+    bcc build_uci_copy_dest_copy
+build_uci_copy_done:
+    tya
+    clc
+    adc #2
+    rts
+
+open_source_file_hw:
+    jsr sync_drive_backend_path_hw
+    bcs open_source_file_hw_fail
+    jsr build_uci_open_source_read_command
+    pha
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    pla
+    jsr uci_issue_status_only
+    bcs open_source_file_hw_fail
+    jsr uci_status_is_ok
+    bcs open_source_file_hw_fail
+    clc
+    rts
+open_source_file_hw_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
+open_dest_file_hw:
+    jsr sync_drive_backend_path_hw
+    bcs open_dest_file_hw_fail
+    jsr build_uci_open_dest_write_command
+    pha
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    pla
+    jsr uci_issue_status_only
+    bcs open_dest_file_hw_fail
+    jsr uci_status_is_ok
+    bcs open_dest_file_hw_fail
+    clc
+    rts
+open_dest_file_hw_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
+build_uci_open_source_read_command:
+    jsr build_uci_target_header
+    lda #DOS_CMD_OPEN_FILE
+    sta uci_cmd_buffer+1
+    lda #FA_READ
+    sta uci_cmd_buffer+2
+    ldy #$00
+build_uci_open_source_read_copy:
+    lda source_name_buffer,y
+    beq build_uci_open_source_read_done
+    jsr screen_code_to_ascii
+    sta uci_cmd_buffer+3,y
+    iny
+    cpy #MAX_LINE_LEN
+    bcc build_uci_open_source_read_copy
+build_uci_open_source_read_done:
+    tya
+    clc
+    adc #3
+    rts
+
+build_uci_open_dest_write_command:
+    jsr build_uci_target_header
+    lda #DOS_CMD_OPEN_FILE
+    sta uci_cmd_buffer+1
+    lda #FA_WRITE_OVERWRITE
+    sta uci_cmd_buffer+2
+    ldy #$00
+build_uci_open_dest_write_copy:
+    lda path_name_buffer,y
+    beq build_uci_open_dest_write_done
+    jsr screen_code_to_ascii
+    sta uci_cmd_buffer+3,y
+    iny
+    cpy #MAX_LINE_LEN
+    bcc build_uci_open_dest_write_copy
+build_uci_open_dest_write_done:
+    tya
+    clc
+    adc #3
+    rts
+
+read_source_chunk_hw:
+    jsr build_uci_target_header
+    lda #DOS_CMD_READ_DATA
+    sta uci_cmd_buffer+1
+    lda #<(MAX_RESPONSE_LEN-1)
+    sta uci_cmd_buffer+2
+    lda #>(MAX_RESPONSE_LEN-1)
+    sta uci_cmd_buffer+3
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    lda #4
+    jsr uci_push_command
+    bcs read_source_chunk_hw_fail
+    jsr uci_wait_reply
+    bcs read_source_chunk_hw_fail
+    lda #<response_buffer
+    sta PTR
+    lda #>response_buffer
+    sta PTR+1
+    lda #MAX_RESPONSE_LEN-1
+    jsr uci_read_data_block
+    sta uci_data_length
+    tay
+    lda #$00
+    sta (PTR),y
+    lda #<uci_status_buffer
+    sta PTR
+    lda #>uci_status_buffer
+    sta PTR+1
+    lda #MAX_LINE_LEN
+    jsr uci_read_status_block
+    sta uci_status_length
+    tay
+    lda #$00
+    sta (PTR),y
+    jsr uci_accept_data
+    jsr uci_status_is_ok_or_empty
+    bcs read_source_chunk_hw_fail
+    clc
+    rts
+read_source_chunk_hw_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
+write_dest_chunk_hw:
+    jsr build_uci_write_chunk_command
+    pha
+    lda #<uci_write_buffer
+    sta PTR
+    lda #>uci_write_buffer
+    sta PTR+1
+    pla
+    jsr uci_issue_status_only
+    bcs write_dest_chunk_hw_fail
+    jsr uci_status_is_ok_or_empty
+    bcs write_dest_chunk_hw_fail
+    clc
+    rts
+write_dest_chunk_hw_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
+build_uci_write_chunk_command:
+    jsr build_uci_target_header_write
+    lda #DOS_CMD_WRITE_DATA
+    sta uci_write_buffer+1
+    lda #$00
+    sta uci_write_buffer+2
+    sta uci_write_buffer+3
+    ldy #$00
+build_uci_write_chunk_copy:
+    cpy uci_data_length
+    bcs build_uci_write_chunk_done
+    lda response_buffer,y
+    sta uci_write_buffer+4,y
+    iny
+    jmp build_uci_write_chunk_copy
+build_uci_write_chunk_done:
+    tya
+    clc
+    adc #4
+    rts
+
+build_uci_target_header_write:
+    lda temp_drive
+    cmp #DRIVE_A
+    beq build_uci_target_header_write_a
+    lda #DOS_TARGET_B
+    sta uci_write_buffer+0
+    rts
+build_uci_target_header_write_a:
+    lda #DOS_TARGET_A
+    sta uci_write_buffer+0
+    rts
+
+close_cross_drive_files_hw:
+    lda source_drive
+    sta temp_drive
+    jsr close_current_file_hw
+    lda dest_drive
+    sta temp_drive
+    jsr close_current_file_hw
+    rts
+
+build_source_full_path:
+    lda source_dir_id
+    sta temp_dir_id
+    lda #<source_name_buffer
+    sta PTR
+    lda #>source_name_buffer
+    sta PTR+1
+    lda #<source_fullpath_buffer
+    sta SCREEN_PTR
+    lda #>source_fullpath_buffer
+    sta SCREEN_PTR+1
+    jmp build_full_path_from_ptr
+
+build_dest_full_path:
+    lda dest_dir_id
+    sta temp_dir_id
+    lda #<path_name_buffer
+    sta PTR
+    lda #>path_name_buffer
+    sta PTR+1
+    lda #<dest_fullpath_buffer
+    sta SCREEN_PTR
+    lda #>dest_fullpath_buffer
+    sta SCREEN_PTR+1
+    jmp build_full_path_from_ptr
+
+build_full_path_from_ptr:
+    ldy #$00
+    lda #ASCII_SLASH
+    sta (SCREEN_PTR),y
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    lda temp_dir_id
+    beq build_full_path_copy_name
+    cmp #DIR_ID_BIN
+    beq build_full_path_bin
+    cmp #DIR_ID_SRC
+    beq build_full_path_src
+    cmp #DIR_ID_WORK
+    beq build_full_path_work
+    jmp build_full_path_copy_name
+build_full_path_bin:
+    lda #'B'
+    sta (SCREEN_PTR),y
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    lda #'I'
+    sta (SCREEN_PTR),y
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    lda #'N'
+    sta (SCREEN_PTR),y
+    jmp build_full_path_sep
+build_full_path_src:
+    lda #'S'
+    sta (SCREEN_PTR),y
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    lda #'R'
+    sta (SCREEN_PTR),y
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    lda #'C'
+    sta (SCREEN_PTR),y
+    jmp build_full_path_sep
+build_full_path_work:
+    lda #'W'
+    sta (SCREEN_PTR),y
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    lda #'O'
+    sta (SCREEN_PTR),y
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    lda #'R'
+    sta (SCREEN_PTR),y
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    lda #'K'
+    sta (SCREEN_PTR),y
+build_full_path_sep:
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    lda #ASCII_SLASH
+    sta (SCREEN_PTR),y
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+build_full_path_copy_name:
+    lda #$00
+    sta saved_response_y
+build_full_path_copy_name_loop:
+    lda (PTR),y
+    beq build_full_path_done
+    jsr screen_code_to_ascii
+    sta (SCREEN_PTR),y
+    inc PTR
+    bne :+
+    inc PTR+1
+:    
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:    
+    inc saved_response_y
+    lda saved_response_y
+    cmp #MAX_LINE_LEN
+    bcc build_full_path_copy_name_loop
+build_full_path_done:
+    ldy #$00
+    lda #$00
+    sta (SCREEN_PTR),y
+    clc
     rts
 
 uci_read_open_file_into_response:
@@ -5020,6 +5532,10 @@ source_drive:
     .byte 0
 source_dir_id:
     .byte 0
+dest_drive:
+    .byte 0
+dest_dir_id:
+    .byte 0
 source_slot:
     .byte 0
 prefix_length:
@@ -5086,16 +5602,22 @@ source_name_buffer:
     .res MAX_LINE_LEN+1
 response_buffer:
     .res MAX_RESPONSE_LEN
+uci_write_buffer:
+    .res MAX_RESPONSE_LEN+4
 script_line_data:
     .res (MAX_LINE_LEN+1) * 10
 uci_cmd_buffer:
-    .res MAX_LINE_LEN+3
+    .res (FULL_PATH_BUF_LEN * 2) + 3
 uci_data_buffer:
     .res MAX_LINE_LEN+1
 uci_status_buffer:
     .res MAX_LINE_LEN+1
 desired_path_buffer:
     .res MAX_LINE_LEN+1
+source_fullpath_buffer:
+    .res FULL_PATH_BUF_LEN
+dest_fullpath_buffer:
+    .res FULL_PATH_BUF_LEN
 backend_path_cache_a:
     .res MAX_LINE_LEN+1
 backend_path_cache_b:
@@ -5120,7 +5642,7 @@ resp_help:
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 2C46", 0
+    .byte "CORE 30ED", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:
@@ -5355,6 +5877,8 @@ resp_exists:
     .byte "EXISTS", 0
 resp_copied:
     .byte "COPIED", 0
+resp_copy_failed:
+    .byte "COPY FAILED", 0
 resp_read_only:
     .byte "READ ONLY", 0
 resp_no_space:
