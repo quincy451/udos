@@ -169,7 +169,7 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$3E68`
+- resident core code: `$3E62`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4700`
 - hardware directory cache budget:
   - `6` entries per drive

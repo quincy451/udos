@@ -5393,22 +5393,20 @@ delete_work_single:
 delete_matching_work_files:
     lda #$00
     sta wildcard_match_count
-    ldx temp_drive
-    lda work_count_table,x
-    beq delete_matching_work_fail
-    sec
-    sbc #$01
-    sta file_index
+delete_matching_work_restart:
+    jsr fs_enum_begin_current
 delete_matching_work_loop:
-    jsr load_dynamic_work_name_ptr
+    jsr fs_enum_next_ptr
+    bcs delete_matching_work_done
     jsr wildcard_match_ptr_to_source_name
     bcs delete_matching_work_next
+    jsr copy_ptr_name_to_path_buffer
+    jsr lookup_file_content
+    bcs delete_matching_work_fail
     jsr delete_work_slot
     inc wildcard_match_count
+    jmp delete_matching_work_restart
 delete_matching_work_next:
-    lda file_index
-    beq delete_matching_work_done
-    dec file_index
     jmp delete_matching_work_loop
 delete_matching_work_done:
     lda wildcard_match_count
