@@ -60,7 +60,8 @@ Current command parser rule:
   - `*.*`
   - `*.EXT`
   - `NAME.*`
-- `COPY` wildcard expansion is not implemented yet
+- `COPY` now also supports the same limited wildcard forms
+- wildcard `COPY` preserves each matched source filename and expects the destination to resolve to a directory target
 
 See:
 - `PIVOT_PLAN.md`

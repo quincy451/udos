@@ -143,6 +143,9 @@ WILDCARD_NONE = 0
 WILDCARD_ALL = 1
 WILDCARD_EXT = 2
 WILDCARD_STEM = 3
+WILDCARD_RESULT_NOMATCH = 1
+WILDCARD_RESULT_NOSPACE = 2
+WILDCARD_RESULT_FAILED = 3
 RUN_STATUS_OK = 0
 RUN_STATUS_BAD = 1
 RUN_STATUS_FLAT = 2
@@ -2446,7 +2449,7 @@ build_copy_response:
 copy_source_ready:
     jsr resolve_file_target
     cmp #PATH_STATUS_OK
-    beq copy_source_hw
+    beq copy_source_classify
     cmp #PATH_STATUS_FLAT
     bne copy_source_not_flat
     jmp copy_build_flat
@@ -2461,14 +2464,23 @@ copy_source_not_unmounted:
     lda #>resp_bad_file
     sta 1,x
     rts
-copy_source_hw:
+copy_source_classify:
+    jsr classify_path_name_wildcard
+    bcc :+
+    jmp copy_build_bad
+:
     lda temp_drive
     sta source_drive
     lda temp_dir_id
     sta source_dir_id
+    lda wildcard_mode
+    bne copy_source_wild
     jsr copy_path_name_to_source_buffer
+copy_source_hw:
     jsr uci_probe
-    bcs copy_source_lookup
+    bcc :+
+    jmp copy_source_lookup
+:
     jsr load_copy_dest_arg
     jsr resolve_copy_dest
     cmp #PATH_STATUS_OK
@@ -2491,9 +2503,49 @@ copy_hw_not_bad:
     lda #>resp_read_only
     sta 1,x
     rts
+copy_source_wild:
+    jsr copy_path_name_to_program_target
+    jsr uci_probe
+    bcc :+
+    jmp copy_source_wild_lookup
+:
+    jsr load_copy_dest_arg
+    jsr resolve_arg_target
+    cmp #PATH_STATUS_OK
+    beq copy_wild_hw_dest_ok
+    cmp #PATH_STATUS_FLAT
+    bne copy_wild_hw_not_flat
+    jmp copy_build_flat
+copy_wild_hw_not_flat:
+    cmp #PATH_STATUS_UNMOUNTED
+    bne copy_wild_hw_not_unmounted
+    jmp copy_build_unmounted
+copy_wild_hw_not_unmounted:
+    jmp copy_build_bad
+copy_wild_hw_dest_ok:
+    lda temp_drive
+    sta dest_drive
+    lda temp_dir_id
+    sta dest_dir_id
+    jsr copy_matching_files_hw
+    bcs :+
+    jmp copy_build_ok
+:
+    cmp #WILDCARD_RESULT_NOMATCH
+    bne :+
+    jmp copy_build_bad_file
+:
+    ldx saved_rp_x
+    lda #<resp_copy_failed
+    sta 0,x
+    lda #>resp_copy_failed
+    sta 1,x
+    rts
 copy_hw_target_ready:
     jsr copy_file_hw
-    bcc copy_build_ok
+    bcs :+
+    jmp copy_build_ok
+:
     ldx saved_rp_x
     lda #<resp_copy_failed
     sta 0,x
@@ -2530,9 +2582,40 @@ copy_have_source:
     lda #>resp_read_only
     sta 1,x
     rts
+copy_source_wild_lookup:
+    jsr load_copy_dest_arg
+    jsr resolve_arg_target
+    cmp #PATH_STATUS_OK
+    beq copy_wild_lookup_dest_ok
+    cmp #PATH_STATUS_FLAT
+    beq copy_build_flat
+    cmp #PATH_STATUS_UNMOUNTED
+    beq copy_build_unmounted
+    jmp copy_build_bad
+copy_wild_lookup_dest_ok:
+    lda temp_dir_id
+    cmp #DIR_ID_WORK
+    bne copy_build_read_only
+    lda temp_drive
+    sta dest_drive
+    lda temp_dir_id
+    sta dest_dir_id
+    jsr copy_matching_work_files
+    bcc copy_build_ok
+    cmp #WILDCARD_RESULT_NOMATCH
+    beq copy_build_bad_file
+    cmp #WILDCARD_RESULT_NOSPACE
+    beq copy_build_no_space
+    ldx saved_rp_x
+    lda #<resp_copy_failed
+    sta 0,x
+    lda #>resp_copy_failed
+    sta 1,x
+    rts
 copy_store_target:
     jsr store_copy_to_work
     bcc copy_build_ok
+copy_build_no_space:
     ldx saved_rp_x
     lda #<resp_no_space
     sta 0,x
@@ -2558,6 +2641,20 @@ copy_build_bad:
     lda #<resp_bad_copy
     sta 0,x
     lda #>resp_bad_copy
+    sta 1,x
+    rts
+copy_build_bad_file:
+    ldx saved_rp_x
+    lda #<resp_bad_file
+    sta 0,x
+    lda #>resp_bad_file
+    sta 1,x
+    rts
+copy_build_read_only:
+    ldx saved_rp_x
+    lda #<resp_read_only
+    sta 0,x
+    lda #>resp_read_only
     sta 1,x
     rts
 copy_build_ok:
@@ -3706,6 +3803,38 @@ copy_path_name_to_source_buffer_done:
     sta source_name_buffer,y
     rts
 
+copy_program_target_to_source_buffer:
+    ldy #$00
+copy_program_target_to_source_buffer_loop:
+    lda program_target_buffer,y
+    sta source_name_buffer,y
+    beq copy_program_target_to_source_buffer_done
+    iny
+    cpy #MAX_LINE_LEN
+    bcc copy_program_target_to_source_buffer_loop
+copy_program_target_to_source_buffer_done:
+    lda #$00
+    sta source_name_buffer,y
+    rts
+
+copy_ptr_name_to_source_buffer:
+    ldy #$00
+copy_ptr_name_to_source_buffer_loop:
+    lda (PTR),y
+    beq copy_ptr_name_to_source_buffer_done
+    cmp #ASCII_SLASH
+    beq copy_ptr_name_to_source_buffer_done
+    cpy #MAX_LINE_LEN
+    bcs copy_ptr_name_to_source_buffer_done
+    jsr normalize_output_char
+    sta source_name_buffer,y
+    iny
+    bne copy_ptr_name_to_source_buffer_loop
+copy_ptr_name_to_source_buffer_done:
+    lda #$00
+    sta source_name_buffer,y
+    rts
+
 copy_ptr_name_to_path_buffer:
     ldy #$00
 copy_ptr_name_to_path_buffer_loop:
@@ -3815,6 +3944,52 @@ copy_file_hw_same_drive:
     rts
 copy_file_hw_cross_drive:
     jsr copy_file_cross_drive_hw
+    rts
+
+copy_matching_files_hw:
+    lda #$00
+    sta wildcard_match_count
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+    jsr fill_hw_dir_cache_current
+    bcs copy_matching_files_hw_fail
+    jsr fs_enum_begin_current
+copy_matching_files_hw_loop:
+    jsr fs_enum_next_ptr
+    bcs copy_matching_files_hw_done
+    jsr copy_program_target_to_source_buffer
+    jsr wildcard_match_ptr_to_source_name
+    bcs copy_matching_files_hw_loop
+    jsr copy_ptr_name_to_source_buffer
+    jsr copy_ptr_name_to_path_buffer
+    lda dest_drive
+    sta temp_drive
+    lda dest_dir_id
+    sta temp_dir_id
+    jsr copy_file_hw
+    bcs copy_matching_files_hw_fail
+    inc wildcard_match_count
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+    jmp copy_matching_files_hw_loop
+copy_matching_files_hw_done:
+    lda wildcard_match_count
+    beq copy_matching_files_hw_nomatch
+    clc
+    rts
+copy_matching_files_hw_nomatch:
+    lda #WILDCARD_RESULT_NOMATCH
+    sec
+    rts
+copy_matching_files_hw_fail:
+    lda wildcard_match_count
+    beq copy_matching_files_hw_nomatch
+    lda #WILDCARD_RESULT_FAILED
+    sec
     rts
 
 delete_file_hw:
@@ -5045,6 +5220,77 @@ store_copy_update:
     lda copy_content_hi
     sta (SCREEN_PTR),y
     clc
+    rts
+
+copy_matching_work_files:
+    lda #$00
+    sta wildcard_match_count
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+    jsr select_file_table
+    lda #$00
+    sta file_index
+copy_matching_work_loop:
+    lda file_index
+    cmp file_count
+    bcs copy_matching_work_done
+    asl
+    asl
+    tay
+    lda file_table_lo
+    sta SCREEN_PTR
+    lda file_table_hi
+    sta SCREEN_PTR+1
+    lda (SCREEN_PTR),y
+    sta PTR
+    iny
+    lda (SCREEN_PTR),y
+    sta PTR+1
+    jsr copy_program_target_to_source_buffer
+    jsr wildcard_match_ptr_to_source_name
+    bcs copy_matching_work_next
+    jsr copy_ptr_name_to_path_buffer
+    jsr select_file_content_for_file_index
+    lda PTR
+    sta copy_content_lo
+    lda PTR+1
+    sta copy_content_hi
+    lda dest_drive
+    sta temp_drive
+    lda dest_dir_id
+    sta temp_dir_id
+    lda file_index
+    sta wildcard_saved_index
+    lda file_count
+    sta wildcard_saved_count
+    jsr store_copy_to_work
+    lda wildcard_saved_index
+    sta file_index
+    lda wildcard_saved_count
+    sta file_count
+    bcs copy_matching_work_nospace
+    inc wildcard_match_count
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+copy_matching_work_next:
+    inc file_index
+    jmp copy_matching_work_loop
+copy_matching_work_done:
+    lda wildcard_match_count
+    beq copy_matching_work_nomatch
+    clc
+    rts
+copy_matching_work_nomatch:
+    lda #WILDCARD_RESULT_NOMATCH
+    sec
+    rts
+copy_matching_work_nospace:
+    lda #WILDCARD_RESULT_NOSPACE
+    sec
     rts
 
 find_work_file_by_path_name:
@@ -6427,6 +6673,24 @@ load_dynamic_work_files_a:
     sta file_count
     rts
 
+select_file_content_for_file_index:
+    lda file_index
+    asl
+    asl
+    tay
+    lda file_table_lo
+    sta SCREEN_PTR
+    lda file_table_hi
+    sta SCREEN_PTR+1
+    iny
+    iny
+    lda (SCREEN_PTR),y
+    sta PTR
+    iny
+    lda (SCREEN_PTR),y
+    sta PTR+1
+    rts
+
 load_dynamic_work_name_ptr:
     jsr select_dynamic_work_file_table
     lda file_index
@@ -6809,6 +7073,10 @@ wildcard_span:
     .byte 0
 wildcard_match_count:
     .byte 0
+wildcard_saved_index:
+    .byte 0
+wildcard_saved_count:
+    .byte 0
 source_slot:
     .byte 0
 prefix_length:
@@ -6937,7 +7205,7 @@ resp_help:
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 3B4D", 0
+    .byte "CORE 3D55", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:

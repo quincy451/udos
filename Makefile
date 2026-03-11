@@ -20,7 +20,7 @@ RESIDENT_DISK := $(BUILD_DIR)/udos-resident.d64
 RESIDENT_LABELS := $(BUILD_DIR)/udos-resident.labels
 RESIDENT_MAP := $(BUILD_DIR)/udos-resident.map
 
-.PHONY: all clean acheron-dep proof vice-proof resident vice-resident vice-launch test
+.PHONY: all clean acheron-dep proof vice-proof resident vice-resident vice-launch vice-copy test
 
 all: proof resident
 
@@ -58,4 +58,7 @@ vice-resident: resident
 vice-launch: resident
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) --feed-after "A:D64/>" --feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rCOPY BOOT.ASM WORK/BOOT2.PRG\rCD WORK\rREN BOOT2.PRG BOOT3.PRG\rBOOT3 DIR\r" --expected "ARGS DIR" --contains "RUN BOOT3.PRG" --check-byte 0xCFF6=0x02 --check-byte 0xCFF7=0x00 --check-byte 0xCFF8=0x01 --check-byte 0xCFF9=0x03 --check-byte 0xCFFA=0x16 --check-byte 0xCFFB=0x00
 
-test: vice-proof vice-resident vice-launch
+vice-copy: resident
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) --feed-after "A:D64/>" --feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rCOPY *.* WORK\rCD WORK\rDIR\r" --expected "FS.AVM" --contains "BOOT.ASM" --contains "COPIED"
+
+test: vice-proof vice-resident vice-launch vice-copy

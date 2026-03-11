@@ -41,7 +41,7 @@
 - hardware-validate and harden the current `DEL` Ultimate DOS delete path on target
 - hardware-validate and harden the current `REN` Ultimate DOS rename path on target
 - hardware-validate and harden the current `COPY` Ultimate DOS copy path on target
-- add limited wildcard expansion to `COPY`:
+- hardware-validate and harden the current `COPY` wildcard path on target:
   - `*`
   - `*.*`
   - `*.EXT`

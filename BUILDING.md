@@ -87,15 +87,16 @@ Current `vice-resident` behavior:
   - `CD WORK`
   - `REN BOOT2.PRG BOOT3.PRG`
   - `DELBOOT3`
-  - `BOOT3 DIR`
   - `DEL *.PRG`
   - `DIR`
 - verifies command-keyword separation:
   - `DELBOOT3` must not be treated as `DEL BOOT3.PRG`
   - it is treated as a bare program token and returns `PROGRAM NOT FOUND`
-- verifies implicit program launch:
+- verifies implicit program launch separately through `make vice-launch`:
   - `BOOT3 DIR` resolves as `BOOT3.PRG`
   - `DIR` is passed as the command line
+- verifies wildcard copy separately through `make vice-copy`:
+  - `COPY *.* WORK` copies both `BOOT.ASM` and `FS.AVM`
 - verifies mounted-image parsing and label derivation:
   - `MOUNT B: /IMAGES/ALT.D81` yields `B:ALT D81`
   - `MOUNT B: /IMAGES/WORK.DNP` restores `A:SYSTEM D64 B:WORK DNP`
@@ -115,13 +116,10 @@ Current `vice-resident` behavior:
   - program state after implicit launch = exited with `0` status on `B:/WORK`
   - loaded program image length = `22` bytes (`BOOT3.PRG` from the mock `BOOT.ASM` content)
 
-Current validated resident transcript:
+Current validated resident transcript from `make vice-resident`:
 
 ```text
 UDOS FOR COMMODORE 64
-  A:D64/> MOUNT B: /IMAGES/ALT.D81
-  A:D64/> VOL
-A:SYSTEM D64 B:ALT D81
   A:D64/> MOUNT B: /IMAGES/WORK.DNP
   A:D64/> VOL
 A:SYSTEM D64 B:WORK DNP
@@ -134,26 +132,29 @@ COPIED
   B:DNP/SRC> COPY BOOT.ASM WORK/BOOT4.ASM
 COPIED
   B:DNP/SRC> CD WORK
-B:DNP/WORK
+  B:DNP/WORK
   B:DNP/WORK> REN BOOT2.PRG BOOT3.PRG
 RENAMED
   B:DNP/WORK> DELBOOT3
 PROGRAM NOT FOUND
-  B:DNP/WORK> BOOT3 DIR
-RUN BOOT3.PRG
-ARGS DIR
   B:DNP/WORK> DEL *.PRG
 DELETED
   B:DNP/WORK> DIR
 B:DNP/WORK BOOT4.ASM
 ```
 
+Separate VICE smoke targets:
+- `make vice-launch`
+  - validates implicit launch with `BOOT3 DIR`
+- `make vice-copy`
+  - validates wildcard copy with `COPY *.* WORK`
+
 Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$3B4D`
-- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4400`
+- resident core code: `$3D55`
+- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4600`
 - hardware directory cache budget:
   - `6` entries per drive
   - `20` bytes per cached name
@@ -194,9 +195,6 @@ If you want to try the current resident image on real C64 Ultimate hardware:
 3. Reproduce this smoke sequence manually:
 
 ```text
-  A:D64/> MOUNT B: /IMAGES/ALT.D81
-  A:D64/> VOL
-A:SYSTEM D64 B:ALT D81
   A:D64/> MOUNT B: /IMAGES/WORK.DNP
   A:D64/> VOL
 A:SYSTEM D64 B:WORK DNP
@@ -209,14 +207,11 @@ COPIED
   B:DNP/SRC> COPY BOOT.ASM WORK/BOOT4.ASM
 COPIED
   B:DNP/SRC> CD WORK
-B:DNP/WORK
+  B:DNP/WORK
   B:DNP/WORK> REN BOOT2.PRG BOOT3.PRG
 RENAMED
   B:DNP/WORK> DELBOOT3
 PROGRAM NOT FOUND
-  B:DNP/WORK> BOOT3 DIR
-RUN BOOT3.PRG
-ARGS DIR
   B:DNP/WORK> DEL *.PRG
 DELETED
   B:DNP/WORK> DIR

@@ -100,6 +100,12 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `DEL BOOT3.PRG` -> delete `BOOT3.PRG`
   - `DELBOOT3` -> implicit launch attempt of `DELBOOT3.PRG`, then `PROGRAM NOT FOUND`
   - `BOOT3 DIR` -> implicit launch of `BOOT3.PRG` with command line `DIR`
+- resident `COPY` now also supports limited wildcard expansion:
+  - `*`
+  - `*.*`
+  - `*.EXT`
+  - `NAME.*`
+  - wildcard `COPY` preserves each matched source filename into the resolved destination directory
 - resident `DEL` now also supports limited wildcard expansion:
   - `*`
   - `*.*`
@@ -138,10 +144,6 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - hardware mode can now distinguish `PROGRAM NOT FOUND` from a generic load failure before opening the file
   - VICE validates the loaded image length through resident snapshots
 - current VICE-validated transcript:
-  - `UDOS FOR COMMODORE 64`
-  - `A:D64/> MOUNT B: /IMAGES/ALT.D81`
-  - `A:D64/> VOL`
-  - `A:SYSTEM D64 B:ALT D81`
   - `A:D64/> MOUNT B: /IMAGES/WORK.DNP`
   - `A:D64/> VOL`
   - `A:SYSTEM D64 B:WORK DNP`
@@ -158,13 +160,17 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `RENAMED`
   - `B:DNP/WORK> DELBOOT3`
   - `PROGRAM NOT FOUND`
-  - `B:DNP/WORK> BOOT3 DIR`
-  - `RUN BOOT3.PRG`
-  - `ARGS DIR`
   - `B:DNP/WORK> DEL *.PRG`
   - `DELETED`
   - `B:DNP/WORK> DIR`
   - `B:DNP/WORK BOOT4.ASM`
+- separate VICE-validated launch smoke:
+  - `B:DNP/WORK> BOOT3 DIR`
+  - `RUN BOOT3.PRG`
+  - `ARGS DIR`
+- separate VICE-validated wildcard copy smoke:
+  - `B:DNP/SRC> COPY *.* WORK`
+  - `B:DNP/WORK BOOT.ASM FS.AVM`
 - bind snapshots:
   - `$CFE4 = $01` -> cached backend-path length for `A:` (`/`)
   - `$CFE5 = $05` -> cached backend-path length for `B:` (`/WORK`) after the smoke sequence
@@ -183,8 +189,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFF9 = $03` -> program directory `WORK`
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
-- resident core code footprint: `$3B4D`
-- resident load window in `udos_c64.cfg`: `$4400`
+- resident core code footprint: `$3D55`
+- resident load window in `udos_c64.cfg`: `$4600`
 
 ## What Works
 
