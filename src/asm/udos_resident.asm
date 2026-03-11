@@ -186,6 +186,7 @@ DOS_CMD_READ_DIR = $14
 DOS_CMD_MOUNT_DISK = $23
 FA_READ = $01
 FA_WRITE = $02
+FA_READWRITE = FA_READ | FA_WRITE
 FA_CREATE_NEW = $04
 FA_CREATE_ALWAYS = $08
 FA_WRITE_OVERWRITE = FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS
@@ -199,18 +200,27 @@ FULL_PATH_BUF_LEN = MAX_LINE_LEN + 8
 FLAT_LABEL_LEN = 16
 FLAT_DIR_READ_LEN = 247
 FLAT_SECTOR_READ_LEN = 255
+UCI_WRITE_DATA_MAX = 251
 D64_LABEL_OFF_0 = $90
 D64_LABEL_OFF_1 = $65
 D64_LABEL_OFF_2 = $01
 D64_LABEL_OFF_3 = $00
 D64_DIR_TRACK = 18
+D64_BAM_SECTOR = 0
+D64_BAM_ENTRY_BASE = $04
 D64_DIR_BASE_1 = $65
 D64_DIR_BASE_2 = $01
+D71_BAM_SIDE2_TRACK = 53
+D71_BAM_SIDE2_SECTOR = 0
+D71_BAM_SIDE2_COUNT_BASE = $DD
+D71_BAM_SIDE2_BITMAP_BASE = $00
 D81_LABEL_OFF_0 = $04
 D81_LABEL_OFF_1 = $18
 D81_LABEL_OFF_2 = $06
 D81_LABEL_OFF_3 = $00
 D81_DIR_TRACK = 40
+D81_BAM_SECTOR = 1
+D81_BAM_ENTRY_BASE = $10
 D81_DIR_START_SECTOR = 3
 D81_DIR_BASE_1 = $18
 D81_DIR_BASE_2 = $06
@@ -4086,6 +4096,8 @@ copy_matching_files_hw_fail:
     rts
 
 delete_file_hw:
+    jsr current_mount_is_flat
+    beq delete_file_hw_flat
     jsr sync_drive_backend_path_hw
     bcs delete_file_hw_fail
     jsr build_uci_delete_command
@@ -4105,6 +4117,12 @@ delete_file_hw_fail:
     jsr uci_abort_transfer
     jsr uci_clear_error
     sec
+    rts
+
+delete_file_hw_flat:
+    jsr delete_flat_file_hw
+    bcs delete_file_hw_fail
+    clc
     rts
 
 delete_matching_files_hw:
@@ -4130,6 +4148,272 @@ delete_matching_files_hw_done:
     rts
 delete_matching_files_hw_fail:
     sec
+    rts
+
+delete_flat_file_hw:
+    jsr open_flat_mount_image_rw_hw
+    bcs delete_flat_file_hw_fail
+    jsr find_flat_file_entry_in_open_image
+    bcs delete_flat_file_hw_close
+    jsr read_flat_dir_hit_sector_hw
+    bcs delete_flat_file_hw_close
+    jsr clear_flat_dir_entry_type_in_buffer
+    jsr load_flat_bam_buffers_hw
+    bcs delete_flat_file_hw_close
+    jsr walk_flat_file_chain_release_bam
+    bcs delete_flat_file_hw_close
+    jsr write_flat_dir_hit_sector_hw
+    bcs delete_flat_file_hw_close
+    jsr write_flat_bam_buffers_hw
+delete_flat_file_hw_close:
+    php
+    pha
+    jsr close_current_file_hw
+    pla
+    plp
+    bcc delete_flat_file_hw_ok
+delete_flat_file_hw_fail:
+    sec
+    rts
+delete_flat_file_hw_ok:
+    clc
+    rts
+
+read_flat_dir_hit_sector_hw:
+    lda flat_hit_dir_track
+    sta flat_file_track
+    lda flat_hit_dir_sector
+    sta flat_file_sector
+    lda #<flat_dir_sector_buffer
+    sta PTR
+    lda #>flat_dir_sector_buffer
+    sta PTR+1
+    jmp read_flat_sector_into_ptr_hw
+
+write_flat_dir_hit_sector_hw:
+    lda flat_hit_dir_track
+    sta flat_file_track
+    lda flat_hit_dir_sector
+    sta flat_file_sector
+    lda #<flat_dir_sector_buffer
+    sta PTR
+    lda #>flat_dir_sector_buffer
+    sta PTR+1
+    jmp write_flat_sector_from_ptr_hw
+
+clear_flat_dir_entry_type_in_buffer:
+    ldy flat_hit_dir_offset
+    lda #$00
+    sta flat_dir_sector_buffer,y
+    rts
+
+load_flat_bam_buffers_hw:
+    lda #$00
+    sta flat_secondary_dirty
+    lda #D64_DIR_TRACK
+    sta flat_file_track
+    lda #D64_BAM_SECTOR
+    sta flat_file_sector
+    lda #<flat_bam_primary_buffer
+    sta PTR
+    lda #>flat_bam_primary_buffer
+    sta PTR+1
+    jsr read_flat_sector_into_ptr_hw
+    bcs load_flat_bam_buffers_hw_fail
+    lda temp_mount_kind
+    cmp #MOUNT_KIND_D71
+    bne load_flat_bam_buffers_hw_done
+    lda #D71_BAM_SIDE2_TRACK
+    sta flat_file_track
+    lda #D71_BAM_SIDE2_SECTOR
+    sta flat_file_sector
+    lda #<flat_bam_secondary_buffer
+    sta PTR
+    lda #>flat_bam_secondary_buffer
+    sta PTR+1
+    jsr read_flat_sector_into_ptr_hw
+    bcs load_flat_bam_buffers_hw_fail
+load_flat_bam_buffers_hw_done:
+    clc
+    rts
+load_flat_bam_buffers_hw_fail:
+    sec
+    rts
+
+write_flat_bam_buffers_hw:
+    lda #D64_DIR_TRACK
+    sta flat_file_track
+    lda temp_mount_kind
+    cmp #MOUNT_KIND_D81
+    beq write_flat_bam_buffers_hw_d81
+    lda #D64_BAM_SECTOR
+    bne write_flat_bam_buffers_hw_primary
+write_flat_bam_buffers_hw_d81:
+    lda #D81_BAM_SECTOR
+write_flat_bam_buffers_hw_primary:
+    sta flat_file_sector
+    lda #<flat_bam_primary_buffer
+    sta PTR
+    lda #>flat_bam_primary_buffer
+    sta PTR+1
+    jsr write_flat_sector_from_ptr_hw
+    bcs write_flat_bam_buffers_hw_fail
+    lda temp_mount_kind
+    cmp #MOUNT_KIND_D71
+    bne write_flat_bam_buffers_hw_done
+    lda flat_secondary_dirty
+    beq write_flat_bam_buffers_hw_done
+    lda #D71_BAM_SIDE2_TRACK
+    sta flat_file_track
+    lda #D71_BAM_SIDE2_SECTOR
+    sta flat_file_sector
+    lda #<flat_bam_secondary_buffer
+    sta PTR
+    lda #>flat_bam_secondary_buffer
+    sta PTR+1
+    jsr write_flat_sector_from_ptr_hw
+    bcs write_flat_bam_buffers_hw_fail
+write_flat_bam_buffers_hw_done:
+    clc
+    rts
+write_flat_bam_buffers_hw_fail:
+    sec
+    rts
+
+walk_flat_file_chain_release_bam:
+walk_flat_file_chain_release_bam_loop:
+    lda flat_file_track
+    beq walk_flat_file_chain_release_bam_done
+    jsr read_flat_sector_buffer_hw
+    bcs walk_flat_file_chain_release_bam_fail
+    lda flat_sector_buffer+0
+    sta flat_dir_track
+    lda flat_sector_buffer+1
+    sta flat_dir_sector
+    jsr mark_flat_sector_free_in_bam
+    bcs walk_flat_file_chain_release_bam_fail
+    lda flat_dir_track
+    sta flat_file_track
+    lda flat_dir_sector
+    sta flat_file_sector
+    jmp walk_flat_file_chain_release_bam_loop
+walk_flat_file_chain_release_bam_done:
+    clc
+    rts
+walk_flat_file_chain_release_bam_fail:
+    sec
+    rts
+
+mark_flat_sector_free_in_bam:
+    lda temp_mount_kind
+    cmp #MOUNT_KIND_D81
+    beq mark_flat_sector_free_in_bam_d81
+    cmp #MOUNT_KIND_D71
+    beq mark_flat_sector_free_in_bam_d71
+    jmp mark_flat_sector_free_in_bam_d64
+
+mark_flat_sector_free_in_bam_d64:
+    lda flat_file_track
+    sec
+    sbc #$01
+    asl
+    asl
+    clc
+    adc #D64_BAM_ENTRY_BASE
+    tay
+    lda flat_bam_primary_buffer,y
+    clc
+    adc #$01
+    sta flat_bam_primary_buffer,y
+    iny
+    jmp mark_flat_sector_set_1541_bits_primary
+
+mark_flat_sector_free_in_bam_d71:
+    lda flat_file_track
+    cmp #36
+    bcc mark_flat_sector_free_in_bam_d64
+    sec
+    sbc #36
+    sta flat_track_index
+    tay
+    lda flat_bam_primary_buffer + D71_BAM_SIDE2_COUNT_BASE,y
+    clc
+    adc #$01
+    sta flat_bam_primary_buffer + D71_BAM_SIDE2_COUNT_BASE,y
+    lda #$01
+    sta flat_secondary_dirty
+    lda flat_track_index
+    asl
+    clc
+    adc flat_track_index
+    tay
+    jmp mark_flat_sector_set_1541_bits_secondary
+
+mark_flat_sector_free_in_bam_d81:
+    lda flat_file_track
+    sec
+    sbc #$01
+    sta flat_track_index
+    asl
+    clc
+    adc flat_track_index
+    asl
+    clc
+    adc #D81_BAM_ENTRY_BASE
+    tay
+    lda flat_bam_primary_buffer,y
+    clc
+    adc #$01
+    sta flat_bam_primary_buffer,y
+    iny
+    jmp mark_flat_sector_set_1581_bits_primary
+
+mark_flat_sector_set_1541_bits_primary:
+    lda flat_file_sector
+    jsr mark_flat_sector_byte_index
+    txa
+    ora flat_bam_primary_buffer,y
+    sta flat_bam_primary_buffer,y
+    clc
+    rts
+
+mark_flat_sector_set_1541_bits_secondary:
+    lda flat_file_sector
+    jsr mark_flat_sector_byte_index
+    txa
+    ora flat_bam_secondary_buffer,y
+    sta flat_bam_secondary_buffer,y
+    clc
+    rts
+
+mark_flat_sector_set_1581_bits_primary:
+    lda flat_file_sector
+    jsr mark_flat_sector_byte_index
+    txa
+    ora flat_bam_primary_buffer,y
+    sta flat_bam_primary_buffer,y
+    clc
+    rts
+
+mark_flat_sector_byte_index:
+mark_flat_sector_byte_index_loop:
+    cmp #8
+    bcc mark_flat_sector_byte_index_remainder
+    sec
+    sbc #8
+    iny
+    jmp mark_flat_sector_byte_index_loop
+mark_flat_sector_byte_index_remainder:
+    tax
+    lda #$01
+mark_flat_sector_byte_index_mask:
+    cpx #$00
+    beq mark_flat_sector_byte_index_done
+    asl
+    dex
+    jmp mark_flat_sector_byte_index_mask
+mark_flat_sector_byte_index_done:
+    tax
     rts
 
 rename_file_hw:
@@ -4272,7 +4556,14 @@ build_uci_file_stat_done:
     rts
 
 open_named_file_hw_from_ptr:
-    jsr build_uci_open_read_command_from_ptr
+    lda #FA_READ
+    bne open_named_file_hw_from_ptr_mode
+
+open_named_file_rw_hw_from_ptr:
+    lda #FA_READWRITE
+open_named_file_hw_from_ptr_mode:
+    sta file_access_mode
+    jsr build_uci_open_command_from_ptr_mode
     pha
     lda #<uci_cmd_buffer
     sta PTR
@@ -4291,22 +4582,22 @@ open_named_file_hw_fail:
     sec
     rts
 
-build_uci_open_read_command_from_ptr:
+build_uci_open_command_from_ptr_mode:
     jsr build_uci_target_header
     lda #DOS_CMD_OPEN_FILE
     sta uci_cmd_buffer+1
-    lda #FA_READ
+    lda file_access_mode
     sta uci_cmd_buffer+2
     ldy #$00
-build_uci_open_read_ptr_copy:
+build_uci_open_ptr_copy:
     lda (PTR),y
-    beq build_uci_open_read_ptr_done
+    beq build_uci_open_ptr_done
     jsr screen_code_to_ascii
     sta uci_cmd_buffer+3,y
     iny
     cpy #MAX_LINE_LEN
-    bcc build_uci_open_read_ptr_copy
-build_uci_open_read_ptr_done:
+    bcc build_uci_open_ptr_copy
+build_uci_open_ptr_done:
     tya
     clc
     adc #3
@@ -4837,6 +5128,49 @@ uci_read_open_file_into_ptr_len:
     clc
     rts
 uci_read_open_file_into_ptr_len_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
+uci_write_open_file_from_ptr_len:
+    sta uci_xfer_limit
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    jsr build_uci_target_header_write
+    lda #DOS_CMD_WRITE_DATA
+    sta uci_write_buffer+1
+    lda uci_xfer_limit
+    sta uci_write_buffer+2
+    lda #$00
+    sta uci_write_buffer+3
+    ldy #$00
+uci_write_open_file_copy:
+    cpy uci_xfer_limit
+    bcs uci_write_open_file_send
+    lda (SCREEN_PTR),y
+    sta uci_write_buffer+4,y
+    iny
+    bne uci_write_open_file_copy
+uci_write_open_file_send:
+    tya
+    clc
+    adc #4
+    pha
+    lda #<uci_write_buffer
+    sta PTR
+    lda #>uci_write_buffer
+    sta PTR+1
+    pla
+    jsr uci_issue_status_only
+    bcs uci_write_open_file_from_ptr_len_fail
+    jsr uci_status_is_ok_or_empty
+    bcs uci_write_open_file_from_ptr_len_fail
+    clc
+    rts
+uci_write_open_file_from_ptr_len_fail:
     jsr uci_abort_transfer
     jsr uci_clear_error
     sec
@@ -6219,6 +6553,11 @@ open_flat_mount_image_hw:
     bne open_flat_mount_image_hw_fail
     jsr select_mount_path_buffer
     jmp open_named_file_hw_from_ptr
+open_flat_mount_image_rw_hw:
+    jsr current_mount_is_flat
+    bne open_flat_mount_image_hw_fail
+    jsr select_mount_path_buffer
+    jmp open_named_file_rw_hw_from_ptr
 open_flat_mount_image_hw_fail:
     sec
     rts
@@ -6294,6 +6633,12 @@ find_flat_file_entry_in_sector_next:
     sta flat_dir_offset
     jmp find_flat_file_entry_in_sector_loop
 find_flat_file_entry_hit:
+    lda flat_dir_track
+    sta flat_hit_dir_track
+    lda flat_dir_sector
+    sta flat_hit_dir_sector
+    lda flat_dir_offset
+    sta flat_hit_dir_offset
     ldy flat_dir_offset
     iny
     lda flat_sector_buffer,y
@@ -6485,11 +6830,22 @@ copy_flat_sector_payload_done:
     rts
 
 read_flat_sector_buffer_hw:
-    jsr seek_flat_file_sector_hw
-    bcs read_flat_sector_buffer_hw_fail
     lda #<flat_sector_buffer
     sta PTR
     lda #>flat_sector_buffer
+    sta PTR+1
+    jmp read_flat_sector_into_ptr_hw
+
+read_flat_sector_into_ptr_hw:
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    jsr seek_flat_file_sector_hw
+    bcs read_flat_sector_buffer_hw_fail
+    lda SCREEN_PTR
+    sta PTR
+    lda SCREEN_PTR+1
     sta PTR+1
     lda #FLAT_SECTOR_READ_LEN
     jsr uci_read_open_file_into_ptr_len
@@ -6497,9 +6853,12 @@ read_flat_sector_buffer_hw:
     lda uci_data_length
     cmp #FLAT_SECTOR_READ_LEN
     bcc read_flat_sector_buffer_hw_fail
-    lda #<(flat_sector_buffer + FLAT_SECTOR_READ_LEN)
+    clc
+    lda SCREEN_PTR
+    adc #FLAT_SECTOR_READ_LEN
     sta PTR
-    lda #>(flat_sector_buffer + FLAT_SECTOR_READ_LEN)
+    lda SCREEN_PTR+1
+    adc #$00
     sta PTR+1
     lda #$01
     jsr uci_read_open_file_into_ptr_len
@@ -6510,6 +6869,36 @@ read_flat_sector_buffer_hw:
     clc
     rts
 read_flat_sector_buffer_hw_fail:
+    sec
+    rts
+
+write_flat_sector_from_ptr_hw:
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    jsr seek_flat_file_sector_hw
+    bcs write_flat_sector_from_ptr_hw_fail
+    lda SCREEN_PTR
+    sta PTR
+    lda SCREEN_PTR+1
+    sta PTR+1
+    lda #UCI_WRITE_DATA_MAX
+    jsr uci_write_open_file_from_ptr_len
+    bcs write_flat_sector_from_ptr_hw_fail
+    clc
+    lda SCREEN_PTR
+    adc #UCI_WRITE_DATA_MAX
+    sta PTR
+    lda SCREEN_PTR+1
+    adc #$00
+    sta PTR+1
+    lda #5
+    jsr uci_write_open_file_from_ptr_len
+    bcs write_flat_sector_from_ptr_hw_fail
+    clc
+    rts
+write_flat_sector_from_ptr_hw_fail:
     sec
     rts
 
@@ -7703,6 +8092,8 @@ program_arg_limit:
     .byte 0
 program_cmdline_len:
     .byte 0
+file_access_mode:
+    .byte 0
 uci_xfer_limit:
     .byte 0
 uci_last_status:
@@ -7718,6 +8109,12 @@ flat_dir_track:
 flat_dir_sector:
     .byte 0
 flat_dir_offset:
+    .byte 0
+flat_hit_dir_track:
+    .byte 0
+flat_hit_dir_sector:
+    .byte 0
+flat_hit_dir_offset:
     .byte 0
 flat_file_track:
     .byte 0
@@ -7736,6 +8133,8 @@ flat_total:
 flat_copy_count:
     .byte 0
 flat_read_mode:
+    .byte 0
+flat_secondary_dirty:
     .byte 0
 program_image_len_lo:
     .byte 0
@@ -7831,6 +8230,12 @@ hw_dir_names_b:
     .res HW_DIR_NAME_STRIDE * HW_DIR_CACHE_MAX
 flat_entry_name_buffer:
     .res HW_DIR_NAME_STRIDE
+flat_dir_sector_buffer:
+    .res 256
+flat_bam_primary_buffer:
+    .res 256
+flat_bam_secondary_buffer:
+    .res 256
 flat_sector_buffer:
     .res 256
 

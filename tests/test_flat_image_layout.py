@@ -20,6 +20,33 @@ class FlatImageLayoutTests(unittest.TestCase):
         )
         return image
 
+    def _build_d71_side2_probe(self) -> Path:
+        tmpdir = Path(tempfile.mkdtemp(prefix="udos-flat-layout-d71-side2-"))
+        filler = tmpdir / "fill.bin"
+        filler.write_bytes(b"A" * 180000)
+        sample = tmpdir / "sample.txt"
+        sample.write_text("hello\n", encoding="ascii")
+        image = tmpdir / "probe.d71"
+        subprocess.run(
+            [
+                "c1541",
+                "-format",
+                "D71SIDE2,01",
+                "d71",
+                str(image),
+                "-write",
+                str(filler),
+                "FILLER",
+                "-write",
+                str(sample),
+                "HELLO",
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        return image
+
     def _assert_asciiish_label(self, data: bytes, offset: int, expected: bytes) -> None:
         actual = bytes(b & 0x7F for b in data[offset : offset + len(expected)])
         self.assertEqual(actual, expected)
@@ -123,6 +150,36 @@ class FlatImageLayoutTests(unittest.TestCase):
 
     def test_d71_second_side_offset_boundary(self) -> None:
         self.assertEqual(self._image_offset("d71", 36, 0), 683 * 256)
+
+    def test_d64_delete_updates_bam_and_directory_entry(self) -> None:
+        image = self._build_probe("d64", "D64TEST")
+        before = image.read_bytes()
+        subprocess.run(["c1541", str(image), "-delete", "HELLO"], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        after = image.read_bytes()
+        self.assertEqual(before[0x16544] + 1, after[0x16544])
+        self.assertEqual(before[0x16545] | 0x01, after[0x16545])
+        self.assertEqual(after[0x16602], 0x00)
+
+    def test_d81_delete_updates_bam_and_directory_entry(self) -> None:
+        image = self._build_probe("d81", "D81TEST")
+        before = image.read_bytes()
+        subprocess.run(["c1541", str(image), "-delete", "HELLO"], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        after = image.read_bytes()
+        self.assertEqual(before[0x619F4] + 1, after[0x619F4])
+        self.assertEqual(before[0x619F5] | 0x01, after[0x619F5])
+        self.assertEqual(after[0x61B02], 0x00)
+
+    def test_d71_side2_delete_updates_side2_bam_and_directory_entry(self) -> None:
+        image = self._build_d71_side2_probe()
+        before = image.read_bytes()
+        track, sector = self._find_root_entry(before, "d71", b"HELLO")
+        self.assertGreaterEqual(track, 36)
+        self.assertEqual(sector, 0)
+        subprocess.run(["c1541", str(image), "-delete", "HELLO"], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        after = image.read_bytes()
+        self.assertEqual(before[0x165DF] + 1, after[0x165DF])
+        self.assertEqual(before[0x41006] | 0x01, after[0x41006])
+        self.assertEqual(after[0x16622], 0x00)
 
 
 if __name__ == "__main__":

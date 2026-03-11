@@ -154,7 +154,11 @@ Current file-read seam:
 
 Current file-delete seam:
 - `DEL` now attempts a real Ultimate DOS file delete when UCI hardware is present
-- the current call sequence is:
+- flat-image mounts now first attempt:
+  - raw root-directory lookup against the mounted image
+  - chained sector traversal to discover the file allocation
+  - BAM release plus directory-entry clear through image `OPEN_FILE`, `FILE_SEEK`, `READ_DATA`, and `WRITE_DATA`
+- tree-capable mounts still use:
   - `CHANGE_DIR`
   - `DELETE_FILE`
 - when hardware UCI is unavailable, the shell still uses the resident mutable `WORK` model

@@ -23,8 +23,8 @@ Current milestone:
   - tree-capable mounts still use resident path synchronization plus `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
   - mock fallback retained for VICE and failure cases
 - Phase 5 now also includes a hardware-backed `DEL` path in code:
-  - resident path synchronization through `CHANGE_DIR`
-  - file delete through `DELETE_FILE`
+  - flat-image mounts now first try raw root-directory lookup plus BAM release through image `OPEN_FILE` / repeated `FILE_SEEK` / `READ_DATA` / `WRITE_DATA`
+  - tree-capable mounts still use resident path synchronization plus `DELETE_FILE`
   - mock deletion is used only when hardware UCI is unavailable
   - hardware-side delete failures return an explicit shell error
 - Phase 5 now also includes a hardware-backed `REN` path in code:

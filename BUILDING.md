@@ -169,8 +169,8 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$42D2`
-- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$5000`
+- resident core code: `$4877`
+- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$5400`
 - hardware directory cache budget:
   - `6` entries per drive
   - `20` bytes per cached name
@@ -179,6 +179,11 @@ Current resident map facts:
   - one bounded resident text buffer per command
   - flat-image hardware mode now also carries a `256` byte raw sector buffer for chained sector reads
   - fallback to mock content when UCI/file access fails
+- hardware `DEL` flat-image budget:
+  - one raw sector scratch buffer
+  - one raw directory-sector buffer
+  - one primary BAM sector buffer
+  - one secondary BAM sector buffer for `D71`
 - hardware implicit-launch budget:
   - one bounded resident image buffer per command
   - current buffer size: `255` bytes
@@ -244,6 +249,7 @@ Hardware-specific note:
 - the resident image now also contains a real Ultimate DOS `TYPE` path using `CHANGE_DIR`, `OPEN_FILE`, `READ_DATA`, and `CLOSE_FILE`
 - flat-image mounts now additionally contain a raw file-content path using image `OPEN_FILE`, repeated `FILE_SEEK`, and chained `READ_DATA`
 - the resident image now also contains a real Ultimate DOS `DEL` path using `CHANGE_DIR` and `DELETE_FILE`
+- flat-image mounts now additionally contain a raw delete path using root-directory lookup, chained sector traversal, and BAM updates through image `OPEN_FILE`, `FILE_SEEK`, `READ_DATA`, and `WRITE_DATA`
 - the resident image now also contains a real Ultimate DOS `REN` path using `CHANGE_DIR` and `RENAME_FILE`
 - the resident image now also contains a real Ultimate DOS `COPY` path using same-drive `COPY_FILE` and cross-drive `OPEN_FILE` / `READ_DATA` / `WRITE_DATA`
 - the resident image now also contains a real Ultimate DOS `MOUNT` path using `MOUNT_DISK`
