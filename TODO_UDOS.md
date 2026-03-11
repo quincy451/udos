@@ -36,6 +36,7 @@
   - real `VER`
 - replace the current descriptor-backed mock `DIR` and per-drive path model with image-backed directory state
 - hardware-validate the current `svc_fs_enum_*` Ultimate DOS path and harden its end-of-directory/error handling on target
+- hardware-validate and harden the new flat-image raw root-directory path on target
 - hardware-validate and harden the current `TYPE` Ultimate DOS read path on target
 - hardware-validate and harden the current `DEL` Ultimate DOS delete path on target
 - hardware-validate and harden the current `REN` Ultimate DOS rename path on target

@@ -106,6 +106,10 @@ Current resident mounted-image model:
   - current cache budget is `6` entries per drive
   - each cached name is capped at `20` bytes plus a terminator
   - directory attributes with the `DIR` bit set are surfaced with a trailing `/`
+  - flat-image root enumeration now first tries raw image parsing:
+    - `OPEN_FILE`
+    - `FILE_SEEK`
+    - `READ_DATA`
   - on transport/query failure the shell falls back to the resident descriptor tables
 
 Current mock directory model:
@@ -212,7 +216,11 @@ Current backend-path seam:
 
 Current hardware enumeration seam:
 - `svc_fs_enum_begin` now attempts a real Ultimate DOS directory walk when UCI hardware is detected
-- the current call sequence is:
+- flat-image root mounts now first attempt:
+  - `OPEN_FILE`
+  - repeated `FILE_SEEK`
+  - repeated `READ_DATA`
+- tree-capable mounts still attempt:
   - `CHANGE_DIR`
   - `OPEN_DIR`
   - repeated `READ_DIR`

@@ -64,6 +64,11 @@ Current resident users of the native transport:
   - `FILE_SEEK`
   - `READ_DATA`
   - `CLOSE_FILE`
+- flat-image root-directory parsing:
+  - `OPEN_FILE`
+  - repeated `FILE_SEEK`
+  - repeated `READ_DATA`
+  - `CLOSE_FILE`
 
 Current implementation notes:
 - `svc_transport_get_mode` now delegates to `uci_probe` instead of reading the ident register directly

@@ -180,14 +180,22 @@ HW_DIR_NAME_MAX = 20
 HW_DIR_NAME_STRIDE = HW_DIR_NAME_MAX + 1
 FULL_PATH_BUF_LEN = MAX_LINE_LEN + 8
 FLAT_LABEL_LEN = 16
+FLAT_DIR_READ_LEN = 247
 D64_LABEL_OFF_0 = $90
 D64_LABEL_OFF_1 = $65
 D64_LABEL_OFF_2 = $01
 D64_LABEL_OFF_3 = $00
+D64_DIR_TRACK = 18
+D64_DIR_BASE_1 = $65
+D64_DIR_BASE_2 = $01
 D81_LABEL_OFF_0 = $04
 D81_LABEL_OFF_1 = $18
 D81_LABEL_OFF_2 = $06
 D81_LABEL_OFF_3 = $00
+D81_DIR_TRACK = 40
+D81_DIR_START_SECTOR = 3
+D81_DIR_BASE_1 = $18
+D81_DIR_BASE_2 = $06
 IMG_VOL_LO = 0
 IMG_VOL_HI = 1
 IMG_ROOT_LO_LO = 2
@@ -4465,6 +4473,56 @@ uci_read_open_file_into_response:
     lda #MAX_RESPONSE_LEN-1
     jmp uci_read_open_file_into_response_len
 
+uci_read_open_file_into_ptr_len:
+    sta uci_xfer_limit
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    jsr build_uci_target_header
+    lda #DOS_CMD_READ_DATA
+    sta uci_cmd_buffer+1
+    lda uci_xfer_limit
+    sta uci_cmd_buffer+2
+    lda #$00
+    sta uci_cmd_buffer+3
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    lda #4
+    jsr uci_push_command
+    bcs uci_read_open_file_into_ptr_len_fail
+    jsr uci_wait_reply
+    bcs uci_read_open_file_into_ptr_len_fail
+    lda SCREEN_PTR
+    sta PTR
+    lda SCREEN_PTR+1
+    sta PTR+1
+    lda uci_xfer_limit
+    jsr uci_read_data_block
+    sta uci_data_length
+    lda #<uci_status_buffer
+    sta PTR
+    lda #>uci_status_buffer
+    sta PTR+1
+    lda #MAX_LINE_LEN
+    jsr uci_read_status_block
+    sta uci_status_length
+    tay
+    lda #$00
+    sta (PTR),y
+    jsr uci_accept_data
+    jsr uci_status_is_ok_or_empty
+    bcs uci_read_open_file_into_ptr_len_fail
+    clc
+    rts
+uci_read_open_file_into_ptr_len_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
 uci_read_open_file_into_response_len:
     sta uci_xfer_limit
     jsr build_uci_target_header
@@ -5558,6 +5616,13 @@ load_enum_from_descriptor:
     rts
 
 fill_hw_dir_cache_current:
+    ldx temp_drive
+    lda mount_flag_table,x
+    cmp #MOUNT_FLAG_TREE
+    beq fill_hw_dir_cache_current_open_dir
+    jsr fill_flat_hw_dir_cache_current
+    bcc fill_hw_dir_cache_current_done
+fill_hw_dir_cache_current_open_dir:
     jsr sync_drive_backend_path_hw
     bcs fill_hw_dir_cache_current_fail
     jsr select_hw_dir_tables
@@ -5617,6 +5682,207 @@ fill_hw_dir_cache_current_fail:
     jsr uci_abort_transfer
     jsr uci_clear_error
     sec
+    rts
+
+fill_flat_hw_dir_cache_current:
+    lda temp_dir_id
+    beq :+
+    sec
+    rts
+:
+    jsr select_hw_dir_tables
+    lda #$00
+    sta enum_count
+    ldx temp_drive
+    sta hw_dir_count_table,x
+    jsr select_mount_path_buffer
+    jsr open_named_file_hw_from_ptr
+    bcs fill_flat_hw_dir_cache_current_fail
+    jsr init_flat_dir_walk
+fill_flat_hw_dir_cache_sector:
+    lda flat_dir_sector
+    beq fill_flat_hw_dir_cache_current_done_close
+    jsr seek_flat_dir_sector_hw
+    bcs fill_flat_hw_dir_cache_current_fail_close
+    lda #<program_image_buffer
+    sta PTR
+    lda #>program_image_buffer
+    sta PTR+1
+    lda #FLAT_DIR_READ_LEN
+    jsr uci_read_open_file_into_ptr_len
+    bcs fill_flat_hw_dir_cache_current_fail_close
+    lda uci_data_length
+    cmp #FLAT_DIR_READ_LEN
+    bcc fill_flat_hw_dir_cache_current_fail_close
+    jsr parse_flat_dir_sector_entries
+    lda enum_count
+    cmp #HW_DIR_CACHE_MAX
+    bcs fill_flat_hw_dir_cache_current_done_close
+    lda program_image_buffer+0
+    sta flat_dir_track
+    lda program_image_buffer+1
+    sta flat_dir_sector
+    lda flat_dir_track
+    beq fill_flat_hw_dir_cache_current_done_close
+    lda temp_mount_kind
+    cmp #MOUNT_KIND_D81
+    beq fill_flat_hw_dir_cache_current_check_d81
+    lda flat_dir_track
+    cmp #D64_DIR_TRACK
+    beq fill_flat_hw_dir_cache_sector
+    bne fill_flat_hw_dir_cache_current_fail_close
+fill_flat_hw_dir_cache_current_check_d81:
+    lda flat_dir_track
+    cmp #D81_DIR_TRACK
+    beq fill_flat_hw_dir_cache_sector
+    bne fill_flat_hw_dir_cache_current_fail_close
+fill_flat_hw_dir_cache_current_done_close:
+    jsr close_current_file_hw
+    bcs fill_flat_hw_dir_cache_current_fail
+    clc
+    rts
+fill_flat_hw_dir_cache_current_fail_close:
+    php
+    jsr close_current_file_hw
+    plp
+fill_flat_hw_dir_cache_current_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
+init_flat_dir_walk:
+    lda temp_mount_kind
+    cmp #MOUNT_KIND_D81
+    beq init_flat_dir_walk_d81
+    lda #D64_DIR_TRACK
+    sta flat_dir_track
+    lda #$01
+    sta flat_dir_sector
+    rts
+init_flat_dir_walk_d81:
+    lda #D81_DIR_TRACK
+    sta flat_dir_track
+    lda #D81_DIR_START_SECTOR
+    sta flat_dir_sector
+    rts
+
+seek_flat_dir_sector_hw:
+    jsr build_uci_file_seek_flat_dir_command
+    pha
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    pla
+    jsr uci_issue_status_only
+    bcs seek_flat_dir_sector_hw_fail
+    jsr uci_status_is_ok
+    bcs seek_flat_dir_sector_hw_fail
+    clc
+    rts
+seek_flat_dir_sector_hw_fail:
+    sec
+    rts
+
+build_uci_file_seek_flat_dir_command:
+    jsr build_uci_target_header
+    lda #DOS_CMD_FILE_SEEK
+    sta uci_cmd_buffer+1
+    lda #$00
+    sta uci_cmd_buffer+2
+    lda temp_mount_kind
+    cmp #MOUNT_KIND_D81
+    beq build_uci_file_seek_flat_dir_d81
+    lda #D64_DIR_BASE_1
+    clc
+    adc flat_dir_sector
+    sta uci_cmd_buffer+3
+    lda #D64_DIR_BASE_2
+    sta uci_cmd_buffer+4
+    lda #$00
+    sta uci_cmd_buffer+5
+    lda #6
+    rts
+build_uci_file_seek_flat_dir_d81:
+    lda #D81_DIR_BASE_1
+    clc
+    adc flat_dir_sector
+    sta uci_cmd_buffer+3
+    lda #D81_DIR_BASE_2
+    sta uci_cmd_buffer+4
+    lda #$00
+    sta uci_cmd_buffer+5
+    lda #6
+    rts
+
+parse_flat_dir_sector_entries:
+    lda #$02
+    sta flat_dir_offset
+parse_flat_dir_sector_entries_loop:
+    lda enum_count
+    cmp #HW_DIR_CACHE_MAX
+    bcs parse_flat_dir_sector_entries_done
+    ldy flat_dir_offset
+    lda program_image_buffer,y
+    beq parse_flat_dir_sector_entries_next
+    jsr store_flat_dir_entry_from_sector
+parse_flat_dir_sector_entries_next:
+    lda flat_dir_offset
+    cmp #$E2
+    bcs parse_flat_dir_sector_entries_done
+    clc
+    adc #$20
+    sta flat_dir_offset
+    jmp parse_flat_dir_sector_entries_loop
+parse_flat_dir_sector_entries_done:
+    rts
+
+store_flat_dir_entry_from_sector:
+    jsr select_hw_dir_name_slot
+    ldy enum_count
+    lda PTR
+    sta (SCREEN_PTR),y
+    lda PTR+1
+    pha
+    lda SCREEN_PTR
+    clc
+    adc #HW_DIR_CACHE_MAX
+    sta SCREEN_PTR
+    bcc :+
+    inc SCREEN_PTR+1
+:
+    pla
+    sta (SCREEN_PTR),y
+    ldx flat_dir_offset
+    inx
+    inx
+    inx
+    ldy #$00
+store_flat_dir_entry_copy:
+    cpy #$10
+    bcs store_flat_dir_entry_done
+    lda program_image_buffer,x
+    beq store_flat_dir_entry_done
+    cmp #$A0
+    beq store_flat_dir_entry_done
+    and #$7F
+    beq store_flat_dir_entry_done
+    sta (PTR),y
+    inx
+    iny
+    cpy #HW_DIR_NAME_MAX
+    bcc store_flat_dir_entry_copy
+store_flat_dir_entry_done:
+    lda #$00
+    sta (PTR),y
+    cpy #$00
+    beq store_flat_dir_entry_skip
+    inc enum_count
+    ldx temp_drive
+    lda enum_count
+    sta hw_dir_count_table,x
+store_flat_dir_entry_skip:
     rts
 
 select_hw_dir_tables:
@@ -6313,6 +6579,12 @@ uci_status_length:
     .byte 0
 program_status:
     .byte RUN_STATUS_BAD
+flat_dir_track:
+    .byte 0
+flat_dir_sector:
+    .byte 0
+flat_dir_offset:
+    .byte 0
 program_image_len_lo:
     .byte 0
 program_image_len_hi:
@@ -6413,7 +6685,7 @@ resp_help:
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 37C2", 0
+    .byte "CORE 39B7", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:

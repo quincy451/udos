@@ -15,9 +15,8 @@ Current milestone:
   `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, direct `A:`/`B:` drive switching, and
   implicit program launch validated under VICE.
 - Phase 5 now also includes a hardware-backed directory-enumeration path in code:
-  - resident path synchronization through Ultimate DOS `CHANGE_DIR`
-  - backend-path refresh through `GET_PATH`
-  - directory cache fill through `OPEN_DIR` / `READ_DIR`
+  - flat-image root mounts now first try raw image parsing through `OPEN_FILE` / `FILE_SEEK` / `READ_DATA`
+  - tree-capable mounts still synchronize through `CHANGE_DIR`, refresh through `GET_PATH`, and enumerate through `OPEN_DIR` / `READ_DIR`
   - mock fallback retained for VICE and failure cases
 - Phase 5 now also includes a hardware-backed `TYPE` read path in code:
   - resident path synchronization through `CHANGE_DIR`

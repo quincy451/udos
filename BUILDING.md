@@ -144,11 +144,12 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$37C2`
-- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4000`
+- resident core code: `$39B7`
+- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4200`
 - hardware directory cache budget:
   - `6` entries per drive
   - `20` bytes per cached name
+  - flat-image root parsing currently reads `247` bytes from each directory sector because only entry metadata and names are needed
 - hardware `TYPE` read budget:
   - one bounded resident text buffer per command
   - fallback to mock content when UCI/file access fails
@@ -213,7 +214,8 @@ DELETED
 Until that run happens on real hardware, all current validation should be described as emulator validation only.
 
 Hardware-specific note:
-- the resident image now contains a real Ultimate DOS directory-enumeration path using `CHANGE_DIR`, `GET_PATH`, `OPEN_DIR`, and `READ_DIR`
+- the resident image now contains a real flat-image root-directory path using `OPEN_FILE`, `FILE_SEEK`, and `READ_DATA`
+- the resident image also retains the Ultimate DOS directory-enumeration path using `CHANGE_DIR`, `GET_PATH`, `OPEN_DIR`, and `READ_DIR` for tree-capable mounts
 - the resident image now also contains a real Ultimate DOS `TYPE` path using `CHANGE_DIR`, `OPEN_FILE`, `READ_DATA`, and `CLOSE_FILE`
 - the resident image now also contains a real Ultimate DOS `DEL` path using `CHANGE_DIR` and `DELETE_FILE`
 - the resident image now also contains a real Ultimate DOS `REN` path using `CHANGE_DIR` and `RENAME_FILE`

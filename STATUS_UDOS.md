@@ -20,9 +20,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - added a native UCI transport seam in `src/asm/uci_transport.inc`
 - added the mounted-image abstraction seam for `A:` and `B:`
 - added a hardware-backed directory-cache path behind `svc_fs_enum_*`
-  - synchronizes the Ultimate DOS backend path with resident drive/directory state through `CHANGE_DIR`
-  - queries backend path through `GET_PATH`
-  - fills a small resident directory cache through `OPEN_DIR` / `READ_DIR`
+  - flat-image root mounts now first try raw image parsing through `OPEN_FILE` / `FILE_SEEK` / `READ_DATA`
+  - tree-capable mounts still synchronize through `CHANGE_DIR`, query `GET_PATH`, and fill a small resident directory cache through `OPEN_DIR` / `READ_DIR`
   - falls back to the descriptor-backed mock model when hardware transport is unavailable or a query fails
 - added a hardware-backed `TYPE` read path
   - synchronizes the backend path through `CHANGE_DIR`
@@ -106,7 +105,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - mock mode synthesizes `/`, `/BIN`, `/SRC`, `/WORK`
   - hardware mode now synchronizes through Ultimate DOS `CHANGE_DIR` and queries `GET_PATH`, but remains unverified
 - hardware-backed directory enumeration is now wired behind `svc_fs_enum_*`:
-  - hardware mode issues `OPEN_DIR` / `READ_DIR` into a small resident cache
+  - flat-image root mounts now first issue `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA`
+  - tree-capable mounts still issue `OPEN_DIR` / `READ_DIR` into a small resident cache
   - current cache budget is `6` entries with names capped at `20` bytes plus terminator
   - VICE still validates only the mock path because no Ultimate UCI transport exists there
 - hardware-backed file read is now wired behind `TYPE`:
@@ -176,8 +176,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFF9 = $03` -> program directory `WORK`
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
-- resident core code footprint: `$37C2`
-- resident load window in `udos_c64.cfg`: `$4000`
+- resident core code footprint: `$39B7`
+- resident load window in `udos_c64.cfg`: `$4200`
 
 ## What Works
 
@@ -188,7 +188,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - synchronous native UCI transfer primitives
 - drive bind/query abstraction
 - backend-path metadata query seam with hardware `CHANGE_DIR` / `GET_PATH` attempt plus mock fallback
-- directory enumeration seam with hardware `OPEN_DIR` / `READ_DIR` attempt plus mock fallback
+- directory enumeration seam with flat-image raw root parsing plus tree-capable `OPEN_DIR` / `READ_DIR`, all with mock fallback
 - file-read seam for `TYPE` with hardware `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE` attempt plus mock fallback
 - file-delete seam for `DEL` with hardware `DELETE_FILE` attempt and explicit hardware-error reporting
 - file-rename seam for `REN` with hardware `RENAME_FILE` attempt and explicit hardware-error reporting
@@ -216,6 +216,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - no hardware-validated UCI command/data path
 - no hardware-validated mounted-image bind yet
 - no hardware-validated flat-image header-label import yet
+- no hardware-validated flat-image raw root-directory parsing yet
 - no hardware-validated image-backed file delete yet
 - no hardware-validated image-backed file rename yet
 - no hardware-validated image-backed file copy yet
@@ -228,6 +229,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - first targets:
   - hardware-validate the new `MOUNT_DISK` path and harden error handling on target
   - hardware-validate and harden the new flat-image header-label import path on target
+  - hardware-validate and harden the new flat-image raw root-directory parsing path on target
   - extend `VOL` beyond flat-image header import to full mounted-image metadata where the formats permit it
   - hardware-validate and harden the new program-image load path
 - keep shell semantics stable while swapping the backend
