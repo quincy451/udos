@@ -41,6 +41,11 @@
 - hardware-validate and harden the current `DEL` Ultimate DOS delete path on target
 - hardware-validate and harden the current `REN` Ultimate DOS rename path on target
 - hardware-validate and harden the current `COPY` Ultimate DOS copy path on target
+- add limited wildcard expansion to `COPY`:
+  - `*`
+  - `*.*`
+  - `*.EXT`
+  - `NAME.*`
 - hardware-validate and harden the current `MOUNT_DISK` path on target
 - hardware-validate and harden the current flat-image header-label import path on target
 - extend `VOL` from flat-image header import to true mounted-image metadata across the remaining formats

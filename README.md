@@ -55,6 +55,12 @@ Current command parser rule:
 - direct drive tokens like `A:` and `B:` switch the current logical drive
 - a non-keyword token implies program launch; if it has no extension, `.PRG` is appended
 - example: `DEL BOOT3.PRG` deletes the file, while `DELBOOT3` is treated as a bare program token and returns `PROGRAM NOT FOUND`
+- `DEL` now also supports limited resident wildcards:
+  - `*`
+  - `*.*`
+  - `*.EXT`
+  - `NAME.*`
+- `COPY` wildcard expansion is not implemented yet
 
 See:
 - `PIVOT_PLAN.md`

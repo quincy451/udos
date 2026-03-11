@@ -82,6 +82,7 @@ ASCII_SLASH = $2F
 ASCII_SPACE = $20
 ASCII_COMMA = $2C
 ASCII_DOT = $2E
+ASCII_ASTERISK = $2A
 ASCII_DASH = $2D
 ASCII_UNDERSCORE = $5F
 ASCII_GT = $3E
@@ -138,6 +139,10 @@ MOUNT_STATUS_BAD = 1
 MOUNT_STATUS_NOTDISK = 2
 MOUNT_STATUS_DRIVE = 3
 MOUNT_STATUS_FAILED = 4
+WILDCARD_NONE = 0
+WILDCARD_ALL = 1
+WILDCARD_EXT = 2
+WILDCARD_STEM = 3
 RUN_STATUS_OK = 0
 RUN_STATUS_BAD = 1
 RUN_STATUS_FLAT = 2
@@ -1555,6 +1560,8 @@ normalize_input_char:
     beq normalize_accept
     cmp #ASCII_DOT
     beq normalize_accept
+    cmp #ASCII_ASTERISK
+    beq normalize_accept
     cmp #ASCII_SLASH
     beq normalize_accept
     cmp #$30
@@ -2731,9 +2738,13 @@ build_del_response:
     cmp #PATH_STATUS_OK
     beq del_source_ready
     cmp #PATH_STATUS_FLAT
-    beq del_build_flat
+    bne :+
+    jmp del_build_flat
+:
     cmp #PATH_STATUS_UNMOUNTED
-    beq del_build_unmounted
+    bne :+
+    jmp del_build_unmounted
+:
     ldx saved_rp_x
     lda #<resp_bad_file
     sta 0,x
@@ -2741,6 +2752,11 @@ build_del_response:
     sta 1,x
     rts
 del_source_ready:
+    jsr classify_path_name_wildcard
+    bcs del_build_bad_file
+    lda wildcard_mode
+    bne del_source_wild
+del_source_exact:
     jsr uci_probe
     bcs del_source_lookup
     jsr delete_file_hw
@@ -2751,7 +2767,23 @@ del_source_ready:
     lda #>resp_delete_failed
     sta 1,x
     rts
+del_source_wild:
+    jsr copy_path_name_to_source_buffer
+    jsr uci_probe
+    bcs del_source_wild_lookup
+    jsr delete_matching_files_hw
+    bcc del_build_deleted
+    lda wildcard_match_count
+    beq del_build_bad_file
+    ldx saved_rp_x
+    lda #<resp_delete_failed
+    sta 0,x
+    lda #>resp_delete_failed
+    sta 1,x
+    rts
 del_source_lookup:
+    lda wildcard_mode
+    bne del_source_wild_lookup
     lda temp_dir_id
     cmp #DIR_ID_WORK
     beq :+
@@ -2772,6 +2804,21 @@ del_build_deleted:
     lda #<resp_deleted
     sta 0,x
     lda #>resp_deleted
+    sta 1,x
+    rts
+del_source_wild_lookup:
+    lda temp_dir_id
+    cmp #DIR_ID_WORK
+    beq :+
+    jmp del_build_read_only
+:
+    jsr delete_matching_work_files
+    bcc del_build_deleted
+del_build_bad_file:
+    ldx saved_rp_x
+    lda #<resp_bad_file
+    sta 0,x
+    lda #>resp_bad_file
     sta 1,x
     rts
 del_build_flat:
@@ -3659,6 +3706,24 @@ copy_path_name_to_source_buffer_done:
     sta source_name_buffer,y
     rts
 
+copy_ptr_name_to_path_buffer:
+    ldy #$00
+copy_ptr_name_to_path_buffer_loop:
+    lda (PTR),y
+    beq copy_ptr_name_to_path_buffer_done
+    cmp #ASCII_SLASH
+    beq copy_ptr_name_to_path_buffer_done
+    cpy #MAX_LINE_LEN
+    bcs copy_ptr_name_to_path_buffer_done
+    jsr normalize_output_char
+    sta path_name_buffer,y
+    iny
+    bne copy_ptr_name_to_path_buffer_loop
+copy_ptr_name_to_path_buffer_done:
+    lda #$00
+    sta path_name_buffer,y
+    rts
+
 build_type_response:
     stx saved_rp_x
     jsr resolve_file_target
@@ -3771,6 +3836,31 @@ delete_file_hw:
 delete_file_hw_fail:
     jsr uci_abort_transfer
     jsr uci_clear_error
+    sec
+    rts
+
+delete_matching_files_hw:
+    lda #$00
+    sta wildcard_match_count
+    jsr fill_hw_dir_cache_current
+    bcs delete_matching_files_hw_fail
+    jsr fs_enum_begin_current
+delete_matching_files_hw_loop:
+    jsr fs_enum_next_ptr
+    bcs delete_matching_files_hw_done
+    jsr wildcard_match_ptr_to_source_name
+    bcs delete_matching_files_hw_loop
+    jsr copy_ptr_name_to_path_buffer
+    jsr delete_file_hw
+    bcs delete_matching_files_hw_fail
+    inc wildcard_match_count
+    jmp delete_matching_files_hw_loop
+delete_matching_files_hw_done:
+    lda wildcard_match_count
+    beq delete_matching_files_hw_fail
+    clc
+    rts
+delete_matching_files_hw_fail:
     sec
     rts
 
@@ -5050,6 +5140,35 @@ delete_work_single:
     sta work_count_table,x
     rts
 
+delete_matching_work_files:
+    lda #$00
+    sta wildcard_match_count
+    ldx temp_drive
+    lda work_count_table,x
+    beq delete_matching_work_fail
+    sec
+    sbc #$01
+    sta file_index
+delete_matching_work_loop:
+    jsr load_dynamic_work_name_ptr
+    jsr wildcard_match_ptr_to_source_name
+    bcs delete_matching_work_next
+    jsr delete_work_slot
+    inc wildcard_match_count
+delete_matching_work_next:
+    lda file_index
+    beq delete_matching_work_done
+    dec file_index
+    jmp delete_matching_work_loop
+delete_matching_work_done:
+    lda wildcard_match_count
+    beq delete_matching_work_fail
+    clc
+    rts
+delete_matching_work_fail:
+    sec
+    rts
+
 clear_dynamic_work_slot:
     pha
     jsr select_dynamic_work_name_slot
@@ -6096,6 +6215,159 @@ compare_path_ok:
     clc
     rts
 
+classify_path_name_wildcard:
+    lda #WILDCARD_NONE
+    sta wildcard_mode
+    lda #$00
+    sta wildcard_span
+    ldy #$00
+classify_wildcard_scan:
+    lda path_name_buffer,y
+    beq classify_wildcard_none
+    cmp #ASCII_ASTERISK
+    beq classify_wildcard_found
+    iny
+    bne classify_wildcard_scan
+classify_wildcard_none:
+    clc
+    rts
+classify_wildcard_found:
+    cpy #$00
+    bne classify_wildcard_stem
+    lda path_name_buffer+1
+    beq classify_wildcard_all
+    cmp #ASCII_DOT
+    bne classify_wildcard_bad
+    lda path_name_buffer+2
+    beq classify_wildcard_bad
+    cmp #ASCII_ASTERISK
+    beq classify_wildcard_all_dot
+    lda #WILDCARD_EXT
+    sta wildcard_mode
+    lda #$02
+    sta wildcard_span
+    ldx #$02
+classify_wildcard_ext_scan:
+    lda path_name_buffer,x
+    beq classify_wildcard_ok
+    cmp #ASCII_ASTERISK
+    beq classify_wildcard_bad
+    inx
+    bne classify_wildcard_ext_scan
+classify_wildcard_stem:
+    lda path_name_buffer+1,y
+    bne classify_wildcard_bad
+    dey
+    bmi classify_wildcard_bad
+    lda path_name_buffer,y
+    cmp #ASCII_DOT
+    bne classify_wildcard_bad
+    tya
+    beq classify_wildcard_bad
+    sta wildcard_span
+    lda #WILDCARD_STEM
+    sta wildcard_mode
+    jmp classify_wildcard_ok
+classify_wildcard_all_dot:
+    lda path_name_buffer+3
+    bne classify_wildcard_bad
+classify_wildcard_all:
+    lda #WILDCARD_ALL
+    sta wildcard_mode
+classify_wildcard_ok:
+    clc
+    rts
+classify_wildcard_bad:
+    sec
+    rts
+
+wildcard_match_ptr_to_source_name:
+    lda wildcard_mode
+    cmp #WILDCARD_ALL
+    beq wildcard_match_all
+    cmp #WILDCARD_EXT
+    beq wildcard_match_ext
+    cmp #WILDCARD_STEM
+    beq wildcard_match_stem
+    sec
+    rts
+
+wildcard_match_all:
+    ldy #$00
+wildcard_match_all_loop:
+    lda (PTR),y
+    beq wildcard_match_ok
+    cmp #ASCII_SLASH
+    beq wildcard_match_fail
+    iny
+    bne wildcard_match_all_loop
+
+wildcard_match_ext:
+    ldy #$00
+wildcard_match_ext_find_dot:
+    lda (PTR),y
+    beq wildcard_match_fail
+    cmp #ASCII_SLASH
+    beq wildcard_match_fail
+    cmp #ASCII_DOT
+    beq wildcard_match_ext_compare
+    iny
+    bne wildcard_match_ext_find_dot
+wildcard_match_ext_compare:
+    iny
+    ldx wildcard_span
+wildcard_match_ext_loop:
+    lda source_name_buffer,x
+    beq wildcard_match_ext_end
+    lda (PTR),y
+    beq wildcard_match_fail
+    cmp #ASCII_SLASH
+    beq wildcard_match_fail
+    jsr normalize_output_char
+    cmp source_name_buffer,x
+    bne wildcard_match_fail
+    iny
+    inx
+    bne wildcard_match_ext_loop
+wildcard_match_ext_end:
+    lda (PTR),y
+    beq wildcard_match_ok
+    cmp #ASCII_SLASH
+    beq wildcard_match_fail
+    jmp wildcard_match_fail
+
+wildcard_match_stem:
+    ldy #$00
+    ldx #$00
+wildcard_match_stem_loop:
+    cpx wildcard_span
+    bcs wildcard_match_stem_boundary
+    lda (PTR),y
+    beq wildcard_match_fail
+    cmp #ASCII_SLASH
+    beq wildcard_match_fail
+    cmp #ASCII_DOT
+    beq wildcard_match_fail
+    jsr normalize_output_char
+    cmp source_name_buffer,x
+    bne wildcard_match_fail
+    iny
+    inx
+    bne wildcard_match_stem_loop
+wildcard_match_stem_boundary:
+    lda (PTR),y
+    beq wildcard_match_ok
+    cmp #ASCII_DOT
+    beq wildcard_match_ok
+    cmp #ASCII_SLASH
+    beq wildcard_match_fail
+wildcard_match_fail:
+    sec
+    rts
+wildcard_match_ok:
+    clc
+    rts
+
 select_file_table:
     ldy temp_drive
     lda mounted_image_lo,y
@@ -6153,6 +6425,19 @@ load_dynamic_work_files_a:
     sta file_table_hi
     lda work_count_table,x
     sta file_count
+    rts
+
+load_dynamic_work_name_ptr:
+    jsr select_dynamic_work_file_table
+    lda file_index
+    asl
+    asl
+    tay
+    lda (SCREEN_PTR),y
+    sta PTR
+    iny
+    lda (SCREEN_PTR),y
+    sta PTR+1
     rts
 
 select_dynamic_work_file_table:
@@ -6518,6 +6803,12 @@ dest_drive:
     .byte 0
 dest_dir_id:
     .byte 0
+wildcard_mode:
+    .byte 0
+wildcard_span:
+    .byte 0
+wildcard_match_count:
+    .byte 0
 source_slot:
     .byte 0
 prefix_length:
@@ -6646,7 +6937,7 @@ resp_help:
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 39B7", 0
+    .byte "CORE 3B4D", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:

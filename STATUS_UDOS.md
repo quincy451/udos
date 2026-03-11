@@ -100,6 +100,11 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `DEL BOOT3.PRG` -> delete `BOOT3.PRG`
   - `DELBOOT3` -> implicit launch attempt of `DELBOOT3.PRG`, then `PROGRAM NOT FOUND`
   - `BOOT3 DIR` -> implicit launch of `BOOT3.PRG` with command line `DIR`
+- resident `DEL` now also supports limited wildcard expansion:
+  - `*`
+  - `*.*`
+  - `*.EXT`
+  - `NAME.*`
 - backend-path cache seam is now live behind the filesystem ABI:
   - mock mode synthesizes `/`, `/BIN`, `/SRC`, `/WORK`
   - hardware mode now synchronizes through Ultimate DOS `CHANGE_DIR` and queries `GET_PATH`, but remains unverified
@@ -145,6 +150,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `B:DNP/> CD SRC`
   - `B:DNP/SRC`
   - `B:DNP/SRC> COPY BOOT.ASM WORK/BOOT2.PRG`
+  - `B:DNP/SRC> COPY BOOT.ASM WORK/BOOT4.ASM`
   - `COPIED`
   - `B:DNP/SRC> CD WORK`
   - `B:DNP/WORK`
@@ -155,8 +161,10 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `B:DNP/WORK> BOOT3 DIR`
   - `RUN BOOT3.PRG`
   - `ARGS DIR`
-  - `B:DNP/WORK> DEL BOOT3.PRG`
+  - `B:DNP/WORK> DEL *.PRG`
   - `DELETED`
+  - `B:DNP/WORK> DIR`
+  - `B:DNP/WORK BOOT4.ASM`
 - bind snapshots:
   - `$CFE4 = $01` -> cached backend-path length for `A:` (`/`)
   - `$CFE5 = $05` -> cached backend-path length for `B:` (`/WORK`) after the smoke sequence
@@ -175,8 +183,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFF9 = $03` -> program directory `WORK`
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
-- resident core code footprint: `$39B7`
-- resident load window in `udos_c64.cfg`: `$4200`
+- resident core code footprint: `$3B4D`
+- resident load window in `udos_c64.cfg`: `$4400`
 
 ## What Works
 

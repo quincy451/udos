@@ -83,11 +83,13 @@ Current `vice-resident` behavior:
   - `B:`
   - `CD SRC`
   - `COPY BOOT.ASM WORK/BOOT2.PRG`
+  - `COPY BOOT.ASM WORK/BOOT4.ASM`
   - `CD WORK`
   - `REN BOOT2.PRG BOOT3.PRG`
   - `DELBOOT3`
   - `BOOT3 DIR`
-  - `DEL BOOT3.PRG`
+  - `DEL *.PRG`
+  - `DIR`
 - verifies command-keyword separation:
   - `DELBOOT3` must not be treated as `DEL BOOT3.PRG`
   - it is treated as a bare program token and returns `PROGRAM NOT FOUND`
@@ -97,7 +99,9 @@ Current `vice-resident` behavior:
 - verifies mounted-image parsing and label derivation:
   - `MOUNT B: /IMAGES/ALT.D81` yields `B:ALT D81`
   - `MOUNT B: /IMAGES/WORK.DNP` restores `A:SYSTEM D64 B:WORK DNP`
-- verifies the final delete response `DELETED`
+- verifies limited wildcard delete:
+  - `DEL *.PRG` deletes `BOOT3.PRG`
+  - `DIR` still shows `BOOT4.ASM`
 - verifies resident snapshots:
   - cached backend-path length:
     - `A:` = `1` (`/`)
@@ -127,6 +131,8 @@ B:DNP/
 B:DNP/SRC
   B:DNP/SRC> COPY BOOT.ASM WORK/BOOT2.PRG
 COPIED
+  B:DNP/SRC> COPY BOOT.ASM WORK/BOOT4.ASM
+COPIED
   B:DNP/SRC> CD WORK
 B:DNP/WORK
   B:DNP/WORK> REN BOOT2.PRG BOOT3.PRG
@@ -136,16 +142,18 @@ PROGRAM NOT FOUND
   B:DNP/WORK> BOOT3 DIR
 RUN BOOT3.PRG
 ARGS DIR
-  B:DNP/WORK> DEL BOOT3.PRG
+  B:DNP/WORK> DEL *.PRG
 DELETED
+  B:DNP/WORK> DIR
+B:DNP/WORK BOOT4.ASM
 ```
 
 Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$39B7`
-- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4200`
+- resident core code: `$3B4D`
+- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4400`
 - hardware directory cache budget:
   - `6` entries per drive
   - `20` bytes per cached name
@@ -198,6 +206,8 @@ B:DNP/
 B:DNP/SRC
   B:DNP/SRC> COPY BOOT.ASM WORK/BOOT2.PRG
 COPIED
+  B:DNP/SRC> COPY BOOT.ASM WORK/BOOT4.ASM
+COPIED
   B:DNP/SRC> CD WORK
 B:DNP/WORK
   B:DNP/WORK> REN BOOT2.PRG BOOT3.PRG
@@ -207,8 +217,10 @@ PROGRAM NOT FOUND
   B:DNP/WORK> BOOT3 DIR
 RUN BOOT3.PRG
 ARGS DIR
-  B:DNP/WORK> DEL BOOT3.PRG
+  B:DNP/WORK> DEL *.PRG
 DELETED
+  B:DNP/WORK> DIR
+B:DNP/WORK BOOT4.ASM
 ```
 
 Until that run happens on real hardware, all current validation should be described as emulator validation only.

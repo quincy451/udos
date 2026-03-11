@@ -28,6 +28,10 @@ class UdosBuildTests(unittest.TestCase):
     def test_resident_runs_in_vice(self) -> None:
         subprocess.run(["make", "vice-resident"], cwd=ROOT, check=True)
 
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_implicit_launch_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-launch"], cwd=ROOT, check=True)
+
 
 if __name__ == "__main__":
     unittest.main()
