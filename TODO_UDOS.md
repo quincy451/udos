@@ -31,7 +31,6 @@
 - keep the current resident `HELP`, `VER`, `VOL`, `DIR`, `CD`, `MOUNT`, and `MEM` loop working while moving them toward real filesystem/state services
 - implement resident commands:
   - real `VOL`
-  - real `MEM`
   - real `HELP`
   - real `VER`
 - replace the current descriptor-backed mock `DIR` and per-drive path model with image-backed directory state

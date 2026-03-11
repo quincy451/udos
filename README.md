@@ -62,6 +62,8 @@ Current command parser rule:
   - `NAME.*`
 - `COPY` now also supports the same limited wildcard forms
 - wildcard `COPY` preserves each matched source filename and expects the destination to resolve to a directory target
+- `MEM` now reports decimal RAM used/free values from the linked resident image and
+  the current REU placeholder usage line
 
 See:
 - `PIVOT_PLAN.md`

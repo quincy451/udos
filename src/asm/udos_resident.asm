@@ -33,6 +33,7 @@
 .export svc_idle
 .import acheron
 .import clear_rstack
+.import __ACHERON_LAST__
 
 SCREEN = $0400
 COLOR = $D800
@@ -58,6 +59,7 @@ STAGE_SNAPSHOT = $CFFD
 READY_MARKER = $CFFF
 READY_VALUE = $52
 ABI_VERSION = 1
+RESIDENT_CODE_START = $1810
 TRANSPORT_MODE_UNAVAILABLE = 0
 TRANSPORT_MODE_MOCK = 1
 TRANSPORT_MODE_UCI_HW = 2
@@ -1544,10 +1546,7 @@ shell_resp_vol:
     jsr build_vol_response
     rts
 shell_resp_mem:
-    lda #<resp_mem
-    sta 0,x
-    lda #>resp_mem
-    sta 1,x
+    jsr build_mem_response
     rts
 
 normalize_input_char:
@@ -6942,6 +6941,120 @@ build_vol_response:
     sta 1,x
     rts
 
+build_mem_response:
+    stx saved_rp_x
+    ldy #$00
+    lda #<resp_mem_ram_prefix
+    sta PTR
+    lda #>resp_mem_ram_prefix
+    sta PTR+1
+    jsr append_ptr_to_response
+    lda #<__ACHERON_LAST__
+    sec
+    sbc #<RESIDENT_CODE_START
+    sta mem_used_lo
+    sta mem_value_lo
+    lda #>__ACHERON_LAST__
+    sbc #>RESIDENT_CODE_START
+    sta mem_used_hi
+    sta mem_value_hi
+    jsr append_decimal16
+    lda #<resp_mem_ram_mid
+    sta PTR
+    lda #>resp_mem_ram_mid
+    sta PTR+1
+    jsr append_ptr_to_response
+    lda mem_used_lo
+    eor #$FF
+    sta mem_value_lo
+    lda mem_used_hi
+    eor #$FF
+    sta mem_value_hi
+    jsr append_decimal16
+    lda #<resp_mem_reu_suffix
+    sta PTR
+    lda #>resp_mem_reu_suffix
+    sta PTR+1
+    jsr append_ptr_to_response
+    lda #$00
+    sta response_buffer,y
+    ldx saved_rp_x
+    lda #<response_buffer
+    sta 0,x
+    lda #>response_buffer
+    sta 1,x
+    rts
+
+append_decimal16:
+    lda #$00
+    sta mem_digit_written
+    lda #$10
+    sta mem_divisor_lo
+    lda #$27
+    sta mem_divisor_hi
+    jsr append_decimal16_step
+    lda #$E8
+    sta mem_divisor_lo
+    lda #$03
+    sta mem_divisor_hi
+    jsr append_decimal16_step
+    lda #$64
+    sta mem_divisor_lo
+    lda #$00
+    sta mem_divisor_hi
+    jsr append_decimal16_step
+    lda #$0A
+    sta mem_divisor_lo
+    lda #$00
+    sta mem_divisor_hi
+    jsr append_decimal16_step
+    lda #$01
+    sta mem_divisor_lo
+    lda #$00
+    sta mem_divisor_hi
+    jmp append_decimal16_step
+
+append_decimal16_step:
+    lda #$00
+    sta mem_digit_value
+append_decimal16_subtract:
+    lda mem_value_hi
+    cmp mem_divisor_hi
+    bcc append_decimal16_emit
+    bne append_decimal16_do_subtract
+    lda mem_value_lo
+    cmp mem_divisor_lo
+    bcc append_decimal16_emit
+append_decimal16_do_subtract:
+    sec
+    lda mem_value_lo
+    sbc mem_divisor_lo
+    sta mem_value_lo
+    lda mem_value_hi
+    sbc mem_divisor_hi
+    sta mem_value_hi
+    inc mem_digit_value
+    jmp append_decimal16_subtract
+append_decimal16_emit:
+    lda mem_digit_value
+    bne append_decimal16_write
+    lda mem_digit_written
+    bne append_decimal16_write
+    lda mem_divisor_hi
+    ora mem_divisor_lo
+    cmp #$01
+    bne append_decimal16_done
+append_decimal16_write:
+    lda #$01
+    sta mem_digit_written
+    lda mem_digit_value
+    clc
+    adc #$30
+    sta response_buffer,y
+    iny
+append_decimal16_done:
+    rts
+
 append_mount_kind:
     cmp #MOUNT_KIND_D64
     beq append_d64
@@ -7077,6 +7190,22 @@ wildcard_saved_index:
     .byte 0
 wildcard_saved_count:
     .byte 0
+mem_used_lo:
+    .byte 0
+mem_used_hi:
+    .byte 0
+mem_value_lo:
+    .byte 0
+mem_value_hi:
+    .byte 0
+mem_divisor_lo:
+    .byte 0
+mem_divisor_hi:
+    .byte 0
+mem_digit_value:
+    .byte 0
+mem_digit_written:
+    .byte 0
 source_slot:
     .byte 0
 prefix_length:
@@ -7204,8 +7333,12 @@ resp_help:
     .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL", 0
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
-resp_mem:
-    .byte "CORE 3D55", 0
+resp_mem_ram_prefix:
+    .byte "RAM USED ", 0
+resp_mem_ram_mid:
+    .byte " FREE ", 0
+resp_mem_reu_suffix:
+    .byte " REU USED 0 FREE 16777216", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:

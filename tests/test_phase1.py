@@ -2,11 +2,23 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HAS_VICE = shutil.which("x64sc") is not None
+RESIDENT_CODE_START = 0x1810
+
+
+def load_ld65_labels(path: Path) -> dict[str, int]:
+    symbols: dict[str, int] = {}
+    for line in path.read_text(errors="ignore").splitlines():
+        parts = line.split()
+        if len(parts) != 3 or parts[0] != "al":
+            continue
+        symbols[parts[2].lstrip(".")] = int(parts[1], 16)
+    return symbols
 
 
 class UdosBuildTests(unittest.TestCase):
@@ -35,6 +47,35 @@ class UdosBuildTests(unittest.TestCase):
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_wildcard_copy_runs_in_vice(self) -> None:
         subprocess.run(["make", "vice-copy"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_mem_reports_linked_usage_in_vice(self) -> None:
+        subprocess.run(["make", "resident"], cwd=ROOT, check=True)
+        labels = load_ld65_labels(ROOT / "build" / "udos-resident.labels")
+        used = labels["__ACHERON_LAST__"] - RESIDENT_CODE_START
+        free = 0xFFFF - used
+        subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "tools" / "vice_prg_probe.py"),
+                "--disk",
+                str(ROOT / "build" / "udosres.prg"),
+                "--feed-after",
+                "A:D64/>",
+                "--feed-text",
+                "MEM\\r",
+                "--expected",
+                "RAM USED",
+                "--contains",
+                f"RAM USED {used} FREE {free}",
+                "--contains",
+                "REU USED 0 FRE",
+                "--contains",
+                "E 16777216",
+            ],
+            cwd=ROOT,
+            check=True,
+        )
 
 
 if __name__ == "__main__":

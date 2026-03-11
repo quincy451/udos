@@ -97,6 +97,10 @@ Current `vice-resident` behavior:
   - `DIR` is passed as the command line
 - verifies wildcard copy separately through `make vice-copy`:
   - `COPY *.* WORK` copies both `BOOT.ASM` and `FS.AVM`
+- verifies `MEM` separately through the Python test suite:
+  - derives resident usage from `build/udos-resident.labels`
+  - checks the live shell prints matching decimal RAM usage/free values
+  - checks the current REU placeholder line remains `REU USED 0 FREE 16777216`
 - verifies mounted-image parsing and label derivation:
   - `MOUNT B: /IMAGES/ALT.D81` yields `B:ALT D81`
   - `MOUNT B: /IMAGES/WORK.DNP` restores `A:SYSTEM D64 B:WORK DNP`
@@ -153,8 +157,8 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$3D55`
-- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4600`
+- resident core code: `$3E75`
+- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4700`
 - hardware directory cache budget:
   - `6` entries per drive
   - `20` bytes per cached name

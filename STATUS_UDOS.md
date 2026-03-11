@@ -66,6 +66,11 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - expose command-line pointer and length
   - snapshot run state and exit state
   - return cleanly to the resident shell
+- updated resident `MEM` to report decimal usage:
+  - RAM used bytes
+  - RAM free bytes using the current `FFFF-used` policy
+  - REU used bytes
+  - REU free bytes using the current `16 MiB-used` placeholder policy
 - replaced the placeholder mount form with a real image-path `MOUNT` syntax:
   - `MOUNT A: /path/to/system.d81`
   - `MOUNT B: /path/to/work.dnp`
@@ -189,8 +194,10 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFF9 = $03` -> program directory `WORK`
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
-- resident core code footprint: `$3D55`
-- resident load window in `udos_c64.cfg`: `$4600`
+- resident `MEM` now reports:
+  - `RAM USED 15989 FREE 49546 REU USED 0 FREE 16777216`
+- resident core code footprint: `$3E75`
+- resident load window in `udos_c64.cfg`: `$4700`
 
 ## What Works
 
