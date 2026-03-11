@@ -277,7 +277,6 @@ shell_loop:
     calln svc_console_write_prompt
     calln svc_line_read
     case8 SHELL_CMD_NONE, shell_loop
-    case8 SHELL_CMD_QUIT, shell_done
     case8 SHELL_CMD_RUN, cmd_run_program
     case8 SHELL_CMD_MOUNT, cmd_emit_response
     case8 SHELL_CMD_COPY, cmd_emit_response
@@ -1862,7 +1861,7 @@ token_len4_copy:
     ldy parse_cmd_start
     lda line_buffer,y
     cmp #CMD_C
-    bne token_len4_quit
+    bne token_unknown
     iny
     lda line_buffer,y
     cmp #CMD_O
@@ -1882,44 +1881,6 @@ token_len4_copy:
     jmp token_unknown
 :
     lda #SHELL_CMD_COPY
-    rts
-token_len4_quit:
-    ldy parse_cmd_start
-    lda line_buffer,y
-    cmp #CMD_Q
-    bne token_len4_exit
-    iny
-    lda line_buffer,y
-    cmp #CMD_U
-    bne token_unknown
-    iny
-    lda line_buffer,y
-    cmp #CMD_I
-    bne token_unknown
-    iny
-    lda line_buffer,y
-    cmp #CMD_T
-    bne token_unknown
-    lda #SHELL_CMD_QUIT
-    rts
-token_len4_exit:
-    ldy parse_cmd_start
-    lda line_buffer,y
-    cmp #CMD_E
-    bne token_unknown
-    iny
-    lda line_buffer,y
-    cmp #CMD_X
-    bne token_unknown
-    iny
-    lda line_buffer,y
-    cmp #CMD_I
-    bne token_unknown
-    iny
-    lda line_buffer,y
-    cmp #CMD_T
-    bne token_unknown
-    lda #SHELL_CMD_QUIT
     rts
 token_len5:
     ldy parse_cmd_start

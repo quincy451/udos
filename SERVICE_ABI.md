@@ -214,7 +214,7 @@ Current ABI version:
   - `2`: `VER`
   - `3`: `VOL`
   - `4`: `MEM`
-  - `5`: `QUIT` / `EXIT`
+  - `5`: reserved / not user-facing
   - `6`: `DIR`
   - `7`: `CD`
   - `8`: `MOUNT`

@@ -60,7 +60,6 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `COPY`
   - `REN`
   - `DEL`
-  - `QUIT` / `EXIT`
 - added a first resident program ABI slice for implicit program launch:
   - prepare program handoff
   - expose resolved target pointer
