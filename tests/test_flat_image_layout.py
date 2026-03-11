@@ -224,6 +224,40 @@ class FlatImageLayoutTests(unittest.TestCase):
         self.assertEqual(before[entry_offset : entry_offset + 3], after[entry_offset : entry_offset + 3])
         self.assertEqual(before[entry_offset + 19 : entry_offset + 32], after[entry_offset + 19 : entry_offset + 32])
 
+    def test_d64_copy_creates_new_entry_and_payload(self) -> None:
+        image = self._build_probe("d64", "D64COPY")
+        before = image.read_bytes()
+        subprocess.run(["c1541", str(image), "-copy", "HELLO", "BOOT3.PRG"], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        after = image.read_bytes()
+        track, sector = self._find_root_entry(after, "d64", b"BOOT3.PRG")
+        entry_offset = self._find_root_entry_offset(after, "d64", b"BOOT3.PRG")
+        self.assertEqual(self._read_file_chain(after, "d64", track, sector), b"hello\n")
+        self.assertEqual(before[0x16544] - 1, after[0x16544])
+        self.assertEqual(after[entry_offset + 3 : entry_offset + 19], bytes([0xC2, 0xCF, 0xCF, 0xD4, 0x33, 0x2E, 0xD0, 0xD2, 0xC7, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0]))
+        self.assertEqual(after[entry_offset + 28 : entry_offset + 30], b"\x01\x00")
+
+    def test_d71_copy_creates_new_entry_and_payload(self) -> None:
+        image = self._build_probe("d71", "D71COPY")
+        subprocess.run(["c1541", str(image), "-copy", "HELLO", "BOOT3.PRG"], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        after = image.read_bytes()
+        track, sector = self._find_root_entry(after, "d71", b"BOOT3.PRG")
+        entry_offset = self._find_root_entry_offset(after, "d71", b"BOOT3.PRG")
+        self.assertEqual(self._read_file_chain(after, "d71", track, sector), b"hello\n")
+        self.assertEqual(after[entry_offset + 3 : entry_offset + 19], bytes([0xC2, 0xCF, 0xCF, 0xD4, 0x33, 0x2E, 0xD0, 0xD2, 0xC7, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0]))
+        self.assertEqual(after[entry_offset + 28 : entry_offset + 30], b"\x01\x00")
+
+    def test_d81_copy_creates_new_entry_and_payload(self) -> None:
+        image = self._build_probe("d81", "D81COPY")
+        before = image.read_bytes()
+        subprocess.run(["c1541", str(image), "-copy", "HELLO", "BOOT3.PRG"], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        after = image.read_bytes()
+        track, sector = self._find_root_entry(after, "d81", b"BOOT3.PRG")
+        entry_offset = self._find_root_entry_offset(after, "d81", b"BOOT3.PRG")
+        self.assertEqual(self._read_file_chain(after, "d81", track, sector), b"hello\n")
+        self.assertEqual(before[0x619F4] - 1, after[0x619F4])
+        self.assertEqual(after[entry_offset + 3 : entry_offset + 19], bytes([0xC2, 0xCF, 0xCF, 0xD4, 0x33, 0x2E, 0xD0, 0xD2, 0xC7, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0]))
+        self.assertEqual(after[entry_offset + 28 : entry_offset + 30], b"\x01\x00")
+
 
 if __name__ == "__main__":
     unittest.main()

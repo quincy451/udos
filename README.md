@@ -33,8 +33,13 @@ Current milestone:
   - mock rename is used only when hardware UCI is unavailable
   - hardware-side rename failures return an explicit shell error
 - Phase 5 now also includes a hardware-backed `COPY` path in code:
-  - same-drive copy through `COPY_FILE`
-  - cross-drive copy through source `OPEN_FILE`/`READ_DATA` and destination `OPEN_FILE`/`WRITE_DATA`
+  - tree-only same-drive copy through `COPY_FILE`
+  - tree-only cross-drive copy through source `OPEN_FILE`/`READ_DATA` and destination `OPEN_FILE`/`WRITE_DATA`
+  - flat-image copies now also have a raw image path in code:
+    - raw root-directory lookup
+    - BAM allocation
+    - chained sector streaming
+    - direct directory-entry creation through image `OPEN_FILE` / `FILE_SEEK` / `READ_DATA` / `WRITE_DATA`
   - mock copy is used only when hardware UCI is unavailable
   - hardware-side copy failures return an explicit shell error
 - Phase 5 now also includes a real mounted-image `MOUNT` path in code:

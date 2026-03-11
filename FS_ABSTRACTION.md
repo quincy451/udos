@@ -180,9 +180,9 @@ Current file-rename seam:
 
 Current file-copy seam:
 - `COPY` now attempts a real Ultimate DOS copy when UCI hardware is present
-- same-drive copies currently use:
+- tree-only same-drive copies currently use:
   - `COPY_FILE`
-- cross-drive copies currently use:
+- tree-only cross-drive copies currently use:
   - source `CHANGE_DIR`
   - source `OPEN_FILE`
   - repeated source `READ_DATA`
@@ -190,6 +190,10 @@ Current file-copy seam:
   - destination `OPEN_FILE`
   - repeated destination `WRITE_DATA`
   - source and destination `CLOSE_FILE`
+- flat-image copies now also have a raw image path in code:
+  - source-side raw root-directory lookup plus chained sector reads when the source mount is flat
+  - destination-side raw BAM allocation plus direct directory-entry creation when the destination mount is flat
+  - raw image writes through image `OPEN_FILE`, repeated `FILE_SEEK`, repeated `READ_DATA`, and repeated `WRITE_DATA`
 - when hardware UCI is unavailable, the shell still uses the resident mutable `WORK` model
 - when hardware UCI is present and copy fails, the shell returns an explicit copy error instead of mutating mock state
 

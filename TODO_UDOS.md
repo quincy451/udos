@@ -43,6 +43,7 @@
 - hardware-validate and harden the current tree-capable `REN` Ultimate DOS rename path on target
 - hardware-validate and harden the new flat-image raw `REN` path on target
 - hardware-validate and harden the current `COPY` Ultimate DOS copy path on target
+- hardware-validate and harden the new flat-image raw `COPY` path on target
 - hardware-validate and harden the current `COPY` wildcard path on target:
   - `*`
   - `*.*`

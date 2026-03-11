@@ -4094,12 +4094,35 @@ copy_file_hw:
     lda source_drive
     cmp dest_drive
     beq copy_file_hw_same_drive
+    lda source_drive
+    sta temp_drive
+    jsr current_mount_is_flat
+    beq copy_file_hw_raw_cross_drive
+    lda dest_drive
+    sta temp_drive
+    jsr current_mount_is_flat
+    beq copy_file_hw_raw_cross_drive
     jmp copy_file_hw_cross_drive
 copy_file_hw_same_drive:
+    jsr compare_source_name_to_path_name
+    bcc copy_file_hw_done
+    lda source_drive
+    sta temp_drive
+    jsr current_mount_is_flat
+    beq copy_file_hw_raw_same_drive
     jsr copy_file_same_drive_hw
+    rts
+copy_file_hw_raw_same_drive:
+    jsr copy_file_raw_same_drive_hw
     rts
 copy_file_hw_cross_drive:
     jsr copy_file_cross_drive_hw
+    rts
+copy_file_hw_raw_cross_drive:
+    jsr copy_file_raw_cross_drive_hw
+    rts
+copy_file_hw_done:
+    clc
     rts
 
 copy_matching_files_hw:
@@ -4145,6 +4168,772 @@ copy_matching_files_hw_fail:
     lda wildcard_match_count
     beq copy_matching_files_hw_nomatch
     lda #WILDCARD_RESULT_FAILED
+    sec
+    rts
+
+copy_file_raw_same_drive_hw:
+    jsr copy_path_name_to_copy_dst_buffer
+    lda source_drive
+    sta temp_drive
+    jsr open_flat_mount_image_rw_hw
+    bcs copy_file_raw_same_drive_fail
+    jsr init_flat_source_from_open_image
+    bcs copy_file_raw_same_drive_close
+    jsr copy_copy_dst_to_path_buffer
+    jsr init_flat_dest_on_open_image
+    bcs copy_file_raw_same_drive_close
+    lda #$01
+    sta copy_source_flat_flag
+    sta copy_dest_flat_flag
+    jsr copy_stream_loop_hw
+copy_file_raw_same_drive_close:
+    php
+    jsr close_current_file_hw
+    bcs copy_file_raw_same_drive_close_fail
+    plp
+    rts
+copy_file_raw_same_drive_close_fail:
+    plp
+copy_file_raw_same_drive_fail:
+    sec
+    rts
+
+copy_file_raw_cross_drive_hw:
+    jsr copy_path_name_to_copy_dst_buffer
+    jsr open_copy_source_hw
+    bcs copy_file_raw_cross_drive_fail
+    jsr copy_copy_dst_to_path_buffer
+    jsr open_copy_dest_hw
+    bcs copy_file_raw_cross_drive_close_source
+    jsr copy_stream_loop_hw
+copy_file_raw_cross_drive_close:
+    php
+    jsr close_cross_drive_files_hw
+    bcs copy_file_raw_cross_drive_close_fail
+    plp
+    rts
+copy_file_raw_cross_drive_close_fail:
+    plp
+copy_file_raw_cross_drive_fail:
+    sec
+    rts
+copy_file_raw_cross_drive_close_source:
+    php
+    lda source_drive
+    sta temp_drive
+    jsr close_current_file_hw
+    plp
+    sec
+    rts
+
+open_copy_source_hw:
+    lda source_drive
+    sta temp_drive
+    jsr current_mount_is_flat
+    beq open_copy_source_hw_flat
+    lda #$00
+    sta copy_source_flat_flag
+    lda source_dir_id
+    sta temp_dir_id
+    jmp open_source_file_hw
+open_copy_source_hw_flat:
+    lda #$01
+    sta copy_source_flat_flag
+    jsr open_flat_mount_image_hw
+    bcs open_copy_source_hw_fail
+    jsr init_flat_source_from_open_image
+    bcc open_copy_source_hw_ok
+    php
+    jsr close_current_file_hw
+    plp
+open_copy_source_hw_fail:
+    sec
+    rts
+open_copy_source_hw_ok:
+    clc
+    rts
+
+open_copy_dest_hw:
+    lda dest_drive
+    sta temp_drive
+    jsr current_mount_is_flat
+    beq open_copy_dest_hw_flat
+    lda #$00
+    sta copy_dest_flat_flag
+    lda dest_dir_id
+    sta temp_dir_id
+    jmp open_dest_file_hw
+open_copy_dest_hw_flat:
+    lda #$01
+    sta copy_dest_flat_flag
+    lda copy_source_flat_flag
+    bne :+
+    lda #$82
+    sta flat_dst_type
+:
+    jsr open_flat_mount_image_rw_hw
+    bcs open_copy_dest_hw_fail
+    jsr init_flat_dest_on_open_image
+    bcc open_copy_dest_hw_ok
+    php
+    jsr close_current_file_hw
+    plp
+open_copy_dest_hw_fail:
+    sec
+    rts
+open_copy_dest_hw_ok:
+    clc
+    rts
+
+copy_stream_loop_hw:
+copy_stream_loop_hw_next:
+    jsr read_copy_source_chunk_hw
+    bcs copy_stream_loop_hw_fail
+    lda uci_data_length
+    beq copy_stream_loop_hw_done
+    jsr write_copy_dest_chunk_hw
+    bcs copy_stream_loop_hw_fail
+    jmp copy_stream_loop_hw_next
+copy_stream_loop_hw_done:
+    lda copy_dest_flat_flag
+    beq copy_stream_loop_hw_ok
+    jsr finalize_flat_dest_write_hw
+    bcs copy_stream_loop_hw_fail
+copy_stream_loop_hw_ok:
+    clc
+    rts
+copy_stream_loop_hw_fail:
+    sec
+    rts
+
+read_copy_source_chunk_hw:
+    lda copy_source_flat_flag
+    beq read_copy_source_chunk_hw_tree
+    jmp read_next_flat_source_chunk_hw
+read_copy_source_chunk_hw_tree:
+    lda source_drive
+    sta temp_drive
+    jmp read_source_chunk_hw
+
+write_copy_dest_chunk_hw:
+    lda copy_dest_flat_flag
+    beq write_copy_dest_chunk_hw_tree
+    jmp append_flat_dest_chunk_hw
+write_copy_dest_chunk_hw_tree:
+    lda dest_drive
+    sta temp_drive
+    jmp write_dest_chunk_hw
+
+init_flat_source_from_open_image:
+    jsr copy_source_name_to_path_buffer
+    jsr find_flat_file_entry_in_open_image
+    bcs init_flat_source_from_open_image_fail
+    ldy flat_hit_dir_offset
+    lda flat_sector_buffer,y
+    sta flat_dst_type
+    lda flat_file_track
+    sta flat_src_track
+    lda flat_file_sector
+    sta flat_src_sector
+    lda #$00
+    sta flat_src_offset
+    sta flat_src_count
+    clc
+    rts
+init_flat_source_from_open_image_fail:
+    sec
+    rts
+
+init_flat_dest_on_open_image:
+    jsr find_flat_file_entry_in_open_image
+    bcs :+
+    sec
+    rts
+:
+    cmp #FLAT_LOOKUP_NOFILE
+    bne init_flat_dest_on_open_image_fail
+    jsr find_free_flat_dir_entry_in_open_image
+    bcs init_flat_dest_on_open_image_fail
+    jsr load_flat_bam_buffers_hw
+    bcs init_flat_dest_on_open_image_fail
+    lda #$00
+    sta flat_dst_first_track
+    sta flat_dst_first_sector
+    sta flat_dst_curr_track
+    sta flat_dst_curr_sector
+    sta flat_dst_fill
+    sta flat_dst_blocks_lo
+    sta flat_dst_blocks_hi
+    clc
+    rts
+init_flat_dest_on_open_image_fail:
+    sec
+    rts
+
+find_free_flat_dir_entry_in_open_image:
+    jsr init_flat_dir_walk
+find_free_flat_dir_entry_in_open_image_loop:
+    lda flat_dir_sector
+    beq find_free_flat_dir_entry_in_open_image_fail
+    lda flat_dir_track
+    sta flat_file_track
+    lda flat_dir_sector
+    sta flat_file_sector
+    lda #<flat_dir_sector_buffer
+    sta PTR
+    lda #>flat_dir_sector_buffer
+    sta PTR+1
+    jsr read_flat_sector_into_ptr_hw
+    bcs find_free_flat_dir_entry_in_open_image_fail
+    jsr find_free_flat_dir_entry_in_sector
+    bcc find_free_flat_dir_entry_in_open_image_found
+    lda flat_dir_sector_buffer+0
+    sta flat_dir_track
+    lda flat_dir_sector_buffer+1
+    sta flat_dir_sector
+    lda flat_dir_track
+    beq find_free_flat_dir_entry_in_open_image_fail
+    lda temp_mount_kind
+    cmp #MOUNT_KIND_D81
+    beq find_free_flat_dir_entry_in_open_image_check_d81
+    lda flat_dir_track
+    cmp #D64_DIR_TRACK
+    beq find_free_flat_dir_entry_in_open_image_loop
+    bne find_free_flat_dir_entry_in_open_image_fail
+find_free_flat_dir_entry_in_open_image_check_d81:
+    lda flat_dir_track
+    cmp #D81_DIR_TRACK
+    beq find_free_flat_dir_entry_in_open_image_loop
+find_free_flat_dir_entry_in_open_image_fail:
+    sec
+    rts
+find_free_flat_dir_entry_in_open_image_found:
+    clc
+    rts
+
+find_free_flat_dir_entry_in_sector:
+    lda #$02
+    sta flat_dir_offset
+find_free_flat_dir_entry_in_sector_loop:
+    ldy flat_dir_offset
+    lda flat_dir_sector_buffer,y
+    beq find_free_flat_dir_entry_in_sector_hit
+    lda flat_dir_offset
+    cmp #$E2
+    bcs find_free_flat_dir_entry_in_sector_fail
+    clc
+    adc #$20
+    sta flat_dir_offset
+    jmp find_free_flat_dir_entry_in_sector_loop
+find_free_flat_dir_entry_in_sector_hit:
+    lda flat_dir_track
+    sta flat_saved_dir_track
+    lda flat_dir_sector
+    sta flat_saved_dir_sector
+    lda flat_dir_offset
+    sta flat_saved_dir_offset
+    clc
+    rts
+find_free_flat_dir_entry_in_sector_fail:
+    sec
+    rts
+
+read_next_flat_source_chunk_hw:
+    lda #$00
+    sta uci_data_length
+    lda flat_src_count
+    bne read_next_flat_source_chunk_hw_copy
+read_next_flat_source_chunk_hw_load:
+    lda flat_src_track
+    bne :+
+    jmp read_next_flat_source_chunk_hw_done
+:
+    lda source_drive
+    sta temp_drive
+    jsr current_mount_is_flat
+    lda flat_src_track
+    sta flat_file_track
+    lda flat_src_sector
+    sta flat_file_sector
+    lda #<flat_dir_sector_buffer
+    sta PTR
+    lda #>flat_dir_sector_buffer
+    sta PTR+1
+    jsr read_flat_sector_into_ptr_hw
+    bcs read_next_flat_source_chunk_hw_fail
+    lda flat_dir_sector_buffer+0
+    sta flat_src_track
+    lda flat_dir_sector_buffer+1
+    sta flat_src_sector
+    lda flat_dir_sector_buffer+0
+    bne read_next_flat_source_chunk_hw_full
+    lda flat_src_sector
+    beq read_next_flat_source_chunk_hw_fail
+    sec
+    sbc #$01
+    sta flat_src_count
+    lda #$00
+    sta flat_src_track
+    sta flat_src_sector
+    lda #$02
+    sta flat_src_offset
+    jmp read_next_flat_source_chunk_hw_copy
+read_next_flat_source_chunk_hw_full:
+    lda #$FE
+    sta flat_src_count
+    lda #$02
+    sta flat_src_offset
+read_next_flat_source_chunk_hw_copy:
+    lda flat_src_count
+    cmp #MAX_RESPONSE_LEN-1
+    bcc read_next_flat_source_chunk_hw_have_len
+    lda #MAX_RESPONSE_LEN-1
+read_next_flat_source_chunk_hw_have_len:
+    sta uci_data_length
+    ldy #$00
+    ldx flat_src_offset
+read_next_flat_source_chunk_hw_copy_loop:
+    cpy uci_data_length
+    bcs read_next_flat_source_chunk_hw_copy_done
+    lda flat_dir_sector_buffer,x
+    sta response_buffer,y
+    inx
+    iny
+    bne read_next_flat_source_chunk_hw_copy_loop
+read_next_flat_source_chunk_hw_copy_done:
+    stx flat_src_offset
+    sec
+    lda flat_src_count
+    sbc uci_data_length
+    sta flat_src_count
+    lda #$00
+    sta response_buffer,y
+    clc
+    rts
+read_next_flat_source_chunk_hw_done:
+    lda #$00
+    sta response_buffer
+    clc
+    rts
+read_next_flat_source_chunk_hw_fail:
+    sec
+    rts
+
+append_flat_dest_chunk_hw:
+    ldy #$00
+append_flat_dest_chunk_hw_loop:
+    cpy uci_data_length
+    bcs append_flat_dest_chunk_hw_done
+    lda flat_dst_curr_track
+    bne append_flat_dest_chunk_hw_have_sector
+    jsr alloc_flat_dest_sector_hw
+    bcs append_flat_dest_chunk_hw_fail
+    lda flat_file_track
+    sta flat_dst_first_track
+    sta flat_dst_curr_track
+    lda flat_file_sector
+    sta flat_dst_first_sector
+    sta flat_dst_curr_sector
+    lda #$00
+    sta flat_dst_fill
+append_flat_dest_chunk_hw_have_sector:
+    lda flat_dst_fill
+    cmp #$FE
+    bne append_flat_dest_chunk_hw_store
+    jsr flush_full_flat_dest_sector_hw
+    bcs append_flat_dest_chunk_hw_fail
+append_flat_dest_chunk_hw_store:
+    ldx flat_dst_fill
+    lda response_buffer,y
+    sta flat_sector_buffer+2,x
+    inx
+    stx flat_dst_fill
+    iny
+    jmp append_flat_dest_chunk_hw_loop
+append_flat_dest_chunk_hw_done:
+    clc
+    rts
+append_flat_dest_chunk_hw_fail:
+    sec
+    rts
+
+flush_full_flat_dest_sector_hw:
+    jsr alloc_flat_dest_sector_hw
+    bcs flush_full_flat_dest_sector_hw_fail
+    lda flat_file_track
+    sta flat_saved_dir_track
+    lda flat_file_sector
+    sta flat_saved_dir_sector
+    lda flat_dst_curr_track
+    sta flat_file_track
+    lda flat_dst_curr_sector
+    sta flat_file_sector
+    lda flat_saved_dir_track
+    sta flat_sector_buffer+0
+    lda flat_saved_dir_sector
+    sta flat_sector_buffer+1
+    lda #<flat_sector_buffer
+    sta PTR
+    lda #>flat_sector_buffer
+    sta PTR+1
+    jsr write_flat_sector_from_ptr_hw
+    bcs flush_full_flat_dest_sector_hw_fail
+    lda flat_saved_dir_track
+    sta flat_dst_curr_track
+    lda flat_saved_dir_sector
+    sta flat_dst_curr_sector
+    lda #$00
+    sta flat_dst_fill
+    clc
+    rts
+flush_full_flat_dest_sector_hw_fail:
+    sec
+    rts
+
+finalize_flat_dest_write_hw:
+    lda flat_dst_curr_track
+    bne finalize_flat_dest_write_hw_have_sector
+    jsr alloc_flat_dest_sector_hw
+    bcs finalize_flat_dest_write_hw_fail
+    lda flat_file_track
+    sta flat_dst_first_track
+    sta flat_dst_curr_track
+    lda flat_file_sector
+    sta flat_dst_first_sector
+    sta flat_dst_curr_sector
+    lda #$00
+    sta flat_dst_fill
+finalize_flat_dest_write_hw_have_sector:
+    lda #$00
+    sta flat_sector_buffer+0
+    lda flat_dst_fill
+    clc
+    adc #$01
+    sta flat_sector_buffer+1
+    lda flat_dst_curr_track
+    sta flat_file_track
+    lda flat_dst_curr_sector
+    sta flat_file_sector
+    lda #<flat_sector_buffer
+    sta PTR
+    lda #>flat_sector_buffer
+    sta PTR+1
+    jsr write_flat_sector_from_ptr_hw
+    bcs finalize_flat_dest_write_hw_fail
+    jsr write_flat_dir_entry_from_copy_state
+    bcs finalize_flat_dest_write_hw_fail
+    jsr write_flat_bam_buffers_hw
+    bcs finalize_flat_dest_write_hw_fail
+    clc
+    rts
+finalize_flat_dest_write_hw_fail:
+    sec
+    rts
+
+write_flat_dir_entry_from_copy_state:
+    lda flat_saved_dir_track
+    sta flat_hit_dir_track
+    lda flat_saved_dir_sector
+    sta flat_hit_dir_sector
+    lda flat_saved_dir_offset
+    sta flat_hit_dir_offset
+    jsr read_flat_dir_hit_sector_hw
+    bcs write_flat_dir_entry_from_copy_state_fail
+    ldy flat_hit_dir_offset
+    lda flat_dst_type
+    sta flat_dir_sector_buffer,y
+    iny
+    lda flat_dst_first_track
+    sta flat_dir_sector_buffer,y
+    iny
+    lda flat_dst_first_sector
+    sta flat_dir_sector_buffer,y
+    jsr write_flat_dir_entry_name_from_path_buffer
+    bcs write_flat_dir_entry_from_copy_state_fail
+    ldx flat_hit_dir_offset
+    txa
+    clc
+    adc #$13
+    tax
+    lda #$00
+    ldy #$0D
+write_flat_dir_entry_from_copy_state_clear:
+    sta flat_dir_sector_buffer,x
+    inx
+    dey
+    bne write_flat_dir_entry_from_copy_state_clear
+    ldx flat_hit_dir_offset
+    txa
+    clc
+    adc #$1C
+    tax
+    lda flat_dst_blocks_lo
+    sta flat_dir_sector_buffer,x
+    inx
+    lda flat_dst_blocks_hi
+    sta flat_dir_sector_buffer,x
+    jsr write_flat_dir_hit_sector_hw
+    bcs write_flat_dir_entry_from_copy_state_fail
+    clc
+    rts
+write_flat_dir_entry_from_copy_state_fail:
+    sec
+    rts
+
+alloc_flat_dest_sector_hw:
+    jsr find_free_flat_sector_in_bam
+    bcs alloc_flat_dest_sector_hw_fail
+    jsr mark_flat_sector_used_in_bam
+    bcs alloc_flat_dest_sector_hw_fail
+    inc flat_dst_blocks_lo
+    bne :+
+    inc flat_dst_blocks_hi
+:
+    clc
+    rts
+alloc_flat_dest_sector_hw_fail:
+    sec
+    rts
+
+find_free_flat_sector_in_bam:
+    lda #$01
+    sta flat_file_track
+find_free_flat_sector_in_bam_track:
+    jsr get_flat_track_sector_limit
+    bcs find_free_flat_sector_in_bam_fail
+    sta flat_sector_limit
+    lda #$00
+    sta flat_file_sector
+find_free_flat_sector_in_bam_sector:
+    lda flat_file_sector
+    cmp flat_sector_limit
+    bcs find_free_flat_sector_in_bam_next_track
+    jsr flat_sector_is_free_in_bam
+    bcc find_free_flat_sector_in_bam_found
+    inc flat_file_sector
+    jmp find_free_flat_sector_in_bam_sector
+find_free_flat_sector_in_bam_next_track:
+    inc flat_file_track
+    jmp find_free_flat_sector_in_bam_track
+find_free_flat_sector_in_bam_found:
+    clc
+    rts
+find_free_flat_sector_in_bam_fail:
+    sec
+    rts
+
+get_flat_track_sector_limit:
+    lda temp_mount_kind
+    cmp #MOUNT_KIND_D81
+    beq get_flat_track_sector_limit_d81
+    cmp #MOUNT_KIND_D71
+    beq get_flat_track_sector_limit_d71
+    lda flat_file_track
+    cmp #36
+    bcs get_flat_track_sector_limit_fail
+    jmp get_flat_track_sector_limit_zone
+get_flat_track_sector_limit_d71:
+    lda flat_file_track
+    cmp #71
+    bcs get_flat_track_sector_limit_fail
+    cmp #36
+    bcc get_flat_track_sector_limit_zone
+    sec
+    sbc #35
+get_flat_track_sector_limit_zone:
+    cmp #18
+    bcc get_flat_track_sector_limit_21
+    cmp #25
+    bcc get_flat_track_sector_limit_19
+    cmp #31
+    bcc get_flat_track_sector_limit_18
+    lda #17
+    clc
+    rts
+get_flat_track_sector_limit_21:
+    lda #21
+    clc
+    rts
+get_flat_track_sector_limit_19:
+    lda #19
+    clc
+    rts
+get_flat_track_sector_limit_18:
+    lda #18
+    clc
+    rts
+get_flat_track_sector_limit_d81:
+    lda flat_file_track
+    cmp #81
+    bcs get_flat_track_sector_limit_fail
+    lda #40
+    clc
+    rts
+get_flat_track_sector_limit_fail:
+    sec
+    rts
+
+flat_sector_is_free_in_bam:
+    lda temp_mount_kind
+    cmp #MOUNT_KIND_D81
+    beq flat_sector_is_free_in_bam_d81
+    cmp #MOUNT_KIND_D71
+    beq flat_sector_is_free_in_bam_d71
+    jmp flat_sector_is_free_in_bam_d64
+
+flat_sector_is_free_in_bam_d64:
+    lda flat_file_track
+    sec
+    sbc #$01
+    asl
+    asl
+    clc
+    adc #D64_BAM_ENTRY_BASE
+    tay
+    iny
+    lda flat_file_sector
+    jsr mark_flat_sector_byte_index
+    txa
+    and flat_bam_primary_buffer,y
+    bne flat_sector_is_free_in_bam_ok
+    sec
+    rts
+
+flat_sector_is_free_in_bam_d71:
+    lda flat_file_track
+    cmp #36
+    bcc flat_sector_is_free_in_bam_d64
+    sec
+    sbc #36
+    sta flat_track_index
+    asl
+    clc
+    adc flat_track_index
+    tay
+    lda flat_file_sector
+    jsr mark_flat_sector_byte_index
+    txa
+    and flat_bam_secondary_buffer,y
+    bne flat_sector_is_free_in_bam_ok
+    sec
+    rts
+
+flat_sector_is_free_in_bam_d81:
+    lda flat_file_track
+    sec
+    sbc #$01
+    sta flat_track_index
+    asl
+    clc
+    adc flat_track_index
+    asl
+    clc
+    adc #D81_BAM_ENTRY_BASE
+    tay
+    iny
+    lda flat_file_sector
+    jsr mark_flat_sector_byte_index
+    txa
+    and flat_bam_primary_buffer,y
+    bne flat_sector_is_free_in_bam_ok
+    sec
+    rts
+
+flat_sector_is_free_in_bam_ok:
+    clc
+    rts
+
+mark_flat_sector_used_in_bam:
+    lda temp_mount_kind
+    cmp #MOUNT_KIND_D81
+    beq mark_flat_sector_used_in_bam_d81
+    cmp #MOUNT_KIND_D71
+    beq mark_flat_sector_used_in_bam_d71
+    jmp mark_flat_sector_used_in_bam_d64
+
+mark_flat_sector_used_in_bam_d64:
+    lda flat_file_track
+    sec
+    sbc #$01
+    asl
+    asl
+    clc
+    adc #D64_BAM_ENTRY_BASE
+    tay
+    lda flat_bam_primary_buffer,y
+    bne :+
+    jmp mark_flat_sector_used_in_bam_fail
+:
+    sec
+    sbc #$01
+    sta flat_bam_primary_buffer,y
+    iny
+    lda flat_file_sector
+    jsr mark_flat_sector_byte_index
+    txa
+    eor #$FF
+    and flat_bam_primary_buffer,y
+    sta flat_bam_primary_buffer,y
+    clc
+    rts
+
+mark_flat_sector_used_in_bam_d71:
+    lda flat_file_track
+    cmp #36
+    bcc mark_flat_sector_used_in_bam_d64
+    sec
+    sbc #36
+    sta flat_track_index
+    tay
+    lda flat_bam_primary_buffer + D71_BAM_SIDE2_COUNT_BASE,y
+    beq mark_flat_sector_used_in_bam_fail
+    sec
+    sbc #$01
+    sta flat_bam_primary_buffer + D71_BAM_SIDE2_COUNT_BASE,y
+    lda #$01
+    sta flat_secondary_dirty
+    lda flat_track_index
+    asl
+    clc
+    adc flat_track_index
+    tay
+    lda flat_file_sector
+    jsr mark_flat_sector_byte_index
+    txa
+    eor #$FF
+    and flat_bam_secondary_buffer,y
+    sta flat_bam_secondary_buffer,y
+    clc
+    rts
+
+mark_flat_sector_used_in_bam_d81:
+    lda flat_file_track
+    sec
+    sbc #$01
+    sta flat_track_index
+    asl
+    clc
+    adc flat_track_index
+    asl
+    clc
+    adc #D81_BAM_ENTRY_BASE
+    tay
+    lda flat_bam_primary_buffer,y
+    beq mark_flat_sector_used_in_bam_fail
+    sec
+    sbc #$01
+    sta flat_bam_primary_buffer,y
+    iny
+    lda flat_file_sector
+    jsr mark_flat_sector_byte_index
+    txa
+    eor #$FF
+    and flat_bam_primary_buffer,y
+    sta flat_bam_primary_buffer,y
+    clc
+    rts
+
+mark_flat_sector_used_in_bam_fail:
     sec
     rts
 
@@ -8314,6 +9103,36 @@ flat_file_sector:
 flat_sector_index_lo:
     .byte 0
 flat_sector_index_hi:
+    .byte 0
+copy_source_flat_flag:
+    .byte 0
+copy_dest_flat_flag:
+    .byte 0
+flat_src_track:
+    .byte 0
+flat_src_sector:
+    .byte 0
+flat_src_offset:
+    .byte 0
+flat_src_count:
+    .byte 0
+flat_dst_first_track:
+    .byte 0
+flat_dst_first_sector:
+    .byte 0
+flat_dst_curr_track:
+    .byte 0
+flat_dst_curr_sector:
+    .byte 0
+flat_dst_fill:
+    .byte 0
+flat_dst_type:
+    .byte $82
+flat_dst_blocks_lo:
+    .byte 0
+flat_dst_blocks_hi:
+    .byte 0
+flat_sector_limit:
     .byte 0
 flat_track_index:
     .byte 0

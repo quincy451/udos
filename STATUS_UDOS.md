@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 resident bootstrap/core complete, Phase 3 native UCI seam complete, Phase 4 filesystem abstraction seam complete, thirteenth Phase 5 resident shell slice complete.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 resident bootstrap/core complete, Phase 3 native UCI seam complete, Phase 4 filesystem abstraction seam complete, fourteenth Phase 5 resident shell slice complete.
 
 UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runtime environment for this work.
 
@@ -38,8 +38,12 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - uses mock rename only when hardware UCI is unavailable
   - returns an explicit rename failure string on hardware-side errors
 - added a hardware-backed `COPY` path
-  - same-drive copies use `COPY_FILE`
-  - cross-drive copies stream through source `OPEN_FILE`/`READ_DATA` and destination `OPEN_FILE`/`WRITE_DATA`
+  - tree-only same-drive copies use `COPY_FILE`
+  - tree-only cross-drive copies stream through source `OPEN_FILE`/`READ_DATA` and destination `OPEN_FILE`/`WRITE_DATA`
+  - flat-image copies now also have a raw image path:
+    - source-side raw root-directory lookup plus chained sector reads when the source mount is flat
+    - destination-side raw BAM allocation plus direct directory-entry creation when the destination mount is flat
+    - direct image writes through `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA` / repeated `WRITE_DATA`
   - uses mock copy only when hardware UCI is unavailable
   - returns an explicit copy failure string on hardware-side errors
 - enforced flat-vs-tree policy:
@@ -139,8 +143,9 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - tree-capable hardware mode still issues `RENAME_FILE`
   - VICE still validates only the mock path because no Ultimate UCI transport exists there
 - hardware-backed copy is now wired behind `COPY`:
-  - same-drive hardware mode issues `COPY_FILE`
-  - cross-drive hardware mode issues source `OPEN_FILE` / `READ_DATA` and destination `OPEN_FILE` / `WRITE_DATA`
+  - tree-only same-drive hardware mode issues `COPY_FILE`
+  - tree-only cross-drive hardware mode issues source `OPEN_FILE` / `READ_DATA` and destination `OPEN_FILE` / `WRITE_DATA`
+  - flat-image hardware mode now first attempts raw root-directory lookup, chained sector reads, BAM allocation, and direct directory-entry creation through image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA` / repeated `WRITE_DATA`
   - VICE still validates only the mock path because no Ultimate UCI transport exists there
 - flat-image header-label import is now wired behind `VOL` for hardware `D64` / `D71` / `D81` mounts:
   - hardware mode issues `OPEN_FILE` / `FILE_SEEK` / `READ_DATA` / `CLOSE_FILE` against the mounted image path
@@ -211,9 +216,9 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
 - resident `MEM` now reports:
-  - `RAM USED 18847 FREE 46688 REU USED 0 FREE 16777216`
-- resident core code footprint: `$499F`
-- resident load window in `udos_c64.cfg`: `$5400`
+  - `RAM USED 20318 FREE 45217 REU USED 0 FREE 16777216`
+- resident core code footprint: `$4F5E`
+- resident load window in `udos_c64.cfg`: `$5800`
 
 ## What Works
 
@@ -232,6 +237,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - file-rename seam for `REN` with hardware `RENAME_FILE` attempt and explicit hardware-error reporting
 - flat-image raw rename seam for `REN` with root-directory lookup and direct directory-entry rewrite
 - file-copy seam for `COPY` with same-drive `COPY_FILE`, cross-drive read/write streaming, and explicit hardware-error reporting
+- flat-image raw file-copy seam for `COPY` with chained sector reads, BAM allocation, and direct directory-entry creation
 - real `MOUNT` syntax with image-path parsing and flat-image header-label import plus basename fallback
 - flat-image rejection for directory-tree semantics
 - prompt rendering from live drive/kind/path state
@@ -264,6 +270,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - no hardware-validated image-backed file delete yet
 - no hardware-validated image-backed file rename yet
 - no hardware-validated image-backed file copy yet
+- no hardware-validated flat-image raw copy path yet
 - no hardware-validated program-image loading yet behind implicit program launch
 - no overlay command loader yet
 
@@ -278,6 +285,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - hardware-validate and harden the new flat-image raw program-image load path on target
   - hardware-validate and harden the new flat-image raw delete path on target
   - hardware-validate and harden the new flat-image raw rename path on target
+  - hardware-validate and harden the new flat-image raw copy path on target
   - extend `VOL` beyond flat-image header import to full mounted-image metadata where the formats permit it
   - hardware-validate and harden the new program-image load path
 - keep shell semantics stable while swapping the backend
