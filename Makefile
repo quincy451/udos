@@ -20,7 +20,7 @@ RESIDENT_DISK := $(BUILD_DIR)/udos-resident.d64
 RESIDENT_LABELS := $(BUILD_DIR)/udos-resident.labels
 RESIDENT_MAP := $(BUILD_DIR)/udos-resident.map
 
-.PHONY: all clean acheron-dep proof vice-proof resident vice-resident vice-launch vice-copy test
+.PHONY: all clean acheron-dep proof vice-proof resident vice-resident vice-launch vice-copy vice-drive test
 
 all: proof resident
 
@@ -61,4 +61,7 @@ vice-launch: resident
 vice-copy: resident
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) --feed-after "A:D64/>" --feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rCOPY *.* WORK\rCD WORK\rDIR\r" --expected "FS.AVM" --contains "BOOT.ASM" --contains "COPIED"
 
-test: vice-proof vice-resident vice-launch vice-copy
+vice-drive: resident
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) --feed-after "A:D64/>" --feed-text "C:\rD:\r" --expected "DRIVE NOT PRESENT" --contains "DRIVE NOT PRESENT"
+
+test: vice-proof vice-resident vice-launch vice-copy vice-drive

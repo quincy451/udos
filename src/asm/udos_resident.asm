@@ -125,6 +125,7 @@ SHELL_CMD_COPY = 10
 SHELL_CMD_REN = 11
 SHELL_CMD_DEL = 12
 SHELL_CMD_RUN = 13
+SHELL_CMD_DRIVE_ERR = 14
 INPUT_MODE_KEYBOARD = 0
 INPUT_MODE_SCRIPT = 1
 DIR_ID_ROOT = 0
@@ -288,6 +289,7 @@ shell_loop:
     calln svc_line_read
     case8 SHELL_CMD_NONE, shell_loop
     case8 SHELL_CMD_RUN, cmd_run_program
+    case8 SHELL_CMD_DRIVE_ERR, cmd_emit_response
     case8 SHELL_CMD_MOUNT, cmd_emit_response
     case8 SHELL_CMD_COPY, cmd_emit_response
     case8 SHELL_CMD_REN, cmd_emit_response
@@ -1507,6 +1509,8 @@ svc_shell_response_ptr:
     beq shell_resp_vol
     cmp #SHELL_CMD_MEM
     beq shell_resp_mem
+    cmp #SHELL_CMD_DRIVE_ERR
+    beq shell_resp_drive_err
     lda #<resp_unknown
     sta 0,x
     lda #>resp_unknown
@@ -1547,6 +1551,12 @@ shell_resp_vol:
     rts
 shell_resp_mem:
     jsr build_mem_response
+    rts
+shell_resp_drive_err:
+    lda #<resp_drive_not_present
+    sta 0,x
+    lda #>resp_drive_not_present
+    sta 1,x
     rts
 
 normalize_input_char:
@@ -1687,16 +1697,20 @@ token_dispatch:
 token_len2:
     ldy parse_cmd_start
     lda line_buffer,y
-    cmp #CMD_C
-    beq token_len2_cd
     cmp #$01
     beq token_len2_drive
     cmp #$02
     beq token_len2_drive
+    cmp #$03
+    beq token_len2_c
+    cmp #$04
+    beq token_len2_drive_missing
     jmp token_unknown
-token_len2_cd:
+token_len2_c:
     iny
     lda line_buffer,y
+    cmp #ASCII_COLON
+    beq token_len2_drive_missing_ok
     cmp #CMD_D
     beq :+
     jmp token_unknown
@@ -1712,6 +1726,16 @@ token_len2_drive:
 :
     jsr copy_cmd_token_to_arg
     lda #SHELL_CMD_CD
+    rts
+token_len2_drive_missing:
+    iny
+    lda line_buffer,y
+    cmp #ASCII_COLON
+    beq :+
+    jmp token_unknown
+:
+token_len2_drive_missing_ok:
+    lda #SHELL_CMD_DRIVE_ERR
     rts
 token_len3:
     ldy parse_cmd_start

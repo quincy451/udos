@@ -101,6 +101,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - direct drive tokens now work on the resident path:
   - `A:` -> switch to logical drive `A:`
   - `B:` -> switch to logical drive `B:`
+  - `C:` / `D:` -> explicit `DRIVE NOT PRESENT`
 - bare non-keyword input now implies program launch:
   - `DEL BOOT3.PRG` -> delete `BOOT3.PRG`
   - `DELBOOT3` -> implicit launch attempt of `DELBOOT3.PRG`, then `PROGRAM NOT FOUND`
@@ -165,6 +166,10 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `RENAMED`
   - `B:DNP/WORK> DELBOOT3`
   - `PROGRAM NOT FOUND`
+  - `B:DNP/WORK> C:`
+  - `DRIVE NOT PRESENT`
+  - `B:DNP/WORK> D:`
+  - `DRIVE NOT PRESENT`
   - `B:DNP/WORK> DEL *.PRG`
   - `DELETED`
   - `B:DNP/WORK> DIR`
@@ -176,6 +181,11 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - separate VICE-validated wildcard copy smoke:
   - `B:DNP/SRC> COPY *.* WORK`
   - `B:DNP/WORK BOOT.ASM FS.AVM`
+- separate VICE-validated reserved-drive smoke:
+  - `A:D64/> C:`
+  - `DRIVE NOT PRESENT`
+  - `A:D64/> D:`
+  - `DRIVE NOT PRESENT`
 - bind snapshots:
   - `$CFE4 = $01` -> cached backend-path length for `A:` (`/`)
   - `$CFE5 = $05` -> cached backend-path length for `B:` (`/WORK`) after the smoke sequence
@@ -195,8 +205,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
 - resident `MEM` now reports:
-  - `RAM USED 15989 FREE 49546 REU USED 0 FREE 16777216`
-- resident core code footprint: `$3E75`
+  - `RAM USED 16027 FREE 49508 REU USED 0 FREE 16777216`
+- resident core code footprint: `$3E9B`
 - resident load window in `udos_c64.cfg`: `$4700`
 
 ## What Works

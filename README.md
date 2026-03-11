@@ -53,6 +53,7 @@ Current milestone:
 Current command parser rule:
 - shell keywords require a separator before arguments
 - direct drive tokens like `A:` and `B:` switch the current logical drive
+- direct `C:` and `D:` tokens are recognized but currently return `DRIVE NOT PRESENT`
 - a non-keyword token implies program launch; if it has no extension, `.PRG` is appended
 - example: `DEL BOOT3.PRG` deletes the file, while `DELBOOT3` is treated as a bare program token and returns `PROGRAM NOT FOUND`
 - `DEL` now also supports limited resident wildcards:

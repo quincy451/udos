@@ -92,11 +92,17 @@ Current `vice-resident` behavior:
 - verifies command-keyword separation:
   - `DELBOOT3` must not be treated as `DEL BOOT3.PRG`
   - it is treated as a bare program token and returns `PROGRAM NOT FOUND`
+- verifies reserved-but-unimplemented drive tokens:
+  - `C:` returns `DRIVE NOT PRESENT`
+  - `D:` returns `DRIVE NOT PRESENT`
 - verifies implicit program launch separately through `make vice-launch`:
   - `BOOT3 DIR` resolves as `BOOT3.PRG`
   - `DIR` is passed as the command line
 - verifies wildcard copy separately through `make vice-copy`:
   - `COPY *.* WORK` copies both `BOOT.ASM` and `FS.AVM`
+- verifies reserved drive-token handling separately through `make vice-drive`:
+  - `C:` returns `DRIVE NOT PRESENT`
+  - `D:` returns `DRIVE NOT PRESENT`
 - verifies `MEM` separately through the Python test suite:
   - derives resident usage from `build/udos-resident.labels`
   - checks the live shell prints matching decimal RAM usage/free values
@@ -141,6 +147,10 @@ COPIED
 RENAMED
   B:DNP/WORK> DELBOOT3
 PROGRAM NOT FOUND
+  B:DNP/WORK> C:
+DRIVE NOT PRESENT
+  B:DNP/WORK> D:
+DRIVE NOT PRESENT
   B:DNP/WORK> DEL *.PRG
 DELETED
   B:DNP/WORK> DIR
@@ -152,12 +162,14 @@ Separate VICE smoke targets:
   - validates implicit launch with `BOOT3 DIR`
 - `make vice-copy`
   - validates wildcard copy with `COPY *.* WORK`
+- `make vice-drive`
+  - validates reserved `C:` / `D:` drive tokens
 
 Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$3E75`
+- resident core code: `$3E9B`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4700`
 - hardware directory cache budget:
   - `6` entries per drive
