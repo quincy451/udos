@@ -169,19 +169,21 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$3E62`
-- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4700`
+- resident core code: `$42D2`
+- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$5000`
 - hardware directory cache budget:
   - `6` entries per drive
   - `20` bytes per cached name
   - flat-image root parsing currently reads `247` bytes from each directory sector because only entry metadata and names are needed
 - hardware `TYPE` read budget:
   - one bounded resident text buffer per command
+  - flat-image hardware mode now also carries a `256` byte raw sector buffer for chained sector reads
   - fallback to mock content when UCI/file access fails
 - hardware implicit-launch budget:
   - one bounded resident image buffer per command
   - current buffer size: `255` bytes
-  - hardware mode now probes size/existence with `FILE_STAT` before opening the file
+  - flat-image hardware mode now first resolves the file through raw root-directory parsing and chained sector reads
+  - tree-capable hardware mode still probes size/existence with `FILE_STAT` before opening the file
 - hardware mount path:
   - shell syntax is `MOUNT <drive>: <image-path>`
   - the resident shell currently maps `A:` to IEC `8` and `B:` to IEC `9`
@@ -240,10 +242,12 @@ Hardware-specific note:
 - the resident image now contains a real flat-image root-directory path using `OPEN_FILE`, `FILE_SEEK`, and `READ_DATA`
 - the resident image also retains the Ultimate DOS directory-enumeration path using `CHANGE_DIR`, `GET_PATH`, `OPEN_DIR`, and `READ_DIR` for tree-capable mounts
 - the resident image now also contains a real Ultimate DOS `TYPE` path using `CHANGE_DIR`, `OPEN_FILE`, `READ_DATA`, and `CLOSE_FILE`
+- flat-image mounts now additionally contain a raw file-content path using image `OPEN_FILE`, repeated `FILE_SEEK`, and chained `READ_DATA`
 - the resident image now also contains a real Ultimate DOS `DEL` path using `CHANGE_DIR` and `DELETE_FILE`
 - the resident image now also contains a real Ultimate DOS `REN` path using `CHANGE_DIR` and `RENAME_FILE`
 - the resident image now also contains a real Ultimate DOS `COPY` path using same-drive `COPY_FILE` and cross-drive `OPEN_FILE` / `READ_DATA` / `WRITE_DATA`
 - the resident image now also contains a real Ultimate DOS `MOUNT` path using `MOUNT_DISK`
 - the resident image now also contains a flat-image label-import path using `OPEN_FILE`, `FILE_SEEK`, and `READ_DATA`
+- the resident image now also contains a flat-image implicit-launch path using raw directory lookup and chained sector reads
 - this path has been build-validated only
 - it has not been executed on real Ultimate hardware from this environment

@@ -24,6 +24,67 @@ class FlatImageLayoutTests(unittest.TestCase):
         actual = bytes(b & 0x7F for b in data[offset : offset + len(expected)])
         self.assertEqual(actual, expected)
 
+    def _track_sectors(self, image_type: str, track: int) -> int:
+        if image_type == "d81":
+            return 40
+        if image_type == "d71" and track > 35:
+            track -= 35
+        if track < 18:
+            return 21
+        if track < 25:
+            return 19
+        if track < 31:
+            return 18
+        return 17
+
+    def _image_offset(self, image_type: str, track: int, sector: int) -> int:
+        total = 0
+        for prior in range(1, track):
+            total += self._track_sectors(image_type, prior)
+        total += sector
+        return total * 256
+
+    def _decode_name(self, raw: bytes) -> bytes:
+        out = bytearray()
+        for value in raw:
+            value &= 0x7F
+            if value in (0x00, 0x20):
+                break
+            if value == 0x20:
+                break
+            out.append(value)
+        return bytes(out).rstrip(b"\x20")
+
+    def _find_root_entry(self, data: bytes, image_type: str, name: bytes) -> tuple[int, int]:
+        track, sector = (40, 3) if image_type == "d81" else (18, 1)
+        while track:
+            offset = self._image_offset(image_type, track, sector)
+            sector_data = data[offset : offset + 256]
+            for entry_offset in range(2, 0xE3, 0x20):
+                if sector_data[entry_offset] == 0:
+                    continue
+                entry_name = self._decode_name(sector_data[entry_offset + 3 : entry_offset + 19])
+                if entry_name == name:
+                    return sector_data[entry_offset + 1], sector_data[entry_offset + 2]
+            track = sector_data[0]
+            sector = sector_data[1]
+        raise AssertionError(f"missing entry {name!r}")
+
+    def _read_file_chain(self, data: bytes, image_type: str, track: int, sector: int) -> bytes:
+        out = bytearray()
+        while track:
+            offset = self._image_offset(image_type, track, sector)
+            sector_data = data[offset : offset + 256]
+            next_track = sector_data[0]
+            next_sector = sector_data[1]
+            if next_track == 0:
+                used = max(next_sector - 1, 0)
+                out.extend(sector_data[2 : 2 + used])
+                break
+            out.extend(sector_data[2:256])
+            track, sector = next_track, next_sector
+        return bytes(out)
+
     def test_d64_label_and_directory_offsets(self) -> None:
         image = self._build_probe("d64", "D64TEST")
         data = image.read_bytes()
@@ -41,6 +102,27 @@ class FlatImageLayoutTests(unittest.TestCase):
         data = image.read_bytes()
         self._assert_asciiish_label(data, 0x61804, b"D81TEST")
         self.assertEqual(bytes(b & 0x7F for b in data[0x61B05:0x61B0A]), b"HELLO")
+
+    def test_d64_file_chain_reads_sample(self) -> None:
+        image = self._build_probe("d64", "D64TEST")
+        data = image.read_bytes()
+        track, sector = self._find_root_entry(data, "d64", b"HELLO")
+        self.assertEqual(self._read_file_chain(data, "d64", track, sector), b"hello\n")
+
+    def test_d71_file_chain_reads_sample(self) -> None:
+        image = self._build_probe("d71", "D71TEST")
+        data = image.read_bytes()
+        track, sector = self._find_root_entry(data, "d71", b"HELLO")
+        self.assertEqual(self._read_file_chain(data, "d71", track, sector), b"hello\n")
+
+    def test_d81_file_chain_reads_sample(self) -> None:
+        image = self._build_probe("d81", "D81TEST")
+        data = image.read_bytes()
+        track, sector = self._find_root_entry(data, "d81", b"HELLO")
+        self.assertEqual(self._read_file_chain(data, "d81", track, sector), b"hello\n")
+
+    def test_d71_second_side_offset_boundary(self) -> None:
+        self.assertEqual(self._image_offset("d71", 36, 0), 683 * 256)
 
 
 if __name__ == "__main__":

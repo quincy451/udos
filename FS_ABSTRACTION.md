@@ -141,7 +141,10 @@ image-backed file lookup and mutation once the filesystem layer exists.
 
 Current file-read seam:
 - `TYPE` now attempts a real Ultimate DOS file read when UCI hardware is present
-- the current call sequence is:
+- flat-image mounts now first attempt:
+  - raw root-directory lookup against the mounted image
+  - chained sector reads through image `OPEN_FILE`, repeated `FILE_SEEK`, and repeated `READ_DATA`
+- tree-capable mounts still use:
   - `CHANGE_DIR`
   - `OPEN_FILE`
   - `READ_DATA`
@@ -225,4 +228,16 @@ Current hardware enumeration seam:
   - `OPEN_DIR`
   - repeated `READ_DIR`
 - cached entries are then exposed back to the shell through the existing iterator ABI
+- this path is build-complete, but not hardware-validated from this environment
+
+Current implicit-launch seam:
+- bare non-keyword input still drives the resident program ABI
+- flat-image mounts now first attempt:
+  - raw root-directory lookup against the mounted image
+  - chained sector reads into the resident program buffer
+- tree-capable mounts still use:
+  - `FILE_STAT`
+  - `OPEN_FILE`
+  - `READ_DATA`
+  - `CLOSE_FILE`
 - this path is build-complete, but not hardware-validated from this environment

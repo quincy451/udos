@@ -19,8 +19,8 @@ Current milestone:
   - tree-capable mounts still synchronize through `CHANGE_DIR`, refresh through `GET_PATH`, and enumerate through `OPEN_DIR` / `READ_DIR`
   - mock fallback retained for VICE and failure cases
 - Phase 5 now also includes a hardware-backed `TYPE` read path in code:
-  - resident path synchronization through `CHANGE_DIR`
-  - file open/read/close through `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
+  - flat-image mounts now first try raw image file lookup plus chained-sector reads through `OPEN_FILE` / `FILE_SEEK` / `READ_DATA`
+  - tree-capable mounts still use resident path synchronization plus `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
   - mock fallback retained for VICE and failure cases
 - Phase 5 now also includes a hardware-backed `DEL` path in code:
   - resident path synchronization through `CHANGE_DIR`
@@ -46,8 +46,8 @@ Current milestone:
   - mock mode preserves the same semantics under VICE
 - Phase 5 now also includes a real resident image-load path behind implicit program launch:
   - mock mode copies the resolved target into a bounded resident image buffer
-  - hardware mode first probes the target with `FILE_STAT`
-  - hardware mode then attempts `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
+  - flat-image mounts now first try raw image file lookup plus chained-sector reads
+  - tree-capable hardware mode still probes with `FILE_STAT` and then attempts `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
   - VICE validates the loaded image length through resident snapshots
 
 Current command parser rule:

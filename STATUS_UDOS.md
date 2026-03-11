@@ -24,10 +24,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - tree-capable mounts still synchronize through `CHANGE_DIR`, query `GET_PATH`, and fill a small resident directory cache through `OPEN_DIR` / `READ_DIR`
   - falls back to the descriptor-backed mock model when hardware transport is unavailable or a query fails
 - added a hardware-backed `TYPE` read path
-  - synchronizes the backend path through `CHANGE_DIR`
-  - opens files through `OPEN_FILE`
-  - reads a bounded text buffer through `READ_DATA`
-  - closes the handle through `CLOSE_FILE`
+  - flat-image mounts now first try raw root-directory lookup plus chained-sector reads through image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA`
+  - tree-capable mounts still synchronize the backend path through `CHANGE_DIR`, then use `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
   - falls back to the descriptor-backed mock content on hardware/query failure
 - added a hardware-backed `DEL` path
   - synchronizes the backend path through `CHANGE_DIR`
@@ -66,6 +64,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - expose command-line pointer and length
   - snapshot run state and exit state
   - return cleanly to the resident shell
+  - flat-image mounts now first try raw root-directory lookup plus chained-sector reads into the resident image buffer
+  - tree-capable mounts still use `FILE_STAT` plus `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
 - updated resident `MEM` to report decimal usage:
   - RAM used bytes
   - RAM free bytes using the current `FFFF-used` policy
@@ -126,7 +126,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - current cache budget is `6` entries with names capped at `20` bytes plus terminator
   - VICE still validates only the mock path because no Ultimate UCI transport exists there
 - hardware-backed file read is now wired behind `TYPE`:
-  - hardware mode issues `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
+  - flat-image hardware mode first issues raw root-directory lookup plus image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA`
+  - tree-capable hardware mode still issues `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
   - the current text read is bounded to the resident response buffer
   - VICE still validates only the mock path because no Ultimate UCI transport exists there
 - hardware-backed delete is now wired behind `DEL`:
@@ -145,9 +146,10 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - VICE still validates only the basename fallback path because no Ultimate UCI transport exists there
 - implicit program launch now loads a real resident program image:
   - mock mode copies the resolved file content into a bounded resident image buffer
-  - hardware mode first attempts `FILE_STAT`
-  - hardware mode then attempts `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
-  - hardware mode can now distinguish `PROGRAM NOT FOUND` from a generic load failure before opening the file
+  - flat-image hardware mode now first attempts raw root-directory lookup plus chained-sector reads into the image buffer
+  - tree-capable hardware mode still first attempts `FILE_STAT`
+  - tree-capable hardware mode then attempts `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
+  - tree-capable hardware mode can now distinguish `PROGRAM NOT FOUND` from a generic load failure before opening the file
   - VICE validates the loaded image length through resident snapshots
 - current VICE-validated transcript:
   - `A:D64/> MOUNT B: /IMAGES/WORK.DNP`
@@ -207,9 +209,9 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
 - resident `MEM` now reports:
-  - `RAM USED 15970 FREE 49565 REU USED 0 FREE 16777216`
-- resident core code footprint: `$3E62`
-- resident load window in `udos_c64.cfg`: `$4700`
+  - `RAM USED 17106 FREE 48429 REU USED 0 FREE 16777216`
+- resident core code footprint: `$42D2`
+- resident load window in `udos_c64.cfg`: `$5000`
 
 ## What Works
 
@@ -222,6 +224,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - backend-path metadata query seam with hardware `CHANGE_DIR` / `GET_PATH` attempt plus mock fallback
 - directory enumeration seam with flat-image raw root parsing plus tree-capable `OPEN_DIR` / `READ_DIR`, all with mock fallback
 - file-read seam for `TYPE` with hardware `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE` attempt plus mock fallback
+- flat-image raw file-read seam for `TYPE` with root-directory lookup plus chained sector reads
 - file-delete seam for `DEL` with hardware `DELETE_FILE` attempt and explicit hardware-error reporting
 - file-rename seam for `REN` with hardware `RENAME_FILE` attempt and explicit hardware-error reporting
 - file-copy seam for `COPY` with same-drive `COPY_FILE`, cross-drive read/write streaming, and explicit hardware-error reporting
@@ -238,6 +241,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - resident program-handoff and image-load workflow:
   - implicit program launch from a bare non-keyword line
   - `.PRG` suffix added when the target has no extension
+  - flat-image raw program-image load path for `D64` / `D71` / `D81`
   - command-line separation with normal spaces
   - bounded resident image load before handoff
   - return to shell after program exit
@@ -249,6 +253,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - no hardware-validated mounted-image bind yet
 - no hardware-validated flat-image header-label import yet
 - no hardware-validated flat-image raw root-directory parsing yet
+- no hardware-validated flat-image raw file reads yet
+- no hardware-validated flat-image raw program-image loads yet
 - no hardware-validated image-backed file delete yet
 - no hardware-validated image-backed file rename yet
 - no hardware-validated image-backed file copy yet
@@ -262,6 +268,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - hardware-validate the new `MOUNT_DISK` path and harden error handling on target
   - hardware-validate and harden the new flat-image header-label import path on target
   - hardware-validate and harden the new flat-image raw root-directory parsing path on target
+  - hardware-validate and harden the new flat-image raw file-read path on target
+  - hardware-validate and harden the new flat-image raw program-image load path on target
   - extend `VOL` beyond flat-image header import to full mounted-image metadata where the formats permit it
   - hardware-validate and harden the new program-image load path
 - keep shell semantics stable while swapping the backend

@@ -36,7 +36,8 @@
 - replace the current descriptor-backed mock `DIR` and per-drive path model with image-backed directory state
 - hardware-validate the current `svc_fs_enum_*` Ultimate DOS path and harden its end-of-directory/error handling on target
 - hardware-validate and harden the new flat-image raw root-directory path on target
-- hardware-validate and harden the current `TYPE` Ultimate DOS read path on target
+- hardware-validate and harden the current tree-capable `TYPE` Ultimate DOS read path on target
+- hardware-validate and harden the new flat-image raw `TYPE` path on target
 - hardware-validate and harden the current `DEL` Ultimate DOS delete path on target
 - hardware-validate and harden the current `REN` Ultimate DOS rename path on target
 - hardware-validate and harden the current `COPY` Ultimate DOS copy path on target
@@ -48,7 +49,8 @@
 - hardware-validate and harden the current `MOUNT_DISK` path on target
 - hardware-validate and harden the current flat-image header-label import path on target
 - extend `VOL` from flat-image header import to true mounted-image metadata across the remaining formats
-- hardware-validate and harden the current implicit program-image load path on target
+- hardware-validate and harden the current tree-capable implicit program-image load path on target
+- hardware-validate and harden the new flat-image raw implicit program-image load path on target
 - define how the resident parser exposes argument buffers to later VM-side command code without growing native glue unnecessarily
 
 ## Phase 6
