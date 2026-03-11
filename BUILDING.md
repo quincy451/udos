@@ -144,7 +144,7 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$361F`
+- resident core code: `$37C2`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4000`
 - hardware directory cache budget:
   - `6` entries per drive
@@ -160,7 +160,8 @@ Current resident map facts:
   - shell syntax is `MOUNT <drive>: <image-path>`
   - the resident shell currently maps `A:` to IEC `8` and `B:` to IEC `9`
   - hardware mode issues Ultimate DOS `MOUNT_DISK (0x23)`
-  - the current resident label is derived from the mounted image basename, not the filesystem header
+  - flat-image hardware mode now also attempts `OPEN_FILE (0x02)` + `FILE_SEEK (0x06)` + `READ_DATA (0x04)` against the mounted image path to import the filesystem header label for `D64` / `D71` / `D81`
+  - when that header import is unavailable or fails, the resident label falls back to the mounted image basename
 
 ## Tests
 
@@ -218,5 +219,6 @@ Hardware-specific note:
 - the resident image now also contains a real Ultimate DOS `REN` path using `CHANGE_DIR` and `RENAME_FILE`
 - the resident image now also contains a real Ultimate DOS `COPY` path using same-drive `COPY_FILE` and cross-drive `OPEN_FILE` / `READ_DATA` / `WRITE_DATA`
 - the resident image now also contains a real Ultimate DOS `MOUNT` path using `MOUNT_DISK`
+- the resident image now also contains a flat-image label-import path using `OPEN_FILE`, `FILE_SEEK`, and `READ_DATA`
 - this path has been build-validated only
 - it has not been executed on real Ultimate hardware from this environment

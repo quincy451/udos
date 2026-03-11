@@ -59,6 +59,11 @@ Current resident users of the native transport:
   - `OPEN_FILE`
   - `READ_DATA`
   - `CLOSE_FILE`
+- flat-image volume-label import:
+  - `OPEN_FILE`
+  - `FILE_SEEK`
+  - `READ_DATA`
+  - `CLOSE_FILE`
 
 Current implementation notes:
 - `svc_transport_get_mode` now delegates to `uci_probe` instead of reading the ident register directly

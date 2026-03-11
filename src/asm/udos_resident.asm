@@ -157,6 +157,7 @@ DOS_CMD_OPEN_FILE = $02
 DOS_CMD_CLOSE_FILE = $03
 DOS_CMD_READ_DATA = $04
 DOS_CMD_WRITE_DATA = $05
+DOS_CMD_FILE_SEEK = $06
 DOS_CMD_FILE_STAT = $08
 DOS_CMD_DELETE_FILE = $09
 DOS_CMD_RENAME_FILE = $0A
@@ -178,6 +179,15 @@ HW_DIR_CACHE_MAX = 6
 HW_DIR_NAME_MAX = 20
 HW_DIR_NAME_STRIDE = HW_DIR_NAME_MAX + 1
 FULL_PATH_BUF_LEN = MAX_LINE_LEN + 8
+FLAT_LABEL_LEN = 16
+D64_LABEL_OFF_0 = $90
+D64_LABEL_OFF_1 = $65
+D64_LABEL_OFF_2 = $01
+D64_LABEL_OFF_3 = $00
+D81_LABEL_OFF_0 = $04
+D81_LABEL_OFF_1 = $18
+D81_LABEL_OFF_2 = $06
+D81_LABEL_OFF_3 = $00
 IMG_VOL_LO = 0
 IMG_VOL_HI = 1
 IMG_ROOT_LO_LO = 2
@@ -560,6 +570,55 @@ install_mounted_image:
     jsr clear_dynamic_work_drive
     rts
 
+install_mount_path:
+    jsr select_mount_path_buffer
+    ldy #$00
+install_mount_path_loop:
+    lda path_name_buffer,y
+    sta (PTR),y
+    beq install_mount_path_done
+    iny
+    cpy #MAX_LINE_LEN
+    bcc install_mount_path_loop
+    lda #$00
+    sta (PTR),y
+install_mount_path_done:
+    rts
+
+select_mount_path_buffer:
+    lda temp_drive
+    beq select_mount_path_buffer_a
+    lda #<mount_path_b
+    sta PTR
+    lda #>mount_path_b
+    sta PTR+1
+    rts
+select_mount_path_buffer_a:
+    lda #<mount_path_a
+    sta PTR
+    lda #>mount_path_a
+    sta PTR+1
+    rts
+
+install_volume_label_from_mount:
+    jsr uci_probe
+    bcs install_volume_label_from_mount_fallback
+    lda temp_mount_kind
+    cmp #MOUNT_KIND_D64
+    beq install_volume_label_from_mount_flat
+    cmp #MOUNT_KIND_D71
+    beq install_volume_label_from_mount_flat
+    cmp #MOUNT_KIND_D81
+    beq install_volume_label_from_mount_flat
+install_volume_label_from_mount_fallback:
+    jmp install_dynamic_volume_label
+install_volume_label_from_mount_flat:
+    jsr install_flat_volume_label_hw
+    bcc install_volume_label_from_mount_done
+    jmp install_dynamic_volume_label
+install_volume_label_from_mount_done:
+    rts
+
 install_dynamic_volume_label:
     jsr select_dynamic_volume_label_buffer
     ldy #$00
@@ -625,6 +684,115 @@ select_dynamic_volume_label_buffer_a:
     sta PTR
     lda #>volume_label_a
     sta PTR+1
+    rts
+
+install_flat_volume_label_hw:
+    jsr select_mount_path_buffer
+    jsr open_named_file_hw_from_ptr
+    bcs install_flat_volume_label_hw_fail
+    jsr seek_flat_volume_label_hw
+    bcs install_flat_volume_label_hw_fail_close
+    lda #FLAT_LABEL_LEN
+    jsr uci_read_open_file_into_response_len
+    bcs install_flat_volume_label_hw_fail_close
+    lda uci_data_length
+    cmp #FLAT_LABEL_LEN
+    bcc install_flat_volume_label_hw_fail_close
+    jsr copy_flat_volume_label_from_response
+    bcs install_flat_volume_label_hw_fail_close
+    jsr close_current_file_hw
+    bcs install_flat_volume_label_hw_fail
+    clc
+    rts
+install_flat_volume_label_hw_fail_close:
+    php
+    jsr close_current_file_hw
+    plp
+install_flat_volume_label_hw_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
+seek_flat_volume_label_hw:
+    jsr build_uci_file_seek_label_command
+    pha
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    pla
+    jsr uci_issue_status_only
+    bcs seek_flat_volume_label_hw_fail
+    jsr uci_status_is_ok
+    bcs seek_flat_volume_label_hw_fail
+    clc
+    rts
+seek_flat_volume_label_hw_fail:
+    sec
+    rts
+
+build_uci_file_seek_label_command:
+    jsr build_uci_target_header
+    lda #DOS_CMD_FILE_SEEK
+    sta uci_cmd_buffer+1
+    lda temp_mount_kind
+    cmp #MOUNT_KIND_D81
+    beq build_uci_file_seek_label_d81
+    lda #D64_LABEL_OFF_0
+    sta uci_cmd_buffer+2
+    lda #D64_LABEL_OFF_1
+    sta uci_cmd_buffer+3
+    lda #D64_LABEL_OFF_2
+    sta uci_cmd_buffer+4
+    lda #D64_LABEL_OFF_3
+    sta uci_cmd_buffer+5
+    lda #6
+    rts
+build_uci_file_seek_label_d81:
+    lda #D81_LABEL_OFF_0
+    sta uci_cmd_buffer+2
+    lda #D81_LABEL_OFF_1
+    sta uci_cmd_buffer+3
+    lda #D81_LABEL_OFF_2
+    sta uci_cmd_buffer+4
+    lda #D81_LABEL_OFF_3
+    sta uci_cmd_buffer+5
+    lda #6
+    rts
+
+copy_flat_volume_label_from_response:
+    jsr select_dynamic_volume_label_buffer
+    ldx #$00
+    ldy #$00
+copy_flat_volume_label_loop:
+    cpx #FLAT_LABEL_LEN
+    bcs copy_flat_volume_label_done
+    lda response_buffer,x
+    beq copy_flat_volume_label_done
+    cmp #$A0
+    beq copy_flat_volume_label_done
+    and #$7F
+    beq copy_flat_volume_label_done
+    sta (PTR),y
+    inx
+    iny
+    cpy #MAX_LINE_LEN
+    bcc copy_flat_volume_label_loop
+copy_flat_volume_label_done:
+    lda #$00
+    sta (PTR),y
+    cpy #$00
+    bne copy_flat_volume_label_ptr
+    sec
+    rts
+copy_flat_volume_label_ptr:
+    ldy temp_drive
+    lda PTR
+    sta volume_ptr_lo,y
+    lda PTR+1
+    sta volume_ptr_hi,y
+    clc
     rts
 
 refresh_drive_backend_path:
@@ -2265,7 +2433,8 @@ mount_build_apply:
     lda #DIR_ID_ROOT
     sta dir_state_table,y
     jsr install_mounted_image
-    jsr install_dynamic_volume_label
+    jsr install_mount_path
+    jsr install_volume_label_from_mount
     jsr refresh_drive_backend_path
     lda temp_drive
     cmp current_drive
@@ -3775,6 +3944,47 @@ build_uci_file_stat_done:
     adc #2
     rts
 
+open_named_file_hw_from_ptr:
+    jsr build_uci_open_read_command_from_ptr
+    pha
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    pla
+    jsr uci_issue_status_only
+    bcs open_named_file_hw_fail
+    jsr uci_status_is_ok
+    bcs open_named_file_hw_fail
+    clc
+    rts
+open_named_file_hw_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
+build_uci_open_read_command_from_ptr:
+    jsr build_uci_target_header
+    lda #DOS_CMD_OPEN_FILE
+    sta uci_cmd_buffer+1
+    lda #FA_READ
+    sta uci_cmd_buffer+2
+    ldy #$00
+build_uci_open_read_ptr_copy:
+    lda (PTR),y
+    beq build_uci_open_read_ptr_done
+    jsr screen_code_to_ascii
+    sta uci_cmd_buffer+3,y
+    iny
+    cpy #MAX_LINE_LEN
+    bcc build_uci_open_read_ptr_copy
+build_uci_open_read_ptr_done:
+    tya
+    clc
+    adc #3
+    rts
+
 mount_disk_hw:
     jsr build_uci_mount_command
     pha
@@ -4252,12 +4462,17 @@ build_full_path_done:
     rts
 
 uci_read_open_file_into_response:
+    lda #MAX_RESPONSE_LEN-1
+    jmp uci_read_open_file_into_response_len
+
+uci_read_open_file_into_response_len:
+    sta uci_xfer_limit
     jsr build_uci_target_header
     lda #DOS_CMD_READ_DATA
     sta uci_cmd_buffer+1
-    lda #<(MAX_RESPONSE_LEN-1)
+    lda uci_xfer_limit
     sta uci_cmd_buffer+2
-    lda #>(MAX_RESPONSE_LEN-1)
+    lda #$00
     sta uci_cmd_buffer+3
     lda #<uci_cmd_buffer
     sta PTR
@@ -4272,7 +4487,7 @@ uci_read_open_file_into_response:
     sta PTR
     lda #>response_buffer
     sta PTR+1
-    lda #MAX_RESPONSE_LEN-1
+    lda uci_xfer_limit
     jsr uci_read_data_block
     sta uci_data_length
     tay
@@ -6174,6 +6389,10 @@ backend_path_cache_a:
     .res MAX_LINE_LEN+1
 backend_path_cache_b:
     .res MAX_LINE_LEN+1
+mount_path_a:
+    .res MAX_LINE_LEN+1
+mount_path_b:
+    .res MAX_LINE_LEN+1
 hw_dir_entry_lo_a:
     .res HW_DIR_CACHE_MAX
 hw_dir_entry_hi_a:
@@ -6194,7 +6413,7 @@ resp_help:
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 361F", 0
+    .byte "CORE 37C2", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:

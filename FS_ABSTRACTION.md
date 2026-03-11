@@ -97,7 +97,7 @@ Current resident mounted-image model:
 - on successful mount:
   - resident directory state resets to `/`
   - the mounted-image descriptor is rebound by kind
-  - the resident volume label is derived from the mounted image basename
+  - the resident volume label is refreshed from mounted-image metadata
 - each drive also maintains a small backend-path cache buffer
   - mock mode fills this from resident directory state
   - hardware mode first synchronizes the Ultimate DOS target path through `CHANGE_DIR`
@@ -116,9 +116,11 @@ Current mock directory model:
 - resident labels are currently:
   - `A:` -> `SYSTEM`
   - `B:` -> `WORK`
-- after a successful `MOUNT`, the active label becomes the mounted image basename
-  - example: `/IMAGES/ALT.D81` -> `ALT`
-  - example: `/IMAGES/WORK.DNP` -> `WORK`
+- after a successful `MOUNT`:
+  - flat-image hardware mode now tries to import the filesystem-header label from the image itself for `D64` / `D71` / `D81`
+  - `DNP` and failure cases still fall back to the mounted image basename
+  - example fallback: `/IMAGES/ALT.D81` -> `ALT`
+  - example fallback: `/IMAGES/WORK.DNP` -> `WORK`
 - resident mock file contents currently include:
   - flat root `SYSTEM`, `COMMANDS`, `README`
   - `DNP/SRC` `BOOT.ASM`, `FS.AVM`
@@ -188,8 +190,15 @@ Current mount seam:
   - not a disk image
   - drive not present
   - generic mount failure
-- on hardware success the shell still derives the resident label from the image basename
-- filesystem-header label import is not implemented yet
+- on hardware success for flat images, the shell now also attempts:
+  - `OPEN_FILE`
+  - `FILE_SEEK`
+  - `READ_DATA`
+  - `CLOSE_FILE`
+- current flat-image label offsets implemented in the resident path:
+  - `D64` / `D71`: directory header label at image offset `$00016590`
+  - `D81`: directory header label at image offset `$00061804`
+- when the header import is unavailable or fails, the shell falls back to the mounted image basename
 
 Current backend-path seam:
 - `svc_fs_get_backend_path_ptr` returns a path-like metadata string per drive

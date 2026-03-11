@@ -41,7 +41,8 @@
 - hardware-validate and harden the current `REN` Ultimate DOS rename path on target
 - hardware-validate and harden the current `COPY` Ultimate DOS copy path on target
 - hardware-validate and harden the current `MOUNT_DISK` path on target
-- decide whether `VOL` should import the filesystem-header label or continue using the mounted image basename
+- hardware-validate and harden the current flat-image header-label import path on target
+- extend `VOL` from flat-image header import to true mounted-image metadata across the remaining formats
 - hardware-validate and harden the current implicit program-image load path on target
 - define how the resident parser exposes argument buffers to later VM-side command code without growing native glue unnecessarily
 

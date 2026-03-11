@@ -41,8 +41,9 @@ Current milestone:
 - Phase 5 now also includes a real mounted-image `MOUNT` path in code:
   - shell syntax: `MOUNT A: /path/to/system.d81` or `MOUNT B: /path/to/work.dnp`
   - image kind is inferred from the extension
-  - resident volume labels are derived from the mounted image basename
   - hardware mode attempts Ultimate DOS `MOUNT_DISK`
+  - flat-image hardware mounts now also try Ultimate DOS `OPEN_FILE` / `FILE_SEEK` / `READ_DATA` to import the filesystem header label for `D64` / `D71` / `D81`
+  - when that header read is unavailable or fails, the resident label falls back to the mounted image basename
   - mock mode preserves the same semantics under VICE
 - Phase 5 now also includes a real resident image-load path behind implicit program launch:
   - mock mode copies the resolved target into a bounded resident image buffer

@@ -76,7 +76,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
     - `A:` -> IEC `8`
     - `B:` -> IEC `9`
   - hardware mode attempts Ultimate DOS `MOUNT_DISK`
-  - resident labels are derived from the mounted image basename after a successful mount
+  - flat-image hardware mounts now also try `OPEN_FILE` / `FILE_SEEK` / `READ_DATA` to import the filesystem-header label for `D64` / `D71` / `D81`
+  - when that import is unavailable or fails, the resident label falls back to the mounted image basename
 
 ## Current Verified Facts
 
@@ -122,6 +123,10 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - same-drive hardware mode issues `COPY_FILE`
   - cross-drive hardware mode issues source `OPEN_FILE` / `READ_DATA` and destination `OPEN_FILE` / `WRITE_DATA`
   - VICE still validates only the mock path because no Ultimate UCI transport exists there
+- flat-image header-label import is now wired behind `VOL` for hardware `D64` / `D71` / `D81` mounts:
+  - hardware mode issues `OPEN_FILE` / `FILE_SEEK` / `READ_DATA` / `CLOSE_FILE` against the mounted image path
+  - current flat-image label offsets are `$00016590` for `D64` / `D71` and `$00061804` for `D81`
+  - VICE still validates only the basename fallback path because no Ultimate UCI transport exists there
 - implicit program launch now loads a real resident program image:
   - mock mode copies the resolved file content into a bounded resident image buffer
   - hardware mode first attempts `FILE_STAT`
@@ -171,7 +176,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFF9 = $03` -> program directory `WORK`
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
-- resident core code footprint: `$361F`
+- resident core code footprint: `$37C2`
 - resident load window in `udos_c64.cfg`: `$4000`
 
 ## What Works
@@ -188,7 +193,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - file-delete seam for `DEL` with hardware `DELETE_FILE` attempt and explicit hardware-error reporting
 - file-rename seam for `REN` with hardware `RENAME_FILE` attempt and explicit hardware-error reporting
 - file-copy seam for `COPY` with same-drive `COPY_FILE`, cross-drive read/write streaming, and explicit hardware-error reporting
-- real `MOUNT` syntax with image-path parsing and basename-derived resident labels
+- real `MOUNT` syntax with image-path parsing and flat-image header-label import plus basename fallback
 - flat-image rejection for directory-tree semantics
 - prompt rendering from live drive/kind/path state
 - direct drive-token switching for `A:` and `B:`
@@ -209,8 +214,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 
 - no real C64 Ultimate hardware execution
 - no hardware-validated UCI command/data path
-- no filesystem-header volume-label import yet
 - no hardware-validated mounted-image bind yet
+- no hardware-validated flat-image header-label import yet
 - no hardware-validated image-backed file delete yet
 - no hardware-validated image-backed file rename yet
 - no hardware-validated image-backed file copy yet
@@ -222,6 +227,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - replace the current descriptor-backed mock filesystem with real image-backed services behind the existing ABI
 - first targets:
   - hardware-validate the new `MOUNT_DISK` path and harden error handling on target
-  - decide whether `VOL` should stay basename-derived or import the filesystem-header label
+  - hardware-validate and harden the new flat-image header-label import path on target
+  - extend `VOL` beyond flat-image header import to full mounted-image metadata where the formats permit it
   - hardware-validate and harden the new program-image load path
 - keep shell semantics stable while swapping the backend
