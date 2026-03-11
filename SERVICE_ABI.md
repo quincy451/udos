@@ -148,6 +148,14 @@ Current ABI version:
 - reads are bounded to the resident response buffer
 - on failure the command falls back to the current descriptor-backed mock content
 
+### `DEL` backend note
+- the resident `DEL` command now attempts a real file delete when hardware UCI is present
+- current sequence:
+  - `DOS_CMD_CHANGE_DIR (0x11)`
+  - `DOS_CMD_DELETE_FILE (0x09)`
+- when hardware UCI is unavailable, the shell still uses the current resident mutable `WORK` model
+- when hardware UCI is present and the delete request fails, the shell returns an explicit delete error instead of mutating mock state
+
 ### `svc_console_reset`
 - input: none
 - output: none
@@ -270,7 +278,7 @@ Current VICE validation uses these resident snapshots:
 
 - real mounted-image metadata
 - real image-backed directory enumeration
-- real file write/rename/delete/copy
+- real file write/rename/copy
 - real program-image lookup/load behind implicit program launch
 - overlay/program module loading
 - full hardware UCI transport

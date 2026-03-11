@@ -23,6 +23,11 @@ Current milestone:
   - resident path synchronization through `CHANGE_DIR`
   - file open/read/close through `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
   - mock fallback retained for VICE and failure cases
+- Phase 5 now also includes a hardware-backed `DEL` path in code:
+  - resident path synchronization through `CHANGE_DIR`
+  - file delete through `DELETE_FILE`
+  - mock deletion is used only when hardware UCI is unavailable
+  - hardware-side delete failures return an explicit shell error
 
 Current command parser rule:
 - shell keywords require a separator before arguments
