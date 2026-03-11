@@ -113,6 +113,10 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - same-drive hardware mode issues `COPY_FILE`
   - cross-drive hardware mode issues source `OPEN_FILE` / `READ_DATA` and destination `OPEN_FILE` / `WRITE_DATA`
   - VICE still validates only the mock path because no Ultimate UCI transport exists there
+- implicit program launch now loads a real resident program image:
+  - mock mode copies the resolved file content into a bounded resident image buffer
+  - hardware mode attempts `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
+  - VICE validates the loaded image length through resident snapshots
 - current VICE-validated transcript:
   - `UDOS FOR COMMODORE 64`
   - `A:D64/> B:`
@@ -150,7 +154,9 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFF7 = $00` -> exit status `0`
   - `$CFF8 = $01` -> program drive `B:`
   - `$CFF9 = $03` -> program directory `WORK`
-- resident core code footprint: `$30ED`
+  - `$CFFA = $16` -> loaded image length low byte (`22`)
+  - `$CFFB = $00` -> loaded image length high byte
+- resident core code footprint: `$3394`
 - resident load window in `udos_c64.cfg`: `$4000`
 
 ## What Works
@@ -177,9 +183,11 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `REN`
   - `DEL`
 - resident program-handoff mock workflow:
+- resident program-handoff and image-load workflow:
   - implicit program launch from a bare non-keyword line
   - `.PRG` suffix added when the target has no extension
   - command-line separation with normal spaces
+  - bounded resident image load before handoff
   - return to shell after program exit
 
 ## What Is Unverified
@@ -190,7 +198,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - no hardware-validated image-backed file delete yet
 - no hardware-validated image-backed file rename yet
 - no hardware-validated image-backed file copy yet
-- no real program-image loading yet behind implicit program launch
+- no hardware-validated program-image loading yet behind implicit program launch
 - no overlay command loader yet
 
 ## Next Concrete Step
@@ -198,5 +206,5 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - replace the current descriptor-backed mock filesystem with real image-backed services behind the existing ABI
 - first targets:
   - real mounted-image metadata for `VOL` / `MOUNT`
-  - real program lookup/load behind implicit program launch
+  - hardware-validate and harden the new program-image load path
 - keep shell semantics stable while swapping the backend

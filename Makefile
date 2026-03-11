@@ -53,6 +53,6 @@ vice-proof: proof
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_AUTO_PRG) --expected "UDOS VM OK"
 
 vice-resident: resident
-	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) --feed-after "A:D64/>" --feed-text "B:\rCD SRC\rCOPY BOOT.ASM WORK/BOOT2.PRG\rCD WORK\rREN BOOT2.PRG BOOT3.PRG\rDELBOOT3\rBOOT3 DIR\rDEL BOOT3.PRG\rDIR\r" --expected "B:DNP/WORK EMPTY" --contains "PROGRAM NOT FOUND" --contains "RUN BOOT3.PRG" --check-byte 0xCFE4=0x01 --check-byte 0xCFE5=0x05 --check-byte 0xCFE8=0x01 --check-byte 0xCFE9=0x01 --check-byte 0xCFEA=0x04 --check-byte 0xCFEB=0x02 --check-byte 0xCFEC=0x01 --check-byte 0xCFEE=0x02 --check-byte 0xCFF0=0x01 --check-byte 0xCFF2=0x04 --check-byte 0xCFF4=0x01 --check-byte 0xCFF6=0x02 --check-byte 0xCFF7=0x00 --check-byte 0xCFF8=0x01 --check-byte 0xCFF9=0x03
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) --feed-after "A:D64/>" --feed-text "B:\rCD SRC\rCOPY BOOT.ASM WORK/BOOT2.PRG\rCD WORK\rREN BOOT2.PRG BOOT3.PRG\rDELBOOT3\rBOOT3 DIR\rDEL BOOT3.PRG\rDIR\r" --expected "B:DNP/WORK EMPTY" --contains "PROGRAM NOT FOUND" --contains "RUN BOOT3.PRG" --check-byte 0xCFE4=0x01 --check-byte 0xCFE5=0x05 --check-byte 0xCFE8=0x01 --check-byte 0xCFE9=0x01 --check-byte 0xCFEA=0x04 --check-byte 0xCFEB=0x02 --check-byte 0xCFEC=0x01 --check-byte 0xCFEE=0x02 --check-byte 0xCFF0=0x01 --check-byte 0xCFF2=0x04 --check-byte 0xCFF4=0x01 --check-byte 0xCFF6=0x02 --check-byte 0xCFF7=0x00 --check-byte 0xCFF8=0x01 --check-byte 0xCFF9=0x03 --check-byte 0xCFFA=0x16 --check-byte 0xCFFB=0x00
 
 test: vice-proof vice-resident

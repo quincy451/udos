@@ -25,6 +25,7 @@ The resident shell currently also validates:
 - `DEL`
 - direct `A:` / `B:` drive switching
 - implicit program launch
+- resident image load before program handoff
 
 ## What Works
 
@@ -52,6 +53,8 @@ COPIED
 B:DNP/WORK
   B:DNP/WORK> REN BOOT2.PRG BOOT3.PRG
 RENAMED
+  B:DNP/WORK> DELBOOT3
+PROGRAM NOT FOUND
   B:DNP/WORK> BOOT3 DIR
 RUN BOOT3.PRG
 ARGS DIR
@@ -68,6 +71,7 @@ B:DNP/WORK EMPTY
 - no hardware-validated UCI command/data path
 - no real mounted-image enumeration yet
 - no real image-backed file mutation yet
+- no hardware-validated program-image load yet
 - no overlay command loader yet
 
 ## Resume Point
@@ -89,5 +93,6 @@ Preserved Action repo state at pivot:
 ## Next Concrete Step
 
 Keep UDOS on the standalone path and replace the current descriptor-backed mock
-filesystem and program backends with real image-backed services, then resume the
-Action Development System tools against that resident ABI.
+filesystem metadata backend with real image-backed services, hardware-validate the
+new program-image load path, then resume the Action Development System tools
+against that resident ABI.

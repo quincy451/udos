@@ -240,10 +240,15 @@ Current ABI version:
   - `2`: flat-image path error
   - `3`: unmounted
   - `4`: target not found
+  - `5`: target too large for the resident image buffer
+  - `6`: program load failed
 - current behavior:
   - splits the command target from the command line
   - appends `.PRG` when the target name has no extension
   - resolves the current file target through the same resident path logic used by `TYPE`
+  - loads the resolved target into a bounded resident image buffer
+    - mock mode copies from the current descriptor-backed file content
+    - hardware mode attempts `OPEN_FILE`, `READ_DATA`, and `CLOSE_FILE`
   - snapshots the drive and directory context for the program
   - marks program state as running on success
 
@@ -269,6 +274,14 @@ Current ABI version:
 ### `svc_program_get_cmdline_len`
 - input: none
 - output: `rP = command-line length`
+
+### `svc_program_get_image_ptr`
+- input: none
+- output: `rP = pointer to the loaded resident program image buffer`
+
+### `svc_program_get_image_len`
+- input: none
+- output: `rP = loaded program image length in bytes`
 
 ### `svc_program_exit`
 - input: none
@@ -299,11 +312,12 @@ Current VICE validation uses these resident snapshots:
 - `$CFF7`: exit status
 - `$CFF8`: program drive
 - `$CFF9`: program directory
+- `$CFFA`: program image length low byte
+- `$CFFB`: program image length high byte
 
 ## Planned Next ABI Groups
 
 - real mounted-image metadata
 - real image-backed directory enumeration
-- real program-image lookup/load behind implicit program launch
 - overlay/program module loading
 - full hardware UCI transport

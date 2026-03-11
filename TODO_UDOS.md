@@ -34,13 +34,13 @@
   - real `MEM`
   - real `HELP`
   - real `VER`
-- replace the current mock implicit program-launch stub with real image-backed lookup/load semantics behind the same program ABI
 - replace the current descriptor-backed mock `DIR` and per-drive path model with image-backed directory state
 - hardware-validate the current `svc_fs_enum_*` Ultimate DOS path and harden its end-of-directory/error handling on target
 - hardware-validate and harden the current `TYPE` Ultimate DOS read path on target
 - hardware-validate and harden the current `DEL` Ultimate DOS delete path on target
 - hardware-validate and harden the current `REN` Ultimate DOS rename path on target
 - hardware-validate and harden the current `COPY` Ultimate DOS copy path on target
+- hardware-validate and harden the current implicit program-image load path on target
 - replace the current descriptor-backed resident volume metadata with image-backed metadata
 - define how the resident parser exposes argument buffers to later VM-side command code without growing native glue unnecessarily
 

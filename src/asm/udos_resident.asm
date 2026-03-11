@@ -26,6 +26,8 @@
 .export svc_program_get_target_ptr
 .export svc_program_get_cmdline_ptr
 .export svc_program_get_cmdline_len
+.export svc_program_get_image_ptr
+.export svc_program_get_image_len
 .export svc_program_exit
 .export svc_mark_ready
 .export svc_idle
@@ -50,6 +52,8 @@ PROGRAM_STATE_SNAPSHOT = $CFF6
 PROGRAM_EXIT_SNAPSHOT = $CFF7
 PROGRAM_DRIVE_SNAPSHOT = $CFF8
 PROGRAM_DIR_SNAPSHOT = $CFF9
+PROGRAM_IMAGE_LEN_LO_SNAPSHOT = $CFFA
+PROGRAM_IMAGE_LEN_HI_SNAPSHOT = $CFFB
 STAGE_SNAPSHOT = $CFFD
 READY_MARKER = $CFFF
 READY_VALUE = $52
@@ -136,9 +140,12 @@ RUN_STATUS_BAD = 1
 RUN_STATUS_FLAT = 2
 RUN_STATUS_UNMOUNTED = 3
 RUN_STATUS_NOFILE = 4
+RUN_STATUS_TOO_LARGE = 5
+RUN_STATUS_LOAD_FAILED = 6
 PROGRAM_STATE_NONE = 0
 PROGRAM_STATE_RUNNING = 1
 PROGRAM_STATE_EXITED = 2
+PROGRAM_IMAGE_MAX = 255
 WORK_DYNAMIC_MAX = 2
 WORK_NAME_MAX = 16
 DOS_TARGET_A = 1
@@ -2594,8 +2601,13 @@ svc_program_prepare_run:
     lda dir_state_table,y
     sta PROGRAM_DIR_SNAPSHOT
     lda #$00
+    sta PROGRAM_IMAGE_LEN_LO_SNAPSHOT
+    sta PROGRAM_IMAGE_LEN_HI_SNAPSHOT
+    sta program_image_len_lo
+    sta program_image_len_hi
     sta program_target_lo
     sta program_target_hi
+    sta program_target_buffer
     jsr split_run_args
     bcc program_have_target
     lda #RUN_STATUS_BAD
@@ -2622,14 +2634,25 @@ program_status_unmounted:
     lda #RUN_STATUS_UNMOUNTED
     jmp program_status_return
 program_lookup:
-    jsr lookup_file_content
+    jsr uci_probe
+    bcs program_lookup_mock
+    jsr load_program_image_hw
     bcc program_ready
+    jmp program_status_return
+program_lookup_mock:
+    jsr lookup_file_content
+    bcc program_load_mock
     lda #RUN_STATUS_NOFILE
     jmp program_status_return
+program_load_mock:
+    jsr load_program_image_mock
+    bcc program_ready
+    jmp program_status_return
 program_ready:
-    lda matched_name_lo
+    jsr copy_path_name_to_program_target
+    lda #<program_target_buffer
     sta program_target_lo
-    lda matched_name_hi
+    lda #>program_target_buffer
     sta program_target_hi
     lda temp_drive
     sta PROGRAM_DRIVE_SNAPSHOT
@@ -2702,6 +2725,158 @@ ensure_run_target_fail:
     sec
     rts
 
+load_program_image_mock:
+    jsr copy_ptr_to_program_image
+    bcc load_program_image_mock_ok
+    lda #RUN_STATUS_TOO_LARGE
+    sec
+    rts
+load_program_image_mock_ok:
+    jsr snapshot_program_image_length
+    lda #RUN_STATUS_OK
+    clc
+    rts
+
+load_program_image_hw:
+    jsr sync_drive_backend_path_hw
+    bcs load_program_image_hw_fail
+    jsr build_uci_open_read_command
+    pha
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    pla
+    jsr uci_issue_status_only
+    bcs load_program_image_hw_fail
+    jsr uci_status_is_ok
+    bcs load_program_image_hw_fail
+    jsr uci_read_open_file_into_program_image
+    bcc load_program_image_hw_close
+    pha
+    jsr close_current_file_hw
+    pla
+    sec
+    rts
+load_program_image_hw_close:
+    jsr close_current_file_hw
+    bcc load_program_image_hw_ok
+load_program_image_hw_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    lda #RUN_STATUS_LOAD_FAILED
+    sec
+    rts
+load_program_image_hw_ok:
+    jsr snapshot_program_image_length
+    lda #RUN_STATUS_OK
+    clc
+    rts
+
+uci_read_open_file_into_program_image:
+    jsr build_uci_target_header
+    lda #DOS_CMD_READ_DATA
+    sta uci_cmd_buffer+1
+    lda #<PROGRAM_IMAGE_MAX
+    sta uci_cmd_buffer+2
+    lda #>PROGRAM_IMAGE_MAX
+    sta uci_cmd_buffer+3
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    lda #4
+    jsr uci_push_command
+    bcs uci_read_open_file_into_program_image_fail
+    jsr uci_wait_reply
+    bcs uci_read_open_file_into_program_image_fail
+    lda #<program_image_buffer
+    sta PTR
+    lda #>program_image_buffer
+    sta PTR+1
+    lda #PROGRAM_IMAGE_MAX
+    jsr uci_read_data_block
+    sta program_image_len_lo
+    lda #$00
+    sta program_image_len_hi
+    bcc uci_read_open_file_into_program_image_status
+    lda UCI_STATUS_REG
+    and #UCI_STATUS_DATA_AV
+    bne uci_read_open_file_into_program_image_large
+uci_read_open_file_into_program_image_status:
+    lda #<uci_status_buffer
+    sta PTR
+    lda #>uci_status_buffer
+    sta PTR+1
+    lda #MAX_LINE_LEN
+    jsr uci_read_status_block
+    sta uci_status_length
+    tay
+    lda #$00
+    sta (PTR),y
+    jsr uci_accept_data
+    jsr uci_status_is_ok_or_empty
+    bcs uci_read_open_file_into_program_image_fail
+    lda #RUN_STATUS_OK
+    clc
+    rts
+uci_read_open_file_into_program_image_large:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    lda #RUN_STATUS_TOO_LARGE
+    sec
+    rts
+uci_read_open_file_into_program_image_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    lda #RUN_STATUS_LOAD_FAILED
+    sec
+    rts
+
+copy_ptr_to_program_image:
+    ldy #$00
+copy_ptr_to_program_image_loop:
+    cpy #PROGRAM_IMAGE_MAX
+    bcs copy_ptr_to_program_image_fail
+    lda (PTR),y
+    beq copy_ptr_to_program_image_done
+    sta program_image_buffer,y
+    iny
+    bne copy_ptr_to_program_image_loop
+copy_ptr_to_program_image_done:
+    sty program_image_len_lo
+    lda #$00
+    sta program_image_len_hi
+    clc
+    rts
+copy_ptr_to_program_image_fail:
+    lda #$00
+    sta program_image_len_lo
+    sta program_image_len_hi
+    sec
+    rts
+
+copy_path_name_to_program_target:
+    ldy #$00
+copy_path_name_to_program_target_loop:
+    lda path_name_buffer,y
+    sta program_target_buffer,y
+    beq copy_path_name_to_program_target_done
+    iny
+    cpy #MAX_LINE_LEN
+    bcc copy_path_name_to_program_target_loop
+copy_path_name_to_program_target_done:
+    lda #$00
+    sta program_target_buffer,y
+    rts
+
+snapshot_program_image_length:
+    lda program_image_len_lo
+    sta PROGRAM_IMAGE_LEN_LO_SNAPSHOT
+    lda program_image_len_hi
+    sta PROGRAM_IMAGE_LEN_HI_SNAPSHOT
+    rts
+
 svc_program_get_status:
     lda program_status
     sta 0,x
@@ -2717,6 +2892,10 @@ svc_program_error_ptr:
     beq program_error_unmounted
     cmp #RUN_STATUS_NOFILE
     beq program_error_missing
+    cmp #RUN_STATUS_TOO_LARGE
+    beq program_error_too_large
+    cmp #RUN_STATUS_LOAD_FAILED
+    beq program_error_load_failed
     lda #<resp_bad_run
     sta 0,x
     lda #>resp_bad_run
@@ -2740,6 +2919,18 @@ program_error_missing:
     lda #>resp_no_program
     sta 1,x
     rts
+program_error_too_large:
+    lda #<resp_program_too_large
+    sta 0,x
+    lda #>resp_program_too_large
+    sta 1,x
+    rts
+program_error_load_failed:
+    lda #<resp_program_load_failed
+    sta 0,x
+    lda #>resp_program_load_failed
+    sta 1,x
+    rts
 
 svc_program_get_target_ptr:
     lda program_target_lo
@@ -2759,6 +2950,20 @@ svc_program_get_cmdline_len:
     lda program_cmdline_len
     sta 0,x
     lda #$00
+    sta 1,x
+    rts
+
+svc_program_get_image_ptr:
+    lda #<program_image_buffer
+    sta 0,x
+    lda #>program_image_buffer
+    sta 1,x
+    rts
+
+svc_program_get_image_len:
+    lda program_image_len_lo
+    sta 0,x
+    lda program_image_len_hi
     sta 1,x
     rts
 
@@ -5558,6 +5763,10 @@ uci_status_length:
     .byte 0
 program_status:
     .byte RUN_STATUS_BAD
+program_image_len_lo:
+    .byte 0
+program_image_len_hi:
+    .byte 0
 program_target_lo:
     .byte 0
 program_target_hi:
@@ -5596,12 +5805,16 @@ copy_dst_buffer:
     .res MAX_LINE_LEN+1
 program_cmdline_buffer:
     .res MAX_LINE_LEN+1
+program_target_buffer:
+    .res MAX_LINE_LEN+1
 path_name_buffer:
     .res MAX_LINE_LEN+1
 source_name_buffer:
     .res MAX_LINE_LEN+1
 response_buffer:
     .res MAX_RESPONSE_LEN
+program_image_buffer:
+    .res PROGRAM_IMAGE_MAX
 uci_write_buffer:
     .res MAX_RESPONSE_LEN+4
 script_line_data:
@@ -5642,7 +5855,7 @@ resp_help:
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 30ED", 0
+    .byte "CORE 3394", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:
@@ -5885,6 +6098,10 @@ resp_no_space:
     .byte "NO SPACE", 0
 resp_no_program:
     .byte "PROGRAM NOT FOUND", 0
+resp_program_too_large:
+    .byte "PROGRAM TOO LARGE", 0
+resp_program_load_failed:
+    .byte "PROGRAM LOAD FAILED", 0
 resp_bad_mount:
     .byte "BAD MOUNT", 0
 resp_bad_run:

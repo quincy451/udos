@@ -103,6 +103,7 @@ Current `vice-resident` behavior:
   - mount kind = `DNP`
   - ABI version = `1`
   - program state after implicit launch = exited with `0` status on `B:/WORK`
+  - loaded program image length = `22` bytes (`BOOT3.PRG` from the mock `BOOT.ASM` content)
 
 Current validated resident transcript:
 
@@ -134,7 +135,7 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$30ED`
+- resident core code: `$3394`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4000`
 - hardware directory cache budget:
   - `6` entries per drive
@@ -142,6 +143,9 @@ Current resident map facts:
 - hardware `TYPE` read budget:
   - one bounded resident text buffer per command
   - fallback to mock content when UCI/file access fails
+- hardware implicit-launch budget:
+  - one bounded resident image buffer per command
+  - current buffer size: `255` bytes
 
 ## Tests
 
