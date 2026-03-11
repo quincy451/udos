@@ -155,6 +155,8 @@ FLAT_READ_MODE_TRUNCATE = 0
 FLAT_READ_MODE_STRICT = 1
 FLAT_READ_FAIL = 1
 FLAT_READ_TOO_LARGE = 2
+RENAME_STATUS_FAILED = 0
+RENAME_STATUS_EXISTS = 1
 RUN_STATUS_OK = 0
 RUN_STATUS_BAD = 1
 RUN_STATUS_FLAT = 2
@@ -2781,6 +2783,15 @@ ren_hw_same_dir:
     bcs ren_hw_fail
     jmp ren_build_done
 ren_hw_fail:
+    cmp #RENAME_STATUS_EXISTS
+    bne :+
+    ldx saved_rp_x
+    lda #<resp_exists
+    sta 0,x
+    lda #>resp_exists
+    sta 1,x
+    rts
+:
     ldx saved_rp_x
     lda #<resp_rename_failed
     sta 0,x
@@ -3889,6 +3900,48 @@ copy_path_name_to_source_buffer_done:
     sta source_name_buffer,y
     rts
 
+copy_source_name_to_path_buffer:
+    ldy #$00
+copy_source_name_to_path_buffer_loop:
+    lda source_name_buffer,y
+    sta path_name_buffer,y
+    beq copy_source_name_to_path_buffer_done
+    iny
+    cpy #MAX_LINE_LEN
+    bcc copy_source_name_to_path_buffer_loop
+copy_source_name_to_path_buffer_done:
+    lda #$00
+    sta path_name_buffer,y
+    rts
+
+copy_path_name_to_copy_dst_buffer:
+    ldy #$00
+copy_path_name_to_copy_dst_buffer_loop:
+    lda path_name_buffer,y
+    sta copy_dst_buffer,y
+    beq copy_path_name_to_copy_dst_buffer_done
+    iny
+    cpy #MAX_LINE_LEN
+    bcc copy_path_name_to_copy_dst_buffer_loop
+copy_path_name_to_copy_dst_buffer_done:
+    lda #$00
+    sta copy_dst_buffer,y
+    rts
+
+copy_copy_dst_to_path_buffer:
+    ldy #$00
+copy_copy_dst_to_path_buffer_loop:
+    lda copy_dst_buffer,y
+    sta path_name_buffer,y
+    beq copy_copy_dst_to_path_buffer_done
+    iny
+    cpy #MAX_LINE_LEN
+    bcc copy_copy_dst_to_path_buffer_loop
+copy_copy_dst_to_path_buffer_done:
+    lda #$00
+    sta path_name_buffer,y
+    rts
+
 copy_program_target_to_source_buffer:
     ldy #$00
 copy_program_target_to_source_buffer_loop:
@@ -4148,6 +4201,112 @@ delete_matching_files_hw_done:
     rts
 delete_matching_files_hw_fail:
     sec
+    rts
+
+rename_flat_file_hw:
+    jsr copy_path_name_to_copy_dst_buffer
+    jsr copy_source_name_to_path_buffer
+    jsr open_flat_mount_image_rw_hw
+    bcs rename_flat_file_hw_fail
+    jsr find_flat_file_entry_in_open_image
+    bcs rename_flat_file_hw_close_fail
+    lda flat_hit_dir_track
+    sta flat_saved_dir_track
+    lda flat_hit_dir_sector
+    sta flat_saved_dir_sector
+    lda flat_hit_dir_offset
+    sta flat_saved_dir_offset
+    jsr copy_copy_dst_to_path_buffer
+    jsr compare_source_name_to_path_name
+    bcc rename_flat_file_hw_apply
+    jsr find_flat_file_entry_in_open_image
+    bcc rename_flat_file_hw_close_exists
+    cmp #FLAT_LOOKUP_NOFILE
+    bne rename_flat_file_hw_close_fail
+rename_flat_file_hw_apply:
+    lda flat_saved_dir_track
+    sta flat_hit_dir_track
+    lda flat_saved_dir_sector
+    sta flat_hit_dir_sector
+    lda flat_saved_dir_offset
+    sta flat_hit_dir_offset
+    jsr read_flat_dir_hit_sector_hw
+    bcs rename_flat_file_hw_close_fail
+    jsr write_flat_dir_entry_name_from_path_buffer
+    bcs rename_flat_file_hw_close_fail
+    jsr write_flat_dir_hit_sector_hw
+    bcs rename_flat_file_hw_close_fail
+rename_flat_file_hw_close_ok:
+    php
+    pha
+    jsr close_current_file_hw
+    pla
+    plp
+    bcc rename_flat_file_hw_ok
+rename_flat_file_hw_fail:
+    lda #RENAME_STATUS_FAILED
+    sec
+    rts
+rename_flat_file_hw_close_fail:
+    lda #RENAME_STATUS_FAILED
+    bne rename_flat_file_hw_close_status
+rename_flat_file_hw_close_exists:
+    lda #RENAME_STATUS_EXISTS
+rename_flat_file_hw_close_status:
+    php
+    pha
+    jsr close_current_file_hw
+    pla
+    plp
+    bcc rename_flat_file_hw_fail_with_status
+rename_flat_file_hw_fail_with_status:
+    sec
+    rts
+rename_flat_file_hw_ok:
+    lda #RENAME_STATUS_FAILED
+    clc
+    rts
+
+write_flat_dir_entry_name_from_path_buffer:
+    ldx flat_hit_dir_offset
+    inx
+    inx
+    inx
+    ldy #$00
+write_flat_dir_entry_name_loop:
+    cpy #$10
+    bcs write_flat_dir_entry_name_check_done
+    lda path_name_buffer,y
+    beq write_flat_dir_entry_name_pad
+    jsr screen_code_to_dir_char
+    sta flat_dir_sector_buffer,x
+    inx
+    iny
+    jmp write_flat_dir_entry_name_loop
+write_flat_dir_entry_name_pad:
+    lda #$A0
+    sta flat_dir_sector_buffer,x
+    inx
+    iny
+    cpy #$10
+    bcc write_flat_dir_entry_name_pad
+write_flat_dir_entry_name_check_done:
+    lda path_name_buffer,y
+    beq write_flat_dir_entry_name_done
+    sec
+    rts
+write_flat_dir_entry_name_done:
+    clc
+    rts
+
+screen_code_to_dir_char:
+    cmp #$01
+    bcc screen_code_to_dir_char_done
+    cmp #$1B
+    bcs screen_code_to_dir_char_done
+    clc
+    adc #$C0
+screen_code_to_dir_char_done:
     rts
 
 delete_flat_file_hw:
@@ -4417,6 +4576,8 @@ mark_flat_sector_byte_index_done:
     rts
 
 rename_file_hw:
+    jsr current_mount_is_flat
+    beq rename_file_hw_flat
     jsr sync_drive_backend_path_hw
     bcs rename_file_hw_fail
     jsr build_uci_rename_command
@@ -4430,13 +4591,18 @@ rename_file_hw:
     bcs rename_file_hw_fail
     jsr uci_status_is_ok
     bcs rename_file_hw_fail
+    lda #RENAME_STATUS_FAILED
     clc
     rts
 rename_file_hw_fail:
     jsr uci_abort_transfer
     jsr uci_clear_error
+    lda #RENAME_STATUS_FAILED
     sec
     rts
+
+rename_file_hw_flat:
+    jmp rename_flat_file_hw
 
 copy_file_same_drive_hw:
     lda source_drive
@@ -7334,6 +7500,25 @@ compare_path_ok:
     clc
     rts
 
+compare_source_name_to_path_name:
+    ldy #$00
+compare_source_name_to_path_name_loop:
+    lda source_name_buffer,y
+    cmp path_name_buffer,y
+    bne compare_source_name_to_path_name_fail
+    beq :+
+:
+    lda source_name_buffer,y
+    beq compare_source_name_to_path_name_ok
+    iny
+    bne compare_source_name_to_path_name_loop
+compare_source_name_to_path_name_fail:
+    sec
+    rts
+compare_source_name_to_path_name_ok:
+    clc
+    rts
+
 classify_path_name_wildcard:
     lda #WILDCARD_NONE
     sta wildcard_mode
@@ -8115,6 +8300,12 @@ flat_hit_dir_track:
 flat_hit_dir_sector:
     .byte 0
 flat_hit_dir_offset:
+    .byte 0
+flat_saved_dir_track:
+    .byte 0
+flat_saved_dir_sector:
+    .byte 0
+flat_saved_dir_offset:
     .byte 0
 flat_file_track:
     .byte 0

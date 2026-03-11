@@ -33,8 +33,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - uses mock deletion only when hardware UCI is unavailable
   - returns an explicit delete failure string on hardware-side errors
 - added a hardware-backed `REN` path
-  - synchronizes the backend path through `CHANGE_DIR`
-  - renames files through `RENAME_FILE`
+  - flat-image mounts now first try raw root-directory lookup plus direct directory-entry rewrite through image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA` / repeated `WRITE_DATA`
+  - tree-capable mounts still synchronize the backend path through `CHANGE_DIR` and rename files through `RENAME_FILE`
   - uses mock rename only when hardware UCI is unavailable
   - returns an explicit rename failure string on hardware-side errors
 - added a hardware-backed `COPY` path
@@ -135,7 +135,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - tree-capable hardware mode still issues `DELETE_FILE`
   - VICE still validates only the mock path because no Ultimate UCI transport exists there
 - hardware-backed rename is now wired behind `REN`:
-  - hardware mode issues `RENAME_FILE`
+  - flat-image hardware mode now first issues raw root-directory lookup plus direct directory-entry rewrite through image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA` / repeated `WRITE_DATA`
+  - tree-capable hardware mode still issues `RENAME_FILE`
   - VICE still validates only the mock path because no Ultimate UCI transport exists there
 - hardware-backed copy is now wired behind `COPY`:
   - same-drive hardware mode issues `COPY_FILE`
@@ -210,8 +211,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
 - resident `MEM` now reports:
-  - `RAM USED 18551 FREE 46984 REU USED 0 FREE 16777216`
-- resident core code footprint: `$4877`
+  - `RAM USED 18847 FREE 46688 REU USED 0 FREE 16777216`
+- resident core code footprint: `$499F`
 - resident load window in `udos_c64.cfg`: `$5400`
 
 ## What Works
@@ -229,6 +230,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - file-delete seam for `DEL` with hardware `DELETE_FILE` attempt and explicit hardware-error reporting
 - flat-image raw delete seam for `DEL` with root-directory lookup, chained sector traversal, and BAM updates
 - file-rename seam for `REN` with hardware `RENAME_FILE` attempt and explicit hardware-error reporting
+- flat-image raw rename seam for `REN` with root-directory lookup and direct directory-entry rewrite
 - file-copy seam for `COPY` with same-drive `COPY_FILE`, cross-drive read/write streaming, and explicit hardware-error reporting
 - real `MOUNT` syntax with image-path parsing and flat-image header-label import plus basename fallback
 - flat-image rejection for directory-tree semantics
@@ -258,6 +260,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - no hardware-validated flat-image raw file reads yet
 - no hardware-validated flat-image raw program-image loads yet
 - no hardware-validated flat-image raw delete path yet
+- no hardware-validated flat-image raw rename path yet
 - no hardware-validated image-backed file delete yet
 - no hardware-validated image-backed file rename yet
 - no hardware-validated image-backed file copy yet
@@ -274,6 +277,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - hardware-validate and harden the new flat-image raw file-read path on target
   - hardware-validate and harden the new flat-image raw program-image load path on target
   - hardware-validate and harden the new flat-image raw delete path on target
+  - hardware-validate and harden the new flat-image raw rename path on target
   - extend `VOL` beyond flat-image header import to full mounted-image metadata where the formats permit it
   - hardware-validate and harden the new program-image load path
 - keep shell semantics stable while swapping the backend

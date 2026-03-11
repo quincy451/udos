@@ -28,8 +28,8 @@ Current milestone:
   - mock deletion is used only when hardware UCI is unavailable
   - hardware-side delete failures return an explicit shell error
 - Phase 5 now also includes a hardware-backed `REN` path in code:
-  - resident path synchronization through `CHANGE_DIR`
-  - file rename through `RENAME_FILE`
+  - flat-image mounts now first try raw root-directory lookup plus direct directory-entry rewrite through image `OPEN_FILE` / `FILE_SEEK` / `READ_DATA` / `WRITE_DATA`
+  - tree-capable mounts still use resident path synchronization plus `RENAME_FILE`
   - mock rename is used only when hardware UCI is unavailable
   - hardware-side rename failures return an explicit shell error
 - Phase 5 now also includes a hardware-backed `COPY` path in code:

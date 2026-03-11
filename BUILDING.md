@@ -169,7 +169,7 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$4877`
+- resident core code: `$499F`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$5400`
 - hardware directory cache budget:
   - `6` entries per drive
@@ -184,6 +184,10 @@ Current resident map facts:
   - one raw directory-sector buffer
   - one primary BAM sector buffer
   - one secondary BAM sector buffer for `D71`
+- hardware `REN` flat-image budget:
+  - one raw sector scratch buffer
+  - one raw directory-sector buffer
+  - exact-only rename with no wildcard expansion
 - hardware implicit-launch budget:
   - one bounded resident image buffer per command
   - current buffer size: `255` bytes
@@ -251,6 +255,7 @@ Hardware-specific note:
 - the resident image now also contains a real Ultimate DOS `DEL` path using `CHANGE_DIR` and `DELETE_FILE`
 - flat-image mounts now additionally contain a raw delete path using root-directory lookup, chained sector traversal, and BAM updates through image `OPEN_FILE`, `FILE_SEEK`, `READ_DATA`, and `WRITE_DATA`
 - the resident image now also contains a real Ultimate DOS `REN` path using `CHANGE_DIR` and `RENAME_FILE`
+- flat-image mounts now additionally contain a raw rename path using root-directory lookup and direct directory-entry rewrite through image `OPEN_FILE`, `FILE_SEEK`, `READ_DATA`, and `WRITE_DATA`
 - the resident image now also contains a real Ultimate DOS `COPY` path using same-drive `COPY_FILE` and cross-drive `OPEN_FILE` / `READ_DATA` / `WRITE_DATA`
 - the resident image now also contains a real Ultimate DOS `MOUNT` path using `MOUNT_DISK`
 - the resident image now also contains a flat-image label-import path using `OPEN_FILE`, `FILE_SEEK`, and `READ_DATA`

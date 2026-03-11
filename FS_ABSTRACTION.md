@@ -166,7 +166,10 @@ Current file-delete seam:
 
 Current file-rename seam:
 - `REN` now attempts a real Ultimate DOS rename when UCI hardware is present
-- the current call sequence is:
+- flat-image mounts now first attempt:
+  - raw root-directory lookup against the mounted image
+  - direct directory-entry rewrite through image `OPEN_FILE`, `FILE_SEEK`, `READ_DATA`, and `WRITE_DATA`
+- tree-capable mounts still use:
   - `CHANGE_DIR`
   - `RENAME_FILE`
 - the current hardware path keeps the existing shell semantics:

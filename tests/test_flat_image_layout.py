@@ -97,6 +97,21 @@ class FlatImageLayoutTests(unittest.TestCase):
             sector = sector_data[1]
         raise AssertionError(f"missing entry {name!r}")
 
+    def _find_root_entry_offset(self, data: bytes, image_type: str, name: bytes) -> int:
+        track, sector = (40, 3) if image_type == "d81" else (18, 1)
+        while track:
+            offset = self._image_offset(image_type, track, sector)
+            sector_data = data[offset : offset + 256]
+            for entry_offset in range(2, 0xE3, 0x20):
+                if sector_data[entry_offset] == 0:
+                    continue
+                entry_name = self._decode_name(sector_data[entry_offset + 3 : entry_offset + 19])
+                if entry_name == name:
+                    return offset + entry_offset
+            track = sector_data[0]
+            sector = sector_data[1]
+        raise AssertionError(f"missing entry offset for {name!r}")
+
     def _read_file_chain(self, data: bytes, image_type: str, track: int, sector: int) -> bytes:
         out = bytearray()
         while track:
@@ -180,6 +195,34 @@ class FlatImageLayoutTests(unittest.TestCase):
         self.assertEqual(before[0x165DF] + 1, after[0x165DF])
         self.assertEqual(before[0x41006] | 0x01, after[0x41006])
         self.assertEqual(after[0x16622], 0x00)
+
+    def test_d64_rename_updates_directory_name_only(self) -> None:
+        image = self._build_probe("d64", "D64TEST")
+        before = image.read_bytes()
+        subprocess.run(["c1541", str(image), "-rename", "HELLO", "BOOT3.PRG"], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        after = image.read_bytes()
+        self.assertEqual(after[0x16605:0x16615], bytes([0xC2, 0xCF, 0xCF, 0xD4, 0x33, 0x2E, 0xD0, 0xD2, 0xC7, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0]))
+        self.assertEqual(before[0x16600:0x16605], after[0x16600:0x16605])
+        self.assertEqual(before[0x16615:0x16620], after[0x16615:0x16620])
+
+    def test_d81_rename_updates_directory_name_only(self) -> None:
+        image = self._build_probe("d81", "D81TEST")
+        before = image.read_bytes()
+        subprocess.run(["c1541", str(image), "-rename", "HELLO", "BOOT3.PRG"], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        after = image.read_bytes()
+        self.assertEqual(after[0x61B05:0x61B15], bytes([0xC2, 0xCF, 0xCF, 0xD4, 0x33, 0x2E, 0xD0, 0xD2, 0xC7, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0]))
+        self.assertEqual(before[0x61B00:0x61B05], after[0x61B00:0x61B05])
+        self.assertEqual(before[0x61B15:0x61B20], after[0x61B15:0x61B20])
+
+    def test_d71_side2_rename_updates_directory_name_only(self) -> None:
+        image = self._build_d71_side2_probe()
+        before = image.read_bytes()
+        entry_offset = self._find_root_entry_offset(before, "d71", b"HELLO")
+        subprocess.run(["c1541", str(image), "-rename", "HELLO", "BOOT3.PRG"], check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        after = image.read_bytes()
+        self.assertEqual(after[entry_offset + 3 : entry_offset + 19], bytes([0xC2, 0xCF, 0xCF, 0xD4, 0x33, 0x2E, 0xD0, 0xD2, 0xC7, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0]))
+        self.assertEqual(before[entry_offset : entry_offset + 3], after[entry_offset : entry_offset + 3])
+        self.assertEqual(before[entry_offset + 19 : entry_offset + 32], after[entry_offset + 19 : entry_offset + 32])
 
 
 if __name__ == "__main__":
