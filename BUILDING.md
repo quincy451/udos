@@ -135,7 +135,7 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$3394`
+- resident core code: `$3416`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4000`
 - hardware directory cache budget:
   - `6` entries per drive
@@ -146,6 +146,7 @@ Current resident map facts:
 - hardware implicit-launch budget:
   - one bounded resident image buffer per command
   - current buffer size: `255` bytes
+  - hardware mode now probes size/existence with `FILE_STAT` before opening the file
 
 ## Tests
 

@@ -154,6 +154,7 @@ DOS_CMD_OPEN_FILE = $02
 DOS_CMD_CLOSE_FILE = $03
 DOS_CMD_READ_DATA = $04
 DOS_CMD_WRITE_DATA = $05
+DOS_CMD_FILE_STAT = $08
 DOS_CMD_DELETE_FILE = $09
 DOS_CMD_RENAME_FILE = $0A
 DOS_CMD_COPY_FILE = $0B
@@ -812,6 +813,19 @@ uci_status_is_ok_or_empty:
     jmp uci_status_is_ok
 uci_status_is_ok_or_empty_done:
     clc
+    rts
+
+uci_status_is_file_not_found:
+    lda uci_status_buffer+0
+    cmp #'8'
+    bne uci_status_is_file_not_found_fail
+    lda uci_status_buffer+1
+    cmp #'8'
+    bne uci_status_is_file_not_found_fail
+    clc
+    rts
+uci_status_is_file_not_found_fail:
+    sec
     rts
 
 uci_status_is_dir_empty:
@@ -2636,6 +2650,10 @@ program_status_unmounted:
 program_lookup:
     jsr uci_probe
     bcs program_lookup_mock
+    jsr query_program_file_hw
+    bcc :+
+    jmp program_status_return
+:
     jsr load_program_image_hw
     bcc program_ready
     jmp program_status_return
@@ -2733,6 +2751,48 @@ load_program_image_mock:
     rts
 load_program_image_mock_ok:
     jsr snapshot_program_image_length
+    lda #RUN_STATUS_OK
+    clc
+    rts
+
+query_program_file_hw:
+    jsr sync_drive_backend_path_hw
+    bcs query_program_file_hw_fail
+    jsr build_uci_file_stat_command
+    pha
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    pla
+    jsr uci_issue_data_status
+    bcs query_program_file_hw_fail
+    jsr uci_status_is_ok
+    bcc query_program_file_hw_have_stat
+    jsr uci_status_is_file_not_found
+    bcc query_program_file_hw_missing
+query_program_file_hw_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    lda #RUN_STATUS_LOAD_FAILED
+    sec
+    rts
+query_program_file_hw_missing:
+    lda #RUN_STATUS_NOFILE
+    sec
+    rts
+query_program_file_hw_have_stat:
+    lda uci_data_length
+    cmp #4
+    bcc query_program_file_hw_fail
+    lda uci_data_buffer+1
+    ora uci_data_buffer+2
+    ora uci_data_buffer+3
+    beq query_program_file_hw_ok
+    lda #RUN_STATUS_TOO_LARGE
+    sec
+    rts
+query_program_file_hw_ok:
     lda #RUN_STATUS_OK
     clc
     rts
@@ -3565,6 +3625,25 @@ build_uci_open_read_done:
     tya
     clc
     adc #3
+    rts
+
+build_uci_file_stat_command:
+    jsr build_uci_target_header
+    lda #DOS_CMD_FILE_STAT
+    sta uci_cmd_buffer+1
+    ldy #$00
+build_uci_file_stat_copy:
+    lda path_name_buffer,y
+    beq build_uci_file_stat_done
+    jsr screen_code_to_ascii
+    sta uci_cmd_buffer+2,y
+    iny
+    cpy #MAX_LINE_LEN
+    bcc build_uci_file_stat_copy
+build_uci_file_stat_done:
+    tya
+    clc
+    adc #2
     rts
 
 build_uci_delete_command:
@@ -5855,7 +5934,7 @@ resp_help:
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 3394", 0
+    .byte "CORE 3416", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:

@@ -115,7 +115,9 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - VICE still validates only the mock path because no Ultimate UCI transport exists there
 - implicit program launch now loads a real resident program image:
   - mock mode copies the resolved file content into a bounded resident image buffer
-  - hardware mode attempts `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
+  - hardware mode first attempts `FILE_STAT`
+  - hardware mode then attempts `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
+  - hardware mode can now distinguish `PROGRAM NOT FOUND` from a generic load failure before opening the file
   - VICE validates the loaded image length through resident snapshots
 - current VICE-validated transcript:
   - `UDOS FOR COMMODORE 64`
@@ -156,7 +158,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFF9 = $03` -> program directory `WORK`
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
-- resident core code footprint: `$3394`
+- resident core code footprint: `$3416`
 - resident load window in `udos_c64.cfg`: `$4000`
 
 ## What Works

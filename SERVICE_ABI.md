@@ -248,7 +248,8 @@ Current ABI version:
   - resolves the current file target through the same resident path logic used by `TYPE`
   - loads the resolved target into a bounded resident image buffer
     - mock mode copies from the current descriptor-backed file content
-    - hardware mode attempts `OPEN_FILE`, `READ_DATA`, and `CLOSE_FILE`
+    - hardware mode first attempts `FILE_STAT` for existence/size
+    - hardware mode then attempts `OPEN_FILE`, `READ_DATA`, and `CLOSE_FILE`
   - snapshots the drive and directory context for the program
   - marks program state as running on success
 

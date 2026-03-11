@@ -40,7 +40,8 @@ Current milestone:
   - hardware-side copy failures return an explicit shell error
 - Phase 5 now also includes a real resident image-load path behind implicit program launch:
   - mock mode copies the resolved target into a bounded resident image buffer
-  - hardware mode attempts `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
+  - hardware mode first probes the target with `FILE_STAT`
+  - hardware mode then attempts `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
   - VICE validates the loaded image length through resident snapshots
 
 Current command parser rule:
