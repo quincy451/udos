@@ -59,8 +59,9 @@ The resident image currently exposes:
 - resident `MOUNT` policy that can switch a drive between flat and tree-capable kinds
 - resident `DIR` against a mock directory model
 - resident `TYPE` against a mock file-content model
-- resident `COPY` and `REN` against the mutable `WORK` model
+- resident `COPY` against the mutable `WORK` model
 - resident `DEL` against the mutable `WORK` model when hardware UCI is unavailable
+- resident `REN` against the mutable `WORK` model when hardware UCI is unavailable
 
 This is still a state model, not real image I/O. That is deliberate: command,
 prompt, and path-policy logic can now consume resident state before UCI-backed
@@ -131,6 +132,17 @@ Current file-delete seam:
   - `DELETE_FILE`
 - when hardware UCI is unavailable, the shell still uses the resident mutable `WORK` model
 - when hardware UCI is present and delete fails, the shell returns an explicit delete error instead of mutating mock state
+
+Current file-rename seam:
+- `REN` now attempts a real Ultimate DOS rename when UCI hardware is present
+- the current call sequence is:
+  - `CHANGE_DIR`
+  - `RENAME_FILE`
+- the current hardware path keeps the existing shell semantics:
+  - source and destination must stay on the same logical drive
+  - source and destination must stay in the same resolved resident directory
+- when hardware UCI is unavailable, the shell still uses the resident mutable `WORK` model
+- when hardware UCI is present and rename fails, the shell returns an explicit rename error instead of mutating mock state
 
 Current backend-path seam:
 - `svc_fs_get_backend_path_ptr` returns a path-like metadata string per drive

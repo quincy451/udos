@@ -35,6 +35,11 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - deletes files through `DELETE_FILE`
   - uses mock deletion only when hardware UCI is unavailable
   - returns an explicit delete failure string on hardware-side errors
+- added a hardware-backed `REN` path
+  - synchronizes the backend path through `CHANGE_DIR`
+  - renames files through `RENAME_FILE`
+  - uses mock rename only when hardware UCI is unavailable
+  - returns an explicit rename failure string on hardware-side errors
 - enforced flat-vs-tree policy:
   - `D64`/`D71`/`D81` -> flat
   - `DNP` -> tree-capable
@@ -96,6 +101,9 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - hardware-backed delete is now wired behind `DEL`:
   - hardware mode issues `DELETE_FILE`
   - VICE still validates only the mock path because no Ultimate UCI transport exists there
+- hardware-backed rename is now wired behind `REN`:
+  - hardware mode issues `RENAME_FILE`
+  - VICE still validates only the mock path because no Ultimate UCI transport exists there
 - current VICE-validated transcript:
   - `UDOS FOR COMMODORE 64`
   - `A:D64/> B:`
@@ -133,7 +141,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFF7 = $00` -> exit status `0`
   - `$CFF8 = $01` -> program drive `B:`
   - `$CFF9 = $03` -> program directory `WORK`
-- resident core code footprint: `$2B44`
+- resident core code footprint: `$2C46`
 - resident load window in `udos_c64.cfg`: `$4000`
 
 ## What Works
@@ -148,6 +156,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - directory enumeration seam with hardware `OPEN_DIR` / `READ_DIR` attempt plus mock fallback
 - file-read seam for `TYPE` with hardware `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE` attempt plus mock fallback
 - file-delete seam for `DEL` with hardware `DELETE_FILE` attempt and explicit hardware-error reporting
+- file-rename seam for `REN` with hardware `RENAME_FILE` attempt and explicit hardware-error reporting
 - flat-image rejection for directory-tree semantics
 - prompt rendering from live drive/kind/path state
 - direct drive-token switching for `A:` and `B:`
@@ -169,7 +178,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - no hardware-validated UCI command/data path
 - no real mounted-image metadata yet
 - no hardware-validated image-backed file delete yet
-- no real image-backed file copy or rename yet
+- no hardware-validated image-backed file rename yet
+- no real image-backed file copy yet
 - no real program-image loading yet behind implicit program launch
 - no overlay command loader yet
 
@@ -178,6 +188,6 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - replace the current descriptor-backed mock filesystem with real image-backed services behind the existing ABI
 - first targets:
   - real mounted-image metadata for `VOL` / `MOUNT`
-  - real file write/rename behind `COPY` / `REN`
+  - real file write/copy behind `COPY`
   - real program lookup/load behind implicit program launch
 - keep shell semantics stable while swapping the backend

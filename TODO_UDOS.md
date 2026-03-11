@@ -39,8 +39,9 @@
 - hardware-validate the current `svc_fs_enum_*` Ultimate DOS path and harden its end-of-directory/error handling on target
 - hardware-validate and harden the current `TYPE` Ultimate DOS read path on target
 - hardware-validate and harden the current `DEL` Ultimate DOS delete path on target
+- hardware-validate and harden the current `REN` Ultimate DOS rename path on target
 - replace the current descriptor-backed resident volume metadata with image-backed metadata
-- replace the current mutable `WORK` slot mock used by `COPY` and `REN` with real image-backed create/update semantics
+- replace the current mutable `WORK` slot mock used by `COPY` with real image-backed create/update semantics
 - define how the resident parser exposes argument buffers to later VM-side command code without growing native glue unnecessarily
 
 ## Phase 6

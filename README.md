@@ -28,6 +28,11 @@ Current milestone:
   - file delete through `DELETE_FILE`
   - mock deletion is used only when hardware UCI is unavailable
   - hardware-side delete failures return an explicit shell error
+- Phase 5 now also includes a hardware-backed `REN` path in code:
+  - resident path synchronization through `CHANGE_DIR`
+  - file rename through `RENAME_FILE`
+  - mock rename is used only when hardware UCI is unavailable
+  - hardware-side rename failures return an explicit shell error
 
 Current command parser rule:
 - shell keywords require a separator before arguments

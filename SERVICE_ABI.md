@@ -156,6 +156,17 @@ Current ABI version:
 - when hardware UCI is unavailable, the shell still uses the current resident mutable `WORK` model
 - when hardware UCI is present and the delete request fails, the shell returns an explicit delete error instead of mutating mock state
 
+### `REN` backend note
+- the resident `REN` command now attempts a real file rename when hardware UCI is present
+- current sequence:
+  - `DOS_CMD_CHANGE_DIR (0x11)`
+  - `DOS_CMD_RENAME_FILE (0x0a)`
+- the current hardware path keeps the existing shell semantics:
+  - source and destination must resolve to the same logical drive
+  - source and destination must resolve to the same resident directory
+- when hardware UCI is unavailable, the shell still uses the current resident mutable `WORK` model
+- when hardware UCI is present and the rename request fails, the shell returns an explicit rename error instead of mutating mock state
+
 ### `svc_console_reset`
 - input: none
 - output: none
@@ -278,7 +289,7 @@ Current VICE validation uses these resident snapshots:
 
 - real mounted-image metadata
 - real image-backed directory enumeration
-- real file write/rename/copy
+- real file write/copy
 - real program-image lookup/load behind implicit program launch
 - overlay/program module loading
 - full hardware UCI transport

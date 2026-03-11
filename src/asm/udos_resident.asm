@@ -147,6 +147,7 @@ DOS_CMD_OPEN_FILE = $02
 DOS_CMD_CLOSE_FILE = $03
 DOS_CMD_READ_DATA = $04
 DOS_CMD_DELETE_FILE = $09
+DOS_CMD_RENAME_FILE = $0A
 DOS_CMD_CHANGE_DIR = $11
 DOS_CMD_GET_PATH = $12
 DOS_CMD_OPEN_DIR = $13
@@ -2227,7 +2228,7 @@ build_ren_response:
 ren_source_ready:
     jsr resolve_file_target
     cmp #PATH_STATUS_OK
-    beq ren_source_lookup
+    beq ren_source_hw
     cmp #PATH_STATUS_FLAT
     bne :+
     jmp ren_build_flat
@@ -2240,6 +2241,52 @@ ren_source_ready:
     lda #<resp_bad_file
     sta 0,x
     lda #>resp_bad_file
+    sta 1,x
+    rts
+ren_source_hw:
+    jsr uci_probe
+    bcs ren_source_lookup
+    lda temp_drive
+    sta source_drive
+    lda temp_dir_id
+    sta source_dir_id
+    jsr copy_path_name_to_source_buffer
+    jsr load_copy_dest_arg
+    jsr resolve_copy_dest
+    cmp #PATH_STATUS_OK
+    beq ren_hw_dest_ready
+    cmp #PATH_STATUS_FLAT
+    bne ren_hw_not_flat
+    jmp ren_build_flat
+ren_hw_not_flat:
+    cmp #PATH_STATUS_UNMOUNTED
+    bne ren_hw_not_unmounted
+    jmp ren_build_unmounted
+ren_hw_not_unmounted:
+    cmp #PATH_STATUS_BAD
+    bne ren_hw_not_bad
+    jmp ren_build_bad
+ren_hw_not_bad:
+    jmp ren_build_read_only
+ren_hw_dest_ready:
+    lda temp_drive
+    cmp source_drive
+    beq ren_hw_same_drive
+    jmp ren_build_bad
+ren_hw_same_drive:
+    lda temp_dir_id
+    cmp source_dir_id
+    beq ren_hw_same_dir
+    jmp ren_build_bad
+ren_hw_same_dir:
+    jsr rename_file_hw
+    bcs ren_hw_fail
+    jmp ren_build_done
+ren_hw_fail:
+    ldx saved_rp_x
+    lda #<resp_rename_failed
+    sta 0,x
+    lda #>resp_rename_failed
     sta 1,x
     rts
 ren_source_lookup:
@@ -2296,6 +2343,7 @@ ren_apply_name:
     sta file_index
     jsr select_dynamic_work_name_slot
     jsr copy_path_name_to_slot_ascii
+ren_build_done:
     ldx saved_rp_x
     lda #<resp_renamed
     sta 0,x
@@ -3007,6 +3055,20 @@ load_copy_dest_done:
     sty arg_length
     rts
 
+copy_path_name_to_source_buffer:
+    ldy #$00
+copy_path_name_to_source_buffer_loop:
+    lda path_name_buffer,y
+    sta source_name_buffer,y
+    beq copy_path_name_to_source_buffer_done
+    iny
+    cpy #MAX_LINE_LEN
+    bcc copy_path_name_to_source_buffer_loop
+copy_path_name_to_source_buffer_done:
+    lda #$00
+    sta source_name_buffer,y
+    rts
+
 build_type_response:
     stx saved_rp_x
     jsr resolve_file_target
@@ -3106,6 +3168,28 @@ delete_file_hw_fail:
     sec
     rts
 
+rename_file_hw:
+    jsr sync_drive_backend_path_hw
+    bcs rename_file_hw_fail
+    jsr build_uci_rename_command
+    pha
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    pla
+    jsr uci_issue_status_only
+    bcs rename_file_hw_fail
+    jsr uci_status_is_ok
+    bcs rename_file_hw_fail
+    clc
+    rts
+rename_file_hw_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    sec
+    rts
+
 build_uci_open_read_command:
     jsr build_uci_target_header
     lda #DOS_CMD_OPEN_FILE
@@ -3141,6 +3225,39 @@ build_uci_delete_copy:
     cpy #MAX_LINE_LEN
     bcc build_uci_delete_copy
 build_uci_delete_done:
+    tya
+    clc
+    adc #2
+    rts
+
+build_uci_rename_command:
+    jsr build_uci_target_header
+    lda #DOS_CMD_RENAME_FILE
+    sta uci_cmd_buffer+1
+    ldy #$00
+build_uci_rename_source_copy:
+    lda source_name_buffer,y
+    beq build_uci_rename_source_done
+    jsr screen_code_to_ascii
+    sta uci_cmd_buffer+2,y
+    iny
+    cpy #MAX_LINE_LEN
+    bcc build_uci_rename_source_copy
+build_uci_rename_source_done:
+    lda #$00
+    sta uci_cmd_buffer+2,y
+    iny
+    ldx #$00
+build_uci_rename_dest_copy:
+    lda path_name_buffer,x
+    beq build_uci_rename_done
+    jsr screen_code_to_ascii
+    sta uci_cmd_buffer+2,y
+    iny
+    inx
+    cpx #MAX_LINE_LEN
+    bcc build_uci_rename_dest_copy
+build_uci_rename_done:
     tya
     clc
     adc #2
@@ -4901,6 +5018,8 @@ file_index:
     .byte 0
 source_drive:
     .byte 0
+source_dir_id:
+    .byte 0
 source_slot:
     .byte 0
 prefix_length:
@@ -4963,6 +5082,8 @@ program_cmdline_buffer:
     .res MAX_LINE_LEN+1
 path_name_buffer:
     .res MAX_LINE_LEN+1
+source_name_buffer:
+    .res MAX_LINE_LEN+1
 response_buffer:
     .res MAX_RESPONSE_LEN
 script_line_data:
@@ -4999,7 +5120,7 @@ resp_help:
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 2B44", 0
+    .byte "CORE 2C46", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:
@@ -5226,6 +5347,8 @@ resp_deleted:
     .byte "DELETED", 0
 resp_delete_failed:
     .byte "DELETE FAILED", 0
+resp_rename_failed:
+    .byte "RENAME FAILED", 0
 resp_renamed:
     .byte "RENAMED", 0
 resp_exists:
