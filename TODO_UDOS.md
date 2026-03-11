@@ -40,8 +40,9 @@
 - hardware-validate and harden the current `DEL` Ultimate DOS delete path on target
 - hardware-validate and harden the current `REN` Ultimate DOS rename path on target
 - hardware-validate and harden the current `COPY` Ultimate DOS copy path on target
+- hardware-validate and harden the current `MOUNT_DISK` path on target
+- decide whether `VOL` should import the filesystem-header label or continue using the mounted image basename
 - hardware-validate and harden the current implicit program-image load path on target
-- replace the current descriptor-backed resident volume metadata with image-backed metadata
 - define how the resident parser exposes argument buffers to later VM-side command code without growing native glue unnecessarily
 
 ## Phase 6

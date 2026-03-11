@@ -57,6 +57,7 @@ The resident image currently exposes:
 - mutable `WORK` directory slots per logical drive
 - resident `CD` policy for flat vs tree-capable mounts
 - resident `MOUNT` policy that can switch a drive between flat and tree-capable kinds
+- resident `MOUNT` syntax that accepts a logical drive plus an image path
 - resident `DIR` against a mock directory model
 - resident `TYPE` against a mock file-content model
 - resident `COPY` against the mutable `WORK` model when hardware UCI is unavailable
@@ -82,6 +83,21 @@ Current resident mounted-image model:
 - flat images still expose only the root listing to shell logic
 - tree-capable images can expose the subtree tables when current-directory state changes
 - the `WORK` subtree can override descriptor tables with mutable resident slots when files are copied in
+- the user-facing `MOUNT` command now accepts:
+  - `MOUNT A: /path/to/system.d81`
+  - `MOUNT B: /path/to/work.dnp`
+- the shell currently infers image kind from the file extension:
+  - `.D64`
+  - `.D71`
+  - `.D81`
+  - `.DNP`
+- the shell currently maps logical drives to IEC ids as:
+  - `A:` -> `8`
+  - `B:` -> `9`
+- on successful mount:
+  - resident directory state resets to `/`
+  - the mounted-image descriptor is rebound by kind
+  - the resident volume label is derived from the mounted image basename
 - each drive also maintains a small backend-path cache buffer
   - mock mode fills this from resident directory state
   - hardware mode first synchronizes the Ultimate DOS target path through `CHANGE_DIR`
@@ -100,6 +116,9 @@ Current mock directory model:
 - resident labels are currently:
   - `A:` -> `SYSTEM`
   - `B:` -> `WORK`
+- after a successful `MOUNT`, the active label becomes the mounted image basename
+  - example: `/IMAGES/ALT.D81` -> `ALT`
+  - example: `/IMAGES/WORK.DNP` -> `WORK`
 - resident mock file contents currently include:
   - flat root `SYSTEM`, `COMMANDS`, `README`
   - `DNP/SRC` `BOOT.ASM`, `FS.AVM`
@@ -112,8 +131,7 @@ Current mock directory model:
 
 This mock model now sits behind both a resident mounted-image descriptor layer
 and the resident enumeration seam. It still must be replaced by real
-image-backed file lookup, mutation, and mounted-image metadata once the
-filesystem layer exists.
+image-backed file lookup and mutation once the filesystem layer exists.
 
 Current file-read seam:
 - `TYPE` now attempts a real Ultimate DOS file read when UCI hardware is present
@@ -158,6 +176,20 @@ Current file-copy seam:
   - source and destination `CLOSE_FILE`
 - when hardware UCI is unavailable, the shell still uses the resident mutable `WORK` model
 - when hardware UCI is present and copy fails, the shell returns an explicit copy error instead of mutating mock state
+
+Current mount seam:
+- `MOUNT` now attempts a real Ultimate DOS disk mount when UCI hardware is present
+- the current call sequence is:
+  - `MOUNT_DISK`
+- current mount assumptions are:
+  - logical `A:` uses IEC `8`
+  - logical `B:` uses IEC `9`
+- on hardware mount failure the shell distinguishes:
+  - not a disk image
+  - drive not present
+  - generic mount failure
+- on hardware success the shell still derives the resident label from the image basename
+- filesystem-header label import is not implemented yet
 
 Current backend-path seam:
 - `svc_fs_get_backend_path_ptr` returns a path-like metadata string per drive

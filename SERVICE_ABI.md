@@ -9,6 +9,7 @@ It now covers:
 - transport selection
 - drive bind/query state
 - filesystem enumeration and metadata seams
+- mounted-image path parsing and label derivation
 - console I/O
 - live command input
 - first program handoff/return services for implicit program launch
@@ -83,6 +84,8 @@ Current ABI version:
   - `D64` / `D71` / `D81` -> flat
   - `DNP` -> tree-capable
   - installs the current mounted-image descriptor for the drive
+  - this remains the low-level bind-by-kind service used during bootstrap
+  - the user-facing `MOUNT` command now parses an image path and derives kind from the extension
 
 ### `svc_fs_get_dir_state`
 - input: `rP = logical drive`
@@ -230,6 +233,7 @@ Current ABI version:
     - `DEL BOOT3.PRG` -> `DEL` with `BOOT3.PRG`
     - `DELBOOT3` -> bare token, then implicit launch of `DELBOOT3.PRG`
     - `BOOT3 DIR` -> implicit launch of `BOOT3.PRG` with command line `DIR`
+    - `MOUNT B: /IMAGES/WORK.DNP` -> `MOUNT` with a drive token plus image path
 
 ### `svc_program_prepare_run`
 - input: current shell argument buffer
@@ -318,7 +322,6 @@ Current VICE validation uses these resident snapshots:
 
 ## Planned Next ABI Groups
 
-- real mounted-image metadata
 - real image-backed directory enumeration
 - overlay/program module loading
 - full hardware UCI transport

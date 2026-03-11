@@ -135,6 +135,9 @@ PATH_STATUS_UNMOUNTED = 3
 PATH_STATUS_READ_ONLY = 4
 MOUNT_STATUS_OK = 0
 MOUNT_STATUS_BAD = 1
+MOUNT_STATUS_NOTDISK = 2
+MOUNT_STATUS_DRIVE = 3
+MOUNT_STATUS_FAILED = 4
 RUN_STATUS_OK = 0
 RUN_STATUS_BAD = 1
 RUN_STATUS_FLAT = 2
@@ -162,12 +165,15 @@ DOS_CMD_CHANGE_DIR = $11
 DOS_CMD_GET_PATH = $12
 DOS_CMD_OPEN_DIR = $13
 DOS_CMD_READ_DIR = $14
+DOS_CMD_MOUNT_DISK = $23
 FA_READ = $01
 FA_WRITE = $02
 FA_CREATE_NEW = $04
 FA_CREATE_ALWAYS = $08
 FA_WRITE_OVERWRITE = FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS
 DOS_ATTR_DIR = $10
+IEC_ID_A = 8
+IEC_ID_B = 9
 HW_DIR_CACHE_MAX = 6
 HW_DIR_NAME_MAX = 20
 HW_DIR_NAME_STRIDE = HW_DIR_NAME_MAX + 1
@@ -554,6 +560,73 @@ install_mounted_image:
     jsr clear_dynamic_work_drive
     rts
 
+install_dynamic_volume_label:
+    jsr select_dynamic_volume_label_buffer
+    ldy #$00
+    lda #$00
+    sta saved_response_y
+install_dynamic_volume_label_scan:
+    lda path_name_buffer,y
+    beq install_dynamic_volume_label_copy
+    cmp #ASCII_SLASH
+    bne install_dynamic_volume_label_next
+    tya
+    clc
+    adc #1
+    sta saved_response_y
+install_dynamic_volume_label_next:
+    iny
+    cpy #MAX_LINE_LEN
+    bcc install_dynamic_volume_label_scan
+install_dynamic_volume_label_copy:
+    ldx saved_response_y
+    ldy #$00
+install_dynamic_volume_label_loop:
+    lda path_name_buffer,x
+    beq install_dynamic_volume_label_done
+    cmp #ASCII_DOT
+    beq install_dynamic_volume_label_done
+    cpy #MAX_LINE_LEN
+    bcs install_dynamic_volume_label_done
+    jsr screen_code_to_ascii
+    sta (PTR),y
+    inx
+    iny
+    bne install_dynamic_volume_label_loop
+install_dynamic_volume_label_done:
+    lda #$00
+    sta (PTR),y
+    cpy #$00
+    bne install_dynamic_volume_label_ptr
+    ldy #$00
+    lda #'?'
+    sta (PTR),y
+    iny
+    lda #$00
+    sta (PTR),y
+install_dynamic_volume_label_ptr:
+    ldy temp_drive
+    lda PTR
+    sta volume_ptr_lo,y
+    lda PTR+1
+    sta volume_ptr_hi,y
+    rts
+
+select_dynamic_volume_label_buffer:
+    lda temp_drive
+    beq select_dynamic_volume_label_buffer_a
+    lda #<volume_label_b
+    sta PTR
+    lda #>volume_label_b
+    sta PTR+1
+    rts
+select_dynamic_volume_label_buffer_a:
+    lda #<volume_label_a
+    sta PTR
+    lda #>volume_label_a
+    sta PTR+1
+    rts
+
 refresh_drive_backend_path:
     jsr select_backend_path_cache
     lda PTR
@@ -825,6 +898,32 @@ uci_status_is_file_not_found:
     clc
     rts
 uci_status_is_file_not_found_fail:
+    sec
+    rts
+
+uci_status_is_not_disk_image:
+    lda uci_status_buffer+0
+    cmp #'8'
+    bne uci_status_is_not_disk_image_fail
+    lda uci_status_buffer+1
+    cmp #'9'
+    bne uci_status_is_not_disk_image_fail
+    clc
+    rts
+uci_status_is_not_disk_image_fail:
+    sec
+    rts
+
+uci_status_is_drive_not_present:
+    lda uci_status_buffer+0
+    cmp #'9'
+    bne uci_status_is_drive_not_present_fail
+    lda uci_status_buffer+1
+    cmp #'0'
+    bne uci_status_is_drive_not_present_fail
+    clc
+    rts
+uci_status_is_drive_not_present_fail:
     sec
     rts
 
@@ -2129,6 +2228,35 @@ build_mount_response:
     sta 1,x
     rts
 mount_build_ok:
+    jsr uci_probe
+    bcs mount_build_apply
+    jsr mount_disk_hw
+    bcc mount_build_apply
+    cmp #MOUNT_STATUS_NOTDISK
+    beq mount_build_notdisk
+    cmp #MOUNT_STATUS_DRIVE
+    beq mount_build_drive
+    ldx saved_rp_x
+    lda #<resp_mount_failed
+    sta 0,x
+    lda #>resp_mount_failed
+    sta 1,x
+    rts
+mount_build_notdisk:
+    ldx saved_rp_x
+    lda #<resp_not_disk_image
+    sta 0,x
+    lda #>resp_not_disk_image
+    sta 1,x
+    rts
+mount_build_drive:
+    ldx saved_rp_x
+    lda #<resp_drive_not_present
+    sta 0,x
+    lda #>resp_drive_not_present
+    sta 1,x
+    rts
+mount_build_apply:
     ldy temp_drive
     lda temp_mount_kind
     sta mount_kind_table,y
@@ -2137,6 +2265,7 @@ mount_build_ok:
     lda #DIR_ID_ROOT
     sta dir_state_table,y
     jsr install_mounted_image
+    jsr install_dynamic_volume_label
     jsr refresh_drive_backend_path
     lda temp_drive
     cmp current_drive
@@ -3646,6 +3775,69 @@ build_uci_file_stat_done:
     adc #2
     rts
 
+mount_disk_hw:
+    jsr build_uci_mount_command
+    pha
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    pla
+    jsr uci_issue_status_only
+    bcs mount_disk_hw_fail
+    jsr uci_status_is_ok
+    bcc mount_disk_hw_ok
+    jsr uci_status_is_not_disk_image
+    bcc mount_disk_hw_notdisk
+    jsr uci_status_is_drive_not_present
+    bcc mount_disk_hw_drive
+mount_disk_hw_fail:
+    jsr uci_abort_transfer
+    jsr uci_clear_error
+    lda #MOUNT_STATUS_FAILED
+    sec
+    rts
+mount_disk_hw_notdisk:
+    lda #MOUNT_STATUS_NOTDISK
+    sec
+    rts
+mount_disk_hw_drive:
+    lda #MOUNT_STATUS_DRIVE
+    sec
+    rts
+mount_disk_hw_ok:
+    lda #MOUNT_STATUS_OK
+    clc
+    rts
+
+build_uci_mount_command:
+    jsr build_uci_target_header
+    lda #DOS_CMD_MOUNT_DISK
+    sta uci_cmd_buffer+1
+    lda temp_drive
+    cmp #DRIVE_A
+    beq build_uci_mount_command_a
+    lda #IEC_ID_B
+    bne build_uci_mount_command_id
+build_uci_mount_command_a:
+    lda #IEC_ID_A
+build_uci_mount_command_id:
+    sta uci_cmd_buffer+2
+    ldy #$00
+build_uci_mount_command_copy:
+    lda path_name_buffer,y
+    beq build_uci_mount_command_done
+    jsr screen_code_to_ascii
+    sta uci_cmd_buffer+3,y
+    iny
+    cpy #MAX_LINE_LEN
+    bcc build_uci_mount_command_copy
+build_uci_mount_command_done:
+    tya
+    clc
+    adc #3
+    rts
+
 build_uci_delete_command:
     jsr build_uci_target_header
     lda #DOS_CMD_DELETE_FILE
@@ -4857,10 +5049,10 @@ resolve_mount_arg:
     lda #MOUNT_KIND_NONE
     sta temp_mount_kind
     lda arg_length
-    cmp #5
-    beq mount_arg_len5
+    cmp #3
+    bcs :+
     jmp mount_arg_bad
-mount_arg_len5:
+:
     lda arg_buffer+1
     cmp #ASCII_COLON
     bne mount_arg_bad
@@ -4873,56 +5065,120 @@ mount_arg_len5:
 mount_arg_drive_a:
     lda #DRIVE_A
     sta temp_drive
-    jmp mount_arg_kind
+    jmp mount_arg_path
 mount_arg_drive_b:
     lda #DRIVE_B
     sta temp_drive
-mount_arg_kind:
-    lda arg_buffer+2
-    cmp #CMD_D
-    bne mount_arg_bad
-    lda arg_buffer+3
-    cmp #$36
-    beq mount_arg_d64
-    cmp #$37
-    beq mount_arg_d71
-    cmp #$38
-    beq mount_arg_d81
-    cmp #CMD_N
-    beq mount_arg_dnp_check
-    jmp mount_arg_bad
-mount_arg_d64:
-    lda arg_buffer+4
-    cmp #$34
-    bne mount_arg_bad
-    lda #MOUNT_KIND_D64
-    sta temp_mount_kind
-    jmp mount_arg_ok
-mount_arg_d71:
-    lda arg_buffer+4
-    cmp #$31
-    bne mount_arg_bad
-    lda #MOUNT_KIND_D71
-    sta temp_mount_kind
-    jmp mount_arg_ok
-mount_arg_d81:
-    lda arg_buffer+4
-    cmp #$31
-    bne mount_arg_bad
-    lda #MOUNT_KIND_D81
-    sta temp_mount_kind
-    jmp mount_arg_ok
-mount_arg_dnp_check:
-    lda arg_buffer+4
-    cmp #CMD_P
-    bne mount_arg_bad
-    lda #MOUNT_KIND_DNP
-    sta temp_mount_kind
+mount_arg_path:
+    lda #2
+    sta parse_scan_index
+mount_arg_skip_gap:
+    ldy parse_scan_index
+    cpy arg_length
+    bcs mount_arg_bad
+    lda arg_buffer,y
+    cmp #ASCII_SPACE
+    bne mount_arg_copy
+    iny
+    sty parse_scan_index
+    bne mount_arg_skip_gap
+mount_arg_copy:
+    jsr copy_path_name_from_parse
+    bcs mount_arg_bad
+    jsr detect_mount_kind_from_path_name
+    bcs mount_arg_bad
 mount_arg_ok:
     lda #MOUNT_STATUS_OK
     rts
 mount_arg_bad:
     lda #MOUNT_STATUS_BAD
+    rts
+
+detect_mount_kind_from_path_name:
+    lda #$00
+    sta parse_scan_index
+    ldy #$00
+detect_mount_kind_scan:
+    lda path_name_buffer,y
+    beq detect_mount_kind_done
+    cmp #ASCII_DOT
+    bne detect_mount_kind_next
+    tya
+    clc
+    adc #1
+    sta parse_scan_index
+detect_mount_kind_next:
+    iny
+    cpy #MAX_LINE_LEN
+    bcc detect_mount_kind_scan
+detect_mount_kind_done:
+    lda parse_scan_index
+    beq detect_mount_kind_fail
+    tay
+    lda path_name_buffer,y
+    cmp #CMD_D
+    bne detect_mount_kind_fail
+    iny
+    lda path_name_buffer,y
+    cmp #$36
+    beq detect_mount_kind_d64
+    cmp #$37
+    beq detect_mount_kind_d71
+    cmp #$38
+    beq detect_mount_kind_d81
+    cmp #CMD_N
+    beq detect_mount_kind_dnp
+    jmp detect_mount_kind_fail
+detect_mount_kind_d64:
+    iny
+    lda path_name_buffer,y
+    cmp #$34
+    bne detect_mount_kind_fail
+    iny
+    lda path_name_buffer,y
+    bne detect_mount_kind_fail
+    lda #MOUNT_KIND_D64
+    sta temp_mount_kind
+    clc
+    rts
+detect_mount_kind_d71:
+    iny
+    lda path_name_buffer,y
+    cmp #$31
+    bne detect_mount_kind_fail
+    iny
+    lda path_name_buffer,y
+    bne detect_mount_kind_fail
+    lda #MOUNT_KIND_D71
+    sta temp_mount_kind
+    clc
+    rts
+detect_mount_kind_d81:
+    iny
+    lda path_name_buffer,y
+    cmp #$31
+    bne detect_mount_kind_fail
+    iny
+    lda path_name_buffer,y
+    bne detect_mount_kind_fail
+    lda #MOUNT_KIND_D81
+    sta temp_mount_kind
+    clc
+    rts
+detect_mount_kind_dnp:
+    iny
+    lda path_name_buffer,y
+    cmp #CMD_P
+    bne detect_mount_kind_fail
+    iny
+    lda path_name_buffer,y
+    bne detect_mount_kind_fail
+    lda #MOUNT_KIND_DNP
+    sta temp_mount_kind
+    clc
+    rts
+detect_mount_kind_fail:
+    sec
     rts
 
 append_selected_drive_path:
@@ -5876,6 +6132,10 @@ volume_ptr_lo:
     .byte <volume_system, <volume_work
 volume_ptr_hi:
     .byte >volume_system, >volume_work
+volume_label_a:
+    .res MAX_LINE_LEN+1
+volume_label_b:
+    .res MAX_LINE_LEN+1
 line_buffer:
     .res MAX_LINE_LEN
 arg_buffer:
@@ -5934,7 +6194,7 @@ resp_help:
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem:
-    .byte "CORE 3416", 0
+    .byte "CORE 361F", 0
 volume_system:
     .byte "SYSTEM", 0
 volume_work:
@@ -6177,6 +6437,12 @@ resp_no_space:
     .byte "NO SPACE", 0
 resp_no_program:
     .byte "PROGRAM NOT FOUND", 0
+resp_not_disk_image:
+    .byte "NOT A DISK IMAGE", 0
+resp_drive_not_present:
+    .byte "DRIVE NOT PRESENT", 0
+resp_mount_failed:
+    .byte "MOUNT FAILED", 0
 resp_program_too_large:
     .byte "PROGRAM TOO LARGE", 0
 resp_program_load_failed:

@@ -68,6 +68,15 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - expose command-line pointer and length
   - snapshot run state and exit state
   - return cleanly to the resident shell
+- replaced the placeholder mount form with a real image-path `MOUNT` syntax:
+  - `MOUNT A: /path/to/system.d81`
+  - `MOUNT B: /path/to/work.dnp`
+- added a hardware-backed `MOUNT` path
+  - current assumptions:
+    - `A:` -> IEC `8`
+    - `B:` -> IEC `9`
+  - hardware mode attempts Ultimate DOS `MOUNT_DISK`
+  - resident labels are derived from the mounted image basename after a successful mount
 
 ## Current Verified Facts
 
@@ -121,6 +130,12 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - VICE validates the loaded image length through resident snapshots
 - current VICE-validated transcript:
   - `UDOS FOR COMMODORE 64`
+  - `A:D64/> MOUNT B: /IMAGES/ALT.D81`
+  - `A:D64/> VOL`
+  - `A:SYSTEM D64 B:ALT D81`
+  - `A:D64/> MOUNT B: /IMAGES/WORK.DNP`
+  - `A:D64/> VOL`
+  - `A:SYSTEM D64 B:WORK DNP`
   - `A:D64/> B:`
   - `B:DNP/`
   - `B:DNP/> CD SRC`
@@ -138,8 +153,6 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `ARGS DIR`
   - `B:DNP/WORK> DEL BOOT3.PRG`
   - `DELETED`
-  - `B:DNP/WORK> DIR`
-  - `B:DNP/WORK EMPTY`
 - bind snapshots:
   - `$CFE4 = $01` -> cached backend-path length for `A:` (`/`)
   - `$CFE5 = $05` -> cached backend-path length for `B:` (`/WORK`) after the smoke sequence
@@ -158,7 +171,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `$CFF9 = $03` -> program directory `WORK`
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
-- resident core code footprint: `$3416`
+- resident core code footprint: `$361F`
 - resident load window in `udos_c64.cfg`: `$4000`
 
 ## What Works
@@ -175,6 +188,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - file-delete seam for `DEL` with hardware `DELETE_FILE` attempt and explicit hardware-error reporting
 - file-rename seam for `REN` with hardware `RENAME_FILE` attempt and explicit hardware-error reporting
 - file-copy seam for `COPY` with same-drive `COPY_FILE`, cross-drive read/write streaming, and explicit hardware-error reporting
+- real `MOUNT` syntax with image-path parsing and basename-derived resident labels
 - flat-image rejection for directory-tree semantics
 - prompt rendering from live drive/kind/path state
 - direct drive-token switching for `A:` and `B:`
@@ -184,7 +198,6 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - `COPY`
   - `REN`
   - `DEL`
-- resident program-handoff mock workflow:
 - resident program-handoff and image-load workflow:
   - implicit program launch from a bare non-keyword line
   - `.PRG` suffix added when the target has no extension
@@ -196,7 +209,8 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 
 - no real C64 Ultimate hardware execution
 - no hardware-validated UCI command/data path
-- no real mounted-image metadata yet
+- no filesystem-header volume-label import yet
+- no hardware-validated mounted-image bind yet
 - no hardware-validated image-backed file delete yet
 - no hardware-validated image-backed file rename yet
 - no hardware-validated image-backed file copy yet
@@ -207,6 +221,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 
 - replace the current descriptor-backed mock filesystem with real image-backed services behind the existing ABI
 - first targets:
-  - real mounted-image metadata for `VOL` / `MOUNT`
+  - hardware-validate the new `MOUNT_DISK` path and harden error handling on target
+  - decide whether `VOL` should stay basename-derived or import the filesystem-header label
   - hardware-validate and harden the new program-image load path
 - keep shell semantics stable while swapping the backend

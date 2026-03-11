@@ -43,6 +43,12 @@ Current validated transcript:
 
 ```text
 UDOS FOR COMMODORE 64
+  A:D64/> MOUNT B: /IMAGES/ALT.D81
+  A:D64/> VOL
+A:SYSTEM D64 B:ALT D81
+  A:D64/> MOUNT B: /IMAGES/WORK.DNP
+  A:D64/> VOL
+A:SYSTEM D64 B:WORK DNP
   A:D64/> B:
 B:DNP/
   B:DNP/> CD SRC
@@ -60,9 +66,6 @@ RUN BOOT3.PRG
 ARGS DIR
   B:DNP/WORK> DEL BOOT3.PRG
 DELETED
-  B:DNP/WORK> DIR
-B:DNP/WORK EMPTY
-  B:DNP/WORK>
 ```
 
 ## What Is Unverified
@@ -71,6 +74,7 @@ B:DNP/WORK EMPTY
 - no hardware-validated UCI command/data path
 - no real mounted-image enumeration yet
 - no real image-backed file mutation yet
+- no hardware-validated mounted-image bind yet
 - no hardware-validated program-image load yet
 - no overlay command loader yet
 
@@ -92,7 +96,7 @@ Preserved Action repo state at pivot:
 
 ## Next Concrete Step
 
-Keep UDOS on the standalone path and replace the current descriptor-backed mock
-filesystem metadata backend with real image-backed services, hardware-validate the
-new program-image load path, then resume the Action Development System tools
-against that resident ABI.
+Keep UDOS on the standalone path, hardware-validate the new `MOUNT_DISK` and
+program-image load paths, then continue replacing descriptor-backed metadata
+with real image-backed services before resuming the Action Development System
+tools against that resident ABI.

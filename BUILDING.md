@@ -75,7 +75,11 @@ Current `vice-resident` behavior:
 - builds `build/udosres.prg`
 - autostarts the BASIC wrapper PRG in `x64sc`
 - binds `A:` as `D64` and `B:` as `DNP`
-- drives the live resident shell with direct drive switching and explicit separators:
+- drives the live resident shell with real mount syntax, direct drive switching, and explicit separators:
+  - `MOUNT B: /IMAGES/ALT.D81`
+  - `VOL`
+  - `MOUNT B: /IMAGES/WORK.DNP`
+  - `VOL`
   - `B:`
   - `CD SRC`
   - `COPY BOOT.ASM WORK/BOOT2.PRG`
@@ -84,14 +88,16 @@ Current `vice-resident` behavior:
   - `DELBOOT3`
   - `BOOT3 DIR`
   - `DEL BOOT3.PRG`
-  - `DIR`
 - verifies command-keyword separation:
   - `DELBOOT3` must not be treated as `DEL BOOT3.PRG`
   - it is treated as a bare program token and returns `PROGRAM NOT FOUND`
 - verifies implicit program launch:
   - `BOOT3 DIR` resolves as `BOOT3.PRG`
   - `DIR` is passed as the command line
-- verifies the final listing `B:DNP/WORK EMPTY`
+- verifies mounted-image parsing and label derivation:
+  - `MOUNT B: /IMAGES/ALT.D81` yields `B:ALT D81`
+  - `MOUNT B: /IMAGES/WORK.DNP` restores `A:SYSTEM D64 B:WORK DNP`
+- verifies the final delete response `DELETED`
 - verifies resident snapshots:
   - cached backend-path length:
     - `A:` = `1` (`/`)
@@ -109,6 +115,12 @@ Current validated resident transcript:
 
 ```text
 UDOS FOR COMMODORE 64
+  A:D64/> MOUNT B: /IMAGES/ALT.D81
+  A:D64/> VOL
+A:SYSTEM D64 B:ALT D81
+  A:D64/> MOUNT B: /IMAGES/WORK.DNP
+  A:D64/> VOL
+A:SYSTEM D64 B:WORK DNP
   A:D64/> B:
 B:DNP/
   B:DNP/> CD SRC
@@ -126,16 +138,13 @@ RUN BOOT3.PRG
 ARGS DIR
   B:DNP/WORK> DEL BOOT3.PRG
 DELETED
-  B:DNP/WORK> DIR
-B:DNP/WORK EMPTY
-  B:DNP/WORK>
 ```
 
 Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$3416`
+- resident core code: `$361F`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$4000`
 - hardware directory cache budget:
   - `6` entries per drive
@@ -147,6 +156,11 @@ Current resident map facts:
   - one bounded resident image buffer per command
   - current buffer size: `255` bytes
   - hardware mode now probes size/existence with `FILE_STAT` before opening the file
+- hardware mount path:
+  - shell syntax is `MOUNT <drive>: <image-path>`
+  - the resident shell currently maps `A:` to IEC `8` and `B:` to IEC `9`
+  - hardware mode issues Ultimate DOS `MOUNT_DISK (0x23)`
+  - the current resident label is derived from the mounted image basename, not the filesystem header
 
 ## Tests
 
@@ -170,6 +184,12 @@ If you want to try the current resident image on real C64 Ultimate hardware:
 3. Reproduce this smoke sequence manually:
 
 ```text
+  A:D64/> MOUNT B: /IMAGES/ALT.D81
+  A:D64/> VOL
+A:SYSTEM D64 B:ALT D81
+  A:D64/> MOUNT B: /IMAGES/WORK.DNP
+  A:D64/> VOL
+A:SYSTEM D64 B:WORK DNP
   A:D64/> B:
 B:DNP/
   B:DNP/> CD SRC
@@ -187,8 +207,6 @@ RUN BOOT3.PRG
 ARGS DIR
   B:DNP/WORK> DEL BOOT3.PRG
 DELETED
-  B:DNP/WORK> DIR
-B:DNP/WORK EMPTY
 ```
 
 Until that run happens on real hardware, all current validation should be described as emulator validation only.
@@ -199,5 +217,6 @@ Hardware-specific note:
 - the resident image now also contains a real Ultimate DOS `DEL` path using `CHANGE_DIR` and `DELETE_FILE`
 - the resident image now also contains a real Ultimate DOS `REN` path using `CHANGE_DIR` and `RENAME_FILE`
 - the resident image now also contains a real Ultimate DOS `COPY` path using same-drive `COPY_FILE` and cross-drive `OPEN_FILE` / `READ_DATA` / `WRITE_DATA`
+- the resident image now also contains a real Ultimate DOS `MOUNT` path using `MOUNT_DISK`
 - this path has been build-validated only
 - it has not been executed on real Ultimate hardware from this environment

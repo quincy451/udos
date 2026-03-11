@@ -38,6 +38,12 @@ Current milestone:
   - cross-drive copy through source `OPEN_FILE`/`READ_DATA` and destination `OPEN_FILE`/`WRITE_DATA`
   - mock copy is used only when hardware UCI is unavailable
   - hardware-side copy failures return an explicit shell error
+- Phase 5 now also includes a real mounted-image `MOUNT` path in code:
+  - shell syntax: `MOUNT A: /path/to/system.d81` or `MOUNT B: /path/to/work.dnp`
+  - image kind is inferred from the extension
+  - resident volume labels are derived from the mounted image basename
+  - hardware mode attempts Ultimate DOS `MOUNT_DISK`
+  - mock mode preserves the same semantics under VICE
 - Phase 5 now also includes a real resident image-load path behind implicit program launch:
   - mock mode copies the resolved target into a bounded resident image buffer
   - hardware mode first probes the target with `FILE_STAT`
