@@ -68,6 +68,10 @@ Current milestone:
   - `ECHO`
   - stop-on-error flow
   - boot `AUTOEXEC.BAT` from the default `A:` boot root
+- Phase 5 now also includes transcript-backed VICE self-test images:
+  - focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
+  - checked-in expected final-screen transcripts
+  - generated actual transcripts for direct `diff -u` comparison
 
 Current command parser rule:
 - shell keywords require a separator before arguments
@@ -89,6 +93,7 @@ See:
 - `PIVOT_PLAN.md`
 - `ARCHITECTURE.md`
 - `BUILDING.md`
+- `COMMAND_MATRIX.md`
 - `MILESTONE_HANDOFF.md`
 - `STATUS_UDOS.md`
 - `TODO_UDOS.md`

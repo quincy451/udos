@@ -188,6 +188,11 @@ Separate VICE smoke targets:
   - validates stop-on-error through `STOP.BAT`
 - `make vice-autoexec`
   - validates boot `AUTOEXEC.BAT` from the default `A:` boot root
+- `make vice-selftest`
+  - builds focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
+  - writes the generated D64 artifacts under `build/udos-selftest-*.d64`
+  - writes final-screen captures under `build/udos-selftest-*.actual.txt`
+  - diffs those captures against `tests/selftest/expected_*.txt`
 
 Current resident map facts:
 - linked entrypoint: `$1810`
@@ -234,6 +239,44 @@ python3 -m unittest discover -s tests -q
 Notes:
 - build tests always run
 - VICE-backed tests are skipped automatically when `x64sc` is not installed
+- `make test` now includes `make vice-selftest`, so the transcript-backed self-test images are part of the normal VICE validation path
+
+## Transcript Self-Test Images
+
+```sh
+cd /mnt/c/test/action/udos
+make vice-selftest
+```
+
+Generated images:
+- `build/udos-selftest-read.d64`
+- `build/udos-selftest-copy.d64`
+- `build/udos-selftest-rename.d64`
+- `build/udos-selftest-delete.d64`
+- `build/udos-selftest-dir.d64`
+- `build/udos-selftest-batch.d64`
+- `build/udos-selftest-stop.d64`
+- `build/udos-selftest-launch.d64`
+
+Generated transcript captures:
+- `build/udos-selftest-read.actual.txt`
+- `build/udos-selftest-copy.actual.txt`
+- `build/udos-selftest-rename.actual.txt`
+- `build/udos-selftest-delete.actual.txt`
+- `build/udos-selftest-dir.actual.txt`
+- `build/udos-selftest-batch.actual.txt`
+- `build/udos-selftest-stop.actual.txt`
+- `build/udos-selftest-launch.actual.txt`
+
+Expected transcripts:
+- `tests/selftest/expected_read.txt`
+- `tests/selftest/expected_copy.txt`
+- `tests/selftest/expected_rename.txt`
+- `tests/selftest/expected_delete.txt`
+- `tests/selftest/expected_dir.txt`
+- `tests/selftest/expected_batch.txt`
+- `tests/selftest/expected_stop.txt`
+- `tests/selftest/expected_launch.txt`
 
 ## Hardware Validation
 

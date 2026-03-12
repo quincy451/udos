@@ -13167,7 +13167,7 @@ content_flat_commands:
 content_flat_readme:
     .byte "MOCK FLAT IMAGE CONTENT", 0
 content_flat_autoexec:
-    .byte "ECHO AUTOEXEC OK", 0
+    .include "autoexec_script.inc"
 content_bin_shell:
     .byte "SHELL OVERLAY PLACEHOLDER", 0
 content_bin_dir:

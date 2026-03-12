@@ -95,6 +95,10 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `ECHO`
   - stop-on-error flow
   - boot-time `AUTOEXEC.BAT` from the default `A:` boot root
+- added transcript-backed VICE self-test images:
+  - focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
+  - checked-in expected final-screen transcripts under `tests/selftest`
+  - generated `build/udos-selftest-*.d64` and `build/udos-selftest-*.actual.txt` artifacts through `make vice-selftest`
 - updated resident `MEM` to report decimal usage:
   - RAM used bytes
   - RAM free bytes using the current `FFFF-used` policy
