@@ -89,6 +89,12 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - return cleanly to the resident shell
   - flat-image mounts now first try raw root-directory lookup plus chained-sector reads into the resident image buffer
   - tree-capable mounts still use `FILE_STAT` plus `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
+- added resident batch execution:
+  - implicit `.BAT` fallback after `.PRG` lookup
+  - `%1` / `%2` / `%3` expansion
+  - `ECHO`
+  - stop-on-error flow
+  - boot-time `AUTOEXEC.BAT` from the default `A:` boot root
 - updated resident `MEM` to report decimal usage:
   - RAM used bytes
   - RAM free bytes using the current `FFFF-used` policy
@@ -177,6 +183,10 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - tree-capable hardware mode then attempts `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
   - tree-capable hardware mode can now distinguish `PROGRAM NOT FOUND` from a generic load failure before opening the file
   - VICE now validates both the loaded image length snapshots and a real tree-backed `HELLO DIR` launch path
+- batch execution is now validated in VICE:
+  - `ARGS ONE TWO THREE` expands to `ONE/TWO/THREE`
+  - `STOP` halts after `TYPE NOFILE.TXT` and does not run the next line
+  - boot `AUTOEXEC.BAT` now runs before the first live shell command
 - current VICE-validated transcript:
   - `A:D64/> MOUNT B: /IMAGES/WORK.DNP`
   - `A:D64/> VOL`

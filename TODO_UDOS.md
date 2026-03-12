@@ -48,12 +48,10 @@
   - `*.*`
   - `*.EXT`
   - `NAME.*`
-- implement batch/scripting support:
-  - `.BAT` execution
+- build a VICE self-test image flow:
   - `AUTOEXEC.BAT`
-  - `%1` / `%2` / `%3`
-  - `ECHO`
-  - stop-on-error flow
+  - scripted pass/fail result artifact
+  - clear operator-visible success/failure outcome
 - define and implement REU-backed resident spill/restore for later command/program launch headroom
 - hardware-validate and harden the current `MOUNT_DISK` path on target
 - hardware-validate and harden the current flat-image header-label import path on target

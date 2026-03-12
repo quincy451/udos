@@ -107,6 +107,10 @@ Current `vice-resident` behavior:
   - `make vice-real-tree-write`
   - `make vice-real-tree-rename`
   - `make vice-real-tree-wild`
+ - verifies resident batch support separately:
+  - `make vice-batch-args`
+  - `make vice-batch-stop`
+  - `make vice-autoexec`
 - verifies `MEM` separately through the Python test suite:
   - derives resident usage from `build/udos-resident.labels`
   - checks the live shell prints matching decimal RAM usage/free values
@@ -178,12 +182,18 @@ Separate VICE smoke targets:
   - validates VICE tree `MD`, `CD`, and empty-directory `RD`
 - `make vice-real-tree-rmdir`
   - validates VICE tree non-empty `RD` rejection
+- `make vice-batch-args`
+  - validates `%1` / `%2` / `%3` expansion through `ARGS.BAT`
+- `make vice-batch-stop`
+  - validates stop-on-error through `STOP.BAT`
+- `make vice-autoexec`
+  - validates boot `AUTOEXEC.BAT` from the default `A:` boot root
 
 Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$7731`
+- resident core code: `$6A50`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$9000`
 - hardware directory cache budget:
   - `6` entries per drive

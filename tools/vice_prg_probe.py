@@ -308,6 +308,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--marker-value", help="optional expected marker byte value")
     parser.add_argument("--check-byte", action="append", default=[], help="extra checks in addr=value form, hex or decimal")
     parser.add_argument("--contains", action="append", default=[], help="extra screen fragments that must be present in the final screen")
+    parser.add_argument("--absent", action="append", default=[], help="screen fragments that must not be present in the final screen")
     parser.add_argument("--keybuf", help="optional VICE -keybuf string to inject during autostart")
     parser.add_argument("--keybuf-delay", type=int, help="optional VICE -keybuf-delay value")
     parser.add_argument("--feed-after", help="optional screen fragment to wait for before binary-monitor keyboard feed")
@@ -315,6 +316,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--labels", help="optional ld65 labels file for scripted resident input injection")
     parser.add_argument("--script-line", action="append", default=[], help="scripted input line to inject through UDOS script mode")
     parser.add_argument("--vice-arg", action="append", default=[], help="extra raw argument to pass through to x64sc")
+    parser.add_argument("--settle", type=float, default=0.0, help="seconds to wait after the expected fragment before capturing the final screen")
     parser.add_argument("--timeout", type=float, default=25.0, help="seconds to wait for the banner")
     args = parser.parse_args(argv)
 
@@ -396,9 +398,15 @@ def main(argv: list[str] | None = None) -> int:
             extra_checks=extra_checks,
             timeout=args.timeout,
         )
+        if args.settle > 0.0:
+            time.sleep(args.settle)
+            screen = screen_ram_to_text(client.memory_get(0x0400, 0x07E7))
         for fragment in args.contains:
             if fragment not in screen:
                 raise ViceError(f"expected screen fragment {fragment!r} was not present in final screen:\n{screen}")
+        for fragment in args.absent:
+            if fragment in screen:
+                raise ViceError(f"screen fragment {fragment!r} should not be present in final screen:\n{screen}")
         print(screen)
         return 0
     except ViceError as exc:

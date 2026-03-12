@@ -125,7 +125,6 @@ CMD_V = 22
 CMD_W = 23
 CMD_X = 24
 CMD_Y = 25
-SHELL_CMD_NONE = 0
 SHELL_CMD_HELP = 1
 SHELL_CMD_VER = 2
 SHELL_CMD_VOL = 3
@@ -143,6 +142,7 @@ SHELL_CMD_RD = 14
 SHELL_CMD_RUN = 15
 SHELL_CMD_DRIVE_ERR = 16
 SHELL_CMD_ECHO = 18
+SHELL_CMD_NONE = 19
 INPUT_MODE_KEYBOARD = 0
 INPUT_MODE_SCRIPT = 1
 DIR_ID_ROOT = 0
@@ -340,13 +340,14 @@ resident_main:
     setp16 header_text
     calln svc_console_write_sc0
     calln svc_console_newline
+    calln svc_try_autoexec_batch
 
 shell_loop:
     calln svc_shell_preprompt
 shell_prompt:
     calln svc_console_write_prompt
     calln svc_line_read
-    case8 SHELL_CMD_NONE, shell_loop
+    case8 SHELL_CMD_NONE, shell_none
     case8 SHELL_CMD_RUN, cmd_run_program
     case8 SHELL_CMD_DRIVE_ERR, cmd_emit_response
     case8 SHELL_CMD_MD, cmd_emit_response
@@ -368,6 +369,9 @@ shell_prompt:
     calln svc_console_newline
     jump shell_loop
 
+shell_none:
+    jump shell_loop
+
 cmd_emit_response:
     setp8 $11
     stma STAGE_SNAPSHOT
@@ -387,10 +391,8 @@ cmd_run_program:
     setp8 $12
     stma STAGE_SNAPSHOT
     calln svc_program_prepare_run
-    calln svc_program_get_status
-    case8 RUN_STATUS_OK, cmd_run_execute
-    case8 RUN_STATUS_BATCH, cmd_run_batch
-    jump cmd_run_error
+    calln svc_program_finish_prepare
+    jump shell_loop
 
 cmd_run_batch:
     calln svc_command_status_clear
@@ -741,6 +743,17 @@ current_mount_is_flat:
     sta temp_mount_kind
     lda mount_flag_table,y
     cmp #MOUNT_FLAG_FLAT
+    rts
+
+current_mount_path_is_empty:
+    jsr select_mount_path_buffer
+    ldy #$00
+    lda (PTR),y
+    beq current_mount_path_is_empty_yes
+    clc
+    rts
+current_mount_path_is_empty_yes:
+    sec
     rts
 
 install_volume_label_from_mount:
@@ -1743,7 +1756,7 @@ query_program_file_vice_missing:
     rts
 
 query_program_file_vice_current:
-    jsr vice_tree_find_current_slot
+    jsr vice_tree_find_current_slot_strict
     bcs query_program_file_vice_current_host
     cmp #VICE_TREE_SLOT_TOMBSTONE
     beq query_program_file_vice_current_missing
@@ -1755,7 +1768,7 @@ query_program_file_vice_current_host:
     lda mount_flag_table,x
     cmp #MOUNT_FLAG_TREE
     bne query_program_file_vice_current_open
-    jsr query_file_vice_host_current
+    jsr query_program_file_vice_host_current
     bcc query_program_file_vice_current_found
     jmp query_program_file_vice_current_missing
 query_program_file_vice_current_open:
@@ -1787,6 +1800,8 @@ load_program_image_vice:
     jsr vice_close_current_file
     plp
     lda vice_read_length
+    beq load_program_image_vice_missing
+    lda vice_read_length
     sta program_image_len_lo
     lda #$00
     sta program_image_len_hi
@@ -1794,13 +1809,17 @@ load_program_image_vice:
     lda #RUN_STATUS_OK
     clc
     rts
+load_program_image_vice_missing:
+    lda #RUN_STATUS_NOFILE
+    sec
+    rts
 load_program_image_vice_fail:
     lda #RUN_STATUS_LOAD_FAILED
     sec
     rts
 
 load_program_image_vice_current:
-    jsr vice_tree_find_current_slot
+    jsr vice_tree_find_current_slot_strict
     bcs load_program_image_vice_current_host
     cmp #VICE_TREE_SLOT_TOMBSTONE
     beq load_program_image_vice_current_missing
@@ -2340,6 +2359,38 @@ find_hw_dir_cache_matching_path_name_fail:
     sec
     rts
 find_hw_dir_cache_matching_path_name_hit:
+    clc
+    rts
+
+find_hw_dir_cache_matching_path_name_strict:
+    jsr select_hw_dir_tables
+    lda #$00
+    sta file_index
+find_hw_dir_cache_matching_path_name_strict_loop:
+    lda file_index
+    cmp enum_count
+    bcs find_hw_dir_cache_matching_path_name_strict_fail
+    tay
+    lda enum_lo_ptr_lo
+    sta SCREEN_PTR
+    lda enum_lo_ptr_hi
+    sta SCREEN_PTR+1
+    lda (SCREEN_PTR),y
+    sta PTR
+    lda enum_hi_ptr_lo
+    sta SCREEN_PTR
+    lda enum_hi_ptr_hi
+    sta SCREEN_PTR+1
+    lda (SCREEN_PTR),y
+    sta PTR+1
+    jsr compare_ptr_to_path_name_strict
+    bcc find_hw_dir_cache_matching_path_name_strict_hit
+    inc file_index
+    bne find_hw_dir_cache_matching_path_name_strict_loop
+find_hw_dir_cache_matching_path_name_strict_fail:
+    sec
+    rts
+find_hw_dir_cache_matching_path_name_strict_hit:
     clc
     rts
 
@@ -3115,7 +3166,29 @@ line_echo_done:
     sta line_buffer,x
     jsr svc_console_newline
     jsr tokenize_line_buffer
+    jsr dispatch_script_command_native
+    bcc line_script_command_ok
+    lda script_abort_on_error
+    beq line_script_command_ok
+    lda #INPUT_MODE_KEYBOARD
+    sta input_mode
+    lda #$00
+    sta batch_mode
+    sta script_abort_on_error
+    jmp line_script_finish
+line_script_command_ok:
+    ldy script_index
+    cpy script_line_count
+    bcc :+
+    lda #INPUT_MODE_KEYBOARD
+    sta input_mode
+    lda #$00
+    sta batch_mode
+    sta script_abort_on_error
+:
+line_script_finish:
     ldx saved_rp_x
+    lda #SHELL_CMD_NONE
     sta 0,x
     lda #$00
     sta 1,x
@@ -3133,15 +3206,23 @@ line_empty:
     rts
 
 append_batch_arg_ptr:
-    ldx #$00
+    lda SCREEN_PTR
+    sta matched_name_lo
+    lda SCREEN_PTR+1
+    sta matched_name_hi
 append_batch_arg_ptr_loop:
+    lda matched_name_lo
+    sta SCREEN_PTR
+    lda matched_name_hi
+    sta SCREEN_PTR+1
+    ldx #$00
     lda (SCREEN_PTR,x)
     beq append_batch_arg_ptr_done
     jsr normalize_input_char
     jsr append_script_char
-    inc SCREEN_PTR
+    inc matched_name_lo
     bne append_batch_arg_ptr_loop
-    inc SCREEN_PTR+1
+    inc matched_name_hi
     jmp append_batch_arg_ptr_loop
 append_batch_arg_ptr_done:
     rts
@@ -3158,8 +3239,54 @@ append_script_char:
 append_script_char_done:
     rts
 
+dispatch_script_command_native:
+    cmp #SHELL_CMD_NONE
+    beq dispatch_script_command_done
+    cmp #SHELL_CMD_RUN
+    beq dispatch_script_command_run
+    cmp #$FF
+    beq dispatch_script_command_unknown
+    ldx saved_rp_x
+    sta 0,x
+    lda #$00
+    sta 1,x
+    jsr svc_shell_response_ptr
+    ldx saved_rp_x
+    jsr svc_command_status_from_response
+    ldx saved_rp_x
+    jsr svc_console_write_sc0
+    jsr svc_console_newline
+    lda command_status
+    beq dispatch_script_command_done
+    sec
+    rts
+dispatch_script_command_done:
+    clc
+    rts
+dispatch_script_command_run:
+    ldx saved_rp_x
+    jsr svc_program_prepare_run
+    ldx saved_rp_x
+    jsr svc_program_finish_prepare
+    lda command_status
+    beq dispatch_script_command_done
+    sec
+    rts
+dispatch_script_command_unknown:
+    jsr svc_command_status_fail
+    lda #<resp_unknown
+    sta PTR
+    lda #>resp_unknown
+    sta PTR+1
+    jsr svc_console_write_ptr
+    jsr svc_console_newline
+    sec
+    rts
+
 svc_shell_response_ptr:
     lda 0,x
+    cmp #SHELL_CMD_NONE
+    beq shell_resp_none
     cmp #SHELL_CMD_HELP
     beq shell_resp_help
     cmp #SHELL_CMD_MD
@@ -3193,6 +3320,12 @@ svc_shell_response_ptr:
     lda #<resp_unknown
     sta 0,x
     lda #>resp_unknown
+    sta 1,x
+    rts
+shell_resp_none:
+    lda #<resp_empty
+    sta 0,x
+    lda #>resp_empty
     sta 1,x
     rts
 shell_resp_help:
@@ -5262,12 +5395,16 @@ program_lookup:
     bcc program_lookup_hw
     jsr vice_probe_available
     bcs program_lookup_mock
-    jsr query_file_response_vice_current
+    jsr current_mount_path_is_empty
+    bcs program_lookup_mock
+    jsr query_program_file_vice_current
     bcc :+
     jmp program_try_batch_fallback
 :
     jsr load_program_image_vice_current
     bcc :+
+    cmp #RUN_STATUS_NOFILE
+    beq program_try_batch_fallback
     jmp program_status_return
 :
     jmp program_ready
@@ -5280,11 +5417,13 @@ program_lookup_hw:
 :
     jsr load_program_image_hw
     bcc :+
+    cmp #RUN_STATUS_NOFILE
+    beq program_try_batch_fallback
     jmp program_status_return
 :
     jmp program_ready
 program_lookup_mock:
-    jsr lookup_file_content
+    jsr lookup_file_content_strict
     bcc program_load_mock
     jmp program_try_batch_fallback
 program_load_mock:
@@ -5296,7 +5435,9 @@ program_lookup_batch:
     bcc program_lookup_batch_hw
     jsr vice_probe_available
     bcs program_lookup_batch_mock
-    jsr query_file_response_vice_current
+    jsr current_mount_path_is_empty
+    bcs program_lookup_batch_mock
+    jsr query_program_file_vice_current
     bcc :+
     lda #RUN_STATUS_NOFILE
     jmp program_status_return
@@ -5313,7 +5454,7 @@ program_lookup_batch_hw:
     bcc program_ready_batch
     jmp program_status_return
 program_lookup_batch_mock:
-    jsr lookup_file_content
+    jsr lookup_file_content_strict
     bcc program_load_batch_mock
     lda #RUN_STATUS_NOFILE
     jmp program_status_return
@@ -5525,7 +5666,11 @@ install_batch_args_arg1:
     sta PTR
     lda #>batch_arg1_buffer
     sta PTR+1
+    txa
+    pha
     jsr copy_batch_arg_token
+    pla
+    tax
     inx
     jmp install_batch_args_skip_gap
 install_batch_args_arg2:
@@ -5533,7 +5678,11 @@ install_batch_args_arg2:
     sta PTR
     lda #>batch_arg2_buffer
     sta PTR+1
+    txa
+    pha
     jsr copy_batch_arg_token
+    pla
+    tax
     inx
     jmp install_batch_args_skip_gap
 install_batch_args_arg3:
@@ -5541,7 +5690,11 @@ install_batch_args_arg3:
     sta PTR
     lda #>batch_arg3_buffer
     sta PTR+1
+    txa
+    pha
     jsr copy_batch_arg_token
+    pla
+    tax
 install_batch_args_done:
     rts
 
@@ -5559,7 +5712,8 @@ copy_batch_arg_token_loop:
     ldx file_index
     cpx #MAX_LINE_LEN
     bcs copy_batch_arg_token_done
-    sta (PTR,x)
+    jsr store_a_at_ptr_plus_x_preserve_y
+    ldx file_index
     inx
     stx file_index
     iny
@@ -5567,7 +5721,23 @@ copy_batch_arg_token_loop:
 copy_batch_arg_token_done:
     ldx file_index
     lda #$00
-    sta (PTR,x)
+    jsr store_a_at_ptr_plus_x_preserve_y
+    rts
+
+store_a_at_ptr_plus_x_preserve_y:
+    sty saved_response_y
+    pha
+    txa
+    clc
+    adc PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    adc #$00
+    sta SCREEN_PTR+1
+    pla
+    ldy #$00
+    sta (SCREEN_PTR),y
+    ldy saved_response_y
     rts
 
 load_batch_script_from_program_image:
@@ -5605,7 +5775,8 @@ load_batch_script_copy:
     ldx file_index
     cpx #MAX_LINE_LEN
     bcs load_batch_script_too_large
-    sta (PTR,x)
+    jsr store_a_at_ptr_plus_x_preserve_y
+    ldx file_index
     inx
     stx file_index
     iny
@@ -5624,7 +5795,7 @@ load_batch_script_lf:
 load_batch_script_finish_line:
     ldx file_index
     lda #$00
-    sta (PTR,x)
+    jsr store_a_at_ptr_plus_x_preserve_y
     inc script_line_count
     jmp load_batch_script_next_line
 load_batch_script_too_large:
@@ -5882,6 +6053,75 @@ svc_program_get_status:
     lda #$00
     sta 1,x
     rts
+
+svc_program_status_is_ok:
+    lda #$00
+    sta 0,x
+    sta 1,x
+    lda program_status
+    cmp #RUN_STATUS_OK
+    bne svc_program_status_is_ok_done
+    lda #$01
+    sta 0,x
+svc_program_status_is_ok_done:
+    rts
+
+svc_program_status_is_batch:
+    lda #$00
+    sta 0,x
+    sta 1,x
+    lda program_status
+    cmp #RUN_STATUS_BATCH
+    bne svc_program_status_is_batch_done
+    lda #$01
+    sta 0,x
+svc_program_status_is_batch_done:
+    rts
+
+svc_program_finish_prepare:
+    lda program_status
+    cmp #RUN_STATUS_BATCH
+    beq svc_program_finish_prepare_batch
+    cmp #RUN_STATUS_OK
+    beq svc_program_finish_prepare_ok
+    jsr svc_command_status_fail
+    jsr svc_program_error_ptr
+    jsr svc_console_write_sc0
+    jmp svc_console_newline
+svc_program_finish_prepare_batch:
+    jmp svc_command_status_clear
+svc_program_finish_prepare_ok:
+    lda #$13
+    sta STAGE_SNAPSHOT
+    lda #<resp_run_prefix
+    sta PTR
+    lda #>resp_run_prefix
+    sta PTR+1
+    jsr svc_console_write_ptr
+    lda program_target_lo
+    sta PTR
+    lda program_target_hi
+    sta PTR+1
+    jsr svc_console_write_ptr
+    jsr svc_console_newline
+    lda program_cmdline_len
+    beq svc_program_finish_prepare_done
+    lda #<resp_args_prefix
+    sta PTR
+    lda #>resp_args_prefix
+    sta PTR+1
+    jsr svc_console_write_ptr
+    lda #<program_cmdline_buffer
+    sta PTR
+    lda #>program_cmdline_buffer
+    sta PTR+1
+    jsr svc_console_write_ptr
+    jsr svc_console_newline
+svc_program_finish_prepare_done:
+    lda #$14
+    sta STAGE_SNAPSHOT
+    jsr svc_program_exit
+    jmp svc_command_status_from_program_exit
 
 svc_program_error_ptr:
     lda 0,x
@@ -11038,6 +11278,59 @@ lookup_file_hit:
     clc
     rts
 
+lookup_file_content_strict:
+    jsr select_file_table
+    lda #$00
+    sta file_index
+lookup_file_strict_loop:
+    lda file_index
+    cmp file_count
+    bcs lookup_file_strict_miss
+    asl
+    asl
+    tay
+    lda file_table_lo
+    sta SCREEN_PTR
+    lda file_table_hi
+    sta SCREEN_PTR+1
+    lda (SCREEN_PTR),y
+    sta PTR
+    iny
+    lda (SCREEN_PTR),y
+    sta PTR+1
+    jsr compare_ptr_to_path_name_strict
+    bcc lookup_file_strict_hit
+    inc file_index
+    bne lookup_file_strict_loop
+lookup_file_strict_miss:
+    lda #$00
+    sta matched_name_lo
+    sta matched_name_hi
+    sec
+    rts
+lookup_file_strict_hit:
+    lda PTR
+    sta matched_name_lo
+    lda PTR+1
+    sta matched_name_hi
+    lda file_index
+    asl
+    asl
+    tay
+    lda file_table_lo
+    sta SCREEN_PTR
+    lda file_table_hi
+    sta SCREEN_PTR+1
+    iny
+    iny
+    lda (SCREEN_PTR),y
+    sta PTR
+    iny
+    lda (SCREEN_PTR),y
+    sta PTR+1
+    clc
+    rts
+
 compare_ptr_to_path_name:
     ldy #$00
     ldx #$00
@@ -11074,6 +11367,31 @@ compare_path_fail:
     sec
     rts
 compare_path_ok:
+    clc
+    rts
+
+compare_ptr_to_path_name_strict:
+    ldy #$00
+    ldx #$00
+compare_path_strict_loop:
+    lda (PTR),y
+    beq compare_path_strict_end
+    lda path_name_buffer,x
+    beq compare_path_strict_fail
+    lda (PTR),y
+    jsr normalize_output_char
+    cmp path_name_buffer,x
+    bne compare_path_strict_fail
+    iny
+    inx
+    bne compare_path_strict_loop
+compare_path_strict_end:
+    lda path_name_buffer,x
+    beq compare_path_strict_ok
+compare_path_strict_fail:
+    sec
+    rts
+compare_path_strict_ok:
     clc
     rts
 
@@ -11787,6 +12105,33 @@ vice_tree_find_current_slot_hit:
     clc
     rts
 
+vice_tree_find_current_slot_strict:
+    lda #$00
+    sta file_index
+vice_tree_find_current_slot_strict_loop:
+    lda file_index
+    cmp #VICE_TREE_DYNAMIC_MAX
+    bcs vice_tree_find_current_slot_strict_fail
+    jsr load_vice_tree_state_for_index
+    beq vice_tree_find_current_slot_strict_next
+    sta saved_response_y
+    jsr load_vice_tree_dir_for_index
+    cmp temp_dir_id
+    bne vice_tree_find_current_slot_strict_next
+    jsr select_vice_tree_name_slot
+    jsr compare_ptr_to_path_name_strict
+    bcc vice_tree_find_current_slot_strict_hit
+vice_tree_find_current_slot_strict_next:
+    inc file_index
+    bne vice_tree_find_current_slot_strict_loop
+vice_tree_find_current_slot_strict_fail:
+    sec
+    rts
+vice_tree_find_current_slot_strict_hit:
+    lda saved_response_y
+    clc
+    rts
+
 copy_path_name_to_vice_tree_slot_ascii:
     ldy #$00
 copy_path_name_to_vice_tree_slot_loop:
@@ -11880,6 +12225,23 @@ query_file_vice_host_current:
 query_file_vice_host_current_open:
     jmp query_file_vice_open_current
 query_file_vice_host_current_fail:
+    sec
+    rts
+
+query_program_file_vice_host_current:
+    ldx temp_drive
+    lda mount_flag_table,x
+    cmp #MOUNT_FLAG_TREE
+    bne query_program_file_vice_host_current_open
+    jsr fill_vice_manifest_dir_cache_host_current
+    bcs query_program_file_vice_host_current_fail
+    jsr find_hw_dir_cache_matching_path_name_strict
+    bcs query_program_file_vice_host_current_fail
+    clc
+    rts
+query_program_file_vice_host_current_open:
+    jmp query_file_vice_open_current
+query_program_file_vice_host_current_fail:
     sec
     rts
 
@@ -13083,6 +13445,8 @@ resp_bad_run:
     .byte "BAD RUN", 0
 resp_unmounted:
     .byte "UNMOUNTED", 0
+resp_empty:
+    .byte 0
 resp_unknown:
     .byte $3F, 0
 error_response_table:

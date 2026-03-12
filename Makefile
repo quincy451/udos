@@ -27,7 +27,7 @@ RESIDENT_DISK := $(BUILD_DIR)/udos-resident.d64
 RESIDENT_LABELS := $(BUILD_DIR)/udos-resident.labels
 RESIDENT_MAP := $(BUILD_DIR)/udos-resident.map
 
-.PHONY: all clean acheron-dep proof vice-proof resident vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-dir vice-real-tree-rmdir test
+.PHONY: all clean acheron-dep proof vice-proof resident vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec test
 
 all: proof resident
 
@@ -144,4 +144,25 @@ vice-real-tree-rmdir: resident
 		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rRD SRC\r" \
 		--expected "DIR NOT EMPTY"
 
-test: vice-proof vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-dir vice-real-tree-rmdir
+vice-batch-args: resident
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" \
+		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rARGS ONE TWO THREE\r" \
+		--expected "ONE/TWO/THREE" --contains "ECHO ONE/TWO/THREE"
+
+vice-batch-stop: resident
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" \
+		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rSTOP\r" \
+		--expected "NO SUCH FILE" --contains "BEFORE" --absent "AFTER"
+
+vice-autoexec: resident
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
+		--expected "A:D64/>" --settle 1.0 --contains "ECHO AUTOEXEC OK" --contains "AUTOEXEC OK"
+
+test: vice-proof vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec

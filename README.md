@@ -62,6 +62,12 @@ Current milestone:
   - flat-image mounts now first try raw image file lookup plus chained-sector reads
   - tree-capable hardware mode still probes with `FILE_STAT` and then attempts `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
   - VICE validates the loaded image length through resident snapshots
+- Phase 5 now also includes resident batch support on VICE:
+  - implicit `.BAT` fallback after `.PRG`
+  - `%1` / `%2` / `%3`
+  - `ECHO`
+  - stop-on-error flow
+  - boot `AUTOEXEC.BAT` from the default `A:` boot root
 
 Current command parser rule:
 - shell keywords require a separator before arguments

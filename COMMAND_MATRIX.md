@@ -37,15 +37,15 @@ Legend:
 | `C:` | Yes | Yes | N/A | N/A | N/A | Reserved token, returns `DRIVE NOT PRESENT`. |
 | `D:` | Yes | Yes | N/A | N/A | N/A | Reserved token, returns `DRIVE NOT PRESENT`. |
 | bare program launch | Yes | Yes | Yes | Yes | Partial | Mock and flat launch paths exist. Real VICE tree launch now passes for existing programs and returns `PROGRAM NOT FOUND` for missing ones. |
-| batch `.BAT` | No | No | No | No | No | Not started. |
-| `AUTOEXEC.BAT` | No | No | No | No | No | Not started. |
+| batch `.BAT` | Yes | Yes | Partial | Yes | Partial | Implicit `.BAT` fallback is working. `%1` / `%2` / `%3`, `ECHO`, and stop-on-error are validated on VICE. Default flat boot-root batch is working; real mounted flat-image batch validation is still incomplete. |
+| `AUTOEXEC.BAT` | Yes | Yes | Partial | N/A | Partial | Boot `AUTOEXEC.BAT` is working from the default `A:` boot root on VICE. Real mounted flat-image and hardware validation are still incomplete. |
 | `XCOPY` | No | No | No | No | No | Planned overlay/external command. |
 | `DELTREE` | No | No | No | No | No | Planned overlay/external command. |
 | `TREE` | No | No | No | No | No | Planned overlay/external command. |
 
 Current priority:
 
-1. implement batch support, including `AUTOEXEC.BAT`
+1. build a self-test image flow that reports success or failure through `AUTOEXEC.BAT`
 2. add REU-backed resident spill/shrink after the command surface is stable
-3. build a self-test image flow that reports success or failure through batch
-4. hardware-validate the existing UCI paths on a real Ultimate target
+3. hardware-validate the existing UCI paths on a real Ultimate target
+4. then build release-style images without `AUTOEXEC.BAT`
