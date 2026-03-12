@@ -180,6 +180,11 @@ PROGRAM_STATE_EXITED = 2
 PROGRAM_IMAGE_MAX = 255
 WORK_DYNAMIC_MAX = 2
 WORK_NAME_MAX = 16
+VICE_TREE_DYNAMIC_MAX = 6
+VICE_TREE_SLOT_EMPTY = 0
+VICE_TREE_SLOT_LIVE = 1
+VICE_TREE_SLOT_TOMBSTONE = 2
+VICE_TREE_SLOT_LIVE_HIDE = 3
 DOS_TARGET_A = 1
 DOS_TARGET_B = 2
 DOS_CMD_OPEN_FILE = $02
@@ -658,6 +663,7 @@ install_mounted_image:
     ldy temp_drive
     sta volume_ptr_hi,y
     jsr clear_dynamic_work_drive
+    jsr clear_vice_tree_drive
     rts
 
 install_mount_path:
@@ -1512,6 +1518,40 @@ read_file_response_vice_fail:
     sec
     rts
 
+read_file_response_vice_current:
+    jsr vice_tree_find_current_slot
+    bcs read_file_response_vice_current_host
+    cmp #VICE_TREE_SLOT_TOMBSTONE
+    beq read_file_response_vice_current_fail
+    jsr select_vice_tree_content_slot
+    clc
+    rts
+read_file_response_vice_current_host:
+    ldx temp_drive
+    lda mount_flag_table,x
+    cmp #MOUNT_FLAG_TREE
+    bne read_file_response_vice_current_open
+    jsr query_file_vice_host_current
+    bcs read_file_response_vice_current_fail
+read_file_response_vice_current_open:
+    jmp read_file_response_vice
+read_file_response_vice_current_fail:
+    sec
+    rts
+
+query_file_response_vice_current:
+    jsr vice_tree_find_current_slot
+    bcs query_file_response_vice_current_host
+    cmp #VICE_TREE_SLOT_TOMBSTONE
+    beq query_file_response_vice_current_fail
+    clc
+    rts
+query_file_response_vice_current_host:
+    jmp query_file_vice_host_current
+query_file_response_vice_current_fail:
+    sec
+    rts
+
 query_program_file_vice:
     jsr build_vice_open_path_from_name
     lda #VICE_LFN_FILE
@@ -1525,6 +1565,33 @@ query_program_file_vice:
     clc
     rts
 query_program_file_vice_missing:
+    lda #RUN_STATUS_NOFILE
+    sec
+    rts
+
+query_program_file_vice_current:
+    jsr vice_tree_find_current_slot
+    bcs query_program_file_vice_current_host
+    cmp #VICE_TREE_SLOT_TOMBSTONE
+    beq query_program_file_vice_current_missing
+    lda #RUN_STATUS_OK
+    clc
+    rts
+query_program_file_vice_current_host:
+    ldx temp_drive
+    lda mount_flag_table,x
+    cmp #MOUNT_FLAG_TREE
+    bne query_program_file_vice_current_open
+    jsr query_file_vice_host_current
+    bcc query_program_file_vice_current_found
+    jmp query_program_file_vice_current_missing
+query_program_file_vice_current_open:
+    jmp query_program_file_vice
+query_program_file_vice_current_found:
+    lda #RUN_STATUS_OK
+    clc
+    rts
+query_program_file_vice_current_missing:
     lda #RUN_STATUS_NOFILE
     sec
     rts
@@ -1557,6 +1624,31 @@ load_program_image_vice:
 load_program_image_vice_fail:
     lda #RUN_STATUS_LOAD_FAILED
     sec
+    rts
+
+load_program_image_vice_current:
+    jsr vice_tree_find_current_slot
+    bcs load_program_image_vice_current_host
+    cmp #VICE_TREE_SLOT_TOMBSTONE
+    beq load_program_image_vice_current_missing
+    jsr select_vice_tree_content_slot
+    bcc load_program_image_vice_current_overlay
+load_program_image_vice_current_host:
+    jmp load_program_image_vice
+load_program_image_vice_current_missing:
+    lda #RUN_STATUS_NOFILE
+    sec
+    rts
+load_program_image_vice_current_overlay:
+    jsr copy_ptr_to_program_image
+    bcc load_program_image_vice_current_ok
+    lda #RUN_STATUS_TOO_LARGE
+    sec
+    rts
+load_program_image_vice_current_ok:
+    jsr snapshot_program_image_length
+    lda #RUN_STATUS_OK
+    clc
     rts
 
 fill_vice_dir_cache_current:
@@ -1598,13 +1690,23 @@ fill_vice_dir_cache_current_fail:
     rts
 
 fill_vice_manifest_dir_cache_current:
+    jsr fill_vice_manifest_dir_cache_host_current
+    bcs fill_vice_manifest_dir_cache_current_fail
+    jsr apply_vice_tree_overlay_current_to_hw_cache
+    clc
+    rts
+fill_vice_manifest_dir_cache_current_fail:
+    sec
+    rts
+
+fill_vice_manifest_dir_cache_host_current:
     jsr build_vice_manifest_open_path
     lda #VICE_LFN_FILE
     sta vice_lfn
     lda #VICE_SA_READ
     sta vice_secondary
     jsr vice_open_read_from_ptr
-    bcs fill_vice_manifest_dir_cache_current_fail
+    bcs fill_vice_manifest_dir_cache_host_current_fail
     lda #<flat_dir_sector_buffer
     sta PTR
     lda #>flat_dir_sector_buffer
@@ -1622,7 +1724,7 @@ fill_vice_manifest_dir_cache_current:
     jsr parse_vice_manifest_buffer_entries
     clc
     rts
-fill_vice_manifest_dir_cache_current_fail:
+fill_vice_manifest_dir_cache_host_current_fail:
     sec
     rts
 
@@ -1979,6 +2081,188 @@ store_vice_dir_entry_name_finish:
 store_vice_dir_entry_name_term:
     lda #$00
     sta (PTR),y
+    rts
+
+copy_ptr_to_vice_name_buffer:
+    ldy #$00
+    sty vice_name_len
+    sty vice_dir_flag
+copy_ptr_to_vice_name_buffer_loop:
+    lda (PTR),y
+    beq copy_ptr_to_vice_name_buffer_done
+    cpy #HW_DIR_NAME_MAX-1
+    bcs copy_ptr_to_vice_name_buffer_done
+    sta vice_name_buffer,y
+    iny
+    sty vice_name_len
+    bne copy_ptr_to_vice_name_buffer_loop
+copy_ptr_to_vice_name_buffer_done:
+    lda #$00
+    sta vice_name_buffer,y
+    rts
+
+compare_ptr_to_screen_ptr_exact:
+    ldy #$00
+compare_ptr_to_screen_ptr_exact_loop:
+    lda (PTR),y
+    cmp (SCREEN_PTR),y
+    bne compare_ptr_to_screen_ptr_exact_fail
+    beq :+
+:
+    lda (PTR),y
+    beq compare_ptr_to_screen_ptr_exact_ok
+    iny
+    bne compare_ptr_to_screen_ptr_exact_loop
+compare_ptr_to_screen_ptr_exact_fail:
+    sec
+    rts
+compare_ptr_to_screen_ptr_exact_ok:
+    clc
+    rts
+
+find_hw_dir_cache_matching_ptr:
+    lda PTR
+    sta matched_name_lo
+    lda PTR+1
+    sta matched_name_hi
+    jsr select_hw_dir_tables
+    lda #$00
+    sta file_index
+find_hw_dir_cache_matching_ptr_loop:
+    lda file_index
+    cmp enum_count
+    bcs find_hw_dir_cache_matching_ptr_fail
+    tay
+    lda enum_lo_ptr_lo
+    sta SCREEN_PTR
+    lda enum_lo_ptr_hi
+    sta SCREEN_PTR+1
+    lda (SCREEN_PTR),y
+    sta SCREEN_PTR
+    lda enum_hi_ptr_lo
+    sta PTR
+    lda enum_hi_ptr_hi
+    sta PTR+1
+    lda (PTR),y
+    sta SCREEN_PTR+1
+    lda matched_name_lo
+    sta PTR
+    lda matched_name_hi
+    sta PTR+1
+    jsr compare_ptr_to_screen_ptr_exact
+    bcc find_hw_dir_cache_matching_ptr_hit
+    inc file_index
+    bne find_hw_dir_cache_matching_ptr_loop
+find_hw_dir_cache_matching_ptr_fail:
+    sec
+    rts
+find_hw_dir_cache_matching_ptr_hit:
+    clc
+    rts
+
+find_hw_dir_cache_matching_path_name:
+    jsr select_hw_dir_tables
+    lda #$00
+    sta file_index
+find_hw_dir_cache_matching_path_name_loop:
+    lda file_index
+    cmp enum_count
+    bcs find_hw_dir_cache_matching_path_name_fail
+    tay
+    lda enum_lo_ptr_lo
+    sta SCREEN_PTR
+    lda enum_lo_ptr_hi
+    sta SCREEN_PTR+1
+    lda (SCREEN_PTR),y
+    sta PTR
+    lda enum_hi_ptr_lo
+    sta SCREEN_PTR
+    lda enum_hi_ptr_hi
+    sta SCREEN_PTR+1
+    lda (SCREEN_PTR),y
+    sta PTR+1
+    jsr compare_ptr_to_path_name
+    bcc find_hw_dir_cache_matching_path_name_hit
+    inc file_index
+    bne find_hw_dir_cache_matching_path_name_loop
+find_hw_dir_cache_matching_path_name_fail:
+    sec
+    rts
+find_hw_dir_cache_matching_path_name_hit:
+    clc
+    rts
+
+remove_hw_dir_cache_current_index:
+    lda file_index
+    cmp enum_count
+    bcs remove_hw_dir_cache_current_index_done
+    jsr select_hw_dir_tables
+    ldy file_index
+remove_hw_dir_cache_current_index_shift:
+    iny
+    cpy enum_count
+    bcs remove_hw_dir_cache_current_index_finish
+    lda enum_lo_ptr_lo
+    sta PTR
+    lda enum_lo_ptr_hi
+    sta PTR+1
+    lda (PTR),y
+    dey
+    sta (PTR),y
+    iny
+    lda enum_hi_ptr_lo
+    sta PTR
+    lda enum_hi_ptr_hi
+    sta PTR+1
+    lda (PTR),y
+    dey
+    sta (PTR),y
+    iny
+    jmp remove_hw_dir_cache_current_index_shift
+remove_hw_dir_cache_current_index_finish:
+    dec enum_count
+    ldx temp_drive
+    lda enum_count
+    sta hw_dir_count_table,x
+remove_hw_dir_cache_current_index_done:
+    rts
+
+append_ptr_to_hw_dir_cache_current:
+    jsr copy_ptr_to_vice_name_buffer
+    jsr store_vice_dir_entry_if_any
+    rts
+
+apply_vice_tree_overlay_current_to_hw_cache:
+    lda #$00
+    sta file_count
+apply_vice_tree_overlay_current_to_hw_cache_loop:
+    lda file_count
+    cmp #VICE_TREE_DYNAMIC_MAX
+    bcs apply_vice_tree_overlay_current_to_hw_cache_done
+    sta file_index
+    jsr load_vice_tree_state_for_index
+    beq apply_vice_tree_overlay_current_to_hw_cache_next
+    sta saved_response_y
+    jsr load_vice_tree_dir_for_index
+    cmp temp_dir_id
+    bne apply_vice_tree_overlay_current_to_hw_cache_next
+    jsr select_vice_tree_name_slot
+    jsr copy_ptr_name_to_path_buffer
+    jsr find_hw_dir_cache_matching_path_name
+    bcs :+
+    jsr remove_hw_dir_cache_current_index
+:
+    lda saved_response_y
+    cmp #VICE_TREE_SLOT_TOMBSTONE
+    beq apply_vice_tree_overlay_current_to_hw_cache_next
+    lda file_count
+    sta file_index
+    jsr select_vice_tree_name_slot
+    jsr append_ptr_to_hw_dir_cache_current
+apply_vice_tree_overlay_current_to_hw_cache_next:
+    inc file_count
+    bne apply_vice_tree_overlay_current_to_hw_cache_loop
+apply_vice_tree_overlay_current_to_hw_cache_done:
     rts
 
 build_uci_target_header:
@@ -3497,6 +3781,8 @@ copy_source_classify:
 copy_source_hw:
     jsr uci_probe
     bcc copy_source_hw_uci
+    jsr vice_probe_available
+    bcc copy_source_vice
     jmp copy_source_lookup
 
 copy_source_hw_uci:
@@ -3528,7 +3814,46 @@ copy_source_wild:
     jsr copy_path_name_to_program_target
     jsr uci_probe
     bcc copy_source_wild_hw_uci
+    jsr vice_probe_available
+    bcs :+
+    jmp copy_source_wild_vice
+:
     jmp copy_source_wild_lookup
+
+copy_source_vice:
+    jsr load_copy_dest_arg
+    jsr resolve_copy_dest
+    cmp #PATH_STATUS_OK
+    beq copy_vice_target_ready
+    cmp #PATH_STATUS_FLAT
+    bne copy_vice_not_flat
+    jmp copy_build_flat
+copy_vice_not_flat:
+    cmp #PATH_STATUS_UNMOUNTED
+    bne copy_vice_not_unmounted
+    jmp copy_build_unmounted
+copy_vice_not_unmounted:
+    cmp #PATH_STATUS_BAD
+    bne copy_vice_not_bad
+    jmp copy_build_bad
+copy_vice_not_bad:
+    ldx saved_rp_x
+    lda #<resp_read_only
+    sta 0,x
+    lda #>resp_read_only
+    sta 1,x
+    rts
+copy_vice_target_ready:
+    jsr copy_file_vice
+    bcs :+
+    jmp copy_build_ok
+:
+    ldx saved_rp_x
+    lda #<resp_copy_failed
+    sta 0,x
+    lda #>resp_copy_failed
+    sta 1,x
+    rts
 
 copy_source_wild_hw_uci:
     jsr load_copy_dest_arg
@@ -3550,6 +3875,39 @@ copy_wild_hw_dest_ok:
     lda temp_dir_id
     sta dest_dir_id
     jsr copy_matching_files_hw
+    bcs :+
+    jmp copy_build_ok
+:
+    cmp #WILDCARD_RESULT_NOMATCH
+    bne :+
+    jmp copy_build_bad_file
+:
+    ldx saved_rp_x
+    lda #<resp_copy_failed
+    sta 0,x
+    lda #>resp_copy_failed
+    sta 1,x
+    rts
+copy_source_wild_vice:
+    jsr load_copy_dest_arg
+    jsr resolve_arg_target
+    cmp #PATH_STATUS_OK
+    beq copy_wild_vice_dest_ok
+    cmp #PATH_STATUS_FLAT
+    bne copy_wild_vice_not_flat
+    jmp copy_build_flat
+copy_wild_vice_not_flat:
+    cmp #PATH_STATUS_UNMOUNTED
+    bne copy_wild_vice_not_unmounted
+    jmp copy_build_unmounted
+copy_wild_vice_not_unmounted:
+    jmp copy_build_bad
+copy_wild_vice_dest_ok:
+    lda temp_drive
+    sta dest_drive
+    lda temp_dir_id
+    sta dest_dir_id
+    jsr copy_matching_files_vice
     bcs :+
     jmp copy_build_ok
 :
@@ -3591,7 +3949,12 @@ copy_have_source:
     jsr load_copy_dest_arg
     jsr resolve_copy_dest
     cmp #PATH_STATUS_OK
+    bne :+
+    lda temp_dir_id
+    cmp #DIR_ID_WORK
     beq copy_store_target
+    jmp copy_build_read_only
+:
     cmp #PATH_STATUS_FLAT
     beq copy_build_flat
     cmp #PATH_STATUS_UNMOUNTED
@@ -3717,7 +4080,11 @@ ren_source_ready:
     rts
 ren_source_hw:
     jsr uci_probe
-    bcs ren_source_lookup
+    bcc ren_source_hw_uci
+    jsr vice_probe_available
+    bcc ren_source_vice
+    jmp ren_source_lookup
+ren_source_hw_uci:
     lda temp_drive
     sta source_drive
     lda temp_dir_id
@@ -3770,6 +4137,59 @@ ren_hw_fail:
     lda #>resp_rename_failed
     sta 1,x
     rts
+ren_source_vice:
+    lda temp_drive
+    sta source_drive
+    lda temp_dir_id
+    sta source_dir_id
+    jsr copy_path_name_to_source_buffer
+    jsr load_copy_dest_arg
+    jsr resolve_copy_dest
+    cmp #PATH_STATUS_OK
+    beq ren_vice_dest_ready
+    cmp #PATH_STATUS_FLAT
+    bne ren_vice_not_flat
+    jmp ren_build_flat
+ren_vice_not_flat:
+    cmp #PATH_STATUS_UNMOUNTED
+    bne ren_vice_not_unmounted
+    jmp ren_build_unmounted
+ren_vice_not_unmounted:
+    cmp #PATH_STATUS_BAD
+    bne ren_vice_not_bad
+    jmp ren_build_bad
+ren_vice_not_bad:
+    jmp ren_build_read_only
+ren_vice_dest_ready:
+    lda temp_drive
+    cmp source_drive
+    beq :+
+    jmp ren_build_bad
+:
+    lda temp_dir_id
+    cmp source_dir_id
+    beq :+
+    jmp ren_build_bad
+:
+    jsr rename_file_vice
+    bcs ren_vice_fail
+    jmp ren_build_done
+ren_vice_fail:
+    cmp #RENAME_STATUS_EXISTS
+    bne :+
+    ldx saved_rp_x
+    lda #<resp_exists
+    sta 0,x
+    lda #>resp_exists
+    sta 1,x
+    rts
+:
+    ldx saved_rp_x
+    lda #<resp_rename_failed
+    sta 0,x
+    lda #>resp_rename_failed
+    sta 1,x
+    rts
 ren_source_lookup:
     lda temp_dir_id
     cmp #DIR_ID_WORK
@@ -3806,6 +4226,9 @@ ren_dest_ready:
     beq :+
     jmp ren_build_bad
 :
+    lda temp_dir_id
+    cmp #DIR_ID_WORK
+    bne ren_build_read_only
     jsr find_work_file_by_path_name
     bcs ren_apply_name
     lda file_index
@@ -3881,13 +4304,28 @@ build_del_response:
     rts
 del_source_ready:
     jsr classify_path_name_wildcard
-    bcs del_build_bad_file
+    bcc :+
+    jmp del_build_bad_file
+:
     lda wildcard_mode
     bne del_source_wild
 del_source_exact:
     jsr uci_probe
-    bcs del_source_lookup
+    bcc del_source_exact_hw
+    jsr vice_probe_available
+    bcc del_source_exact_vice
+    jmp del_source_lookup
+del_source_exact_hw:
     jsr delete_file_hw
+    bcc del_build_deleted
+    ldx saved_rp_x
+    lda #<resp_delete_failed
+    sta 0,x
+    lda #>resp_delete_failed
+    sta 1,x
+    rts
+del_source_exact_vice:
+    jsr delete_file_vice
     bcc del_build_deleted
     ldx saved_rp_x
     lda #<resp_delete_failed
@@ -3898,8 +4336,23 @@ del_source_exact:
 del_source_wild:
     jsr copy_path_name_to_source_buffer
     jsr uci_probe
-    bcs del_source_wild_lookup
+    bcc del_source_wild_hw
+    jsr vice_probe_available
+    bcc del_source_wild_vice
+    jmp del_source_wild_lookup
+del_source_wild_hw:
     jsr delete_matching_files_hw
+    bcc del_build_deleted
+    lda wildcard_match_count
+    beq del_build_bad_file
+    ldx saved_rp_x
+    lda #<resp_delete_failed
+    sta 0,x
+    lda #>resp_delete_failed
+    sta 1,x
+    rts
+del_source_wild_vice:
+    jsr delete_matching_files_vice
     bcc del_build_deleted
     lda wildcard_match_count
     beq del_build_bad_file
@@ -4092,13 +4545,14 @@ program_status_unmounted:
 program_lookup:
     jsr uci_probe
     bcc program_lookup_hw
-    jsr vice_should_use_mock_work_overlay
+    jsr vice_probe_available
     bcs program_lookup_mock
-    jsr query_program_file_vice
+    jsr query_file_response_vice_current
     bcc :+
+    lda #RUN_STATUS_NOFILE
     jmp program_status_return
 :
-    jsr load_program_image_vice
+    jsr load_program_image_vice_current
     bcc program_ready
     jmp program_status_return
 program_lookup_hw:
@@ -5006,11 +5460,16 @@ type_build_unmounted:
 type_build_hw:
     jsr uci_probe
     bcc type_build_uci
-    jsr vice_should_use_mock_work_overlay
+    jsr vice_probe_available
     bcs type_build_lookup
-    jsr read_file_response_vice
+    jsr read_file_response_vice_current
     bcc type_build_found
-    jmp type_build_lookup
+    ldx saved_rp_x
+    lda #<resp_bad_file
+    sta 0,x
+    lda #>resp_bad_file
+    sta 1,x
+    rts
 type_build_uci:
     jsr read_file_response_hw
     bcc type_build_found
@@ -5157,6 +5616,230 @@ copy_matching_files_hw_fail:
     lda wildcard_match_count
     beq copy_matching_files_hw_nomatch
     lda #WILDCARD_RESULT_FAILED
+    sec
+    rts
+
+copy_file_vice:
+    lda temp_drive
+    sta dest_drive
+    lda temp_dir_id
+    sta dest_dir_id
+    lda source_drive
+    cmp dest_drive
+    bne copy_file_vice_need_source
+    lda source_dir_id
+    cmp dest_dir_id
+    bne copy_file_vice_need_source
+    jsr compare_source_name_to_path_name
+    bcs copy_file_vice_need_source
+    clc
+    rts
+copy_file_vice_need_source:
+    jsr copy_path_name_to_copy_dst_buffer
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+    jsr copy_source_name_to_path_buffer
+    jsr read_file_response_vice_current
+    bcs copy_file_vice_fail
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    lda dest_drive
+    sta temp_drive
+    lda dest_dir_id
+    sta temp_dir_id
+    jsr copy_copy_dst_to_path_buffer
+    jmp store_vice_tree_live_current_from_screen_ptr
+copy_file_vice_fail:
+    sec
+    rts
+
+copy_matching_files_vice:
+    lda #$00
+    sta wildcard_match_count
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+    jsr fs_enum_begin_current
+copy_matching_files_vice_loop:
+    jsr fs_enum_next_ptr
+    bcs copy_matching_files_vice_done
+    jsr copy_program_target_to_source_buffer
+    jsr wildcard_match_ptr_to_source_name
+    bcs copy_matching_files_vice_next
+    jsr copy_ptr_name_to_path_buffer
+    jsr copy_path_name_to_source_buffer
+    lda enum_index
+    sta vice_tree_source_state
+    lda dest_drive
+    sta temp_drive
+    lda dest_dir_id
+    sta temp_dir_id
+    jsr copy_file_vice
+    bcs copy_matching_files_vice_fail
+    inc wildcard_match_count
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+    jsr fs_enum_begin_current
+    lda vice_tree_source_state
+    sta enum_index
+copy_matching_files_vice_next:
+    jmp copy_matching_files_vice_loop
+copy_matching_files_vice_done:
+    lda wildcard_match_count
+    beq copy_matching_files_vice_nomatch
+    clc
+    rts
+copy_matching_files_vice_nomatch:
+    lda #WILDCARD_RESULT_NOMATCH
+    sec
+    rts
+copy_matching_files_vice_fail:
+    lda wildcard_match_count
+    beq copy_matching_files_vice_nomatch
+    lda #WILDCARD_RESULT_FAILED
+    sec
+    rts
+
+delete_file_vice:
+    jsr vice_tree_find_current_slot
+    bcs delete_file_vice_host
+    cmp #VICE_TREE_SLOT_TOMBSTONE
+    beq delete_file_vice_fail
+    cmp #VICE_TREE_SLOT_LIVE_HIDE
+    beq delete_file_vice_tomb
+    jsr clear_vice_tree_slot
+    clc
+    rts
+delete_file_vice_tomb:
+    jsr store_vice_tree_tombstone_current
+    bcc delete_file_vice_ok
+    bcs delete_file_vice_fail
+delete_file_vice_host:
+    jsr query_file_vice_host_current
+    bcs delete_file_vice_fail
+    jsr store_vice_tree_tombstone_current
+    bcs delete_file_vice_fail
+delete_file_vice_ok:
+    clc
+    rts
+delete_file_vice_fail:
+    sec
+    rts
+
+delete_matching_files_vice:
+    lda #$00
+    sta wildcard_match_count
+delete_matching_files_vice_restart:
+    jsr fs_enum_begin_current
+delete_matching_files_vice_loop:
+    jsr fs_enum_next_ptr
+    bcs delete_matching_files_vice_done
+    jsr wildcard_match_ptr_to_source_name
+    bcs delete_matching_files_vice_next
+    jsr copy_ptr_name_to_path_buffer
+    jsr delete_file_vice
+    bcs delete_matching_files_vice_fail
+    inc wildcard_match_count
+    jmp delete_matching_files_vice_restart
+delete_matching_files_vice_next:
+    jmp delete_matching_files_vice_loop
+delete_matching_files_vice_done:
+    lda wildcard_match_count
+    beq delete_matching_files_vice_fail
+    clc
+    rts
+delete_matching_files_vice_fail:
+    sec
+    rts
+
+rename_file_vice:
+    lda temp_drive
+    sta dest_drive
+    lda temp_dir_id
+    sta dest_dir_id
+    lda source_drive
+    cmp dest_drive
+    bne rename_file_vice_load_source
+    lda source_dir_id
+    cmp dest_dir_id
+    bne rename_file_vice_load_source
+    jsr compare_source_name_to_path_name
+    bcs rename_file_vice_load_source
+    jmp rename_file_vice_ok
+rename_file_vice_load_source:
+    jsr copy_path_name_to_copy_dst_buffer
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+    jsr copy_source_name_to_path_buffer
+    jsr read_file_response_vice_current
+    bcs rename_file_vice_fail
+    lda dest_drive
+    sta temp_drive
+    lda dest_dir_id
+    sta temp_dir_id
+    jsr copy_copy_dst_to_path_buffer
+    jsr vice_tree_find_current_slot
+    bcs rename_file_vice_dest_host
+    cmp #VICE_TREE_SLOT_TOMBSTONE
+    beq rename_file_vice_store
+    lda #RENAME_STATUS_EXISTS
+    sec
+    rts
+rename_file_vice_dest_host:
+    jsr query_file_vice_host_current
+    bcs rename_file_vice_store
+    lda #RENAME_STATUS_EXISTS
+    sec
+    rts
+rename_file_vice_store:
+    jsr copy_file_vice
+    bcs rename_file_vice_fail
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+    jsr copy_source_name_to_path_buffer
+    jsr delete_file_vice
+    bcc rename_file_vice_ok
+    lda dest_drive
+    sta temp_drive
+    lda dest_dir_id
+    sta temp_dir_id
+    jsr copy_copy_dst_to_path_buffer
+    jsr vice_tree_find_current_slot
+    bcc :+
+    jsr query_file_vice_host_current
+    bcs rename_file_vice_fail
+:
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+    jsr copy_source_name_to_path_buffer
+    jsr vice_tree_find_current_slot
+    bcs rename_file_vice_verify_source_host
+    cmp #VICE_TREE_SLOT_TOMBSTONE
+    beq rename_file_vice_ok
+    jmp rename_file_vice_fail
+rename_file_vice_verify_source_host:
+    jsr query_file_vice_host_current
+    bcs rename_file_vice_ok
+    jmp rename_file_vice_fail
+rename_file_vice_ok:
+    lda #RENAME_STATUS_FAILED
+    clc
+    rts
+rename_file_vice_fail:
+    lda #RENAME_STATUS_FAILED
     sec
     rts
 
@@ -7524,11 +8207,7 @@ copy_dest_name_scan:
 copy_dest_name:
     jsr copy_path_name_from_parse
     bcs copy_dest_bad
-    lda temp_dir_id
-    cmp #DIR_ID_WORK
-    beq copy_dest_ok
-    lda #PATH_STATUS_READ_ONLY
-    rts
+    jmp copy_dest_ok
 copy_dest_flat:
     lda #PATH_STATUS_FLAT
     rts
@@ -7851,6 +8530,33 @@ clear_dynamic_work_drive:
     sta (SCREEN_PTR),y
     iny
     sta (SCREEN_PTR),y
+    ldx saved_rp_x
+    rts
+
+clear_vice_tree_drive:
+    stx saved_rp_x
+    lda #$00
+    sta file_index
+clear_vice_tree_drive_loop:
+    lda file_index
+    cmp #VICE_TREE_DYNAMIC_MAX
+    bcs clear_vice_tree_drive_done
+    jsr select_vice_tree_state_table
+    ldy file_index
+    lda #VICE_TREE_SLOT_EMPTY
+    sta (PTR),y
+    jsr select_vice_tree_dir_table
+    lda #DIR_ID_ROOT
+    sta (PTR),y
+    jsr select_vice_tree_name_slot
+    ldy #$00
+    lda #$00
+    sta (PTR),y
+    jsr select_vice_tree_content_slot
+    sta (PTR),y
+    inc file_index
+    bne clear_vice_tree_drive_loop
+clear_vice_tree_drive_done:
     ldx saved_rp_x
     rts
 
@@ -8205,7 +8911,7 @@ fs_enum_begin_current:
     sta enum_index
     jsr uci_probe
     bcc fs_enum_begin_current_hw
-    jsr vice_should_use_mock_work_overlay
+    jsr vice_probe_available
     bcc fs_enum_begin_current_vice
     jmp fs_enum_begin_current_mock
 fs_enum_begin_current_hw:
@@ -9598,6 +10304,334 @@ select_dynamic_work_name_slot_zero_a:
     sta PTR+1
     rts
 
+select_vice_tree_state_table:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq select_vice_tree_state_table_a
+    lda #<vice_tree_state_b
+    sta PTR
+    lda #>vice_tree_state_b
+    sta PTR+1
+    rts
+select_vice_tree_state_table_a:
+    lda #<vice_tree_state_a
+    sta PTR
+    lda #>vice_tree_state_a
+    sta PTR+1
+    rts
+
+select_vice_tree_dir_table:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq select_vice_tree_dir_table_a
+    lda #<vice_tree_dir_b
+    sta PTR
+    lda #>vice_tree_dir_b
+    sta PTR+1
+    rts
+select_vice_tree_dir_table_a:
+    lda #<vice_tree_dir_a
+    sta PTR
+    lda #>vice_tree_dir_a
+    sta PTR+1
+    rts
+
+select_vice_tree_name_slot:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq select_vice_tree_name_slot_a
+    lda #<vice_tree_names_b
+    sta PTR
+    lda #>vice_tree_names_b
+    sta PTR+1
+    jmp advance_vice_tree_name_slot
+select_vice_tree_name_slot_a:
+    lda #<vice_tree_names_a
+    sta PTR
+    lda #>vice_tree_names_a
+    sta PTR+1
+advance_vice_tree_name_slot:
+    ldy file_index
+    beq select_vice_tree_name_slot_done
+advance_vice_tree_name_slot_loop:
+    clc
+    lda PTR
+    adc #HW_DIR_NAME_STRIDE
+    sta PTR
+    bcc :+
+    inc PTR+1
+:
+    dey
+    bne advance_vice_tree_name_slot_loop
+select_vice_tree_name_slot_done:
+    rts
+
+select_vice_tree_content_slot:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq select_vice_tree_content_slot_a
+    lda #<vice_tree_content_b
+    sta PTR
+    lda #>vice_tree_content_b
+    sta PTR+1
+    jmp advance_vice_tree_content_slot
+select_vice_tree_content_slot_a:
+    lda #<vice_tree_content_a
+    sta PTR
+    lda #>vice_tree_content_a
+    sta PTR+1
+advance_vice_tree_content_slot:
+    ldy file_index
+    beq select_vice_tree_content_slot_done
+advance_vice_tree_content_slot_loop:
+    clc
+    lda PTR
+    adc #<PROGRAM_IMAGE_MAX
+    sta PTR
+    lda PTR+1
+    adc #>PROGRAM_IMAGE_MAX
+    sta PTR+1
+    dey
+    bne advance_vice_tree_content_slot_loop
+select_vice_tree_content_slot_done:
+    rts
+
+load_vice_tree_state_for_index:
+    jsr select_vice_tree_state_table
+    ldy file_index
+    lda (PTR),y
+    rts
+
+load_vice_tree_dir_for_index:
+    jsr select_vice_tree_dir_table
+    ldy file_index
+    lda (PTR),y
+    rts
+
+vice_tree_alloc_slot:
+    lda #$00
+    sta file_index
+vice_tree_alloc_slot_loop:
+    lda file_index
+    cmp #VICE_TREE_DYNAMIC_MAX
+    bcs vice_tree_alloc_slot_fail
+    jsr load_vice_tree_state_for_index
+    beq vice_tree_alloc_slot_ok
+    inc file_index
+    bne vice_tree_alloc_slot_loop
+vice_tree_alloc_slot_fail:
+    sec
+    rts
+vice_tree_alloc_slot_ok:
+    clc
+    rts
+
+vice_tree_find_current_slot:
+    lda #$00
+    sta file_index
+vice_tree_find_current_slot_loop:
+    lda file_index
+    cmp #VICE_TREE_DYNAMIC_MAX
+    bcs vice_tree_find_current_slot_fail
+    jsr load_vice_tree_state_for_index
+    beq vice_tree_find_current_slot_next
+    sta saved_response_y
+    jsr load_vice_tree_dir_for_index
+    cmp temp_dir_id
+    bne vice_tree_find_current_slot_next
+    jsr select_vice_tree_name_slot
+    jsr compare_ptr_to_path_name
+    bcc vice_tree_find_current_slot_hit
+vice_tree_find_current_slot_next:
+    inc file_index
+    bne vice_tree_find_current_slot_loop
+vice_tree_find_current_slot_fail:
+    sec
+    rts
+vice_tree_find_current_slot_hit:
+    lda saved_response_y
+    clc
+    rts
+
+copy_path_name_to_vice_tree_slot_ascii:
+    ldy #$00
+copy_path_name_to_vice_tree_slot_loop:
+    lda path_name_buffer,y
+    beq copy_path_name_to_vice_tree_slot_done
+    cpy #HW_DIR_NAME_MAX-1
+    bcs copy_path_name_to_vice_tree_slot_done
+    jsr screen_code_to_ascii
+    sta (PTR),y
+    iny
+    bne copy_path_name_to_vice_tree_slot_loop
+copy_path_name_to_vice_tree_slot_done:
+    lda #$00
+    sta (PTR),y
+    rts
+
+copy_screen_ptr_to_vice_tree_slot_content:
+    jsr select_vice_tree_content_slot
+    ldy #$00
+copy_screen_ptr_to_vice_tree_slot_content_loop:
+    lda (SCREEN_PTR),y
+    sta (PTR),y
+    beq copy_screen_ptr_to_vice_tree_slot_content_done
+    iny
+    cpy #PROGRAM_IMAGE_MAX
+    bcc copy_screen_ptr_to_vice_tree_slot_content_loop
+    dey
+    lda #$00
+    sta (PTR),y
+copy_screen_ptr_to_vice_tree_slot_content_done:
+    rts
+
+clear_vice_tree_slot:
+    jsr select_vice_tree_state_table
+    ldy file_index
+    lda #VICE_TREE_SLOT_EMPTY
+    sta (PTR),y
+    jsr select_vice_tree_dir_table
+    lda #DIR_ID_ROOT
+    sta (PTR),y
+    jsr select_vice_tree_name_slot
+    ldy #$00
+    lda #$00
+    sta (PTR),y
+    jsr select_vice_tree_content_slot
+    sta (PTR),y
+    rts
+
+store_vice_tree_state_for_index:
+    sta vice_tree_state_temp
+    jsr select_vice_tree_state_table
+    ldy file_index
+    lda vice_tree_state_temp
+    sta (PTR),y
+    rts
+
+store_vice_tree_dir_for_index:
+    pha
+    jsr select_vice_tree_dir_table
+    ldy file_index
+    pla
+    sta (PTR),y
+    rts
+
+query_file_vice_open_current:
+    jsr build_vice_open_path_from_name
+    lda #VICE_LFN_FILE
+    sta vice_lfn
+    lda #VICE_SA_READ
+    sta vice_secondary
+    jsr vice_open_read_from_ptr
+    bcs query_file_vice_open_current_fail
+    jsr vice_close_current_file
+    clc
+    rts
+query_file_vice_open_current_fail:
+    sec
+    rts
+
+query_file_vice_host_current:
+    ldx temp_drive
+    lda mount_flag_table,x
+    cmp #MOUNT_FLAG_TREE
+    bne query_file_vice_host_current_open
+    jsr fill_vice_manifest_dir_cache_host_current
+    bcs query_file_vice_host_current_fail
+    jsr find_hw_dir_cache_matching_path_name
+    bcs query_file_vice_host_current_fail
+    clc
+    rts
+query_file_vice_host_current_open:
+    jmp query_file_vice_open_current
+query_file_vice_host_current_fail:
+    sec
+    rts
+
+store_vice_tree_live_current_from_screen_ptr:
+    lda SCREEN_PTR
+    sta matched_name_lo
+    lda SCREEN_PTR+1
+    sta matched_name_hi
+    jsr vice_tree_find_current_slot
+    bcc store_vice_tree_live_current_reuse
+    jsr vice_tree_alloc_slot
+    bcs store_vice_tree_live_current_fail
+    lda file_index
+    sta vice_tree_slot_index
+    lda #VICE_TREE_SLOT_LIVE
+    sta vice_tree_state_temp
+    jsr query_file_vice_host_current
+    lda vice_tree_slot_index
+    sta file_index
+    bcs store_vice_tree_live_current_new
+    lda #VICE_TREE_SLOT_LIVE_HIDE
+    sta vice_tree_state_temp
+    bne store_vice_tree_live_current_new
+store_vice_tree_live_current_reuse:
+    cmp #VICE_TREE_SLOT_TOMBSTONE
+    beq store_vice_tree_live_current_hide
+    cmp #VICE_TREE_SLOT_LIVE_HIDE
+    beq store_vice_tree_live_current_hide
+    lda #VICE_TREE_SLOT_LIVE
+    sta vice_tree_state_temp
+    bne store_vice_tree_live_current_new
+store_vice_tree_live_current_hide:
+    lda #VICE_TREE_SLOT_LIVE_HIDE
+    sta vice_tree_state_temp
+store_vice_tree_live_current_new:
+    lda temp_dir_id
+    jsr store_vice_tree_dir_for_index
+    jsr select_vice_tree_name_slot
+    jsr copy_path_name_to_vice_tree_slot_ascii
+    lda matched_name_lo
+    sta SCREEN_PTR
+    lda matched_name_hi
+    sta SCREEN_PTR+1
+    jsr copy_screen_ptr_to_vice_tree_slot_content
+    lda vice_tree_state_temp
+    jsr store_vice_tree_state_for_index
+    clc
+    rts
+store_vice_tree_live_current_fail:
+    sec
+    rts
+
+store_vice_tree_tombstone_current:
+    jsr vice_tree_find_current_slot
+    bcc store_vice_tree_tombstone_current_have_slot
+    jsr vice_tree_alloc_slot
+    bcs store_vice_tree_tombstone_current_fail
+store_vice_tree_tombstone_current_have_slot:
+    lda temp_dir_id
+    jsr store_vice_tree_dir_for_index
+    jsr select_vice_tree_name_slot
+    jsr copy_path_name_to_vice_tree_slot_ascii
+    jsr select_vice_tree_content_slot
+    ldy #$00
+    lda #$00
+    sta (PTR),y
+    lda #VICE_TREE_SLOT_TOMBSTONE
+    jsr store_vice_tree_state_for_index
+    clc
+    rts
+store_vice_tree_tombstone_current_fail:
+    sec
+    rts
+
+lookup_vice_tree_content_current:
+    jsr vice_tree_find_current_slot
+    bcs lookup_vice_tree_content_current_fail
+    cmp #VICE_TREE_SLOT_TOMBSTONE
+    beq lookup_vice_tree_content_current_fail
+    jsr select_vice_tree_content_slot
+    clc
+    rts
+lookup_vice_tree_content_current_fail:
+    sec
+    rts
+
 select_dir_listing_ptr:
     pha
     sty saved_response_y
@@ -10182,6 +11216,12 @@ copy_content_lo:
     .byte 0
 copy_content_hi:
     .byte 0
+vice_tree_state_temp:
+    .byte 0
+vice_tree_source_state:
+    .byte 0
+vice_tree_slot_index:
+    .byte 0
 work_count_table:
     .byte 0, 0
 hw_dir_count_table:
@@ -10407,6 +11447,22 @@ work_a_file_records:
 work_b_file_records:
     .byte <work_b_name_0, >work_b_name_0, 0, 0
     .byte <work_b_name_1, >work_b_name_1, 0, 0
+vice_tree_state_a:
+    .res VICE_TREE_DYNAMIC_MAX
+vice_tree_state_b:
+    .res VICE_TREE_DYNAMIC_MAX
+vice_tree_dir_a:
+    .res VICE_TREE_DYNAMIC_MAX
+vice_tree_dir_b:
+    .res VICE_TREE_DYNAMIC_MAX
+vice_tree_names_a:
+    .res HW_DIR_NAME_STRIDE * VICE_TREE_DYNAMIC_MAX
+vice_tree_names_b:
+    .res HW_DIR_NAME_STRIDE * VICE_TREE_DYNAMIC_MAX
+vice_tree_content_a:
+    .res PROGRAM_IMAGE_MAX * VICE_TREE_DYNAMIC_MAX
+vice_tree_content_b:
+    .res PROGRAM_IMAGE_MAX * VICE_TREE_DYNAMIC_MAX
 image_none_a:
     .byte <volume_unknown, >volume_unknown
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0

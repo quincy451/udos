@@ -99,10 +99,14 @@ Current `vice-resident` behavior:
   - `BOOT3 DIR` resolves as `BOOT3.PRG`
   - `DIR` is passed as the command line
 - verifies wildcard copy separately through `make vice-copy`:
-  - `COPY *.* WORK` copies both `BOOT.ASM` and `FS.AVM`
+  - `COPY *.* WORK` copies both `BOOT.ASM` and `HELLO.PRG`
 - verifies reserved drive-token handling separately through `make vice-drive`:
   - `C:` returns `DRIVE NOT PRESENT`
   - `D:` returns `DRIVE NOT PRESENT`
+- verifies real VICE tree write behavior separately:
+  - `make vice-real-tree-write`
+  - `make vice-real-tree-rename`
+  - `make vice-real-tree-wild`
 - verifies `MEM` separately through the Python test suite:
   - derives resident usage from `build/udos-resident.labels`
   - checks the live shell prints matching decimal RAM usage/free values
@@ -113,6 +117,10 @@ Current `vice-resident` behavior:
 - verifies limited wildcard delete:
   - `DEL *.PRG` deletes `BOOT3.PRG`
   - `DIR` still shows `BOOT4.ASM`
+- verifies real VICE tree write-side lifecycles:
+  - exact `COPY` / `REN` / `DEL` on created files
+  - exact host-backed `REN`
+  - wildcard `COPY` and `DEL`
 - verifies resident snapshots:
   - cached backend-path length:
     - `A:` = `1` (`/`)
@@ -147,10 +155,6 @@ COPIED
 RENAMED
   B:DNP/WORK> DELBOOT3
 PROGRAM NOT FOUND
-  B:DNP/WORK> C:
-DRIVE NOT PRESENT
-  B:DNP/WORK> D:
-DRIVE NOT PRESENT
   B:DNP/WORK> DEL *.PRG
 DELETED
   B:DNP/WORK> DIR
@@ -164,13 +168,19 @@ Separate VICE smoke targets:
   - validates wildcard copy with `COPY *.* WORK`
 - `make vice-drive`
   - validates reserved `C:` / `D:` drive tokens
+- `make vice-real-tree-write`
+  - validates exact VICE tree `COPY` / `REN` / `DEL`
+- `make vice-real-tree-rename`
+  - validates host-backed VICE tree `REN`
+- `make vice-real-tree-wild`
+  - validates VICE tree wildcard `COPY` and `DEL`
 
 Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$499F`
-- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$5400`
+- resident core code: `$6F2B`
+- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$7800`
 - hardware directory cache budget:
   - `6` entries per drive
   - `20` bytes per cached name

@@ -14,6 +14,12 @@ Current milestone:
 - Phase 5 resident shell milestone in progress with `DIR`, `CD`, `VOL`, `MOUNT`,
   `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, direct `A:`/`B:` drive switching, and
   implicit program launch validated under VICE.
+- Phase 5 now includes real VICE tree read/write validation on the fsdevice-backed
+  `DNP` path:
+  - `DIR`, `CD`, `TYPE`, and implicit launch
+  - exact and limited wildcard `COPY`
+  - exact `REN`
+  - exact and limited wildcard `DEL`
 - Phase 5 now also includes a hardware-backed directory-enumeration path in code:
   - flat-image root mounts now first try raw image parsing through `OPEN_FILE` / `FILE_SEEK` / `READ_DATA`
   - tree-capable mounts still synchronize through `CHANGE_DIR`, refresh through `GET_PATH`, and enumerate through `OPEN_DIR` / `READ_DIR`

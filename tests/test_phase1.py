@@ -57,6 +57,18 @@ class UdosBuildTests(unittest.TestCase):
         subprocess.run(["make", "vice-real-read"], cwd=ROOT, check=True)
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_real_tree_write_lifecycle_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-real-tree-write"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_real_tree_host_rename_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-real-tree-rename"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_real_tree_wildcards_run_in_vice(self) -> None:
+        subprocess.run(["make", "vice-real-tree-wild"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_mem_reports_linked_usage_in_vice(self) -> None:
         subprocess.run(["make", "resident"], cwd=ROOT, check=True)
         labels = load_ld65_labels(ROOT / "build" / "udos-resident.labels")

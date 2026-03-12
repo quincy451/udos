@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 resident bootstrap/core complete, Phase 3 native UCI seam complete, Phase 4 filesystem abstraction seam complete, fourteenth Phase 5 resident shell slice complete.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 resident bootstrap/core complete, Phase 3 native UCI seam complete, Phase 4 filesystem abstraction seam complete, Phase 5 resident shell/backend slice complete through VICE tree read/write validation.
 
 UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runtime environment for this work.
 
@@ -28,6 +28,11 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
 - added a VICE tree read backend for `DNP`-style mounts
   - tree listings are now populated from a VICE-side manifest-backed directory cache
   - file reads and implicit launch now resolve through the VICE tree backend instead of the older descriptor-only mock path
+- added a VICE tree write backend for `DNP`-style mounts
+  - exact and wildcard `COPY` now populate a VICE-side overlay over the manifest-backed tree view
+  - exact `REN` now works for both overlay-created files and host-backed files
+  - exact and wildcard `DEL` now hide host-backed files and remove overlay-created files
+  - implicit launch now returns `PROGRAM NOT FOUND` correctly for missing tree-backed programs under VICE
 - added host-side `DNP` layout coverage for the next raw tree backend slice
   - the synthetic probe image now covers a native-partition root, one subdirectory, and chained file reads
   - the same probe image now also covers reference-sector semantics for `REN`, `DEL`, and `COPY`
@@ -145,16 +150,16 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
 - hardware-backed delete is now wired behind `DEL`:
   - flat-image hardware mode now first issues raw root-directory lookup, chained sector traversal, and BAM release through image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA` / repeated `WRITE_DATA`
   - tree-capable hardware mode still issues `DELETE_FILE`
-  - VICE still validates only the mock path because no Ultimate UCI transport exists there
+  - VICE now also validates the tree-backed delete path through the fsdevice-backed overlay model
 - hardware-backed rename is now wired behind `REN`:
   - flat-image hardware mode now first issues raw root-directory lookup plus direct directory-entry rewrite through image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA` / repeated `WRITE_DATA`
   - tree-capable hardware mode still issues `RENAME_FILE`
-  - VICE still validates only the mock path because no Ultimate UCI transport exists there
+  - VICE now also validates the tree-backed rename path through the fsdevice-backed overlay model
 - hardware-backed copy is now wired behind `COPY`:
   - tree-only same-drive hardware mode issues `COPY_FILE`
   - tree-only cross-drive hardware mode issues source `OPEN_FILE` / `READ_DATA` and destination `OPEN_FILE` / `WRITE_DATA`
   - flat-image hardware mode now first attempts raw root-directory lookup, chained sector reads, BAM allocation, and direct directory-entry creation through image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA` / repeated `WRITE_DATA`
-  - VICE still validates only the mock path because no Ultimate UCI transport exists there
+  - VICE now also validates the tree-backed copy path through the fsdevice-backed overlay model
 - flat-image header-label import is now wired behind `VOL` for hardware `D64` / `D71` / `D81` mounts:
   - hardware mode issues `OPEN_FILE` / `FILE_SEEK` / `READ_DATA` / `CLOSE_FILE` against the mounted image path
   - current flat-image label offsets are `$00016590` for `D64` / `D71` and `$00061804` for `D81`
@@ -210,11 +215,27 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `B:DNP/SRC> HELLO DIR`
   - `RUN HELLO.PRG`
   - `ARGS DIR`
+- separate VICE-validated real tree write smoke:
+  - `B:DNP/SRC> COPY BOOT.ASM WORK/BOOT2.ASM`
+  - `B:DNP/WORK> REN BOOT2.ASM BOOT3.PRG`
+  - `B:DNP/WORK> DEL BOOT3.PRG`
+  - `B:DNP/WORK> TYPE BOOT3.PRG`
+  - `NO SUCH FILE`
+- separate VICE-validated real tree host-rename smoke:
+  - `B:DNP/SRC> REN HELLO.PRG HELLO2.PRG`
+  - `B:DNP/SRC> TYPE HELLO2.PRG`
+  - `HELLO PROGRAM IMAGE`
+  - `B:DNP/SRC> TYPE HELLO.PRG`
+  - `NO SUCH FILE`
+- separate VICE-validated real tree wildcard smoke:
+  - `B:DNP/SRC> COPY *.* WORK`
+  - `B:DNP/WORK BOOT.ASM HELLO.PRG`
+  - `B:DNP/SRC> DEL *.PRG`
+  - `B:DNP/SRC BOOT.ASM`
 - separate VICE-validated wildcard copy smoke:
   - `B:DNP/SRC> COPY *.* WORK`
-  - `B:DNP/WORK BOOT.ASM FS.AVM`
-  - resident mock wildcard copy now walks the shared `fs_enum_*` iterator instead of a dedicated file-table scan
-  - resident mock wildcard delete now also walks the shared `fs_enum_*` iterator and restarts after each delete to handle `WORK` mutation safely
+  - `B:DNP/WORK BOOT.ASM HELLO.PRG`
+  - the same limited wildcard forms are now also validated on the real VICE tree backend
 - separate VICE-validated reserved-drive smoke:
   - `A:D64/> C:`
   - `DRIVE NOT PRESENT`
@@ -239,9 +260,9 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
 - resident `MEM` now reports:
-  - `RAM USED 20318 FREE 45217 REU USED 0 FREE 16777216`
-- resident core code footprint: `$4F5E`
-- resident load window in `udos_c64.cfg`: `$5800`
+  - `RAM USED 28459 FREE 37076 REU USED 0 FREE 16777216`
+- resident core code footprint: `$6F2B`
+- resident load window in `udos_c64.cfg`: `$7800`
 
 ## What Works
 

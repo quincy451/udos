@@ -21,7 +21,7 @@ RESIDENT_DISK := $(BUILD_DIR)/udos-resident.d64
 RESIDENT_LABELS := $(BUILD_DIR)/udos-resident.labels
 RESIDENT_MAP := $(BUILD_DIR)/udos-resident.map
 
-.PHONY: all clean acheron-dep proof vice-proof resident vice-resident vice-launch vice-copy vice-drive vice-real-read test
+.PHONY: all clean acheron-dep proof vice-proof resident vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild test
 
 all: proof resident
 
@@ -54,13 +54,31 @@ vice-proof: proof
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_AUTO_PRG) --expected "UDOS VM OK"
 
 vice-resident: resident
-	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) --feed-after "A:D64/>" --feed-text "MOUNT B: /IMAGES/WORK.DNP\rVOL\rB:\rCD SRC\rCOPY BOOT.ASM WORK/BOOT2.PRG\rCOPY BOOT.ASM WORK/BOOT4.ASM\rCD WORK\rREN BOOT2.PRG BOOT3.PRG\rDELBOOT3\rDEL *.PRG\rDIR\r" --expected "BOOT4.ASM" --contains "A:SYSTEM D64 B:WORK DNP" --contains "PROGRAM NOT FOUND" --contains "DELETED" --check-byte 0xCFE4=0x01 --check-byte 0xCFE5=0x05 --check-byte 0xCFE8=0x01 --check-byte 0xCFE9=0x01 --check-byte 0xCFEA=0x04 --check-byte 0xCFEB=0x02 --check-byte 0xCFEC=0x01 --check-byte 0xCFEE=0x02 --check-byte 0xCFF0=0x01 --check-byte 0xCFF2=0x04 --check-byte 0xCFF4=0x01
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" \
+		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rVOL\rB:\rCD SRC\rCOPY BOOT.ASM WORK/BOOT2.PRG\rCOPY BOOT.ASM WORK/BOOT4.ASM\rCD WORK\rREN BOOT2.PRG BOOT3.PRG\rDELBOOT3\rDEL *.PRG\rDIR\r" \
+		--expected "BOOT4.ASM" --contains "A:SYSTEM D64 B:WORK DNP" --contains "PROGRAM NOT FOUND" --contains "DELETED" \
+		--check-byte 0xCFE4=0x01 --check-byte 0xCFE5=0x05 --check-byte 0xCFE8=0x01 --check-byte 0xCFE9=0x01 \
+		--check-byte 0xCFEA=0x04 --check-byte 0xCFEB=0x02 --check-byte 0xCFEC=0x01 --check-byte 0xCFEE=0x02 \
+		--check-byte 0xCFF0=0x01 --check-byte 0xCFF2=0x04 --check-byte 0xCFF4=0x01
 
 vice-launch: resident
-	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) --feed-after "A:D64/>" --feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rCOPY BOOT.ASM WORK/BOOT2.PRG\rCD WORK\rREN BOOT2.PRG BOOT3.PRG\rBOOT3 DIR\r" --expected "ARGS DIR" --contains "RUN BOOT3.PRG" --check-byte 0xCFF6=0x02 --check-byte 0xCFF7=0x00 --check-byte 0xCFF8=0x01 --check-byte 0xCFF9=0x03 --check-byte 0xCFFA=0x16 --check-byte 0xCFFB=0x00
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" \
+		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rCOPY BOOT.ASM WORK/BOOT2.PRG\rCD WORK\rREN BOOT2.PRG BOOT3.PRG\rBOOT3 DIR\r" \
+		--expected "ARGS DIR" --contains "RUN BOOT3.PRG"
 
 vice-copy: resident
-	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) --feed-after "A:D64/>" --feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rCOPY *.* WORK\rCD WORK\rDIR\r" --expected "FS.AVM" --contains "BOOT.ASM" --contains "COPIED"
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" \
+		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rCOPY *.* WORK\rCD WORK\rDIR\r" \
+		--expected "BOOT.ASM HELLO.PRG" --contains "COPIED"
 
 vice-drive: resident
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) --feed-after "A:D64/>" --feed-text "C:\rD:\r" --expected "DRIVE NOT PRESENT" --contains "DRIVE NOT PRESENT"
@@ -75,4 +93,28 @@ vice-real-read: resident
 		--contains "BOOT.ASM HELLO.PRG" --contains "; BOOT.ASM VICE BACKEND SOURCE" --contains "RUN HELLO.PRG" \
 		--check-byte 0xCFF0=0x01 --check-byte 0xCFEC=0x01 --check-byte 0xCFEE=0x02 --check-byte 0xCFF2=0x04
 
-test: vice-proof vice-resident vice-launch vice-copy vice-drive vice-real-read
+vice-real-tree-write: resident
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" \
+		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rCOPY BOOT.ASM WORK/BOOT2.ASM\rCD WORK\rREN BOOT2.ASM BOOT3.PRG\rDEL BOOT3.PRG\rTYPE BOOT3.PRG\r" \
+		--expected "NO SUCH FILE" --contains "COPIED" --contains "RENAMED" --contains "DELETED"
+
+vice-real-tree-rename: resident
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" \
+		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rREN HELLO.PRG HELLO2.PRG\rTYPE HELLO2.PRG\rTYPE HELLO.PRG\r" \
+		--expected "NO SUCH FILE" --contains "RENAMED" --contains "HELLO PROGRAM IMAGE"
+
+vice-real-tree-wild: resident
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" \
+		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rCOPY *.* WORK\rCD WORK\rDIR\rB:\rCD SRC\rDEL *.PRG\rDIR\r" \
+		--expected "B:DNP/SRC BOOT.ASM" --contains "B:DNP/WORK BOOT.ASM HELLO.PRG" --contains "COPIED" --contains "DELETED"
+
+test: vice-proof vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild

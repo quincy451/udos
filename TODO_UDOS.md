@@ -33,7 +33,6 @@
   - real `VOL`
   - real `HELP`
   - real `VER`
-- replace the current descriptor-backed mock `DIR` and per-drive path model with image-backed directory state
 - hardware-validate the current `svc_fs_enum_*` Ultimate DOS path and harden its end-of-directory/error handling on target
 - hardware-validate and harden the new flat-image raw root-directory path on target
 - hardware-validate and harden the current tree-capable `TYPE` Ultimate DOS read path on target
@@ -49,6 +48,13 @@
   - `*.*`
   - `*.EXT`
   - `NAME.*`
+- implement batch/scripting support:
+  - `.BAT` execution
+  - `AUTOEXEC.BAT`
+  - `%1` / `%2` / `%3`
+  - `ECHO`
+  - stop-on-error flow
+- define and implement REU-backed resident spill/restore for later command/program launch headroom
 - hardware-validate and harden the current `MOUNT_DISK` path on target
 - hardware-validate and harden the current flat-image header-label import path on target
 - extend `VOL` from flat-image header import to true mounted-image metadata across the remaining formats
@@ -62,7 +68,6 @@
 - implement `XCOPY`
 - implement `DELTREE`
 - implement `TREE`
-- implement batch/scripting support
 - evaluate REU cache/workspace policy with measurements
 
 ## Phase 7
