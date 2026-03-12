@@ -30,6 +30,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - file reads and implicit launch now resolve through the VICE tree backend instead of the older descriptor-only mock path
 - added host-side `DNP` layout coverage for the next raw tree backend slice
   - the synthetic probe image now covers a native-partition root, one subdirectory, and chained file reads
+  - the same probe image now also covers reference-sector semantics for `REN`, `DEL`, and `COPY`
 - added a hardware-backed `TYPE` read path
   - flat-image mounts now first try raw root-directory lookup plus chained-sector reads through image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA`
   - tree-capable mounts still synchronize the backend path through `CHANGE_DIR`, then use `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`

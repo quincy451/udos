@@ -19,6 +19,7 @@ class DnpLayoutTests(unittest.TestCase):
         tmpdir = Path(tempfile.mkdtemp(prefix="udos-dnp-layout-"))
         image = tmpdir / "probe.dnp"
         data = bytearray(TRACK_SIZE * 4)
+        self._init_bam(data, tracks=4)
         self._write_partition_block(data, b"WORK")
         self._write_directory_header(data, ROOT_HEADER, b"WORK", ROOT_DIR, (0, 0), (0, 0), 0)
         self._write_directory_header(data, SRC_HEADER, b"SRC", SRC_DIR, ROOT_HEADER, ROOT_DIR, 2)
@@ -150,6 +151,11 @@ class DnpLayoutTests(unittest.TestCase):
         bit_mask = 1 << (sector & 7)
         data[bam_offset + byte_index] &= 0xFF ^ bit_mask
 
+    def _init_bam(self, data: bytearray, *, tracks: int) -> None:
+        for track in range(1, tracks + 1):
+            bam_offset = self._offset(1, 2) + 0x20 + ((track - 1) * 0x20)
+            data[bam_offset : bam_offset + 0x20] = b"\xFF" * 0x20
+
     def _decode_name(self, raw: bytes) -> bytes:
         out = bytearray()
         for value in raw:
@@ -176,6 +182,23 @@ class DnpLayoutTests(unittest.TestCase):
                 break
         raise AssertionError(f"missing directory entry {name!r}")
 
+    def _find_dir_entry_offset(self, data: bytes, dir_ts: tuple[int, int], name: bytes) -> int:
+        track, sector = dir_ts
+        while track:
+            offset = self._offset(track, sector)
+            block = data[offset : offset + 256]
+            for entry_offset in range(2, 0x100, 0x20):
+                if block[entry_offset] == 0:
+                    continue
+                entry_name = self._decode_name(block[entry_offset + 3 : entry_offset + 19])
+                if entry_name == name:
+                    return offset + entry_offset
+            track = block[0]
+            sector = block[1]
+            if track == 0:
+                break
+        raise AssertionError(f"missing directory entry offset {name!r}")
+
     def _read_file_chain(self, data: bytes, start_ts: tuple[int, int]) -> bytes:
         track, sector = start_ts
         out = bytearray()
@@ -190,6 +213,54 @@ class DnpLayoutTests(unittest.TestCase):
             out.extend(block[2:256])
             track, sector = next_track, next_sector
         return bytes(out)
+
+    def _is_free(self, data: bytes, ts: tuple[int, int]) -> bool:
+        track, sector = ts
+        bam_offset = self._offset(1, 2) + 0x20 + ((track - 1) * 0x20)
+        byte_index = sector >> 3
+        bit_mask = 1 << (sector & 7)
+        return bool(data[bam_offset + byte_index] & bit_mask)
+
+    def _mark_free(self, data: bytearray, ts: tuple[int, int]) -> None:
+        track, sector = ts
+        bam_offset = self._offset(1, 2) + 0x20 + ((track - 1) * 0x20)
+        byte_index = sector >> 3
+        bit_mask = 1 << (sector & 7)
+        data[bam_offset + byte_index] |= bit_mask
+
+    def _rename_entry(self, data: bytearray, dir_ts: tuple[int, int], old_name: bytes, new_name: bytes) -> None:
+        entry_offset = self._find_dir_entry_offset(data, dir_ts, old_name)
+        data[entry_offset + 3 : entry_offset + 19] = self._petscii_name(new_name)
+
+    def _delete_entry(self, data: bytearray, dir_ts: tuple[int, int], name: bytes) -> None:
+        entry_offset = self._find_dir_entry_offset(data, dir_ts, name)
+        start_ts = (data[entry_offset + 1], data[entry_offset + 2])
+        self._mark_free(data, start_ts)
+        data[entry_offset] = 0
+
+    def _alloc_free_sector(self, data: bytes, start_track: int = 2) -> tuple[int, int]:
+        for track in range(start_track, len(data) // TRACK_SIZE + 1):
+            for sector in range(256):
+                ts = (track, sector)
+                if self._is_free(data, ts):
+                    return ts
+        raise AssertionError("no free DNP sector available in probe")
+
+    def _copy_entry(self, data: bytearray, src_dir_ts: tuple[int, int], src_name: bytes, dest_dir_ts: tuple[int, int], dest_name: bytes) -> None:
+        src_entry_offset = self._find_dir_entry_offset(data, src_dir_ts, src_name)
+        src_ts = (data[src_entry_offset + 1], data[src_entry_offset + 2])
+        payload = self._read_file_chain(data, src_ts)
+        dest_ts = self._alloc_free_sector(data)
+        self._mark_used(data, dest_ts)
+        self._write_file_sector(data, dest_ts, payload)
+        dest_entry_offset = None
+        for entry_offset in range(2, 0x100, 0x20):
+            if data[self._offset(*dest_dir_ts) + entry_offset] == 0:
+                dest_entry_offset = entry_offset
+                break
+        if dest_entry_offset is None:
+            raise AssertionError("no free directory entry in DNP probe")
+        self._write_dir_entry(data, dest_dir_ts, dest_entry_offset, 0x82, dest_ts, dest_name, size_sectors=1)
 
     def test_partition_block_and_root_header_pointers(self) -> None:
         image = self._build_probe()
@@ -220,6 +291,36 @@ class DnpLayoutTests(unittest.TestCase):
         data = image.read_bytes()
         self.assertEqual(self._read_file_chain(data, HELLO_DATA), b"HELLO FROM DNP\n")
         self.assertEqual(self._read_file_chain(data, BOOT_DATA), b"; BOOT.ASM DNP SOURCE\n")
+
+    def test_rename_updates_only_directory_name(self) -> None:
+        image = self._build_probe()
+        data = bytearray(image.read_bytes())
+        entry_offset = self._find_dir_entry_offset(data, SRC_DIR, b"BOOT.ASM")
+        before = bytes(data[entry_offset : entry_offset + 32])
+        self._rename_entry(data, SRC_DIR, b"BOOT.ASM", b"BOOT2.PRG")
+        after = bytes(data[entry_offset : entry_offset + 32])
+        self.assertEqual(self._decode_name(after[3:19]), b"BOOT2.PRG")
+        self.assertEqual(before[0:3], after[0:3])
+        self.assertEqual(before[19:32], after[19:32])
+
+    def test_delete_clears_entry_and_frees_sector(self) -> None:
+        image = self._build_probe()
+        data = bytearray(image.read_bytes())
+        entry_offset = self._find_dir_entry_offset(data, SRC_DIR, b"BOOT.ASM")
+        start_ts = (data[entry_offset + 1], data[entry_offset + 2])
+        self.assertFalse(self._is_free(data, start_ts))
+        self._delete_entry(data, SRC_DIR, b"BOOT.ASM")
+        self.assertEqual(data[entry_offset], 0)
+        self.assertTrue(self._is_free(data, start_ts))
+
+    def test_copy_creates_new_entry_and_payload(self) -> None:
+        image = self._build_probe()
+        data = bytearray(image.read_bytes())
+        self._copy_entry(data, ROOT_DIR, b"HELLO.PRG", SRC_DIR, b"HELLO2.PRG")
+        entry_type, start = self._find_dir_entry(data, SRC_DIR, b"HELLO2.PRG")
+        self.assertEqual(entry_type, 0x82)
+        self.assertEqual(self._read_file_chain(data, start), b"HELLO FROM DNP\n")
+        self.assertFalse(self._is_free(data, start))
 
 
 if __name__ == "__main__":
