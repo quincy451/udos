@@ -60,6 +60,8 @@ READY_MARKER = $CFFF
 READY_VALUE = $52
 ABI_VERSION = 1
 RESIDENT_CODE_START = $1810
+HIRAM_START = $C000
+HIRAM_PAGES = $10
 TRANSPORT_MODE_UNAVAILABLE = 0
 TRANSPORT_MODE_MOCK = 1
 TRANSPORT_MODE_UCI_HW = 2
@@ -79,6 +81,7 @@ READST = $FFB7
 SETLFS = $FFBA
 SETNAM = $FFBD
 OPEN_K = $FFC0
+CINT = $FF81
 CLOSE_K = $FFC3
 CHKIN_K = $FFC6
 CLRCHN = $FFCC
@@ -89,6 +92,7 @@ KEY_LINEFEED = $0A
 KEY_BACKSPACE = $14
 MAX_LINE_LEN = 31
 MAX_RESPONSE_LEN = 128
+SCRIPT_LINE_MAX = 12
 ASCII_COLON = $3A
 ASCII_SLASH = $2F
 ASCII_SPACE = $20
@@ -138,6 +142,7 @@ SHELL_CMD_MD = 13
 SHELL_CMD_RD = 14
 SHELL_CMD_RUN = 15
 SHELL_CMD_DRIVE_ERR = 16
+SHELL_CMD_ECHO = 18
 INPUT_MODE_KEYBOARD = 0
 INPUT_MODE_SCRIPT = 1
 DIR_ID_ROOT = 0
@@ -182,6 +187,7 @@ RUN_STATUS_UNMOUNTED = 3
 RUN_STATUS_NOFILE = 4
 RUN_STATUS_TOO_LARGE = 5
 RUN_STATUS_LOAD_FAILED = 6
+RUN_STATUS_BATCH = 7
 PROGRAM_STATE_NONE = 0
 PROGRAM_STATE_RUNNING = 1
 PROGRAM_STATE_EXITED = 2
@@ -336,6 +342,8 @@ resident_main:
     calln svc_console_newline
 
 shell_loop:
+    calln svc_shell_preprompt
+shell_prompt:
     calln svc_console_write_prompt
     calln svc_line_read
     case8 SHELL_CMD_NONE, shell_loop
@@ -350,6 +358,7 @@ shell_loop:
     case8 SHELL_CMD_TYPE, cmd_emit_response
     case8 SHELL_CMD_DIR, cmd_emit_response
     case8 SHELL_CMD_CD, cmd_emit_response
+    case8 SHELL_CMD_ECHO, cmd_emit_response
     case8 SHELL_CMD_HELP, cmd_emit_response
     case8 SHELL_CMD_VER, cmd_emit_response
     case8 SHELL_CMD_VOL, cmd_emit_response
@@ -363,6 +372,7 @@ cmd_emit_response:
     setp8 $11
     stma STAGE_SNAPSHOT
     calln svc_shell_response_ptr
+    calln svc_command_status_from_response
     calln svc_console_write_sc0
     calln svc_console_newline
     jump shell_loop
@@ -379,7 +389,12 @@ cmd_run_program:
     calln svc_program_prepare_run
     calln svc_program_get_status
     case8 RUN_STATUS_OK, cmd_run_execute
+    case8 RUN_STATUS_BATCH, cmd_run_batch
     jump cmd_run_error
+
+cmd_run_batch:
+    calln svc_command_status_clear
+    jump shell_loop
 
 cmd_run_execute:
     setp8 $13
@@ -400,9 +415,11 @@ cmd_run_done:
     setp8 $14
     stma STAGE_SNAPSHOT
     calln svc_program_exit
+    calln svc_command_status_from_program_exit
     jump shell_loop
 
 cmd_run_error:
+    calln svc_command_status_fail
     calln svc_program_error_ptr
     calln svc_console_write_sc0
     calln svc_console_newline
@@ -2037,36 +2054,6 @@ parse_vice_manifest_skip_char:
 parse_vice_manifest_buffer_entries_done:
     rts
 
-vice_backup_screen_ram:
-    ldx #$00
-vice_backup_screen_ram_loop:
-    lda $0400,x
-    sta vice_screen_backup,x
-    lda $0500,x
-    sta vice_screen_backup+$100,x
-    lda $0600,x
-    sta vice_screen_backup+$200,x
-    lda $0700,x
-    sta vice_screen_backup+$300,x
-    inx
-    bne vice_backup_screen_ram_loop
-    rts
-
-vice_restore_screen_ram:
-    ldx #$00
-vice_restore_screen_ram_loop:
-    lda vice_screen_backup,x
-    sta $0400,x
-    lda vice_screen_backup+$100,x
-    sta $0500,x
-    lda vice_screen_backup+$200,x
-    sta $0600,x
-    lda vice_screen_backup+$300,x
-    sta $0700,x
-    inx
-    bne vice_restore_screen_ram_loop
-    rts
-
 parse_vice_dir_buffer_entries:
     lda #$02
     sta vice_parse_index
@@ -2752,6 +2739,7 @@ kind_tree:
     rts
 
 svc_console_reset:
+    jsr CINT
     lda #$00
     sta CURSOR
     sta CURSOR+1
@@ -2777,6 +2765,23 @@ clear_loop_2:
     iny
     cpy #$E8
     bne clear_loop_2
+    rts
+
+clear_hiram:
+    lda #<HIRAM_START
+    sta PTR
+    lda #>HIRAM_START
+    sta PTR+1
+    ldx #HIRAM_PAGES
+    ldy #$00
+    lda #$00
+clear_hiram_page:
+    sta (PTR),y
+    iny
+    bne clear_hiram_page
+    inc PTR+1
+    dex
+    bne clear_hiram_page
     rts
 
 console_putc:
@@ -2886,14 +2891,104 @@ write_loop:
 write_done:
     rts
 
+
+svc_shell_preprompt:
+    lda input_mode
+    cmp #INPUT_MODE_SCRIPT
+    bne svc_shell_preprompt_done
+    lda script_abort_on_error
+    beq svc_shell_preprompt_done
+    lda command_status
+    beq svc_shell_preprompt_done
+    lda #INPUT_MODE_KEYBOARD
+    sta input_mode
+    lda #$00
+    sta batch_mode
+    sta script_abort_on_error
+    sta command_status
+svc_shell_preprompt_done:
+    rts
+
 svc_console_write_prompt:
     jsr build_prompt_response
     jmp svc_console_write_sc0
+
+
+
+
+svc_command_status_clear:
+    lda #$00
+    sta command_status
+    rts
+
+svc_command_status_fail:
+    lda #$01
+    sta command_status
+    rts
+
+svc_command_status_from_program_exit:
+    lda PROGRAM_EXIT_SNAPSHOT
+    sta command_status
+    rts
+
+svc_command_status_from_response:
+    lda #$00
+    sta command_status
+    lda 0,x
+    sta matched_name_lo
+    lda 1,x
+    sta matched_name_hi
+    ldy #$00
+svc_command_status_scan:
+    lda error_response_table,y
+    sta PTR
+    iny
+    lda error_response_table,y
+    sta PTR+1
+    iny
+    lda PTR
+    ora PTR+1
+    beq svc_command_status_done
+    lda PTR
+    cmp matched_name_lo
+    bne svc_command_status_scan
+    lda PTR+1
+    cmp matched_name_hi
+    beq svc_command_status_fail
+    jmp svc_command_status_scan
+svc_command_status_done:
+    rts
 
 svc_emit_mem_response:
     jsr build_mem_response
     jsr svc_console_write_sc0
     jmp svc_console_newline
+
+svc_try_autoexec_batch:
+    stx saved_rp_x
+    jsr load_autoexec_arg_buffer
+    ldx saved_rp_x
+    jsr svc_program_prepare_run
+    ldx saved_rp_x
+    lda #$00
+    sta 0,x
+    sta 1,x
+    rts
+
+load_autoexec_arg_buffer:
+    ldy #$00
+load_autoexec_arg_buffer_loop:
+    lda autoexec_name,y
+    sta arg_buffer,y
+    beq load_autoexec_arg_buffer_done
+    iny
+    bne load_autoexec_arg_buffer_loop
+load_autoexec_arg_buffer_done:
+    sty arg_length
+    lda #$00
+    sta program_cmdline_len
+    sta program_cmdline_buffer
+    rts
 
 svc_line_read:
     lda input_mode
@@ -2946,7 +3041,9 @@ svc_line_read_script:
     stx saved_rp_x
     ldy script_index
     cpy script_line_count
-    bcs line_empty
+    bcc :+
+    jmp line_empty
+:
     tya
     asl
     asl
@@ -2968,15 +3065,47 @@ svc_line_read_script:
 line_echo_loop:
     lda (PTR),y
     beq line_echo_done
+    lda batch_mode
+    beq line_echo_normal
+    lda (PTR),y
+    cmp #$25
+    bne line_echo_normal
+    iny
+    lda (PTR),y
+    cmp #$31
+    beq line_echo_arg1
+    cmp #$32
+    beq line_echo_arg2
+    cmp #$33
+    beq line_echo_arg3
+    dey
+    lda #$25
+    jsr append_script_char
+    jmp line_echo_next
+line_echo_arg1:
+    lda #<batch_arg1_buffer
+    sta SCREEN_PTR
+    lda #>batch_arg1_buffer
+    sta SCREEN_PTR+1
+    jsr append_batch_arg_ptr
+    jmp line_echo_next
+line_echo_arg2:
+    lda #<batch_arg2_buffer
+    sta SCREEN_PTR
+    lda #>batch_arg2_buffer
+    sta SCREEN_PTR+1
+    jsr append_batch_arg_ptr
+    jmp line_echo_next
+line_echo_arg3:
+    lda #<batch_arg3_buffer
+    sta SCREEN_PTR
+    lda #>batch_arg3_buffer
+    sta SCREEN_PTR+1
+    jsr append_batch_arg_ptr
+    jmp line_echo_next
+line_echo_normal:
     jsr normalize_input_char
-    bcc line_echo_next
-    ldx line_length
-    cpx #MAX_LINE_LEN
-    bcs line_echo_done
-    sta line_buffer,x
-    inx
-    stx line_length
-    jsr console_putc
+    jsr append_script_char
 line_echo_next:
     iny
     bne line_echo_loop
@@ -2994,10 +3123,39 @@ line_echo_done:
 line_empty:
     lda #INPUT_MODE_KEYBOARD
     sta input_mode
+    lda #$00
+    sta batch_mode
+    sta script_abort_on_error
     lda #SHELL_CMD_NONE
     sta 0,x
     lda #$00
     sta 1,x
+    rts
+
+append_batch_arg_ptr:
+    ldx #$00
+append_batch_arg_ptr_loop:
+    lda (SCREEN_PTR,x)
+    beq append_batch_arg_ptr_done
+    jsr normalize_input_char
+    jsr append_script_char
+    inc SCREEN_PTR
+    bne append_batch_arg_ptr_loop
+    inc SCREEN_PTR+1
+    jmp append_batch_arg_ptr_loop
+append_batch_arg_ptr_done:
+    rts
+
+append_script_char:
+    bcc append_script_char_done
+    ldx line_length
+    cpx #MAX_LINE_LEN
+    bcs append_script_char_done
+    sta line_buffer,x
+    inx
+    stx line_length
+    jsr console_putc
+append_script_char_done:
     rts
 
 svc_shell_response_ptr:
@@ -3022,6 +3180,8 @@ svc_shell_response_ptr:
     beq shell_resp_dir
     cmp #SHELL_CMD_CD
     beq shell_resp_cd
+    cmp #SHELL_CMD_ECHO
+    beq shell_resp_echo
     cmp #SHELL_CMD_VER
     beq shell_resp_ver
     cmp #SHELL_CMD_VOL
@@ -3067,6 +3227,9 @@ shell_resp_dir:
     rts
 shell_resp_cd:
     jsr build_cd_response
+    rts
+shell_resp_echo:
+    jsr build_echo_response
     rts
 shell_resp_ver:
     jsr build_ver_response
@@ -3391,7 +3554,7 @@ token_len4:
     ldy parse_cmd_start
     lda line_buffer,y
     cmp #CMD_H
-    bne token_len4_type
+    bne token_len4_echo
     iny
     lda line_buffer,y
     cmp #CMD_E
@@ -3411,6 +3574,31 @@ token_len4:
     jmp token_unknown
 :
     lda #SHELL_CMD_HELP
+    rts
+token_len4_echo:
+    ldy parse_cmd_start
+    lda line_buffer,y
+    cmp #CMD_E
+    bne token_len4_type
+    iny
+    lda line_buffer,y
+    cmp #CMD_C
+    beq :+
+    jmp token_unknown
+:
+    iny
+    lda line_buffer,y
+    cmp #CMD_H
+    beq :+
+    jmp token_unknown
+:
+    iny
+    lda line_buffer,y
+    cmp #CMD_O
+    beq :+
+    jmp token_unknown
+:
+    lda #SHELL_CMD_ECHO
     rts
 token_len4_type:
     ldy parse_cmd_start
@@ -5027,6 +5215,8 @@ svc_program_prepare_run:
     sta PROGRAM_STATE_SNAPSHOT
     lda #$00
     sta PROGRAM_EXIT_SNAPSHOT
+    sta batch_mode
+    sta script_abort_on_error
     lda current_drive
     sta PROGRAM_DRIVE_SNAPSHOT
     tay
@@ -5066,34 +5256,90 @@ program_status_unmounted:
     lda #RUN_STATUS_UNMOUNTED
     jmp program_status_return
 program_lookup:
+    lda run_explicit_batch
+    bne program_lookup_batch
     jsr uci_probe
     bcc program_lookup_hw
     jsr vice_probe_available
     bcs program_lookup_mock
     jsr query_file_response_vice_current
     bcc :+
+    jmp program_try_batch_fallback
+:
+    jsr load_program_image_vice_current
+    bcc :+
+    jmp program_status_return
+:
+    jmp program_ready
+program_lookup_hw:
+    jsr query_program_file_hw
+    bcc :+
+    cmp #RUN_STATUS_NOFILE
+    beq program_try_batch_fallback
+    jmp program_status_return
+:
+    jsr load_program_image_hw
+    bcc :+
+    jmp program_status_return
+:
+    jmp program_ready
+program_lookup_mock:
+    jsr lookup_file_content
+    bcc program_load_mock
+    jmp program_try_batch_fallback
+program_load_mock:
+    jsr load_program_image_mock
+    bcc program_ready
+    jmp program_status_return
+program_lookup_batch:
+    jsr uci_probe
+    bcc program_lookup_batch_hw
+    jsr vice_probe_available
+    bcs program_lookup_batch_mock
+    jsr query_file_response_vice_current
+    bcc :+
     lda #RUN_STATUS_NOFILE
     jmp program_status_return
 :
     jsr load_program_image_vice_current
-    bcc program_ready
+    bcc program_ready_batch
     jmp program_status_return
-program_lookup_hw:
+program_lookup_batch_hw:
     jsr query_program_file_hw
     bcc :+
     jmp program_status_return
 :
     jsr load_program_image_hw
-    bcc program_ready
+    bcc program_ready_batch
     jmp program_status_return
-program_lookup_mock:
+program_lookup_batch_mock:
     jsr lookup_file_content
-    bcc program_load_mock
+    bcc program_load_batch_mock
     lda #RUN_STATUS_NOFILE
     jmp program_status_return
-program_load_mock:
+program_load_batch_mock:
     jsr load_program_image_mock
-    bcc program_ready
+    bcc program_ready_batch
+    jmp program_status_return
+program_try_batch_fallback:
+    lda run_batch_fallback
+    beq program_status_nofile
+    jsr set_run_target_bat_extension
+    bcc :+
+    lda #RUN_STATUS_BAD
+    jmp program_status_return
+:
+    jsr resolve_file_target
+    cmp #PATH_STATUS_OK
+    beq program_lookup_batch
+    cmp #PATH_STATUS_UNMOUNTED
+    bne :+
+    jmp program_status_unmounted
+:
+    lda #RUN_STATUS_NOFILE
+    jmp program_status_return
+program_status_nofile:
+    lda #RUN_STATUS_NOFILE
     jmp program_status_return
 program_ready:
     jsr copy_path_name_to_program_target
@@ -5108,6 +5354,22 @@ program_ready:
     lda #PROGRAM_STATE_RUNNING
     sta PROGRAM_STATE_SNAPSHOT
     lda #RUN_STATUS_OK
+    jmp program_status_return
+program_ready_batch:
+    jsr install_batch_args
+    jsr load_batch_script_from_program_image
+    bcc :+
+    jmp program_status_return
+:
+    lda #PROGRAM_STATE_EXITED
+    sta PROGRAM_STATE_SNAPSHOT
+    lda #$00
+    sta PROGRAM_EXIT_SNAPSHOT
+    lda temp_drive
+    sta PROGRAM_DRIVE_SNAPSHOT
+    lda temp_dir_id
+    sta PROGRAM_DIR_SNAPSHOT
+    lda #RUN_STATUS_BATCH
 program_status_return:
     sta program_status
     ldx saved_rp_x
@@ -5117,6 +5379,9 @@ program_status_return:
     rts
 
 ensure_run_target_extension:
+    lda #$00
+    sta run_batch_fallback
+    sta run_explicit_batch
     lda #$00
     sta parse_scan_index
     sta prefix_length
@@ -5146,7 +5411,7 @@ ensure_run_target_next:
     bne ensure_run_target_scan
 ensure_run_target_done_scan:
     lda prefix_length
-    bne ensure_run_target_ok
+    bne ensure_run_target_check_explicit
     ldx arg_length
     cpx #MAX_LINE_LEN-4
     bcs ensure_run_target_fail
@@ -5165,11 +5430,218 @@ ensure_run_target_done_scan:
     stx arg_length
     lda #$00
     sta arg_buffer,x
+    lda #$01
+    sta run_batch_fallback
+    jmp ensure_run_target_ok
+ensure_run_target_check_explicit:
+    ldy parse_scan_index
+    lda arg_buffer,y
+    cmp #ASCII_DOT
+    bne ensure_run_target_ok
+    iny
+    cpy arg_length
+    bcs ensure_run_target_ok
+    lda arg_buffer,y
+    cmp #CMD_B
+    bne ensure_run_target_ok
+    iny
+    cpy arg_length
+    bcs ensure_run_target_ok
+    lda arg_buffer,y
+    cmp #$01
+    bne ensure_run_target_ok
+    iny
+    cpy arg_length
+    bcs ensure_run_target_ok
+    lda arg_buffer,y
+    cmp #CMD_T
+    bne ensure_run_target_ok
+    iny
+    cpy arg_length
+    bne ensure_run_target_ok
+    lda #$01
+    sta run_explicit_batch
 ensure_run_target_ok:
     clc
     rts
 ensure_run_target_fail:
     sec
+    rts
+
+set_run_target_bat_extension:
+    ldy arg_length
+    cpy #4
+    bcc set_run_target_bat_extension_fail
+    dey
+    lda #CMD_T
+    sta arg_buffer,y
+    dey
+    lda #$01
+    sta arg_buffer,y
+    dey
+    lda #CMD_B
+    sta arg_buffer,y
+    lda #$00
+    sta run_batch_fallback
+    lda #$01
+    sta run_explicit_batch
+    clc
+    rts
+set_run_target_bat_extension_fail:
+    sec
+    rts
+
+clear_batch_args:
+    lda #$00
+    sta batch_arg1_buffer
+    sta batch_arg2_buffer
+    sta batch_arg3_buffer
+    rts
+
+install_batch_args:
+    jsr clear_batch_args
+    ldx #$00
+    ldy #$00
+install_batch_args_skip_gap:
+    cpy program_cmdline_len
+    bcs install_batch_args_done
+    lda program_cmdline_buffer,y
+    cmp #ASCII_SPACE
+    beq install_batch_args_skip_next
+    cmp #ASCII_COMMA
+    beq install_batch_args_skip_next
+    cpx #$00
+    beq install_batch_args_arg1
+    cpx #$01
+    beq install_batch_args_arg2
+    cpx #$02
+    beq install_batch_args_arg3
+    rts
+install_batch_args_skip_next:
+    iny
+    bne install_batch_args_skip_gap
+install_batch_args_arg1:
+    lda #<batch_arg1_buffer
+    sta PTR
+    lda #>batch_arg1_buffer
+    sta PTR+1
+    jsr copy_batch_arg_token
+    inx
+    jmp install_batch_args_skip_gap
+install_batch_args_arg2:
+    lda #<batch_arg2_buffer
+    sta PTR
+    lda #>batch_arg2_buffer
+    sta PTR+1
+    jsr copy_batch_arg_token
+    inx
+    jmp install_batch_args_skip_gap
+install_batch_args_arg3:
+    lda #<batch_arg3_buffer
+    sta PTR
+    lda #>batch_arg3_buffer
+    sta PTR+1
+    jsr copy_batch_arg_token
+install_batch_args_done:
+    rts
+
+copy_batch_arg_token:
+    lda #$00
+    sta file_index
+copy_batch_arg_token_loop:
+    cpy program_cmdline_len
+    bcs copy_batch_arg_token_done
+    lda program_cmdline_buffer,y
+    cmp #ASCII_SPACE
+    beq copy_batch_arg_token_done
+    cmp #ASCII_COMMA
+    beq copy_batch_arg_token_done
+    ldx file_index
+    cpx #MAX_LINE_LEN
+    bcs copy_batch_arg_token_done
+    sta (PTR,x)
+    inx
+    stx file_index
+    iny
+    bne copy_batch_arg_token_loop
+copy_batch_arg_token_done:
+    ldx file_index
+    lda #$00
+    sta (PTR,x)
+    rts
+
+load_batch_script_from_program_image:
+    lda #$00
+    sta script_index
+    sta script_line_count
+    ldy #$00
+load_batch_script_next_line:
+    cpy program_image_len_lo
+    bcs load_batch_script_done
+    lda script_line_count
+    cmp #SCRIPT_LINE_MAX
+    bcs load_batch_script_too_large
+    asl
+    asl
+    asl
+    asl
+    asl
+    clc
+    adc #<script_line_data
+    sta PTR
+    lda #>script_line_data
+    adc #$00
+    sta PTR+1
+    lda #$00
+    sta file_index
+load_batch_script_copy:
+    cpy program_image_len_lo
+    bcs load_batch_script_finish_line
+    lda program_image_buffer,y
+    cmp #$0D
+    beq load_batch_script_cr
+    cmp #$0A
+    beq load_batch_script_lf
+    ldx file_index
+    cpx #MAX_LINE_LEN
+    bcs load_batch_script_too_large
+    sta (PTR,x)
+    inx
+    stx file_index
+    iny
+    bne load_batch_script_copy
+load_batch_script_cr:
+    iny
+    cpy program_image_len_lo
+    bcs load_batch_script_finish_line
+    lda program_image_buffer,y
+    cmp #$0A
+    bne load_batch_script_finish_line
+    iny
+    bne load_batch_script_finish_line
+load_batch_script_lf:
+    iny
+load_batch_script_finish_line:
+    ldx file_index
+    lda #$00
+    sta (PTR,x)
+    inc script_line_count
+    jmp load_batch_script_next_line
+load_batch_script_too_large:
+    lda #RUN_STATUS_TOO_LARGE
+    sec
+    rts
+load_batch_script_done:
+    lda #$00
+    sta script_index
+    sta command_status
+    lda #INPUT_MODE_SCRIPT
+    sta input_mode
+    lda #$01
+    sta batch_mode
+    sta script_abort_on_error
+    lda #RUN_STATUS_BATCH
+    clc
     rts
 
 load_program_image_mock:
@@ -11558,6 +12030,27 @@ append_ptr_loop:
 append_ptr_done:
     rts
 
+build_echo_response:
+    stx saved_rp_x
+    ldy #$00
+build_echo_copy_loop:
+    cpy arg_length
+    bcs build_echo_done
+    lda arg_buffer,y
+    sta response_buffer,y
+    iny
+    cpy #MAX_RESPONSE_LEN-1
+    bcc build_echo_copy_loop
+build_echo_done:
+    lda #$00
+    sta response_buffer,y
+    ldx saved_rp_x
+    lda #<response_buffer
+    sta 0,x
+    lda #>response_buffer
+    sta 1,x
+    rts
+
 build_ver_response:
     ldy #$00
 copy_ver_prefix:
@@ -11918,6 +12411,16 @@ script_index:
     .byte 0
 script_line_count:
     .byte 0
+batch_mode:
+    .byte 0
+script_abort_on_error:
+    .byte 0
+command_status:
+    .byte 0
+run_batch_fallback:
+    .byte 0
+run_explicit_batch:
+    .byte 0
 line_length:
     .byte 0
 arg_length:
@@ -12154,6 +12657,12 @@ copy_dst_buffer:
     .res MAX_LINE_LEN+1
 program_cmdline_buffer:
     .res MAX_LINE_LEN+1
+batch_arg1_buffer:
+    .res MAX_LINE_LEN+1
+batch_arg2_buffer:
+    .res MAX_LINE_LEN+1
+batch_arg3_buffer:
+    .res MAX_LINE_LEN+1
 program_target_buffer:
     .res MAX_LINE_LEN+1
 path_name_buffer:
@@ -12169,7 +12678,7 @@ program_image_buffer:
 uci_write_buffer:
     .res MAX_RESPONSE_LEN+4
 script_line_data:
-    .res (MAX_LINE_LEN+1) * 10
+    .res (MAX_LINE_LEN+1) * SCRIPT_LINE_MAX
 uci_cmd_buffer:
     .res (FULL_PATH_BUF_LEN * 2) + 3
 uci_data_buffer:
@@ -12204,6 +12713,8 @@ hw_dir_names_b:
     .res HW_DIR_NAME_STRIDE * HW_DIR_CACHE_MAX
 flat_entry_name_buffer:
     .res HW_DIR_NAME_STRIDE
+
+.segment "HIRAM"
 flat_dir_sector_buffer:
     .res 256
 flat_bam_primary_buffer:
@@ -12212,8 +12723,8 @@ flat_bam_secondary_buffer:
     .res 256
 flat_sector_buffer:
     .res 256
-vice_screen_backup:
-    .res 1024
+
+.segment "CODE"
 vice_name_buffer:
     .res HW_DIR_NAME_STRIDE
 vice_lfn:
@@ -12245,8 +12756,10 @@ vice_line_num_hi:
 
 header_text:
     .byte "UDOS FOR COMMODORE 64", 0
+autoexec_name:
+    .byte 1, 21, 20, 15, 5, 24, 5, 3, ASCII_DOT, 2, 1, 20, 0
 resp_help:
-    .byte "HELP VER VOL MEM DIR CD MD RD MOUNT TYPE COPY REN DEL", 0
+    .byte "HELP VER VOL MEM DIR CD MD RD ECHO MOUNT TYPE COPY REN DEL", 0
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem_ram_prefix:
@@ -12267,6 +12780,8 @@ entry_flat_commands:
     .byte "COMMANDS", 0
 entry_flat_readme:
     .byte "README", 0
+entry_flat_autoexec:
+    .byte "AUTOEXEC.BAT", 0
 entry_root_bin:
     .byte "BIN/", 0
 entry_root_src:
@@ -12286,9 +12801,11 @@ entry_work_empty:
 content_flat_system:
     .byte "UDOS SYSTEM VOLUME", 0
 content_flat_commands:
-    .byte "HELP VER VOL MEM DIR CD MD RD MOUNT TYPE COPY REN DEL", 0
+    .byte "HELP VER VOL MEM DIR CD MD RD ECHO MOUNT TYPE COPY REN DEL", 0
 content_flat_readme:
     .byte "MOCK FLAT IMAGE CONTENT", 0
+content_flat_autoexec:
+    .byte "ECHO AUTOEXEC OK", 0
 content_bin_shell:
     .byte "SHELL OVERLAY PLACEHOLDER", 0
 content_bin_dir:
@@ -12298,9 +12815,9 @@ content_src_boot:
 content_src_fs:
     .byte "; FS.AVM MOCK SOURCE", 0
 flat_entry_lo:
-    .byte <entry_flat_system, <entry_flat_commands, <entry_flat_readme
+    .byte <entry_flat_system, <entry_flat_commands, <entry_flat_readme, <entry_flat_autoexec
 flat_entry_hi:
-    .byte >entry_flat_system, >entry_flat_commands, >entry_flat_readme
+    .byte >entry_flat_system, >entry_flat_commands, >entry_flat_readme, >entry_flat_autoexec
 root_entry_lo:
     .byte <entry_root_bin, <entry_root_src, <entry_root_work
 root_entry_hi:
@@ -12323,6 +12840,7 @@ flat_file_records:
     .byte <entry_flat_system, >entry_flat_system, <content_flat_system, >content_flat_system
     .byte <entry_flat_commands, >entry_flat_commands, <content_flat_commands, >content_flat_commands
     .byte <entry_flat_readme, >entry_flat_readme, <content_flat_readme, >content_flat_readme
+    .byte <entry_flat_autoexec, >entry_flat_autoexec, <content_flat_autoexec, >content_flat_autoexec
 bin_file_records:
     .byte <entry_bin_shell, >entry_bin_shell, <content_bin_shell, >content_bin_shell
     .byte <entry_bin_dir, >entry_bin_dir, <content_bin_dir, >content_bin_dir
@@ -12377,10 +12895,14 @@ vice_tree_names_a:
     .res HW_DIR_NAME_STRIDE * VICE_TREE_DYNAMIC_MAX
 vice_tree_names_b:
     .res HW_DIR_NAME_STRIDE * VICE_TREE_DYNAMIC_MAX
+
+.segment "HIRAM"
 vice_tree_content_a:
     .res PROGRAM_IMAGE_MAX * VICE_TREE_DYNAMIC_MAX
 vice_tree_content_b:
     .res PROGRAM_IMAGE_MAX * VICE_TREE_DYNAMIC_MAX
+
+.segment "CODE"
 image_none_a:
     .byte <volume_unknown, >volume_unknown
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
@@ -12407,7 +12929,7 @@ image_a_d64:
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
-    .byte <flat_file_records, >flat_file_records, 3
+    .byte <flat_file_records, >flat_file_records, 4
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
@@ -12417,7 +12939,7 @@ image_a_d71:
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
-    .byte <flat_file_records, >flat_file_records, 3
+    .byte <flat_file_records, >flat_file_records, 4
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
@@ -12427,7 +12949,7 @@ image_a_d81:
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
-    .byte <flat_file_records, >flat_file_records, 3
+    .byte <flat_file_records, >flat_file_records, 4
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
@@ -12447,7 +12969,7 @@ image_b_d64:
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
-    .byte <flat_file_records, >flat_file_records, 3
+    .byte <flat_file_records, >flat_file_records, 4
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
@@ -12457,7 +12979,7 @@ image_b_d71:
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
-    .byte <flat_file_records, >flat_file_records, 3
+    .byte <flat_file_records, >flat_file_records, 4
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
@@ -12467,7 +12989,7 @@ image_b_d81:
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
-    .byte <flat_file_records, >flat_file_records, 3
+    .byte <flat_file_records, >flat_file_records, 4
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
@@ -12488,7 +13010,7 @@ dir_name_src:
 dir_name_work:
     .byte "WORK", 0
 resp_dir_flat:
-    .byte "SYSTEM COMMANDS README", 0
+    .byte "SYSTEM COMMANDS README AUTOEXEC.BAT", 0
 resp_dir_root:
     .byte "BIN/ SRC/ WORK/", 0
 resp_dir_bin:
@@ -12563,6 +13085,33 @@ resp_unmounted:
     .byte "UNMOUNTED", 0
 resp_unknown:
     .byte $3F, 0
+error_response_table:
+    .addr resp_flat_image
+    .addr resp_bad_dir
+    .addr resp_bad_file
+    .addr resp_bad_copy
+    .addr resp_bad_ren
+    .addr resp_bad_md
+    .addr resp_bad_rd
+    .addr resp_delete_failed
+    .addr resp_mkdir_failed
+    .addr resp_rmdir_failed
+    .addr resp_dir_not_empty
+    .addr resp_dir_busy
+    .addr resp_rename_failed
+    .addr resp_copy_failed
+    .addr resp_read_only
+    .addr resp_no_space
+    .addr resp_no_program
+    .addr resp_drive_not_present
+    .addr resp_mount_failed
+    .addr resp_program_too_large
+    .addr resp_program_load_failed
+    .addr resp_bad_mount
+    .addr resp_bad_run
+    .addr resp_unmounted
+    .addr resp_unknown
+    .addr 0
 resp_run_prefix:
     .byte "RUN ", 0
 resp_args_prefix:

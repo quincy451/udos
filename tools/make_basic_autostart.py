@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-LOAD_ADDR = 0x1000
 BASIC_ADDR = 0x0801
 
 
@@ -34,10 +33,15 @@ def build_basic_stub(entry_addr: int) -> bytes:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Wrap a $1000 PRG in a BASIC SYS autostart loader")
-    parser.add_argument("--input", required=True, help="input PRG with load address $1000")
+    parser = argparse.ArgumentParser(description="Wrap a PRG in a BASIC SYS autostart loader")
+    parser.add_argument("--input", required=True, help="input PRG")
     parser.add_argument("--labels", required=True, help="ld65 labels file containing .start")
     parser.add_argument("--output", required=True, help="output autostart PRG")
+    parser.add_argument(
+        "--expected-load-addr",
+        default="0x1000",
+        help="expected PRG load address in hex/decimal (default: 0x1000)",
+    )
     args = parser.parse_args(argv)
 
     source = Path(args.input)
@@ -47,12 +51,13 @@ def main(argv: list[str] | None = None) -> int:
     if len(data) < 2:
         raise SystemExit("input PRG is too short")
     load_addr = int.from_bytes(data[:2], "little")
-    if load_addr != LOAD_ADDR:
-        raise SystemExit(f"expected load address ${LOAD_ADDR:04X}, got ${load_addr:04X}")
+    expected_load_addr = int(args.expected_load_addr, 0)
+    if load_addr != expected_load_addr:
+        raise SystemExit(f"expected load address ${expected_load_addr:04X}, got ${load_addr:04X}")
 
     entry_addr = parse_start_address(labels)
     basic = build_basic_stub(entry_addr)
-    filler_len = LOAD_ADDR - (BASIC_ADDR + len(basic))
+    filler_len = expected_load_addr - (BASIC_ADDR + len(basic))
     if filler_len < 0:
         raise SystemExit("BASIC stub overlaps machine code start")
 
