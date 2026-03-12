@@ -1,0 +1,49 @@
+# UDOS Command Matrix
+
+This file tracks command status by backend. A command is only "done" when the
+required backends for that command are all green.
+
+Backend meanings:
+
+- `Mock`: resident in-memory filesystem/state used to prove shell behavior
+- `Flat`: raw image-backed `D64` / `D71` / `D81` support
+- `VICE tree`: emulator-specific tree backend for `DNP`-style behavior in VICE
+- `Hardware/UCI`: real Commodore 64 Ultimate backend through the UCI interface
+
+Legend:
+
+- `Yes`: implemented and usable
+- `Partial`: code path exists but is incomplete or not sufficiently validated
+- `No`: not implemented
+- `N/A`: not meaningfully backend-dependent
+
+| Command | Syntax/Dispatch | Mock | Flat `D64/D71/D81` | VICE tree `DNP` | Hardware/UCI | Notes |
+|---|---:|---:|---:|---:|---:|---|
+| `HELP` | Yes | Yes | N/A | N/A | N/A | Resident static help text. |
+| `VER` | Yes | Yes | N/A | N/A | N/A | Resident version response. |
+| `MEM` | Yes | Yes | N/A | N/A | N/A | Resident memory report. |
+| `VOL` | Yes | Yes | Partial | Partial | Partial | Mock works. Flat label-import code exists. VICE tree currently reports mount-derived metadata, not a real DNP label. |
+| `DIR` | Yes | Yes | Yes | Yes | Partial | Mock and flat work. Real VICE tree read path is now passing. |
+| `CD` | Yes | Yes | Yes | Yes | Partial | Flat rejection logic works. VICE tree directory changes are now passing on the read path. |
+| `MOUNT` | Yes | Yes | Partial | Partial | Partial | Syntax and logical binding work. VICE tree bind/read flow works, but true image-backed VICE semantics are incomplete. Hardware `MOUNT_DISK` path exists but is unverified. |
+| `TYPE` | Yes | Yes | Yes | Yes | Partial | Mock and flat work. Real VICE tree file reads are now passing. |
+| `COPY` | Yes | Yes | Yes | No | Partial | Mock wildcard copy works. Flat raw copy exists. Real VICE tree write-side copy is not implemented yet. |
+| `REN` | Yes | Yes | Yes | No | Partial | Mock and flat rename work. Real VICE tree write-side rename is not implemented yet. |
+| `DEL` | Yes | Yes | Yes | No | Partial | Mock wildcard delete works. Flat raw delete exists. Real VICE tree write-side delete is not implemented yet. |
+| `A:` | Yes | Yes | N/A | N/A | N/A | Resident direct drive token. |
+| `B:` | Yes | Yes | N/A | N/A | N/A | Resident direct drive token. |
+| `C:` | Yes | Yes | N/A | N/A | N/A | Reserved token, returns `DRIVE NOT PRESENT`. |
+| `D:` | Yes | Yes | N/A | N/A | N/A | Reserved token, returns `DRIVE NOT PRESENT`. |
+| bare program launch | Yes | Yes | Yes | Yes | Partial | Mock and flat launch paths exist. Real VICE tree program reads now pass. |
+| batch `.BAT` | No | No | No | No | No | Not started. |
+| `AUTOEXEC.BAT` | No | No | No | No | No | Not started. |
+| `XCOPY` | No | No | No | No | No | Planned overlay/external command. |
+| `DELTREE` | No | No | No | No | No | Planned overlay/external command. |
+| `TREE` | No | No | No | No | No | Planned overlay/external command. |
+
+Current priority:
+
+1. finish the real VICE tree write backend for `DNP`
+2. keep flat backends stable while doing that
+3. add batch support after VICE tree file operations are complete
+4. shrink resident footprint only after functionality is complete

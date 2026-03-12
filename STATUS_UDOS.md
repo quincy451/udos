@@ -6,6 +6,8 @@ Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 resident bootstra
 
 UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runtime environment for this work.
 
+Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
+
 ## Completed
 
 - created a separate `udos` repo/work area
@@ -23,6 +25,9 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - flat-image root mounts now first try raw image parsing through `OPEN_FILE` / `FILE_SEEK` / `READ_DATA`
   - tree-capable mounts still synchronize through `CHANGE_DIR`, query `GET_PATH`, and fill a small resident directory cache through `OPEN_DIR` / `READ_DIR`
   - falls back to the descriptor-backed mock model when hardware transport is unavailable or a query fails
+- added a VICE tree read backend for `DNP`-style mounts
+  - tree listings are now populated from a VICE-side manifest-backed directory cache
+  - file reads and implicit launch now resolve through the VICE tree backend instead of the older descriptor-only mock path
 - added a hardware-backed `TYPE` read path
   - flat-image mounts now first try raw root-directory lookup plus chained-sector reads through image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA`
   - tree-capable mounts still synchronize the backend path through `CHANGE_DIR`, then use `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
@@ -128,12 +133,12 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - flat-image root mounts now first issue `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA`
   - tree-capable mounts still issue `OPEN_DIR` / `READ_DIR` into a small resident cache
   - current cache budget is `6` entries with names capped at `20` bytes plus terminator
-  - VICE still validates only the mock path because no Ultimate UCI transport exists there
+  - VICE now also validates a real tree read path for `DNP` mounts through the manifest-backed backend
 - hardware-backed file read is now wired behind `TYPE`:
   - flat-image hardware mode first issues raw root-directory lookup plus image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA`
   - tree-capable hardware mode still issues `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
   - the current text read is bounded to the resident response buffer
-  - VICE still validates only the mock path because no Ultimate UCI transport exists there
+  - VICE now also validates real tree reads on `DNP` mounts through the VICE backend
 - hardware-backed delete is now wired behind `DEL`:
   - flat-image hardware mode now first issues raw root-directory lookup, chained sector traversal, and BAM release through image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA` / repeated `WRITE_DATA`
   - tree-capable hardware mode still issues `DELETE_FILE`
@@ -157,7 +162,7 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
   - tree-capable hardware mode still first attempts `FILE_STAT`
   - tree-capable hardware mode then attempts `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
   - tree-capable hardware mode can now distinguish `PROGRAM NOT FOUND` from a generic load failure before opening the file
-  - VICE validates the loaded image length through resident snapshots
+  - VICE now validates both the loaded image length snapshots and a real tree-backed `HELLO DIR` launch path
 - current VICE-validated transcript:
   - `A:D64/> MOUNT B: /IMAGES/WORK.DNP`
   - `A:D64/> VOL`
@@ -186,6 +191,21 @@ UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runti
 - separate VICE-validated launch smoke:
   - `B:DNP/WORK> BOOT3 DIR`
   - `RUN BOOT3.PRG`
+  - `ARGS DIR`
+- separate VICE-validated real tree read smoke:
+  - `A:D64/> MOUNT B: /IMAGES/WORK.DNP`
+  - `A:D64/> VOL`
+  - `A:SYSTEM D64 B:WORK DNP`
+  - `A:D64/> B:`
+  - `B:DNP/> DIR`
+  - `B:DNP/ BIN/ SRC/ WORK/`
+  - `B:DNP/> CD SRC`
+  - `B:DNP/SRC> DIR`
+  - `B:DNP/SRC BOOT.ASM HELLO.PRG`
+  - `B:DNP/SRC> TYPE BOOT.ASM`
+  - `; BOOT.ASM VICE BACKEND SOURCE`
+  - `B:DNP/SRC> HELLO DIR`
+  - `RUN HELLO.PRG`
   - `ARGS DIR`
 - separate VICE-validated wildcard copy smoke:
   - `B:DNP/SRC> COPY *.* WORK`

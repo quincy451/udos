@@ -5,6 +5,7 @@ PYTHON := python3
 CA65 := ca65
 LD65 := ld65
 C1541 := c1541
+VICE_FS_ROOT := tests/vicefs
 
 PROOF_OBJ := $(BUILD_DIR)/udos_proof.o
 PROOF_PRG := $(BUILD_DIR)/udos-proof.prg
@@ -20,7 +21,7 @@ RESIDENT_DISK := $(BUILD_DIR)/udos-resident.d64
 RESIDENT_LABELS := $(BUILD_DIR)/udos-resident.labels
 RESIDENT_MAP := $(BUILD_DIR)/udos-resident.map
 
-.PHONY: all clean acheron-dep proof vice-proof resident vice-resident vice-launch vice-copy vice-drive test
+.PHONY: all clean acheron-dep proof vice-proof resident vice-resident vice-launch vice-copy vice-drive vice-real-read test
 
 all: proof resident
 
@@ -64,4 +65,14 @@ vice-copy: resident
 vice-drive: resident
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) --feed-after "A:D64/>" --feed-text "C:\rD:\r" --expected "DRIVE NOT PRESENT" --contains "DRIVE NOT PRESENT"
 
-test: vice-proof vice-resident vice-launch vice-copy vice-drive
+vice-real-read: resident
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" \
+		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rVOL\rB:\rDIR\rCD SRC\rDIR\rTYPE BOOT.ASM\rHELLO DIR\r" \
+		--expected "ARGS DIR" --contains "A:SYSTEM D64 B:WORK DNP" --contains "BIN/ SRC/ WORK/" \
+		--contains "BOOT.ASM HELLO.PRG" --contains "; BOOT.ASM VICE BACKEND SOURCE" --contains "RUN HELLO.PRG" \
+		--check-byte 0xCFF0=0x01 --check-byte 0xCFEC=0x01 --check-byte 0xCFEE=0x02 --check-byte 0xCFF2=0x04
+
+test: vice-proof vice-resident vice-launch vice-copy vice-drive vice-real-read

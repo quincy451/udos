@@ -63,6 +63,7 @@ RESIDENT_CODE_START = $1810
 TRANSPORT_MODE_UNAVAILABLE = 0
 TRANSPORT_MODE_MOCK = 1
 TRANSPORT_MODE_UCI_HW = 2
+TRANSPORT_MODE_VICE_FS = 3
 MOUNT_KIND_NONE = 0
 MOUNT_KIND_D64 = 1
 MOUNT_KIND_D71 = 2
@@ -74,6 +75,15 @@ MOUNT_FLAG_TREE = 2
 DRIVE_A = 0
 DRIVE_B = 1
 GETIN = $FFE4
+READST = $FFB7
+SETLFS = $FFBA
+SETNAM = $FFBD
+OPEN_K = $FFC0
+CLOSE_K = $FFC3
+CHKIN_K = $FFC6
+CLRCHN = $FFCC
+CHRIN = $FFCF
+LOAD_K = $FFD5
 KEY_RETURN = $0D
 KEY_LINEFEED = $0A
 KEY_BACKSPACE = $14
@@ -195,6 +205,10 @@ FA_WRITE_OVERWRITE = FA_WRITE | FA_CREATE_NEW | FA_CREATE_ALWAYS
 DOS_ATTR_DIR = $10
 IEC_ID_A = 8
 IEC_ID_B = 9
+VICE_LFN_FILE = 2
+VICE_LFN_DIR = 3
+VICE_LFN_PROBE = 4
+VICE_SA_READ = 2
 HW_DIR_CACHE_MAX = 6
 HW_DIR_NAME_MAX = 20
 HW_DIR_NAME_STRIDE = HW_DIR_NAME_MAX + 1
@@ -397,6 +411,44 @@ svc_transport_get_mode:
     sta 0,x
     lda #$00
     sta 1,x
+    rts
+
+detect_transport_mode_a:
+    jsr uci_probe
+    bcc detect_transport_mode_hw
+    jsr vice_probe_available
+    bcc detect_transport_mode_vice
+    lda #TRANSPORT_MODE_MOCK
+    rts
+detect_transport_mode_hw:
+    lda #TRANSPORT_MODE_UCI_HW
+    rts
+detect_transport_mode_vice:
+    lda #TRANSPORT_MODE_VICE_FS
+    rts
+
+vice_probe_available:
+    lda temp_drive
+    pha
+    lda #DRIVE_A
+    sta temp_drive
+    lda #<vice_probe_name
+    sta PTR
+    lda #>vice_probe_name
+    sta PTR+1
+    lda #VICE_LFN_PROBE
+    sta vice_lfn
+    jsr vice_open_read_from_ptr
+    bcs vice_probe_available_fail
+    jsr vice_close_current_file
+    pla
+    sta temp_drive
+    clc
+    rts
+vice_probe_available_fail:
+    pla
+    sta temp_drive
+    sec
     rts
 
 svc_drive_get_current:
@@ -939,6 +991,95 @@ fill_backend_path_mock_done:
     clc
     rts
 
+fill_backend_path_vice:
+    jsr select_mount_path_buffer
+    ldy #$00
+fill_backend_path_vice_mount_copy:
+    lda (PTR),y
+    beq fill_backend_path_vice_mount_done
+    jsr screen_code_to_ascii
+    sta (SCREEN_PTR),y
+    iny
+    cpy #MAX_LINE_LEN
+    bcc fill_backend_path_vice_mount_copy
+fill_backend_path_vice_mount_done:
+    lda #$00
+    sta (SCREEN_PTR),y
+    lda SCREEN_PTR
+    sta PTR
+    lda SCREEN_PTR+1
+    sta PTR+1
+    ldx temp_drive
+    lda mount_flag_table,x
+    cmp #MOUNT_FLAG_TREE
+    bne fill_backend_path_vice_done
+    lda temp_dir_id
+    beq fill_backend_path_vice_done
+    jsr ensure_backend_path_vice_slash
+    lda temp_dir_id
+    cmp #DIR_ID_BIN
+    beq fill_backend_path_vice_bin
+    cmp #DIR_ID_SRC
+    beq fill_backend_path_vice_src
+    cmp #DIR_ID_WORK
+    beq fill_backend_path_vice_work
+    jmp fill_backend_path_vice_done
+fill_backend_path_vice_bin:
+    lda #'B'
+    sta (PTR),y
+    iny
+    lda #'I'
+    sta (PTR),y
+    iny
+    lda #'N'
+    sta (PTR),y
+    iny
+    jmp fill_backend_path_vice_done
+fill_backend_path_vice_src:
+    lda #'S'
+    sta (PTR),y
+    iny
+    lda #'R'
+    sta (PTR),y
+    iny
+    lda #'C'
+    sta (PTR),y
+    iny
+    jmp fill_backend_path_vice_done
+fill_backend_path_vice_work:
+    lda #'W'
+    sta (PTR),y
+    iny
+    lda #'O'
+    sta (PTR),y
+    iny
+    lda #'R'
+    sta (PTR),y
+    iny
+    lda #'K'
+    sta (PTR),y
+    iny
+fill_backend_path_vice_done:
+    lda #$00
+    sta (PTR),y
+    clc
+    rts
+
+ensure_backend_path_vice_slash:
+    cpy #$00
+    beq ensure_backend_path_vice_root
+    dey
+    lda (PTR),y
+    iny
+    cmp #ASCII_SLASH
+    beq ensure_backend_path_vice_slash_done
+ensure_backend_path_vice_root:
+    lda #ASCII_SLASH
+    sta (PTR),y
+    iny
+ensure_backend_path_vice_slash_done:
+    rts
+
 fill_backend_path_hw:
     jsr build_uci_target_header
     lda #DOS_CMD_GET_PATH
@@ -1013,6 +1154,831 @@ sync_drive_backend_path_fail:
     jsr uci_abort_transfer
     jsr uci_clear_error
     sec
+    rts
+
+vice_should_use_mock_work_overlay:
+    ldx temp_drive
+    lda mount_flag_table,x
+    cmp #MOUNT_FLAG_TREE
+    beq :+
+    sec
+    rts
+:
+    lda temp_dir_id
+    cmp #DIR_ID_WORK
+    bne vice_should_use_mock_work_overlay_no
+    lda work_count_table,x
+    beq vice_should_use_mock_work_overlay_no
+    sec
+    rts
+vice_should_use_mock_work_overlay_no:
+    clc
+    rts
+
+select_vice_device_id:
+    lda temp_drive
+    beq select_vice_device_id_a
+    lda #IEC_ID_B
+    rts
+select_vice_device_id_a:
+    lda #IEC_ID_A
+    rts
+
+vice_name_length_from_ptr:
+    ldy #$00
+vice_name_length_loop:
+    lda (PTR),y
+    beq vice_name_length_done
+    iny
+    cpy #FULL_PATH_BUF_LEN
+    bcc vice_name_length_loop
+vice_name_length_done:
+    tya
+    beq vice_name_length_fail
+    clc
+    rts
+vice_name_length_fail:
+    sec
+    rts
+
+vice_open_read_from_ptr:
+    jsr vice_name_length_from_ptr
+    bcs vice_open_read_from_ptr_fail
+    pha
+    lda vice_lfn
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq :+
+    ldx #IEC_ID_B
+    bne vice_open_read_setlfs
+:
+    ldx #IEC_ID_A
+vice_open_read_setlfs:
+    ldy vice_secondary
+    jsr SETLFS
+    pla
+    ldx PTR
+    ldy PTR+1
+    jsr SETNAM
+    jsr OPEN_K
+    jsr READST
+    bne vice_open_read_from_ptr_fail_close
+    ldx vice_lfn
+    jsr CHKIN_K
+    jsr READST
+    bne vice_open_read_from_ptr_fail_close
+    clc
+    rts
+vice_open_read_from_ptr_fail_close:
+    php
+    jsr vice_close_current_file
+    plp
+vice_open_read_from_ptr_fail:
+    sec
+    rts
+
+vice_close_current_file:
+    jsr CLRCHN
+    lda vice_lfn
+    jsr CLOSE_K
+    rts
+
+build_vice_open_path_from_name:
+    jsr select_backend_path_cache
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    jsr fill_backend_path_vice
+    ldy #$00
+build_vice_open_path_prefix:
+    lda (PTR),y
+    beq build_vice_open_path_sep
+    sta source_fullpath_buffer,y
+    iny
+    cpy #FULL_PATH_BUF_LEN-6
+    bcc build_vice_open_path_prefix
+build_vice_open_path_sep:
+    sta vice_path_len
+    lda #ASCII_SLASH
+    sta source_fullpath_buffer,y
+    iny
+    lda #$00
+    sta vice_name_index
+build_vice_open_path_name:
+    ldx vice_name_index
+    lda path_name_buffer,x
+    beq build_vice_open_path_suffix
+    jsr screen_code_to_ascii
+    sta source_fullpath_buffer,y
+    iny
+    inc vice_name_index
+    cpy #FULL_PATH_BUF_LEN-5
+    bcc build_vice_open_path_name
+build_vice_open_path_suffix:
+    lda #ASCII_COMMA
+    sta source_fullpath_buffer,y
+    iny
+    lda #'S'
+    sta source_fullpath_buffer,y
+    iny
+    lda #ASCII_COMMA
+    sta source_fullpath_buffer,y
+    iny
+    lda #'R'
+    sta source_fullpath_buffer,y
+    iny
+    lda #$00
+    sta source_fullpath_buffer,y
+    lda #<source_fullpath_buffer
+    sta PTR
+    lda #>source_fullpath_buffer
+    sta PTR+1
+    rts
+
+
+build_vice_full_path_from_path_name:
+    lda #<path_name_buffer
+    sta SCREEN_PTR
+    lda #>path_name_buffer
+    sta SCREEN_PTR+1
+    jmp build_vice_full_path_from_screen_ptr
+
+build_vice_full_path_from_source_name:
+    lda #<source_name_buffer
+    sta SCREEN_PTR
+    lda #>source_name_buffer
+    sta SCREEN_PTR+1
+    jmp build_vice_full_path_from_screen_ptr
+
+build_vice_manifest_full_path:
+    jsr select_backend_path_cache
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    jsr fill_backend_path_vice
+    ldy #$00
+build_vice_manifest_full_path_prefix:
+    lda (PTR),y
+    beq build_vice_manifest_full_path_suffix
+    sta source_fullpath_buffer,y
+    iny
+    cpy #FULL_PATH_BUF_LEN-12
+    bcc build_vice_manifest_full_path_prefix
+build_vice_manifest_full_path_suffix:
+    lda #ASCII_SLASH
+    sta source_fullpath_buffer,y
+    iny
+    lda #'U'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'D'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'O'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'S'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'D'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'I'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'R'
+    sta source_fullpath_buffer,y
+    iny
+    lda #ASCII_DOT
+    sta source_fullpath_buffer,y
+    iny
+    lda #'T'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'X'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'T'
+    sta source_fullpath_buffer,y
+    iny
+    lda #$00
+    sta source_fullpath_buffer,y
+    lda #<source_fullpath_buffer
+    sta PTR
+    lda #>source_fullpath_buffer
+    sta PTR+1
+    rts
+
+build_vice_full_path_from_screen_ptr:
+    lda SCREEN_PTR
+    sta matched_name_lo
+    lda SCREEN_PTR+1
+    sta matched_name_hi
+    jsr select_backend_path_cache
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    jsr fill_backend_path_vice
+    lda matched_name_lo
+    sta SCREEN_PTR
+    lda matched_name_hi
+    sta SCREEN_PTR+1
+    ldy #$00
+build_vice_full_path_prefix:
+    lda (PTR),y
+    beq build_vice_full_path_sep
+    sta source_fullpath_buffer,y
+    iny
+    cpy #FULL_PATH_BUF_LEN-2
+    bcc build_vice_full_path_prefix
+build_vice_full_path_sep:
+    lda #ASCII_SLASH
+    sta source_fullpath_buffer,y
+    iny
+    ldx #$00
+build_vice_full_path_name_loop:
+    lda (SCREEN_PTR,x)
+    beq build_vice_full_path_done
+    jsr screen_code_to_ascii
+    sta source_fullpath_buffer,y
+    iny
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    cpy #FULL_PATH_BUF_LEN-1
+    bcc build_vice_full_path_name_loop
+build_vice_full_path_done:
+    lda #$00
+    sta source_fullpath_buffer,y
+    lda #<source_fullpath_buffer
+    sta PTR
+    lda #>source_fullpath_buffer
+    sta PTR+1
+    rts
+
+build_vice_dir_open_path:
+    jsr select_backend_path_cache
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    jsr fill_backend_path_vice
+    lda #'$'
+    sta source_fullpath_buffer
+    lda #ASCII_COLON
+    sta source_fullpath_buffer+1
+    ldy #$00
+    ldx #$02
+    lda (PTR),y
+    cmp #ASCII_SLASH
+    bne build_vice_dir_open_path_copy
+    iny
+build_vice_dir_open_path_copy:
+    lda (PTR),y
+    beq build_vice_dir_open_path_suffix
+    sta source_fullpath_buffer,x
+    iny
+    inx
+    cpx #FULL_PATH_BUF_LEN-4
+    bcc build_vice_dir_open_path_copy
+build_vice_dir_open_path_suffix:
+    cpx #$02
+    beq build_vice_dir_open_path_wild
+    lda #ASCII_SLASH
+    sta source_fullpath_buffer,x
+    inx
+build_vice_dir_open_path_wild:
+    lda #'*'
+    sta source_fullpath_buffer,x
+    inx
+build_vice_dir_open_path_done:
+    lda #$00
+    sta source_fullpath_buffer,x
+    lda #<source_fullpath_buffer
+    sta PTR
+    lda #>source_fullpath_buffer
+    sta PTR+1
+    rts
+
+vice_read_open_file_into_ptr_len:
+    sta vice_read_limit
+    lda #$00
+    sta vice_read_length
+    tay
+vice_read_open_file_into_ptr_len_loop:
+    jsr CHRIN
+    sta (PTR),y
+    iny
+    sty vice_read_length
+    jsr READST
+    and #$40
+    bne vice_read_open_file_into_ptr_len_done
+    cpy vice_read_limit
+    bcc vice_read_open_file_into_ptr_len_loop
+vice_read_open_file_into_ptr_len_done:
+    lda #$00
+    sta (PTR),y
+    clc
+    rts
+
+read_file_response_vice:
+    jsr build_vice_open_path_from_name
+    lda #VICE_LFN_FILE
+    sta vice_lfn
+    lda #VICE_SA_READ
+    sta vice_secondary
+    jsr vice_open_read_from_ptr
+    bcs read_file_response_vice_fail
+    lda #<response_buffer
+    sta PTR
+    lda #>response_buffer
+    sta PTR+1
+    lda #MAX_RESPONSE_LEN-1
+    jsr vice_read_open_file_into_ptr_len
+    php
+    jsr vice_close_current_file
+    plp
+    lda #<response_buffer
+    sta PTR
+    lda #>response_buffer
+    sta PTR+1
+    clc
+    rts
+read_file_response_vice_fail:
+    sec
+    rts
+
+query_program_file_vice:
+    jsr build_vice_open_path_from_name
+    lda #VICE_LFN_FILE
+    sta vice_lfn
+    lda #VICE_SA_READ
+    sta vice_secondary
+    jsr vice_open_read_from_ptr
+    bcs query_program_file_vice_missing
+    jsr vice_close_current_file
+    lda #RUN_STATUS_OK
+    clc
+    rts
+query_program_file_vice_missing:
+    lda #RUN_STATUS_NOFILE
+    sec
+    rts
+
+load_program_image_vice:
+    jsr build_vice_open_path_from_name
+    lda #VICE_LFN_FILE
+    sta vice_lfn
+    lda #VICE_SA_READ
+    sta vice_secondary
+    jsr vice_open_read_from_ptr
+    bcs load_program_image_vice_fail
+    lda #<program_image_buffer
+    sta PTR
+    lda #>program_image_buffer
+    sta PTR+1
+    lda #PROGRAM_IMAGE_MAX
+    jsr vice_read_open_file_into_ptr_len
+    php
+    jsr vice_close_current_file
+    plp
+    lda vice_read_length
+    sta program_image_len_lo
+    lda #$00
+    sta program_image_len_hi
+    jsr snapshot_program_image_length
+    lda #RUN_STATUS_OK
+    clc
+    rts
+load_program_image_vice_fail:
+    lda #RUN_STATUS_LOAD_FAILED
+    sec
+    rts
+
+fill_vice_dir_cache_current:
+    ldx temp_drive
+    lda mount_flag_table,x
+    cmp #MOUNT_FLAG_TREE
+    bne fill_vice_dir_cache_current_flat
+    jsr fill_vice_manifest_dir_cache_current
+    bcc fill_vice_dir_cache_current_done
+fill_vice_dir_cache_current_flat:
+    jsr build_vice_dir_open_path
+    lda #VICE_LFN_DIR
+    sta vice_lfn
+    lda #$00
+    sta vice_secondary
+    jsr vice_open_read_from_ptr
+    bcs fill_vice_dir_cache_current_fail
+    lda #<flat_sector_buffer
+    sta PTR
+    lda #>flat_sector_buffer
+    sta PTR+1
+    lda #255
+    jsr vice_read_open_file_into_ptr_len
+    php
+    jsr vice_close_current_file
+    plp
+    jsr select_hw_dir_tables
+    lda #$00
+    sta enum_count
+    sta vice_parse_index
+    ldx temp_drive
+    sta hw_dir_count_table,x
+    jsr parse_vice_dir_buffer_entries
+fill_vice_dir_cache_current_done:
+    clc
+    rts
+fill_vice_dir_cache_current_fail:
+    sec
+    rts
+
+fill_vice_manifest_dir_cache_current:
+    jsr build_vice_manifest_open_path
+    lda #VICE_LFN_FILE
+    sta vice_lfn
+    lda #VICE_SA_READ
+    sta vice_secondary
+    jsr vice_open_read_from_ptr
+    bcs fill_vice_manifest_dir_cache_current_fail
+    lda #<flat_dir_sector_buffer
+    sta PTR
+    lda #>flat_dir_sector_buffer
+    sta PTR+1
+    lda #255
+    jsr vice_read_open_file_into_ptr_len
+    php
+    jsr vice_close_current_file
+    plp
+    jsr select_hw_dir_tables
+    lda #$00
+    sta enum_count
+    ldx temp_drive
+    sta hw_dir_count_table,x
+    jsr parse_vice_manifest_buffer_entries
+    clc
+    rts
+fill_vice_manifest_dir_cache_current_fail:
+    sec
+    rts
+
+build_vice_manifest_open_path:
+    jsr select_backend_path_cache
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    jsr fill_backend_path_vice
+    ldy #$00
+build_vice_manifest_open_path_prefix:
+    lda (PTR),y
+    beq build_vice_manifest_open_path_suffix
+    sta source_fullpath_buffer,y
+    iny
+    cpy #FULL_PATH_BUF_LEN-18
+    bcc build_vice_manifest_open_path_prefix
+build_vice_manifest_open_path_suffix:
+    lda #ASCII_SLASH
+    sta source_fullpath_buffer,y
+    iny
+    lda #'U'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'D'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'O'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'S'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'D'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'I'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'R'
+    sta source_fullpath_buffer,y
+    iny
+    lda #ASCII_DOT
+    sta source_fullpath_buffer,y
+    iny
+    lda #'T'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'X'
+    sta source_fullpath_buffer,y
+    iny
+    lda #'T'
+    sta source_fullpath_buffer,y
+    iny
+    lda #ASCII_COMMA
+    sta source_fullpath_buffer,y
+    iny
+    lda #'S'
+    sta source_fullpath_buffer,y
+    iny
+    lda #ASCII_COMMA
+    sta source_fullpath_buffer,y
+    iny
+    lda #'R'
+    sta source_fullpath_buffer,y
+    iny
+    lda #$00
+    sta source_fullpath_buffer,y
+    lda #<source_fullpath_buffer
+    sta PTR
+    lda #>source_fullpath_buffer
+    sta PTR+1
+    rts
+
+parse_vice_manifest_buffer_entries:
+    lda #$00
+    sta saved_response_y
+parse_vice_manifest_buffer_entries_loop:
+    ldy saved_response_y
+    lda flat_dir_sector_buffer,y
+    beq parse_vice_manifest_buffer_entries_done
+    cmp #$0D
+    beq parse_vice_manifest_skip_char
+    cmp #$0A
+    beq parse_vice_manifest_skip_char
+    cmp #'D'
+    beq parse_vice_manifest_entry_dir
+    cmp #'F'
+    beq parse_vice_manifest_entry_file
+    jmp parse_vice_manifest_skip_line
+parse_vice_manifest_entry_dir:
+    lda #$01
+    bne parse_vice_manifest_entry_start
+parse_vice_manifest_entry_file:
+    lda #$00
+parse_vice_manifest_entry_start:
+    sta vice_dir_flag
+    inc saved_response_y
+parse_vice_manifest_skip_space:
+    ldy saved_response_y
+    lda flat_dir_sector_buffer,y
+    cmp #ASCII_SPACE
+    bne parse_vice_manifest_capture_init
+    inc saved_response_y
+    bne parse_vice_manifest_skip_space
+parse_vice_manifest_capture_init:
+    lda #$00
+    sta vice_name_len
+parse_vice_manifest_capture_loop:
+    ldy saved_response_y
+    lda flat_dir_sector_buffer,y
+    beq parse_vice_manifest_finalize
+    cmp #$0D
+    beq parse_vice_manifest_finalize
+    cmp #$0A
+    beq parse_vice_manifest_finalize
+    ldx vice_name_len
+    cpx #HW_DIR_NAME_MAX-1
+    bcs parse_vice_manifest_capture_advance
+    jsr normalize_output_char
+    sta vice_name_buffer,x
+    inx
+    stx vice_name_len
+parse_vice_manifest_capture_advance:
+    inc saved_response_y
+    bne parse_vice_manifest_capture_loop
+parse_vice_manifest_finalize:
+    ldx vice_name_len
+    lda #$00
+    sta vice_name_buffer,x
+    jsr store_vice_dir_entry_if_any
+parse_vice_manifest_skip_line:
+    ldy saved_response_y
+    lda flat_dir_sector_buffer,y
+    beq parse_vice_manifest_buffer_entries_done
+    cmp #$0D
+    beq parse_vice_manifest_skip_char
+    cmp #$0A
+    beq parse_vice_manifest_skip_char
+    inc saved_response_y
+    bne parse_vice_manifest_skip_line
+parse_vice_manifest_skip_char:
+    inc saved_response_y
+    jmp parse_vice_manifest_buffer_entries_loop
+parse_vice_manifest_buffer_entries_done:
+    rts
+
+vice_backup_screen_ram:
+    ldx #$00
+vice_backup_screen_ram_loop:
+    lda $0400,x
+    sta vice_screen_backup,x
+    lda $0500,x
+    sta vice_screen_backup+$100,x
+    lda $0600,x
+    sta vice_screen_backup+$200,x
+    lda $0700,x
+    sta vice_screen_backup+$300,x
+    inx
+    bne vice_backup_screen_ram_loop
+    rts
+
+vice_restore_screen_ram:
+    ldx #$00
+vice_restore_screen_ram_loop:
+    lda vice_screen_backup,x
+    sta $0400,x
+    lda vice_screen_backup+$100,x
+    sta $0500,x
+    lda vice_screen_backup+$200,x
+    sta $0600,x
+    lda vice_screen_backup+$300,x
+    sta $0700,x
+    inx
+    bne vice_restore_screen_ram_loop
+    rts
+
+parse_vice_dir_buffer_entries:
+    lda #$02
+    sta vice_parse_index
+parse_vice_dir_buffer_entries_loop:
+    ldy vice_parse_index
+    cpy vice_read_length
+    bcs parse_vice_dir_buffer_entries_done
+    lda flat_sector_buffer,y
+    beq parse_vice_dir_buffer_entries_done
+    sta vice_line_link_lo
+    iny
+    cpy vice_read_length
+    bcs parse_vice_dir_buffer_entries_done
+    lda flat_sector_buffer,y
+    sta vice_line_link_hi
+    iny
+    cpy vice_read_length
+    bcs parse_vice_dir_buffer_entries_done
+    lda flat_sector_buffer,y
+    sta vice_line_num_lo
+    iny
+    cpy vice_read_length
+    bcs parse_vice_dir_buffer_entries_done
+    lda flat_sector_buffer,y
+    sta vice_line_num_hi
+    iny
+    sty vice_parse_index
+    lda vice_line_num_lo
+    ora vice_line_num_hi
+    beq parse_vice_dir_skip_line
+    lda #$00
+    sta vice_name_len
+    sta vice_dir_flag
+parse_vice_dir_line_loop:
+    ldy vice_parse_index
+    cpy vice_read_length
+    bcs parse_vice_dir_buffer_entries_done
+    lda flat_sector_buffer,y
+    beq parse_vice_dir_finalize_line
+    cmp #'"'
+    bne parse_vice_dir_line_next
+    jsr parse_vice_dir_capture_name
+    jmp parse_vice_dir_line_loop
+parse_vice_dir_line_next:
+    inc vice_parse_index
+    bne parse_vice_dir_line_loop
+parse_vice_dir_finalize_line:
+    jsr store_vice_dir_entry_if_any
+parse_vice_dir_skip_line:
+parse_vice_dir_skip_line_loop:
+    ldy vice_parse_index
+    cpy vice_read_length
+    bcs parse_vice_dir_buffer_entries_done
+    lda flat_sector_buffer,y
+    inc vice_parse_index
+    bne :+
+:
+    beq parse_vice_dir_buffer_entries_loop
+    jmp parse_vice_dir_skip_line_loop
+parse_vice_dir_buffer_entries_done:
+    rts
+
+parse_vice_dir_capture_name:
+    inc vice_parse_index
+    lda #$00
+    sta vice_name_len
+parse_vice_dir_capture_name_loop:
+    ldy vice_parse_index
+    cpy vice_read_length
+    bcs parse_vice_dir_capture_name_done
+    lda flat_sector_buffer,y
+    cmp #'"'
+    beq parse_vice_dir_capture_name_done
+    ldx vice_name_len
+    cpx #HW_DIR_NAME_MAX-1
+    bcs parse_vice_dir_capture_name_advance
+    jsr normalize_output_char
+    sta vice_name_buffer,x
+    inx
+    stx vice_name_len
+parse_vice_dir_capture_name_advance:
+    inc vice_parse_index
+    bne parse_vice_dir_capture_name_loop
+parse_vice_dir_capture_name_done:
+    ldx vice_name_len
+    lda #$00
+    sta vice_name_buffer,x
+    inc vice_parse_index
+    ldy vice_parse_index
+    cpy vice_read_length
+    bcs parse_vice_dir_capture_name_end
+    lda flat_sector_buffer,y
+    cmp #' '
+    beq parse_vice_dir_capture_name_scan
+parse_vice_dir_capture_name_scan:
+    lda vice_parse_index
+    sta saved_response_y
+parse_vice_dir_capture_name_scan_loop:
+    ldy saved_response_y
+    cpy vice_read_length
+    bcs parse_vice_dir_capture_name_end
+    lda flat_sector_buffer,y
+    beq parse_vice_dir_capture_name_end
+    jsr normalize_output_char
+    cmp #'D'
+    bne parse_vice_dir_capture_name_next
+    iny
+    cpy vice_read_length
+    bcs parse_vice_dir_capture_name_end
+    lda flat_sector_buffer,y
+    jsr normalize_output_char
+    cmp #'I'
+    bne parse_vice_dir_capture_name_next
+    iny
+    cpy vice_read_length
+    bcs parse_vice_dir_capture_name_end
+    lda flat_sector_buffer,y
+    jsr normalize_output_char
+    cmp #'R'
+    bne parse_vice_dir_capture_name_next
+    lda #$01
+    sta vice_dir_flag
+    jmp parse_vice_dir_capture_name_end
+parse_vice_dir_capture_name_next:
+    inc saved_response_y
+    bne parse_vice_dir_capture_name_scan_loop
+parse_vice_dir_capture_name_end:
+    rts
+
+store_vice_dir_entry_if_any:
+    lda vice_name_len
+    beq store_vice_dir_entry_if_any_done
+    lda enum_count
+    cmp #HW_DIR_CACHE_MAX
+    bcs store_vice_dir_entry_if_any_done
+    jsr store_vice_dir_entry_name
+    inc enum_count
+    ldx temp_drive
+    lda enum_count
+    sta hw_dir_count_table,x
+store_vice_dir_entry_if_any_done:
+    rts
+
+store_vice_dir_entry_name:
+    jsr select_hw_dir_tables
+    jsr select_hw_dir_name_slot
+    ldy enum_count
+    lda PTR
+    sta (SCREEN_PTR),y
+    lda PTR+1
+    pha
+    lda SCREEN_PTR
+    clc
+    adc #HW_DIR_CACHE_MAX
+    sta SCREEN_PTR
+    bcc :+
+    inc SCREEN_PTR+1
+:
+    pla
+    sta (SCREEN_PTR),y
+    jsr restore_hw_dir_entry_lo_table
+    ldy #$00
+store_vice_dir_entry_name_copy:
+    lda vice_name_buffer,y
+    beq store_vice_dir_entry_name_finish
+    sta (PTR),y
+    iny
+    cpy #HW_DIR_NAME_MAX-1
+    bcc store_vice_dir_entry_name_copy
+store_vice_dir_entry_name_finish:
+    lda vice_dir_flag
+    beq store_vice_dir_entry_name_term
+    lda #ASCII_SLASH
+    sta (PTR),y
+    iny
+store_vice_dir_entry_name_term:
+    lda #$00
+    sta (PTR),y
     rts
 
 build_uci_target_header:
@@ -2524,17 +3490,22 @@ copy_source_classify:
     lda temp_dir_id
     sta source_dir_id
     lda wildcard_mode
-    bne copy_source_wild
+    beq :+
+    jmp copy_source_wild
+:
     jsr copy_path_name_to_source_buffer
 copy_source_hw:
     jsr uci_probe
-    bcc :+
+    bcc copy_source_hw_uci
     jmp copy_source_lookup
-:
+
+copy_source_hw_uci:
     jsr load_copy_dest_arg
     jsr resolve_copy_dest
     cmp #PATH_STATUS_OK
-    beq copy_hw_target_ready
+    bne :+
+    jmp copy_hw_target_ready
+:
     cmp #PATH_STATUS_FLAT
     bne copy_hw_not_flat
     jmp copy_build_flat
@@ -2556,9 +3527,10 @@ copy_hw_not_bad:
 copy_source_wild:
     jsr copy_path_name_to_program_target
     jsr uci_probe
-    bcc :+
+    bcc copy_source_wild_hw_uci
     jmp copy_source_wild_lookup
-:
+
+copy_source_wild_hw_uci:
     jsr load_copy_dest_arg
     jsr resolve_arg_target
     cmp #PATH_STATUS_OK
@@ -3119,7 +4091,17 @@ program_status_unmounted:
     jmp program_status_return
 program_lookup:
     jsr uci_probe
+    bcc program_lookup_hw
+    jsr vice_should_use_mock_work_overlay
     bcs program_lookup_mock
+    jsr query_program_file_vice
+    bcc :+
+    jmp program_status_return
+:
+    jsr load_program_image_vice
+    bcc program_ready
+    jmp program_status_return
+program_lookup_hw:
     jsr query_program_file_hw
     bcc :+
     jmp program_status_return
@@ -4023,9 +5005,16 @@ type_build_unmounted:
     rts
 type_build_hw:
     jsr uci_probe
+    bcc type_build_uci
+    jsr vice_should_use_mock_work_overlay
     bcs type_build_lookup
+    jsr read_file_response_vice
+    bcc type_build_found
+    jmp type_build_lookup
+type_build_uci:
     jsr read_file_response_hw
     bcc type_build_found
+    jmp type_build_lookup
 type_build_lookup:
     jsr lookup_file_content
     bcc type_build_found
@@ -4544,7 +5533,7 @@ append_flat_dest_chunk_hw_have_sector:
     bcs append_flat_dest_chunk_hw_fail
 append_flat_dest_chunk_hw_store:
     ldx flat_dst_fill
-    lda response_buffer,y
+    lda flat_dir_sector_buffer,y
     sta flat_sector_buffer+2,x
     inx
     stx flat_dst_fill
@@ -7211,26 +8200,34 @@ append_dir_work:
     jmp append_ptr_to_response
 
 fs_enum_begin_current:
-    sty saved_response_y
+    sty saved_enum_y
     lda #$00
     sta enum_index
     jsr uci_probe
-    bcs fs_enum_begin_current_mock
+    bcc fs_enum_begin_current_hw
+    jsr vice_should_use_mock_work_overlay
+    bcc fs_enum_begin_current_vice
+    jmp fs_enum_begin_current_mock
+fs_enum_begin_current_hw:
     jsr fill_hw_dir_cache_current
+    bcc fs_enum_begin_current_done
+    jmp fs_enum_begin_current_mock
+fs_enum_begin_current_vice:
+    jsr fill_vice_dir_cache_current
     bcc fs_enum_begin_current_done
 fs_enum_begin_current_mock:
     jsr select_enum_table
 fs_enum_begin_current_done:
-    ldy saved_response_y
+    ldy saved_enum_y
     rts
 
 fs_enum_next_ptr:
-    sty saved_response_y
+    sty saved_enum_y
     lda enum_index
     cmp enum_count
     bcc :+
     sec
-    ldy saved_response_y
+    ldy saved_enum_y
     rts
 :
     tay
@@ -7248,7 +8245,7 @@ fs_enum_next_ptr:
     sta PTR+1
     inc enum_index
     clc
-    ldy saved_response_y
+    ldy saved_enum_y
     rts
 
 select_enum_table:
@@ -8677,6 +9674,8 @@ build_ver_done:
     lda TRANSPORT_SNAPSHOT
     cmp #TRANSPORT_MODE_UCI_HW
     beq build_ver_hw
+    cmp #TRANSPORT_MODE_VICE_FS
+    beq build_ver_vice
     cmp #TRANSPORT_MODE_MOCK
     beq build_ver_mock
     lda #$20
@@ -8692,6 +9691,25 @@ build_ver_done:
     sta response_buffer,y
     iny
     lda #$05
+    sta response_buffer,y
+    iny
+    lda #$00
+    sta response_buffer,y
+    jmp build_ver_return
+build_ver_vice:
+    lda #$20
+    sta response_buffer,y
+    iny
+    lda #CMD_V
+    sta response_buffer,y
+    iny
+    lda #CMD_I
+    sta response_buffer,y
+    iny
+    lda #CMD_C
+    sta response_buffer,y
+    iny
+    lda #CMD_E
     sta response_buffer,y
     iny
     lda #$00
@@ -9000,6 +10018,8 @@ temp_mount_kind:
     .byte MOUNT_KIND_NONE
 saved_response_y:
     .byte 0
+saved_enum_y:
+    .byte 0
 enum_lo_ptr_lo:
     .byte 0
 enum_lo_ptr_hi:
@@ -9248,6 +10268,36 @@ flat_bam_secondary_buffer:
     .res 256
 flat_sector_buffer:
     .res 256
+vice_screen_backup:
+    .res 1024
+vice_name_buffer:
+    .res HW_DIR_NAME_STRIDE
+vice_lfn:
+    .res 1
+vice_secondary:
+    .res 1
+vice_read_limit:
+    .res 1
+vice_read_length:
+    .res 1
+vice_name_index:
+    .res 1
+vice_path_len:
+    .res 1
+vice_parse_index:
+    .res 1
+vice_name_len:
+    .res 1
+vice_dir_flag:
+    .res 1
+vice_line_link_lo:
+    .res 1
+vice_line_link_hi:
+    .res 1
+vice_line_num_lo:
+    .res 1
+vice_line_num_hi:
+    .res 1
 
 header_text:
     .byte "UDOS FOR COMMODORE 64", 0
@@ -9513,6 +10563,8 @@ resp_program_too_large:
     .byte "PROGRAM TOO LARGE", 0
 resp_program_load_failed:
     .byte "PROGRAM LOAD FAILED", 0
+vice_probe_name:
+    .byte "$", 0
 resp_bad_mount:
     .byte "BAD MOUNT", 0
 resp_bad_run:

@@ -238,6 +238,7 @@ def launch_vice(
     *,
     keybuf: str | None = None,
     keybuf_delay: int | None = None,
+    extra_args: list[str] | None = None,
 ) -> subprocess.Popen[str]:
     cmd = [
         str(locate_x64sc()),
@@ -256,6 +257,8 @@ def launch_vice(
         cmd.extend(["-keybuf", decode_escapes(keybuf)])
     if keybuf_delay is not None:
         cmd.extend(["-keybuf-delay", str(keybuf_delay)])
+    if extra_args:
+        cmd.extend(extra_args)
     return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
 
@@ -311,6 +314,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--feed-text", help="optional text to feed through the VICE binary monitor after startup")
     parser.add_argument("--labels", help="optional ld65 labels file for scripted resident input injection")
     parser.add_argument("--script-line", action="append", default=[], help="scripted input line to inject through UDOS script mode")
+    parser.add_argument("--vice-arg", action="append", default=[], help="extra raw argument to pass through to x64sc")
     parser.add_argument("--timeout", type=float, default=25.0, help="seconds to wait for the banner")
     args = parser.parse_args(argv)
 
@@ -319,7 +323,13 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"disk image not found: {image}")
 
     port = reserve_tcp_port()
-    process = launch_vice(image, port, keybuf=args.keybuf, keybuf_delay=args.keybuf_delay)
+    process = launch_vice(
+        image,
+        port,
+        keybuf=args.keybuf,
+        keybuf_delay=args.keybuf_delay,
+        extra_args=args.vice_arg,
+    )
     client = BinaryMonitorClient("127.0.0.1", port, timeout=5.0)
     try:
         client.connect(time.monotonic() + 20.0)
