@@ -70,11 +70,17 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `MEM`
   - `DIR`
   - `CD`
+  - `MD`
+  - `RD`
   - `MOUNT`
   - `TYPE`
   - `COPY`
   - `REN`
   - `DEL`
+- added a VICE tree directory mutation path for `DNP`-style mounts
+  - `MD` now creates tree directories on the VICE backend
+  - `RD` now removes empty tree directories on the VICE backend
+  - `RD` now rejects non-empty tree directories on the VICE backend
 - added a first resident program ABI slice for implicit program launch:
   - prepare program handoff
   - expose resolved target pointer
@@ -116,8 +122,8 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
 - linked resident entrypoint: `$1810`
 - command keywords now require a separator before arguments
 - direct drive tokens now work on the resident path:
-  - `A:` -> switch to logical drive `A:`
-  - `B:` -> switch to logical drive `B:`
+  - `A:` -> switch to logical drive `A:` without resetting `A:`'s current directory
+  - `B:` -> switch to logical drive `B:` without resetting `B:`'s current directory
   - `C:` / `D:` -> explicit `DRIVE NOT PRESENT`
 - bare non-keyword input now implies program launch:
   - `DEL BOOT3.PRG` -> delete `BOOT3.PRG`
@@ -232,6 +238,16 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `B:DNP/WORK BOOT.ASM HELLO.PRG`
   - `B:DNP/SRC> DEL *.PRG`
   - `B:DNP/SRC BOOT.ASM`
+- separate VICE-validated real tree directory smoke:
+  - `B:DNP/> MD NEW`
+  - `CREATED`
+  - `B:DNP/> CD NEW`
+  - `B:DNP/NEW`
+  - `B:DNP/> RD NEW`
+  - `REMOVED`
+- separate VICE-validated real tree remove-directory guard smoke:
+  - `B:DNP/> RD SRC`
+  - `DIR NOT EMPTY`
 - separate VICE-validated wildcard copy smoke:
   - `B:DNP/SRC> COPY *.* WORK`
   - `B:DNP/WORK BOOT.ASM HELLO.PRG`
@@ -260,9 +276,9 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
 - resident `MEM` now reports:
-  - `RAM USED 28459 FREE 37076 REU USED 0 FREE 16777216`
-- resident core code footprint: `$6F2B`
-- resident load window in `udos_c64.cfg`: `$7800`
+  - `RAM USED 30481 FREE 35054 REU USED 0 FREE 16777216`
+- resident core code footprint: `$7731`
+- resident load window in `udos_c64.cfg`: `$9000`
 
 ## What Works
 

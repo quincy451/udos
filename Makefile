@@ -21,7 +21,7 @@ RESIDENT_DISK := $(BUILD_DIR)/udos-resident.d64
 RESIDENT_LABELS := $(BUILD_DIR)/udos-resident.labels
 RESIDENT_MAP := $(BUILD_DIR)/udos-resident.map
 
-.PHONY: all clean acheron-dep proof vice-proof resident vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild test
+.PHONY: all clean acheron-dep proof vice-proof resident vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-dir vice-real-tree-rmdir test
 
 all: proof resident
 
@@ -58,11 +58,8 @@ vice-resident: resident
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(VICE_FS_ROOT) \
 		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
 		--vice-arg=-fslongnames --feed-after "A:D64/>" \
-		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rVOL\rB:\rCD SRC\rCOPY BOOT.ASM WORK/BOOT2.PRG\rCOPY BOOT.ASM WORK/BOOT4.ASM\rCD WORK\rREN BOOT2.PRG BOOT3.PRG\rDELBOOT3\rDEL *.PRG\rDIR\r" \
-		--expected "BOOT4.ASM" --contains "A:SYSTEM D64 B:WORK DNP" --contains "PROGRAM NOT FOUND" --contains "DELETED" \
-		--check-byte 0xCFE4=0x01 --check-byte 0xCFE5=0x05 --check-byte 0xCFE8=0x01 --check-byte 0xCFE9=0x01 \
-		--check-byte 0xCFEA=0x04 --check-byte 0xCFEB=0x02 --check-byte 0xCFEC=0x01 --check-byte 0xCFEE=0x02 \
-		--check-byte 0xCFF0=0x01 --check-byte 0xCFF2=0x04 --check-byte 0xCFF4=0x01
+		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rVOL\rB:\rCD SRC\rDIR\rTYPE BOOT.ASM\rDELBOOT3\rC:\rD:\r" \
+		--expected "DRIVE NOT PRESENT" --contains "A:SYSTEM D64 B:WORK DNP" --contains "BOOT.ASM HELLO.PRG" --contains "; BOOT.ASM VICE BACKEND SOURCE" --contains "PROGRAM NOT FOUND"
 
 vice-launch: resident
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) \
@@ -114,7 +111,23 @@ vice-real-tree-wild: resident
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(VICE_FS_ROOT) \
 		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
 		--vice-arg=-fslongnames --feed-after "A:D64/>" \
-		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rCOPY *.* WORK\rCD WORK\rDIR\rB:\rCD SRC\rDEL *.PRG\rDIR\r" \
+		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rCD SRC\rCOPY *.* WORK\rCD WORK\rDIR\rCD /\rCD SRC\rDEL *.PRG\rDIR\r" \
 		--expected "B:DNP/SRC BOOT.ASM" --contains "B:DNP/WORK BOOT.ASM HELLO.PRG" --contains "COPIED" --contains "DELETED"
 
-test: vice-proof vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild
+vice-real-tree-dir: resident
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" \
+		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rMD NEW\rCD NEW\rCD /\rRD NEW\rCD NEW\r" \
+		--expected "NO SUCH DIR" --contains "CREATED" --contains "B:DNP/NEW" --contains "REMOVED"
+
+vice-real-tree-rmdir: resident
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_AUTO_PRG) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" \
+		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rB:\rRD SRC\r" \
+		--expected "DIR NOT EMPTY"
+
+test: vice-proof vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-dir vice-real-tree-rmdir

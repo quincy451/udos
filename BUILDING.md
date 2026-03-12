@@ -174,13 +174,17 @@ Separate VICE smoke targets:
   - validates host-backed VICE tree `REN`
 - `make vice-real-tree-wild`
   - validates VICE tree wildcard `COPY` and `DEL`
+- `make vice-real-tree-dir`
+  - validates VICE tree `MD`, `CD`, and empty-directory `RD`
+- `make vice-real-tree-rmdir`
+  - validates VICE tree non-empty `RD` rejection
 
 Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$6F2B`
-- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$7800`
+- resident core code: `$7731`
+- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$9000`
 - hardware directory cache budget:
   - `6` entries per drive
   - `20` bytes per cached name

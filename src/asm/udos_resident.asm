@@ -125,7 +125,7 @@ SHELL_CMD_NONE = 0
 SHELL_CMD_HELP = 1
 SHELL_CMD_VER = 2
 SHELL_CMD_VOL = 3
-SHELL_CMD_MEM = 4
+SHELL_CMD_MEM = 17
 SHELL_CMD_QUIT = 5
 SHELL_CMD_DIR = 6
 SHELL_CMD_CD = 7
@@ -134,14 +134,17 @@ SHELL_CMD_TYPE = 9
 SHELL_CMD_COPY = 10
 SHELL_CMD_REN = 11
 SHELL_CMD_DEL = 12
-SHELL_CMD_RUN = 13
-SHELL_CMD_DRIVE_ERR = 14
+SHELL_CMD_MD = 13
+SHELL_CMD_RD = 14
+SHELL_CMD_RUN = 15
+SHELL_CMD_DRIVE_ERR = 16
 INPUT_MODE_KEYBOARD = 0
 INPUT_MODE_SCRIPT = 1
 DIR_ID_ROOT = 0
 DIR_ID_BIN = 1
 DIR_ID_SRC = 2
 DIR_ID_WORK = 3
+DIR_ID_DYNAMIC_BASE = 4
 PATH_STATUS_OK = 0
 PATH_STATUS_FLAT = 1
 PATH_STATUS_BAD = 2
@@ -167,6 +170,11 @@ FLAT_READ_FAIL = 1
 FLAT_READ_TOO_LARGE = 2
 RENAME_STATUS_FAILED = 0
 RENAME_STATUS_EXISTS = 1
+DIR_MUTATE_OK = 0
+DIR_MUTATE_EXISTS = 1
+DIR_MUTATE_FAIL = 2
+DIR_MUTATE_NOTEMPTY = 3
+DIR_MUTATE_BUSY = 4
 RUN_STATUS_OK = 0
 RUN_STATUS_BAD = 1
 RUN_STATUS_FLAT = 2
@@ -185,6 +193,11 @@ VICE_TREE_SLOT_EMPTY = 0
 VICE_TREE_SLOT_LIVE = 1
 VICE_TREE_SLOT_TOMBSTONE = 2
 VICE_TREE_SLOT_LIVE_HIDE = 3
+VICE_DIR_DYNAMIC_MAX = 6
+VICE_DIR_SLOT_EMPTY = 0
+VICE_DIR_SLOT_LIVE = 1
+VICE_DIR_SLOT_TOMBSTONE = 2
+DIR_WALK_MAX = VICE_DIR_DYNAMIC_MAX + 4
 DOS_TARGET_A = 1
 DOS_TARGET_B = 2
 DOS_CMD_OPEN_FILE = $02
@@ -328,6 +341,8 @@ shell_loop:
     case8 SHELL_CMD_NONE, shell_loop
     case8 SHELL_CMD_RUN, cmd_run_program
     case8 SHELL_CMD_DRIVE_ERR, cmd_emit_response
+    case8 SHELL_CMD_MD, cmd_emit_response
+    case8 SHELL_CMD_RD, cmd_emit_response
     case8 SHELL_CMD_MOUNT, cmd_emit_response
     case8 SHELL_CMD_COPY, cmd_emit_response
     case8 SHELL_CMD_REN, cmd_emit_response
@@ -338,7 +353,7 @@ shell_loop:
     case8 SHELL_CMD_HELP, cmd_emit_response
     case8 SHELL_CMD_VER, cmd_emit_response
     case8 SHELL_CMD_VOL, cmd_emit_response
-    case8 SHELL_CMD_MEM, cmd_emit_response
+    case8 SHELL_CMD_MEM, cmd_emit_mem_native
     setp16 resp_unknown
     calln svc_console_write_sc0
     calln svc_console_newline
@@ -350,6 +365,12 @@ cmd_emit_response:
     calln svc_shell_response_ptr
     calln svc_console_write_sc0
     calln svc_console_newline
+    jump shell_loop
+
+cmd_emit_mem_native:
+    setp8 $11
+    stma STAGE_SNAPSHOT
+    calln svc_emit_mem_response
     jump shell_loop
 
 cmd_run_program:
@@ -663,6 +684,7 @@ install_mounted_image:
     ldy temp_drive
     sta volume_ptr_hi,y
     jsr clear_dynamic_work_drive
+    jsr clear_vice_dir_drive
     jsr clear_vice_tree_drive
     rts
 
@@ -997,6 +1019,156 @@ fill_backend_path_mock_done:
     clc
     rts
 
+advance_ptr_by_a:
+    clc
+    adc PTR
+    sta PTR
+    bcc :+
+    inc PTR+1
+:
+    rts
+
+advance_ptr_by_y:
+    tya
+    jmp advance_ptr_by_a
+
+copy_screen_ptr_string_to_current_ptr:
+    ldy #$00
+copy_screen_ptr_string_to_current_ptr_loop:
+    lda (SCREEN_PTR),y
+    beq copy_screen_ptr_string_to_current_ptr_done
+    sta (PTR),y
+    iny
+    cpy #HW_DIR_NAME_MAX
+    bcc copy_screen_ptr_string_to_current_ptr_loop
+copy_screen_ptr_string_to_current_ptr_done:
+    lda #$00
+    sta (PTR),y
+    rts
+
+get_dir_parent_for_a:
+    cmp #DIR_ID_BIN
+    beq get_dir_parent_root
+    cmp #DIR_ID_SRC
+    beq get_dir_parent_root
+    cmp #DIR_ID_WORK
+    beq get_dir_parent_root
+    cmp #DIR_ID_DYNAMIC_BASE
+    bcc get_dir_parent_root
+    sec
+    sbc #DIR_ID_DYNAMIC_BASE
+    sta file_index
+    jsr load_vice_dir_parent_for_index
+    rts
+get_dir_parent_root:
+    lda #DIR_ID_ROOT
+    rts
+
+select_dir_name_ptr_for_a:
+    cmp #DIR_ID_BIN
+    beq select_dir_name_ptr_bin
+    cmp #DIR_ID_SRC
+    beq select_dir_name_ptr_src
+    cmp #DIR_ID_WORK
+    beq select_dir_name_ptr_work
+    pha
+    sec
+    sbc #DIR_ID_DYNAMIC_BASE
+    sta file_index
+    jsr select_vice_dir_name_slot_to_screen_ptr
+    pla
+    rts
+select_dir_name_ptr_bin:
+    lda #<dir_name_bin
+    sta SCREEN_PTR
+    lda #>dir_name_bin
+    sta SCREEN_PTR+1
+    rts
+select_dir_name_ptr_src:
+    lda #<dir_name_src
+    sta SCREEN_PTR
+    lda #>dir_name_src
+    sta SCREEN_PTR+1
+    rts
+select_dir_name_ptr_work:
+    lda #<dir_name_work
+    sta SCREEN_PTR
+    lda #>dir_name_work
+    sta SCREEN_PTR+1
+    rts
+
+build_dir_walk_from_temp_dir:
+    lda #$00
+    sta dir_walk_count
+    lda temp_dir_id
+    sta dir_walk_id
+build_dir_walk_from_temp_dir_loop:
+    lda dir_walk_id
+    beq build_dir_walk_from_temp_dir_done
+    ldx dir_walk_count
+    cpx #DIR_WALK_MAX
+    bcs build_dir_walk_from_temp_dir_done
+    sta dir_walk_ids,x
+    inx
+    stx dir_walk_count
+    lda dir_walk_id
+    jsr get_dir_parent_for_a
+    sta dir_walk_id
+    jmp build_dir_walk_from_temp_dir_loop
+build_dir_walk_from_temp_dir_done:
+    rts
+
+append_tree_tail_to_current_ptr:
+    lda temp_dir_id
+    bne :+
+    ldy #$00
+    rts
+:
+    lda PTR
+    pha
+    lda PTR+1
+    pha
+    jsr build_dir_walk_from_temp_dir
+    pla
+    sta PTR+1
+    pla
+    sta PTR
+    ldx dir_walk_count
+    beq append_tree_tail_to_current_ptr_empty
+    dex
+    lda #$00
+    sta dir_walk_bytes
+append_tree_tail_to_current_ptr_loop:
+    txa
+    pha
+    lda dir_walk_ids,x
+    jsr select_dir_name_ptr_for_a
+    pla
+    tax
+    jsr copy_screen_ptr_string_to_current_ptr
+    sty saved_response_y
+    jsr advance_ptr_by_y
+    lda dir_walk_bytes
+    clc
+    adc saved_response_y
+    sta dir_walk_bytes
+    cpx #$00
+    beq append_tree_tail_to_current_ptr_done
+    ldy #$00
+    lda #ASCII_SLASH
+    sta (PTR),y
+    iny
+    jsr advance_ptr_by_y
+    inc dir_walk_bytes
+    dex
+    jmp append_tree_tail_to_current_ptr_loop
+append_tree_tail_to_current_ptr_done:
+    ldy dir_walk_bytes
+    rts
+append_tree_tail_to_current_ptr_empty:
+    ldy #$00
+    rts
+
 fill_backend_path_vice:
     jsr select_mount_path_buffer
     ldy #$00
@@ -1022,52 +1194,20 @@ fill_backend_path_vice_mount_done:
     lda temp_dir_id
     beq fill_backend_path_vice_done
     jsr ensure_backend_path_vice_slash
-    lda temp_dir_id
-    cmp #DIR_ID_BIN
-    beq fill_backend_path_vice_bin
-    cmp #DIR_ID_SRC
-    beq fill_backend_path_vice_src
-    cmp #DIR_ID_WORK
-    beq fill_backend_path_vice_work
-    jmp fill_backend_path_vice_done
-fill_backend_path_vice_bin:
-    lda #'B'
-    sta (PTR),y
-    iny
-    lda #'I'
-    sta (PTR),y
-    iny
-    lda #'N'
-    sta (PTR),y
-    iny
-    jmp fill_backend_path_vice_done
-fill_backend_path_vice_src:
-    lda #'S'
-    sta (PTR),y
-    iny
-    lda #'R'
-    sta (PTR),y
-    iny
-    lda #'C'
-    sta (PTR),y
-    iny
-    jmp fill_backend_path_vice_done
-fill_backend_path_vice_work:
-    lda #'W'
-    sta (PTR),y
-    iny
-    lda #'O'
-    sta (PTR),y
-    iny
-    lda #'R'
-    sta (PTR),y
-    iny
-    lda #'K'
-    sta (PTR),y
-    iny
+    tya
+    jsr advance_ptr_by_a
+    jsr append_tree_tail_to_current_ptr
+    tya
+    jsr advance_ptr_by_a
+    ldy #$00
 fill_backend_path_vice_done:
     lda #$00
     sta (PTR),y
+    jsr select_backend_path_cache
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
     clc
     rts
 
@@ -1256,6 +1396,10 @@ build_vice_open_path_from_name:
     lda PTR+1
     sta SCREEN_PTR+1
     jsr fill_backend_path_vice
+    lda SCREEN_PTR
+    sta PTR
+    lda SCREEN_PTR+1
+    sta PTR+1
     ldy #$00
 build_vice_open_path_prefix:
     lda (PTR),y
@@ -1324,6 +1468,10 @@ build_vice_manifest_full_path:
     lda PTR+1
     sta SCREEN_PTR+1
     jsr fill_backend_path_vice
+    lda SCREEN_PTR
+    sta PTR
+    lda SCREEN_PTR+1
+    sta PTR+1
     ldy #$00
 build_vice_manifest_full_path_prefix:
     lda (PTR),y
@@ -1388,6 +1536,10 @@ build_vice_full_path_from_screen_ptr:
     lda PTR+1
     sta SCREEN_PTR+1
     jsr fill_backend_path_vice
+    lda SCREEN_PTR
+    sta PTR
+    lda SCREEN_PTR+1
+    sta PTR+1
     lda matched_name_lo
     sta SCREEN_PTR
     lda matched_name_hi
@@ -1433,6 +1585,10 @@ build_vice_dir_open_path:
     lda PTR+1
     sta SCREEN_PTR+1
     jsr fill_backend_path_vice
+    lda SCREEN_PTR
+    sta PTR
+    lda SCREEN_PTR+1
+    sta PTR+1
     lda #'$'
     sta source_fullpath_buffer
     lda #ASCII_COLON
@@ -1691,12 +1847,16 @@ fill_vice_dir_cache_current_fail:
 
 fill_vice_manifest_dir_cache_current:
     jsr fill_vice_manifest_dir_cache_host_current
-    bcs fill_vice_manifest_dir_cache_current_fail
+    bcc fill_vice_manifest_dir_cache_current_host_ok
+    jsr select_hw_dir_tables
+    lda #$00
+    sta enum_count
+    ldx temp_drive
+    sta hw_dir_count_table,x
+fill_vice_manifest_dir_cache_current_host_ok:
+    jsr apply_vice_dir_overlay_current_to_hw_cache
     jsr apply_vice_tree_overlay_current_to_hw_cache
     clc
-    rts
-fill_vice_manifest_dir_cache_current_fail:
-    sec
     rts
 
 fill_vice_manifest_dir_cache_host_current:
@@ -1735,6 +1895,10 @@ build_vice_manifest_open_path:
     lda PTR+1
     sta SCREEN_PTR+1
     jsr fill_backend_path_vice
+    lda SCREEN_PTR
+    sta PTR
+    lda SCREEN_PTR+1
+    sta PTR+1
     ldy #$00
 build_vice_manifest_open_path_prefix:
     lda (PTR),y
@@ -2192,6 +2356,38 @@ find_hw_dir_cache_matching_path_name_hit:
     clc
     rts
 
+find_hw_dir_cache_matching_dir_path_name:
+    jsr select_hw_dir_tables
+    lda #$00
+    sta file_index
+find_hw_dir_cache_matching_dir_path_name_loop:
+    lda file_index
+    cmp enum_count
+    bcs find_hw_dir_cache_matching_dir_path_name_fail
+    tay
+    lda enum_lo_ptr_lo
+    sta SCREEN_PTR
+    lda enum_lo_ptr_hi
+    sta SCREEN_PTR+1
+    lda (SCREEN_PTR),y
+    sta PTR
+    lda enum_hi_ptr_lo
+    sta SCREEN_PTR
+    lda enum_hi_ptr_hi
+    sta SCREEN_PTR+1
+    lda (SCREEN_PTR),y
+    sta PTR+1
+    jsr compare_dir_ptr_to_path_name
+    bcc find_hw_dir_cache_matching_dir_path_name_hit
+    inc file_index
+    bne find_hw_dir_cache_matching_dir_path_name_loop
+find_hw_dir_cache_matching_dir_path_name_fail:
+    sec
+    rts
+find_hw_dir_cache_matching_dir_path_name_hit:
+    clc
+    rts
+
 remove_hw_dir_cache_current_index:
     lda file_index
     cmp enum_count
@@ -2230,6 +2426,42 @@ remove_hw_dir_cache_current_index_done:
 append_ptr_to_hw_dir_cache_current:
     jsr copy_ptr_to_vice_name_buffer
     jsr store_vice_dir_entry_if_any
+    rts
+
+apply_vice_dir_overlay_current_to_hw_cache:
+    lda #$00
+    sta file_count
+apply_vice_dir_overlay_current_to_hw_cache_loop:
+    lda file_count
+    cmp #VICE_DIR_DYNAMIC_MAX
+    bcs apply_vice_dir_overlay_current_to_hw_cache_done
+    sta file_index
+    jsr load_vice_dir_state_for_index
+    beq apply_vice_dir_overlay_current_to_hw_cache_next
+    sta vice_dir_state_temp
+    jsr load_vice_dir_parent_for_index
+    cmp temp_dir_id
+    bne apply_vice_dir_overlay_current_to_hw_cache_next
+    jsr select_vice_dir_name_slot
+    jsr copy_ptr_name_to_path_buffer
+    jsr find_hw_dir_cache_matching_dir_path_name
+    bcs :+
+    jsr remove_hw_dir_cache_current_index
+:
+    lda vice_dir_state_temp
+    cmp #VICE_DIR_SLOT_TOMBSTONE
+    beq apply_vice_dir_overlay_current_to_hw_cache_next
+    lda file_count
+    sta file_index
+    jsr select_vice_dir_name_slot
+    jsr copy_ptr_to_vice_name_buffer
+    lda #$01
+    sta vice_dir_flag
+    jsr store_vice_dir_entry_if_any
+apply_vice_dir_overlay_current_to_hw_cache_next:
+    inc file_count
+    bne apply_vice_dir_overlay_current_to_hw_cache_loop
+apply_vice_dir_overlay_current_to_hw_cache_done:
     rts
 
 apply_vice_tree_overlay_current_to_hw_cache:
@@ -2643,6 +2875,7 @@ svc_console_write_sc0:
     sta PTR
     lda 1,x
     sta PTR+1
+svc_console_write_ptr:
     ldy #$00
 write_loop:
     lda (PTR),y
@@ -2656,6 +2889,11 @@ write_done:
 svc_console_write_prompt:
     jsr build_prompt_response
     jmp svc_console_write_sc0
+
+svc_emit_mem_response:
+    jsr build_mem_response
+    jsr svc_console_write_sc0
+    jmp svc_console_newline
 
 svc_line_read:
     lda input_mode
@@ -2766,6 +3004,10 @@ svc_shell_response_ptr:
     lda 0,x
     cmp #SHELL_CMD_HELP
     beq shell_resp_help
+    cmp #SHELL_CMD_MD
+    beq shell_resp_md
+    cmp #SHELL_CMD_RD
+    beq shell_resp_rd
     cmp #SHELL_CMD_MOUNT
     beq shell_resp_mount
     cmp #SHELL_CMD_COPY
@@ -2798,6 +3040,12 @@ shell_resp_help:
     sta 0,x
     lda #>resp_help
     sta 1,x
+    rts
+shell_resp_md:
+    jsr build_md_response
+    rts
+shell_resp_rd:
+    jsr build_rd_response
     rts
 shell_resp_mount:
     jsr build_mount_response
@@ -2974,6 +3222,10 @@ token_dispatch:
 token_len2:
     ldy parse_cmd_start
     lda line_buffer,y
+    cmp #CMD_M
+    beq token_len2_md
+    cmp #CMD_R
+    beq token_len2_rd
     cmp #$01
     beq token_len2_drive
     cmp #$02
@@ -3013,6 +3265,24 @@ token_len2_drive_missing:
 :
 token_len2_drive_missing_ok:
     lda #SHELL_CMD_DRIVE_ERR
+    rts
+token_len2_md:
+    iny
+    lda line_buffer,y
+    cmp #CMD_D
+    beq :+
+    jmp token_unknown
+:
+    lda #SHELL_CMD_MD
+    rts
+token_len2_rd:
+    iny
+    lda line_buffer,y
+    cmp #CMD_D
+    beq :+
+    jmp token_unknown
+:
+    lda #SHELL_CMD_RD
     rts
 token_len3:
     ldy parse_cmd_start
@@ -4422,6 +4692,259 @@ del_build_read_only:
     sta 0,x
     lda #>resp_read_only
     sta 1,x
+    rts
+
+build_md_response:
+    stx saved_rp_x
+    lda arg_length
+    bne :+
+    jmp md_build_bad
+:
+    jsr resolve_copy_dest
+    cmp #PATH_STATUS_OK
+    beq md_build_ready
+    cmp #PATH_STATUS_FLAT
+    beq md_build_flat
+    cmp #PATH_STATUS_UNMOUNTED
+    beq md_build_unmounted
+    jmp md_build_bad
+md_build_ready:
+    jsr uci_probe
+    bcc md_build_read_only
+    jsr vice_probe_available
+    bcc md_build_vice
+    jmp md_build_read_only
+md_build_vice:
+    jsr fill_vice_manifest_dir_cache_current
+    bcs md_build_fail
+    jsr find_hw_dir_cache_matching_path_name
+    bcc md_build_exists
+    jsr find_hw_dir_cache_matching_dir_path_name
+    bcc md_build_exists
+    jsr create_dir_vice_current
+    bcc md_build_created
+md_build_fail:
+    ldx saved_rp_x
+    lda #<resp_mkdir_failed
+    sta 0,x
+    lda #>resp_mkdir_failed
+    sta 1,x
+    rts
+md_build_exists:
+    ldx saved_rp_x
+    lda #<resp_exists
+    sta 0,x
+    lda #>resp_exists
+    sta 1,x
+    rts
+md_build_created:
+    ldx saved_rp_x
+    lda #<resp_created
+    sta 0,x
+    lda #>resp_created
+    sta 1,x
+    rts
+md_build_flat:
+    ldx saved_rp_x
+    lda #<resp_flat_image
+    sta 0,x
+    lda #>resp_flat_image
+    sta 1,x
+    rts
+md_build_unmounted:
+    ldx saved_rp_x
+    lda #<resp_unmounted
+    sta 0,x
+    lda #>resp_unmounted
+    sta 1,x
+    rts
+md_build_read_only:
+    ldx saved_rp_x
+    lda #<resp_read_only
+    sta 0,x
+    lda #>resp_read_only
+    sta 1,x
+    rts
+md_build_bad:
+    ldx saved_rp_x
+    lda #<resp_bad_md
+    sta 0,x
+    lda #>resp_bad_md
+    sta 1,x
+    rts
+
+build_rd_response:
+    stx saved_rp_x
+    lda arg_length
+    bne :+
+    jmp rd_build_bad
+:
+    jsr resolve_copy_dest
+    cmp #PATH_STATUS_OK
+    beq rd_build_ready
+    cmp #PATH_STATUS_FLAT
+    bne :+
+    jmp rd_build_flat
+:
+    cmp #PATH_STATUS_UNMOUNTED
+    bne :+
+    jmp rd_build_unmounted
+:
+    jmp rd_build_bad
+rd_build_ready:
+    lda temp_drive
+    sta source_drive
+    lda temp_dir_id
+    sta source_dir_id
+    jsr uci_probe
+    bcs :+
+    jmp rd_build_read_only
+:
+    jsr vice_probe_available
+    bcc rd_build_vice
+    jmp rd_build_read_only
+rd_build_vice:
+    jsr lookup_dir_target_current_vice
+    bcs rd_build_no_such_dir
+    sta dest_dir_id
+    lda source_drive
+    cmp current_drive
+    bne rd_build_not_busy
+    tay
+    lda dir_state_table,y
+    cmp dest_dir_id
+    bne rd_build_not_busy
+    ldx saved_rp_x
+    lda #<resp_dir_busy
+    sta 0,x
+    lda #>resp_dir_busy
+    sta 1,x
+    rts
+rd_build_not_busy:
+    lda dest_dir_id
+    sta temp_dir_id
+    jsr fill_vice_manifest_dir_cache_current
+    bcs rd_build_fail
+    lda enum_count
+    beq rd_build_empty
+    ldx saved_rp_x
+    lda #<resp_dir_not_empty
+    sta 0,x
+    lda #>resp_dir_not_empty
+    sta 1,x
+    rts
+rd_build_empty:
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+    jsr store_vice_dir_tombstone_current
+    bcs rd_build_fail
+    ldx saved_rp_x
+    lda #<resp_removed
+    sta 0,x
+    lda #>resp_removed
+    sta 1,x
+    rts
+rd_build_no_such_dir:
+    ldx saved_rp_x
+    lda #<resp_bad_dir
+    sta 0,x
+    lda #>resp_bad_dir
+    sta 1,x
+    rts
+rd_build_fail:
+    ldx saved_rp_x
+    lda #<resp_rmdir_failed
+    sta 0,x
+    lda #>resp_rmdir_failed
+    sta 1,x
+    rts
+rd_build_flat:
+    ldx saved_rp_x
+    lda #<resp_flat_image
+    sta 0,x
+    lda #>resp_flat_image
+    sta 1,x
+    rts
+rd_build_unmounted:
+    ldx saved_rp_x
+    lda #<resp_unmounted
+    sta 0,x
+    lda #>resp_unmounted
+    sta 1,x
+    rts
+rd_build_read_only:
+    ldx saved_rp_x
+    lda #<resp_read_only
+    sta 0,x
+    lda #>resp_read_only
+    sta 1,x
+    rts
+rd_build_bad:
+    ldx saved_rp_x
+    lda #<resp_bad_rd
+    sta 0,x
+    lda #>resp_bad_rd
+    sta 1,x
+    rts
+
+create_dir_vice_current:
+    jsr vice_dir_find_current_slot
+    bcc create_dir_vice_current_found
+    jsr vice_dir_alloc_slot
+    bcs create_dir_vice_current_fail
+create_dir_vice_current_store:
+    lda temp_dir_id
+    jsr store_vice_dir_parent_for_index
+    jsr select_vice_dir_name_slot
+    jsr copy_path_name_to_vice_dir_slot_ascii
+    lda #VICE_DIR_SLOT_LIVE
+    jsr store_vice_dir_state_for_index
+    clc
+    rts
+create_dir_vice_current_found:
+    cmp #VICE_DIR_SLOT_TOMBSTONE
+    beq create_dir_vice_current_store
+create_dir_vice_current_fail:
+    sec
+    rts
+
+lookup_dir_target_current_vice:
+    jsr fill_vice_manifest_dir_cache_current
+    bcs lookup_dir_target_current_vice_fail
+    jsr find_hw_dir_cache_matching_dir_path_name
+    bcs lookup_dir_target_current_vice_fail
+    lda temp_dir_id
+    bne lookup_dir_target_current_vice_dynamic
+    jsr match_fixed_root_path_name
+    bcc lookup_dir_target_current_vice_ok
+lookup_dir_target_current_vice_dynamic:
+    jsr ensure_dynamic_dir_current_from_path_name
+    bcs lookup_dir_target_current_vice_fail
+lookup_dir_target_current_vice_ok:
+    clc
+    rts
+lookup_dir_target_current_vice_fail:
+    sec
+    rts
+
+store_vice_dir_tombstone_current:
+    jsr vice_dir_find_current_slot
+    bcc store_vice_dir_tombstone_current_have_slot
+    jsr vice_dir_alloc_slot
+    bcs store_vice_dir_tombstone_current_fail
+store_vice_dir_tombstone_current_have_slot:
+    lda temp_dir_id
+    jsr store_vice_dir_parent_for_index
+    jsr select_vice_dir_name_slot
+    jsr copy_path_name_to_vice_dir_slot_ascii
+    lda #VICE_DIR_SLOT_TOMBSTONE
+    jsr store_vice_dir_state_for_index
+    clc
+    rts
+store_vice_dir_tombstone_current_fail:
+    sec
     rts
 
 split_run_args:
@@ -7978,7 +8501,8 @@ file_tree_scan_loop:
     iny
     bne file_tree_scan_loop
 file_tree_component:
-    sty saved_response_y
+    tya
+    pha
     lda parse_scan_index
     sta parse_cmd_start
     tya
@@ -7987,9 +8511,13 @@ file_tree_component:
     sta cmd_length
     beq file_bad
     jsr match_path_component
-    bcs file_bad
+    bcc :+
+    pla
+    jmp file_bad
+:
     sta temp_dir_id
-    ldy saved_response_y
+    pla
+    tay
     iny
     sty parse_scan_index
     cpy arg_length
@@ -8019,6 +8547,8 @@ file_bad:
     rts
 
 match_path_component:
+    jsr vice_probe_available
+    bcc match_path_component_vice
     lda cmd_length
     cmp #3
     beq match_path_len3
@@ -8078,7 +8608,103 @@ match_path_len4:
     lda #DIR_ID_WORK
     clc
     rts
+match_path_component_vice:
+    jsr copy_component_token_to_path_name
+    bcs match_path_fail
+    jsr fill_vice_manifest_dir_cache_current
+    bcs match_path_fail
+    jsr find_hw_dir_cache_matching_dir_path_name
+    bcc match_path_component_vice_found
+    jsr match_fixed_root_path_name
+    bcc match_path_component_vice_ok
+    bcs match_path_fail
+match_path_component_vice_found:
+    lda temp_dir_id
+    bne match_path_component_vice_dynamic
+    jsr match_fixed_root_path_name
+    bcc match_path_component_vice_ok
+match_path_component_vice_dynamic:
+    jsr ensure_dynamic_dir_current_from_path_name
+    bcs match_path_fail
+match_path_component_vice_ok:
+    clc
+    rts
 match_path_fail:
+    sec
+    rts
+
+copy_component_token_to_path_name:
+    ldx #$00
+    ldy parse_cmd_start
+copy_component_token_to_path_name_loop:
+    cpx cmd_length
+    bcs copy_component_token_to_path_name_done
+    lda arg_buffer,y
+    sta path_name_buffer,x
+    inx
+    iny
+    cpx #MAX_LINE_LEN
+    bcc copy_component_token_to_path_name_loop
+copy_component_token_to_path_name_done:
+    lda #$00
+    sta path_name_buffer,x
+    cpx #$00
+    beq copy_component_token_to_path_name_fail
+    clc
+    rts
+copy_component_token_to_path_name_fail:
+    sec
+    rts
+
+match_fixed_root_path_name:
+    lda path_name_buffer+0
+    cmp #CMD_B
+    bne match_fixed_root_try_src
+    lda path_name_buffer+1
+    cmp #CMD_I
+    bne match_fixed_root_try_src
+    lda path_name_buffer+2
+    cmp #CMD_N
+    bne match_fixed_root_try_src
+    lda path_name_buffer+3
+    bne match_fixed_root_try_src
+    lda #DIR_ID_BIN
+    clc
+    rts
+match_fixed_root_try_src:
+    lda path_name_buffer+0
+    cmp #CMD_S
+    bne match_fixed_root_try_work
+    lda path_name_buffer+1
+    cmp #CMD_R
+    bne match_fixed_root_try_work
+    lda path_name_buffer+2
+    cmp #CMD_C
+    bne match_fixed_root_try_work
+    lda path_name_buffer+3
+    bne match_fixed_root_try_work
+    lda #DIR_ID_SRC
+    clc
+    rts
+match_fixed_root_try_work:
+    lda path_name_buffer+0
+    cmp #CMD_W
+    bne match_fixed_root_fail
+    lda path_name_buffer+1
+    cmp #CMD_O
+    bne match_fixed_root_fail
+    lda path_name_buffer+2
+    cmp #CMD_R
+    bne match_fixed_root_fail
+    lda path_name_buffer+3
+    cmp #CMD_K
+    bne match_fixed_root_fail
+    lda path_name_buffer+4
+    bne match_fixed_root_fail
+    lda #DIR_ID_WORK
+    clc
+    rts
+match_fixed_root_fail:
     sec
     rts
 
@@ -8179,7 +8805,8 @@ copy_dest_scan_loop:
     iny
     bne copy_dest_scan_loop
 copy_dest_component:
-    sty saved_response_y
+    tya
+    pha
     lda parse_scan_index
     sta parse_cmd_start
     tya
@@ -8188,9 +8815,13 @@ copy_dest_component:
     sta cmd_length
     beq copy_dest_bad
     jsr match_path_component
-    bcs copy_dest_bad
+    bcc :+
+    pla
+    jmp copy_dest_bad
+:
     sta temp_dir_id
-    ldy saved_response_y
+    pla
+    tay
     iny
     sty parse_scan_index
     cpy arg_length
@@ -8496,6 +9127,22 @@ copy_slot_name_done:
     sta (PTR),y
     rts
 
+copy_path_name_to_vice_dir_slot_ascii:
+    ldy #$00
+copy_vice_dir_name_loop:
+    lda path_name_buffer,y
+    beq copy_vice_dir_name_done
+    cpy #HW_DIR_NAME_MAX-1
+    bcs copy_vice_dir_name_done
+    jsr screen_code_to_ascii
+    sta (PTR),y
+    iny
+    bne copy_vice_dir_name_loop
+copy_vice_dir_name_done:
+    lda #$00
+    sta (PTR),y
+    rts
+
 screen_code_to_ascii:
     cmp #$01
     bcc screen_code_ascii_done
@@ -8622,65 +9269,41 @@ resolve_need_component:
     lda mount_flag_table,y
     cmp #MOUNT_FLAG_TREE
     bne resolve_flat
+resolve_component_loop:
     ldy parse_scan_index
-    lda arg_length
+    cpy arg_length
+    bcs resolve_validate_mount
+    sty parse_cmd_start
+resolve_component_scan:
+    cpy arg_length
+    bcs resolve_component_found
+    lda arg_buffer,y
+    cmp #ASCII_SLASH
+    beq resolve_component_found
+    iny
+    bne resolve_component_scan
+resolve_component_found:
+    tya
+    pha
+    tya
     sec
-    sbc parse_scan_index
-    cmp #3
-    beq resolve_len3
-    cmp #4
-    beq resolve_len4
-    lda #PATH_STATUS_BAD
-    rts
-resolve_len3:
-    lda arg_buffer,y
-    cmp #CMD_B
-    bne resolve_len3_src
-    iny
-    lda arg_buffer,y
-    cmp #CMD_I
-    bne resolve_bad_path
-    iny
-    lda arg_buffer,y
-    cmp #CMD_N
-    bne resolve_bad_path
-    lda #DIR_ID_BIN
+    sbc parse_cmd_start
+    sta cmd_length
+    beq resolve_bad_path
+    jsr match_path_component
+    bcc :+
+    pla
+    jmp resolve_bad_path
+:
     sta temp_dir_id
-    jmp resolve_validate_mount
-resolve_len3_src:
-    ldy parse_scan_index
-    lda arg_buffer,y
-    cmp #CMD_S
-    bne resolve_bad_path
+    pla
+    tay
+    cpy arg_length
+    bcs resolve_validate_mount
     iny
-    lda arg_buffer,y
-    cmp #CMD_R
-    bne resolve_bad_path
-    iny
-    lda arg_buffer,y
-    cmp #CMD_C
-    bne resolve_bad_path
-    lda #DIR_ID_SRC
-    sta temp_dir_id
-    jmp resolve_validate_mount
-resolve_len4:
-    lda arg_buffer,y
-    cmp #CMD_W
-    bne resolve_bad_path
-    iny
-    lda arg_buffer,y
-    cmp #CMD_O
-    bne resolve_bad_path
-    iny
-    lda arg_buffer,y
-    cmp #CMD_R
-    bne resolve_bad_path
-    iny
-    lda arg_buffer,y
-    cmp #CMD_K
-    bne resolve_bad_path
-    lda #DIR_ID_WORK
-    sta temp_dir_id
+    sty parse_scan_index
+    cpy arg_length
+    bcc resolve_component_loop
     jmp resolve_validate_mount
 resolve_flat:
     lda #PATH_STATUS_FLAT
@@ -8856,12 +9479,21 @@ append_selected_drive_path:
     cmp #MOUNT_FLAG_TREE
     bne append_selected_done
     lda temp_dir_id
-    cmp #DIR_ID_BIN
-    beq append_dir_bin
-    cmp #DIR_ID_SRC
-    beq append_dir_src
-    cmp #DIR_ID_WORK
-    beq append_dir_work
+    beq append_selected_done
+    sty path_base_index
+    lda #<response_buffer
+    sta PTR
+    lda #>response_buffer
+    sta PTR+1
+    lda path_base_index
+    jsr advance_ptr_by_a
+    jsr append_tree_tail_to_current_ptr
+    sty dir_walk_bytes
+    ldy path_base_index
+    tya
+    clc
+    adc dir_walk_bytes
+    tay
 append_selected_done:
     rts
 
@@ -8886,25 +9518,6 @@ append_selected_drive_summary:
     ldx temp_drive
     lda mount_kind_table,x
     jmp append_mount_kind
-append_dir_bin:
-    lda #<dir_name_bin
-    sta PTR
-    lda #>dir_name_bin
-    sta PTR+1
-    jmp append_ptr_to_response
-append_dir_src:
-    lda #<dir_name_src
-    sta PTR
-    lda #>dir_name_src
-    sta PTR+1
-    jmp append_ptr_to_response
-append_dir_work:
-    lda #<dir_name_work
-    sta PTR
-    lda #>dir_name_work
-    sta PTR+1
-    jmp append_ptr_to_response
-
 fs_enum_begin_current:
     sty saved_enum_y
     lda #$00
@@ -9992,6 +10605,33 @@ compare_path_ok:
     clc
     rts
 
+compare_dir_ptr_to_path_name:
+    ldy #$00
+    ldx #$00
+compare_dir_path_loop:
+    lda (PTR),y
+    beq compare_dir_path_candidate_end
+    cmp #ASCII_SLASH
+    beq compare_dir_path_candidate_end
+    lda path_name_buffer,x
+    beq compare_dir_path_fail
+    lda (PTR),y
+    jsr normalize_output_char
+    cmp path_name_buffer,x
+    bne compare_dir_path_fail
+    iny
+    inx
+    bne compare_dir_path_loop
+compare_dir_path_candidate_end:
+    lda path_name_buffer,x
+    beq compare_dir_path_ok
+compare_dir_path_fail:
+    sec
+    rts
+compare_dir_path_ok:
+    clc
+    rts
+
 compare_source_name_to_path_name:
     ldy #$00
 compare_source_name_to_path_name_loop:
@@ -10302,6 +10942,228 @@ select_dynamic_work_name_slot_zero_a:
     sta PTR
     lda #>work_a_name_0
     sta PTR+1
+    rts
+
+select_vice_dir_state_table:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq select_vice_dir_state_table_a
+    lda #<vice_dir_state_b
+    sta PTR
+    lda #>vice_dir_state_b
+    sta PTR+1
+    rts
+select_vice_dir_state_table_a:
+    lda #<vice_dir_state_a
+    sta PTR
+    lda #>vice_dir_state_a
+    sta PTR+1
+    rts
+
+select_vice_dir_parent_table:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq select_vice_dir_parent_table_a
+    lda #<vice_dir_parent_b
+    sta PTR
+    lda #>vice_dir_parent_b
+    sta PTR+1
+    rts
+select_vice_dir_parent_table_a:
+    lda #<vice_dir_parent_a
+    sta PTR
+    lda #>vice_dir_parent_a
+    sta PTR+1
+    rts
+
+select_vice_dir_name_slot:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq select_vice_dir_name_slot_a
+    lda #<vice_dir_names_b
+    sta PTR
+    lda #>vice_dir_names_b
+    sta PTR+1
+    jmp advance_vice_dir_name_slot
+select_vice_dir_name_slot_a:
+    lda #<vice_dir_names_a
+    sta PTR
+    lda #>vice_dir_names_a
+    sta PTR+1
+advance_vice_dir_name_slot:
+    ldy file_index
+    beq select_vice_dir_name_slot_done
+advance_vice_dir_name_slot_loop:
+    clc
+    lda PTR
+    adc #HW_DIR_NAME_STRIDE
+    sta PTR
+    bcc :+
+    inc PTR+1
+:
+    dey
+    bne advance_vice_dir_name_slot_loop
+select_vice_dir_name_slot_done:
+    rts
+
+select_vice_dir_name_slot_to_screen_ptr:
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq select_vice_dir_name_slot_to_screen_ptr_a
+    lda #<vice_dir_names_b
+    sta SCREEN_PTR
+    lda #>vice_dir_names_b
+    sta SCREEN_PTR+1
+    jmp advance_vice_dir_name_screen_ptr
+select_vice_dir_name_slot_to_screen_ptr_a:
+    lda #<vice_dir_names_a
+    sta SCREEN_PTR
+    lda #>vice_dir_names_a
+    sta SCREEN_PTR+1
+advance_vice_dir_name_screen_ptr:
+    ldy file_index
+    beq select_vice_dir_name_slot_to_screen_ptr_done
+advance_vice_dir_name_screen_ptr_loop:
+    clc
+    lda SCREEN_PTR
+    adc #HW_DIR_NAME_STRIDE
+    sta SCREEN_PTR
+    bcc :+
+    inc SCREEN_PTR+1
+:
+    dey
+    bne advance_vice_dir_name_screen_ptr_loop
+select_vice_dir_name_slot_to_screen_ptr_done:
+    rts
+
+load_vice_dir_state_for_index:
+    jsr select_vice_dir_state_table
+    ldy file_index
+    lda (PTR),y
+    rts
+
+load_vice_dir_parent_for_index:
+    jsr select_vice_dir_parent_table
+    ldy file_index
+    lda (PTR),y
+    rts
+
+store_vice_dir_state_for_index:
+    sta vice_dir_state_temp
+    jsr select_vice_dir_state_table
+    ldy file_index
+    lda vice_dir_state_temp
+    sta (PTR),y
+    rts
+
+store_vice_dir_parent_for_index:
+    sta vice_dir_parent_temp
+    jsr select_vice_dir_parent_table
+    ldy file_index
+    lda vice_dir_parent_temp
+    sta (PTR),y
+    rts
+
+clear_vice_dir_slot:
+    jsr select_vice_dir_state_table
+    ldy file_index
+    lda #VICE_DIR_SLOT_EMPTY
+    sta (PTR),y
+    jsr select_vice_dir_parent_table
+    lda #DIR_ID_ROOT
+    sta (PTR),y
+    jsr select_vice_dir_name_slot
+    ldy #$00
+    lda #$00
+    sta (PTR),y
+    rts
+
+clear_vice_dir_drive:
+    stx saved_rp_x
+    lda #$00
+    sta file_index
+clear_vice_dir_drive_loop:
+    lda file_index
+    cmp #VICE_DIR_DYNAMIC_MAX
+    bcs clear_vice_dir_drive_done
+    jsr clear_vice_dir_slot
+    inc file_index
+    bne clear_vice_dir_drive_loop
+clear_vice_dir_drive_done:
+    ldx saved_rp_x
+    rts
+
+vice_dir_alloc_slot:
+    lda #$00
+    sta file_index
+vice_dir_alloc_slot_loop:
+    lda file_index
+    cmp #VICE_DIR_DYNAMIC_MAX
+    bcs vice_dir_alloc_slot_fail
+    jsr load_vice_dir_state_for_index
+    beq vice_dir_alloc_slot_ok
+    inc file_index
+    bne vice_dir_alloc_slot_loop
+vice_dir_alloc_slot_fail:
+    sec
+    rts
+vice_dir_alloc_slot_ok:
+    clc
+    rts
+
+vice_dir_find_current_slot:
+    lda #$00
+    sta file_index
+vice_dir_find_current_slot_loop:
+    lda file_index
+    cmp #VICE_DIR_DYNAMIC_MAX
+    bcs vice_dir_find_current_slot_fail
+    jsr load_vice_dir_state_for_index
+    beq vice_dir_find_current_slot_next
+    sta vice_dir_state_temp
+    jsr load_vice_dir_parent_for_index
+    cmp temp_dir_id
+    bne vice_dir_find_current_slot_next
+    jsr select_vice_dir_name_slot
+    jsr compare_ptr_to_path_name
+    bcc vice_dir_find_current_slot_hit
+vice_dir_find_current_slot_next:
+    inc file_index
+    bne vice_dir_find_current_slot_loop
+vice_dir_find_current_slot_fail:
+    sec
+    rts
+vice_dir_find_current_slot_hit:
+    lda vice_dir_state_temp
+    clc
+    rts
+
+ensure_dynamic_dir_current_from_path_name:
+    jsr vice_dir_find_current_slot
+    bcc ensure_dynamic_dir_current_existing
+    jsr vice_dir_alloc_slot
+    bcs ensure_dynamic_dir_current_fail
+    lda temp_dir_id
+    jsr store_vice_dir_parent_for_index
+    jsr select_vice_dir_name_slot
+    jsr copy_path_name_to_slot_ascii
+    lda #VICE_DIR_SLOT_LIVE
+    jsr store_vice_dir_state_for_index
+    lda file_index
+    clc
+    adc #DIR_ID_DYNAMIC_BASE
+    clc
+    rts
+ensure_dynamic_dir_current_existing:
+    cmp #VICE_DIR_SLOT_TOMBSTONE
+    beq ensure_dynamic_dir_current_fail
+    lda file_index
+    clc
+    adc #DIR_ID_DYNAMIC_BASE
+    clc
+    rts
+ensure_dynamic_dir_current_fail:
+    sec
     rts
 
 select_vice_tree_state_table:
@@ -10844,11 +11706,15 @@ build_vol_response:
 build_mem_response:
     stx saved_rp_x
     ldy #$00
-    lda #<resp_mem_ram_prefix
-    sta PTR
-    lda #>resp_mem_ram_prefix
-    sta PTR+1
-    jsr append_ptr_to_response
+    ldx #$00
+build_mem_prefix_loop:
+    lda resp_mem_ram_prefix,x
+    beq build_mem_prefix_done
+    sta response_buffer,y
+    iny
+    inx
+    bne build_mem_prefix_loop
+build_mem_prefix_done:
     lda #<__ACHERON_LAST__
     sec
     sbc #<RESIDENT_CODE_START
@@ -10859,11 +11725,15 @@ build_mem_response:
     sta mem_used_hi
     sta mem_value_hi
     jsr append_decimal16
-    lda #<resp_mem_ram_mid
-    sta PTR
-    lda #>resp_mem_ram_mid
-    sta PTR+1
-    jsr append_ptr_to_response
+    ldx #$00
+build_mem_mid_loop:
+    lda resp_mem_ram_mid,x
+    beq build_mem_mid_done
+    sta response_buffer,y
+    iny
+    inx
+    bne build_mem_mid_loop
+build_mem_mid_done:
     lda mem_used_lo
     eor #$FF
     sta mem_value_lo
@@ -10871,17 +11741,33 @@ build_mem_response:
     eor #$FF
     sta mem_value_hi
     jsr append_decimal16
-    lda #<resp_mem_reu_suffix
-    sta PTR
-    lda #>resp_mem_reu_suffix
-    sta PTR+1
-    jsr append_ptr_to_response
+    ldx #$00
+build_mem_suffix_loop:
+    lda resp_mem_reu_suffix,x
+    beq build_mem_suffix_done
+    sta response_buffer,y
+    iny
+    inx
+    bne build_mem_suffix_loop
+build_mem_suffix_done:
     lda #$00
     sta response_buffer,y
+    ldx #$00
+build_mem_copy_to_stable_buffer:
+    lda response_buffer,x
+    sta mem_response_buffer,x
+    beq build_mem_copy_done
+    inx
+    cpx #MAX_RESPONSE_LEN
+    bcc build_mem_copy_to_stable_buffer
+    dex
+    lda #$00
+    sta mem_response_buffer,x
+build_mem_copy_done:
     ldx saved_rp_x
-    lda #<response_buffer
+    lda #<mem_response_buffer
     sta 0,x
-    lda #>response_buffer
+    lda #>mem_response_buffer
     sta 1,x
     rts
 
@@ -11222,6 +12108,22 @@ vice_tree_source_state:
     .byte 0
 vice_tree_slot_index:
     .byte 0
+vice_dir_state_temp:
+    .byte 0
+vice_dir_parent_temp:
+    .byte 0
+dir_walk_count:
+    .byte 0
+dir_walk_id:
+    .byte 0
+dir_walk_bytes:
+    .byte 0
+path_base_index:
+    .byte 0
+dir_ptr_save_lo:
+    .byte 0
+dir_ptr_save_hi:
+    .byte 0
 work_count_table:
     .byte 0, 0
 hw_dir_count_table:
@@ -11259,6 +12161,8 @@ path_name_buffer:
 source_name_buffer:
     .res MAX_LINE_LEN+1
 response_buffer:
+    .res MAX_RESPONSE_LEN
+mem_response_buffer:
     .res MAX_RESPONSE_LEN
 program_image_buffer:
     .res PROGRAM_IMAGE_MAX
@@ -11342,7 +12246,7 @@ vice_line_num_hi:
 header_text:
     .byte "UDOS FOR COMMODORE 64", 0
 resp_help:
-    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL", 0
+    .byte "HELP VER VOL MEM DIR CD MD RD MOUNT TYPE COPY REN DEL", 0
 ver_prefix:
     .byte 21, 4, 15, 19, 32, 1, 12, 16, 8, 1, 0
 resp_mem_ram_prefix:
@@ -11382,7 +12286,7 @@ entry_work_empty:
 content_flat_system:
     .byte "UDOS SYSTEM VOLUME", 0
 content_flat_commands:
-    .byte "HELP VER VOL MEM DIR CD MOUNT TYPE COPY REN DEL", 0
+    .byte "HELP VER VOL MEM DIR CD MD RD MOUNT TYPE COPY REN DEL", 0
 content_flat_readme:
     .byte "MOCK FLAT IMAGE CONTENT", 0
 content_bin_shell:
@@ -11447,6 +12351,20 @@ work_a_file_records:
 work_b_file_records:
     .byte <work_b_name_0, >work_b_name_0, 0, 0
     .byte <work_b_name_1, >work_b_name_1, 0, 0
+dir_walk_ids:
+    .res DIR_WALK_MAX
+vice_dir_state_a:
+    .res VICE_DIR_DYNAMIC_MAX
+vice_dir_state_b:
+    .res VICE_DIR_DYNAMIC_MAX
+vice_dir_parent_a:
+    .res VICE_DIR_DYNAMIC_MAX
+vice_dir_parent_b:
+    .res VICE_DIR_DYNAMIC_MAX
+vice_dir_names_a:
+    .res HW_DIR_NAME_STRIDE * VICE_DIR_DYNAMIC_MAX
+vice_dir_names_b:
+    .res HW_DIR_NAME_STRIDE * VICE_DIR_DYNAMIC_MAX
 vice_tree_state_a:
     .res VICE_TREE_DYNAMIC_MAX
 vice_tree_state_b:
@@ -11589,10 +12507,26 @@ resp_bad_copy:
     .byte "BAD COPY", 0
 resp_bad_ren:
     .byte "BAD REN", 0
+resp_bad_md:
+    .byte "BAD MD", 0
+resp_bad_rd:
+    .byte "BAD RD", 0
 resp_deleted:
     .byte "DELETED", 0
+resp_created:
+    .byte "CREATED", 0
+resp_removed:
+    .byte "REMOVED", 0
 resp_delete_failed:
     .byte "DELETE FAILED", 0
+resp_mkdir_failed:
+    .byte "MD FAILED", 0
+resp_rmdir_failed:
+    .byte "RD FAILED", 0
+resp_dir_not_empty:
+    .byte "DIR NOT EMPTY", 0
+resp_dir_busy:
+    .byte "DIR BUSY", 0
 resp_rename_failed:
     .byte "RENAME FAILED", 0
 resp_renamed:

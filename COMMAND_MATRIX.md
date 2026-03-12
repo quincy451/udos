@@ -25,13 +25,15 @@ Legend:
 | `VOL` | Yes | Yes | Partial | Partial | Partial | Mock works. Flat label-import code exists. VICE tree currently reports mount-derived metadata, not a real DNP label. |
 | `DIR` | Yes | Yes | Yes | Yes | Partial | Mock and flat work. Real VICE tree read path is now passing. |
 | `CD` | Yes | Yes | Yes | Yes | Partial | Flat rejection logic works. VICE tree directory changes are now passing on the read path. |
+| `MD` | Yes | No | Yes | Yes | No | Tree-only command. Flat images reject with `FLAT IMAGE`. VICE tree create/remove is now passing. Hardware create path is not implemented yet. |
+| `RD` | Yes | No | Yes | Yes | No | Tree-only command. Flat images reject with `FLAT IMAGE`. VICE tree empty-dir remove and non-empty rejection are now passing. Hardware remove path is not implemented yet. |
 | `MOUNT` | Yes | Yes | Partial | Yes | Partial | Syntax and logical binding work. VICE tree bind/read/write flow is now passing on the fsdevice-backed path. Hardware `MOUNT_DISK` path exists but is unverified. |
 | `TYPE` | Yes | Yes | Yes | Yes | Partial | Mock and flat work. Real VICE tree file reads are now passing. |
 | `COPY` | Yes | Yes | Yes | Yes | Partial | Mock and flat copy work. VICE tree exact and limited wildcard copy are now passing on the fsdevice-backed path. |
 | `REN` | Yes | Yes | Yes | Yes | Partial | Mock and flat rename work. VICE tree exact rename is now passing for overlay-created and host-backed files. |
 | `DEL` | Yes | Yes | Yes | Yes | Partial | Mock and flat delete work. VICE tree exact and limited wildcard delete are now passing on the fsdevice-backed path. |
-| `A:` | Yes | Yes | N/A | N/A | N/A | Resident direct drive token. |
-| `B:` | Yes | Yes | N/A | N/A | N/A | Resident direct drive token. |
+| `A:` | Yes | Yes | N/A | N/A | N/A | Resident direct drive token; switches drives without resetting that drive's current directory. |
+| `B:` | Yes | Yes | N/A | N/A | N/A | Resident direct drive token; switches drives without resetting that drive's current directory. |
 | `C:` | Yes | Yes | N/A | N/A | N/A | Reserved token, returns `DRIVE NOT PRESENT`. |
 | `D:` | Yes | Yes | N/A | N/A | N/A | Reserved token, returns `DRIVE NOT PRESENT`. |
 | bare program launch | Yes | Yes | Yes | Yes | Partial | Mock and flat launch paths exist. Real VICE tree launch now passes for existing programs and returns `PROGRAM NOT FOUND` for missing ones. |
@@ -45,5 +47,5 @@ Current priority:
 
 1. implement batch support, including `AUTOEXEC.BAT`
 2. add REU-backed resident spill/shrink after the command surface is stable
-3. keep flat and VICE tree backends stable while starting release-image work
+3. build a self-test image flow that reports success or failure through batch
 4. hardware-validate the existing UCI paths on a real Ultimate target

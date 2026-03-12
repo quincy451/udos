@@ -12,14 +12,16 @@ Current milestone:
 - Phase 3 native UCI seam complete at the control/status boundary.
 - Phase 4 mounted-image abstraction seam complete with flat-vs-tree policy.
 - Phase 5 resident shell milestone in progress with `DIR`, `CD`, `VOL`, `MOUNT`,
-  `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, direct `A:`/`B:` drive switching, and
-  implicit program launch validated under VICE.
+  `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, `MD`, `RD`, direct `A:`/`B:` drive
+  switching, and implicit program launch validated under VICE.
 - Phase 5 now includes real VICE tree read/write validation on the fsdevice-backed
   `DNP` path:
   - `DIR`, `CD`, `TYPE`, and implicit launch
   - exact and limited wildcard `COPY`
   - exact `REN`
   - exact and limited wildcard `DEL`
+  - exact `MD`
+  - exact `RD` for empty directories plus non-empty rejection
 - Phase 5 now also includes a hardware-backed directory-enumeration path in code:
   - flat-image root mounts now first try raw image parsing through `OPEN_FILE` / `FILE_SEEK` / `READ_DATA`
   - tree-capable mounts still synchronize through `CHANGE_DIR`, refresh through `GET_PATH`, and enumerate through `OPEN_DIR` / `READ_DIR`
@@ -63,7 +65,7 @@ Current milestone:
 
 Current command parser rule:
 - shell keywords require a separator before arguments
-- direct drive tokens like `A:` and `B:` switch the current logical drive
+- direct drive tokens like `A:` and `B:` switch the current logical drive and keep that drive's current directory
 - direct `C:` and `D:` tokens are recognized but currently return `DRIVE NOT PRESENT`
 - a non-keyword token implies program launch; if it has no extension, `.PRG` is appended
 - example: `DEL BOOT3.PRG` deletes the file, while `DELBOOT3` is treated as a bare program token and returns `PROGRAM NOT FOUND`
