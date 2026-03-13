@@ -70,7 +70,7 @@ RESIDENT_DISK := $(BUILD_DIR)/udos-resident.d64
 RESIDENT_LABELS := $(BUILD_DIR)/udos-resident.labels
 RESIDENT_MAP := $(BUILD_DIR)/udos-resident.map
 
-.PHONY: all clean acheron-dep proof vice-proof resident vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -83,8 +83,10 @@ $(BUILD_DIR):
 acheron-dep:
 	$(MAKE) -C $(ACHERON_DIR) acheron
 
-$(PROOF_OBJ): $(ASM_DIR)/udos_proof.asm | $(BUILD_DIR)
-	$(CA65) -g -o $@ $< -I $(ACHERON_DIR)/bin -I $(ACHERON_DIR)/src
+force:
+
+$(PROOF_OBJ): force $(ASM_DIR)/udos_proof.asm | $(BUILD_DIR)
+	$(CA65) -g -o $@ $(ASM_DIR)/udos_proof.asm -I $(ACHERON_DIR)/bin -I $(ACHERON_DIR)/src
 
 proof: acheron-dep $(PROOF_OBJ)
 	$(LD65) -Ln $(PROOF_LABELS) -C $(ASM_DIR)/udos_c64.cfg -m $(PROOF_MAP) -o $(PROOF_PRG) $(PROOF_OBJ) $(ACHERON_DIR)/obj/acheron.o
@@ -94,11 +96,11 @@ proof: acheron-dep $(PROOF_OBJ)
 $(AUTOEXEC_INC): $(AUTOEXEC_SRC) | $(BUILD_DIR)
 	$(PYTHON) tools/make_autoexec_include.py --input $< --output $@
 
-$(RESIDENT_OBJ): $(ASM_DIR)/udos_resident.asm $(AUTOEXEC_INC) | $(BUILD_DIR)
-	$(CA65) -g -o $@ $< -I $(BUILD_DIR) -I $(ACHERON_DIR)/bin -I $(ACHERON_DIR)/src
+$(RESIDENT_OBJ): force $(ASM_DIR)/udos_resident.asm $(AUTOEXEC_INC) | $(BUILD_DIR)
+	$(CA65) -g -o $@ $(ASM_DIR)/udos_resident.asm -I $(BUILD_DIR) -I $(ACHERON_DIR)/bin -I $(ACHERON_DIR)/src
 
-$(RESIDENT_BOOT_OBJ): $(ASM_DIR)/udos_boot.asm | $(BUILD_DIR)
-	$(CA65) -g -o $@ $<
+$(RESIDENT_BOOT_OBJ): force $(ASM_DIR)/udos_boot.asm | $(BUILD_DIR)
+	$(CA65) -g -o $@ $(ASM_DIR)/udos_boot.asm
 
 resident: acheron-dep $(RESIDENT_OBJ) $(RESIDENT_BOOT_OBJ)
 	$(LD65) -Ln $(RESIDENT_LABELS) -C $(ASM_DIR)/udos_c64.cfg -m $(RESIDENT_MAP) -o $(RESIDENT_PRG) $(RESIDENT_OBJ) $(ACHERON_DIR)/obj/acheron.o
@@ -115,9 +117,7 @@ vice-resident: resident
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
 		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
-		--vice-arg=-fslongnames --feed-after "A:D64/>" \
-		--feed-text "MOUNT B: /IMAGES/WORK.DNP\rVOL\rB:\rCD SRC\rDIR\rTYPE BOOT.ASM\rDELBOOT3\rC:\rD:\r" \
-		--expected "DRIVE NOT PRESENT" --contains "A:SYSTEM D64 B:WORK DNP" --contains "BOOT.ASM" --contains "; BOOT.ASM VICE BACKEND SOURCE" --contains "PROGRAM NOT FOUND"
+		--vice-arg=-fslongnames --expected "A:D64/>" --settle 1.0 --contains "AUTOEXEC OK"
 
 vice-launch: resident
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \

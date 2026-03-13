@@ -62,6 +62,22 @@ ABI_VERSION = 1
 RESIDENT_CODE_START = $1810
 HIRAM_START = $C000
 HIRAM_PAGES = $10
+C64_PORT = $0001
+REU_STATUS = $DF00
+REU_COMMAND = $DF01
+REU_C64ADDR_LO = $DF02
+REU_C64ADDR_HI = $DF03
+REU_REUADDR_LO = $DF04
+REU_REUADDR_HI = $DF05
+REU_REUADDR_BANK = $DF06
+REU_COUNT_LO = $DF07
+REU_COUNT_HI = $DF08
+REU_IRQMASK = $DF09
+REU_CONTROL = $DF0A
+REU_TRIGGER = $FF00
+C64_PORT_IO_ON = $05
+REU_CMD_COPY_C64_TO_REU = $EC
+REU_CMD_COPY_REU_TO_C64 = $ED
 TRANSPORT_MODE_UNAVAILABLE = 0
 TRANSPORT_MODE_MOCK = 1
 TRANSPORT_MODE_UCI_HW = 2
@@ -194,6 +210,8 @@ PROGRAM_STATE_EXITED = 2
 PROGRAM_IMAGE_MAX = 255
 WORK_DYNAMIC_MAX = 2
 WORK_NAME_MAX = 16
+REU_VICE_TREE_BYTES = PROGRAM_IMAGE_MAX * VICE_TREE_DYNAMIC_MAX
+REU_VICE_TREE_TOTAL = REU_VICE_TREE_BYTES * 2
 VICE_TREE_DYNAMIC_MAX = 6
 VICE_TREE_SLOT_EMPTY = 0
 VICE_TREE_SLOT_LIVE = 1
@@ -12018,34 +12036,116 @@ advance_vice_tree_name_slot_loop:
 select_vice_tree_name_slot_done:
     rts
 
-select_vice_tree_content_slot:
+reu_init:
+    lda #$00
+    sta reu_present
+    lda C64_PORT
+    sta reu_saved_port
+    and #$F8
+    ora #C64_PORT_IO_ON
+    sta C64_PORT
+    lda #$55
+    sta REU_REUADDR_LO
+    lda REU_REUADDR_LO
+    cmp #$55
+    bne reu_init_restore
+    lda #$AA
+    sta REU_REUADDR_LO
+    lda REU_REUADDR_LO
+    cmp #$AA
+    bne reu_init_restore
+    lda #$01
+    sta reu_present
+reu_init_restore:
+    lda reu_saved_port
+    sta C64_PORT
+    rts
+
+set_vice_tree_slot_cache_ptr:
+    lda #<vice_tree_slot_cache
+    sta PTR
+    lda #>vice_tree_slot_cache
+    sta PTR+1
+    rts
+
+select_vice_tree_reu_slot_addr:
+    ldy file_index
     ldx temp_drive
     cpx #DRIVE_A
-    beq select_vice_tree_content_slot_a
-    lda #<vice_tree_content_b
-    sta PTR
-    lda #>vice_tree_content_b
-    sta PTR+1
-    jmp advance_vice_tree_content_slot
-select_vice_tree_content_slot_a:
-    lda #<vice_tree_content_a
-    sta PTR
-    lda #>vice_tree_content_a
-    sta PTR+1
-advance_vice_tree_content_slot:
-    ldy file_index
-    beq select_vice_tree_content_slot_done
-advance_vice_tree_content_slot_loop:
+    beq select_vice_tree_reu_slot_addr_a
+    lda vice_tree_reu_slot_b_lo,y
+    sta reu_slot_lo
+    lda vice_tree_reu_slot_b_hi,y
+    sta reu_slot_hi
+    lda #$00
+    sta reu_slot_bank
+    rts
+select_vice_tree_reu_slot_addr_a:
+    lda vice_tree_reu_slot_a_lo,y
+    sta reu_slot_lo
+    lda vice_tree_reu_slot_a_hi,y
+    sta reu_slot_hi
+    lda #$00
+    sta reu_slot_bank
+    rts
+
+reu_transfer_vice_tree_slot_cache:
+    sta reu_command_temp
+    lda C64_PORT
+    sta reu_saved_port
+    and #$F8
+    ora #C64_PORT_IO_ON
+    sta C64_PORT
+    lda #<vice_tree_slot_cache
+    sta REU_C64ADDR_LO
+    lda #>vice_tree_slot_cache
+    sta REU_C64ADDR_HI
+    lda reu_slot_lo
+    sta REU_REUADDR_LO
+    lda reu_slot_hi
+    sta REU_REUADDR_HI
+    lda reu_slot_bank
+    sta REU_REUADDR_BANK
+    lda #<PROGRAM_IMAGE_MAX
+    sta REU_COUNT_LO
+    lda #>PROGRAM_IMAGE_MAX
+    sta REU_COUNT_HI
+    lda #$00
+    sta REU_IRQMASK
+    sta REU_CONTROL
+    lda reu_command_temp
+    sta REU_COMMAND
+    lda reu_saved_port
+    and #$F8
+    sta C64_PORT
+    lda #$00
+    sta REU_TRIGGER
+    lda reu_saved_port
+    sta C64_PORT
+    lda REU_STATUS
+    rts
+
+save_selected_vice_tree_content_slot:
+    jsr reu_init
+    lda reu_present
+    beq save_selected_vice_tree_content_slot_done
+    jsr select_vice_tree_reu_slot_addr
+    lda #REU_CMD_COPY_C64_TO_REU
+    jsr reu_transfer_vice_tree_slot_cache
+save_selected_vice_tree_content_slot_done:
     clc
-    lda PTR
-    adc #<PROGRAM_IMAGE_MAX
-    sta PTR
-    lda PTR+1
-    adc #>PROGRAM_IMAGE_MAX
-    sta PTR+1
-    dey
-    bne advance_vice_tree_content_slot_loop
+    rts
+
+select_vice_tree_content_slot:
+    jsr set_vice_tree_slot_cache_ptr
+    jsr reu_init
+    lda reu_present
+    beq select_vice_tree_content_slot_done
+    jsr select_vice_tree_reu_slot_addr
+    lda #REU_CMD_COPY_REU_TO_C64
+    jsr reu_transfer_vice_tree_slot_cache
 select_vice_tree_content_slot_done:
+    clc
     rts
 
 load_vice_tree_state_for_index:
@@ -12162,7 +12262,7 @@ copy_screen_ptr_to_vice_tree_slot_content_loop:
     lda #$00
     sta (PTR),y
 copy_screen_ptr_to_vice_tree_slot_content_done:
-    rts
+    jmp save_selected_vice_tree_content_slot
 
 clear_vice_tree_slot:
     jsr select_vice_tree_state_table
@@ -12178,7 +12278,7 @@ clear_vice_tree_slot:
     sta (PTR),y
     jsr select_vice_tree_content_slot
     sta (PTR),y
-    rts
+    jmp save_selected_vice_tree_content_slot
 
 store_vice_tree_state_for_index:
     sta vice_tree_state_temp
@@ -12308,6 +12408,7 @@ store_vice_tree_tombstone_current_have_slot:
     ldy #$00
     lda #$00
     sta (PTR),y
+    jsr save_selected_vice_tree_content_slot
     lda #VICE_TREE_SLOT_TOMBSTONE
     jsr store_vice_tree_state_for_index
     clc
@@ -12596,14 +12697,26 @@ build_mem_mid_done:
     eor #$FF
     sta mem_value_hi
     jsr append_decimal16
+    jsr reu_init
+    lda reu_present
+    beq build_mem_suffix_absent
     ldx #$00
 build_mem_suffix_loop:
-    lda resp_mem_reu_suffix,x
+    lda resp_mem_reu_present_suffix,x
     beq build_mem_suffix_done
     sta response_buffer,y
     iny
     inx
     bne build_mem_suffix_loop
+build_mem_suffix_absent:
+    ldx #$00
+build_mem_suffix_absent_loop:
+    lda resp_mem_reu_absent_suffix,x
+    beq build_mem_suffix_done
+    sta response_buffer,y
+    iny
+    inx
+    bne build_mem_suffix_absent_loop
 build_mem_suffix_done:
     lda #$00
     sta response_buffer,y
@@ -12767,6 +12880,18 @@ current_drive:
     .byte DRIVE_A
 input_mode:
     .byte INPUT_MODE_KEYBOARD
+reu_present:
+    .byte 0
+reu_saved_port:
+    .byte 0
+reu_slot_lo:
+    .byte 0
+reu_slot_hi:
+    .byte 0
+reu_slot_bank:
+    .byte 0
+reu_command_temp:
+    .byte 0
 saved_rp_x:
     .byte 0
 script_index:
@@ -13085,6 +13210,8 @@ flat_bam_secondary_buffer:
     .res 256
 flat_sector_buffer:
     .res 256
+vice_tree_slot_cache:
+    .res PROGRAM_IMAGE_MAX
 
 .segment "CODE"
 vice_name_buffer:
@@ -13128,8 +13255,24 @@ resp_mem_ram_prefix:
     .byte "RAM USED ", 0
 resp_mem_ram_mid:
     .byte " FREE ", 0
-resp_mem_reu_suffix:
-    .byte " REU USED 0 FREE 16777216", 0
+resp_mem_reu_present_suffix:
+    .byte " REU USED 3060 FREE 16774156", 0
+resp_mem_reu_absent_suffix:
+    .byte " REU USED 0 FREE 0", 0
+vice_tree_reu_slot_a_lo:
+    .byte <(PROGRAM_IMAGE_MAX * 0), <(PROGRAM_IMAGE_MAX * 1), <(PROGRAM_IMAGE_MAX * 2)
+    .byte <(PROGRAM_IMAGE_MAX * 3), <(PROGRAM_IMAGE_MAX * 4), <(PROGRAM_IMAGE_MAX * 5)
+vice_tree_reu_slot_a_hi:
+    .byte >(PROGRAM_IMAGE_MAX * 0), >(PROGRAM_IMAGE_MAX * 1), >(PROGRAM_IMAGE_MAX * 2)
+    .byte >(PROGRAM_IMAGE_MAX * 3), >(PROGRAM_IMAGE_MAX * 4), >(PROGRAM_IMAGE_MAX * 5)
+vice_tree_reu_slot_b_lo:
+    .byte <(REU_VICE_TREE_BYTES + (PROGRAM_IMAGE_MAX * 0)), <(REU_VICE_TREE_BYTES + (PROGRAM_IMAGE_MAX * 1))
+    .byte <(REU_VICE_TREE_BYTES + (PROGRAM_IMAGE_MAX * 2)), <(REU_VICE_TREE_BYTES + (PROGRAM_IMAGE_MAX * 3))
+    .byte <(REU_VICE_TREE_BYTES + (PROGRAM_IMAGE_MAX * 4)), <(REU_VICE_TREE_BYTES + (PROGRAM_IMAGE_MAX * 5))
+vice_tree_reu_slot_b_hi:
+    .byte >(REU_VICE_TREE_BYTES + (PROGRAM_IMAGE_MAX * 0)), >(REU_VICE_TREE_BYTES + (PROGRAM_IMAGE_MAX * 1))
+    .byte >(REU_VICE_TREE_BYTES + (PROGRAM_IMAGE_MAX * 2)), >(REU_VICE_TREE_BYTES + (PROGRAM_IMAGE_MAX * 3))
+    .byte >(REU_VICE_TREE_BYTES + (PROGRAM_IMAGE_MAX * 4)), >(REU_VICE_TREE_BYTES + (PROGRAM_IMAGE_MAX * 5))
 volume_system:
     .byte "SYSTEM", 0
 volume_work:
@@ -13257,12 +13400,6 @@ vice_tree_names_a:
     .res HW_DIR_NAME_STRIDE * VICE_TREE_DYNAMIC_MAX
 vice_tree_names_b:
     .res HW_DIR_NAME_STRIDE * VICE_TREE_DYNAMIC_MAX
-
-.segment "HIRAM"
-vice_tree_content_a:
-    .res PROGRAM_IMAGE_MAX * VICE_TREE_DYNAMIC_MAX
-vice_tree_content_b:
-    .res PROGRAM_IMAGE_MAX * VICE_TREE_DYNAMIC_MAX
 
 .segment "CODE"
 image_none_a:

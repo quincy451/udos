@@ -74,96 +74,16 @@ make vice-resident
 Current `vice-resident` behavior:
 - builds `build/udosres.prg`
 - autostarts the BASIC wrapper PRG in `x64sc`
-- binds `A:` as `D64` and `B:` as `DNP`
-- drives the live resident shell with real mount syntax, direct drive switching, and explicit separators:
-  - `MOUNT B: /IMAGES/ALT.D81`
-  - `VOL`
-  - `MOUNT B: /IMAGES/WORK.DNP`
-  - `VOL`
-  - `B:`
-  - `CD SRC`
-  - `COPY BOOT.ASM WORK/BOOT2.PRG`
-  - `COPY BOOT.ASM WORK/BOOT4.ASM`
-  - `CD WORK`
-  - `REN BOOT2.PRG BOOT3.PRG`
-  - `DELBOOT3`
-  - `DEL *.PRG`
-  - `DIR`
-- verifies command-keyword separation:
-  - `DELBOOT3` must not be treated as `DEL BOOT3.PRG`
-  - it is treated as a bare program token and returns `PROGRAM NOT FOUND`
-- verifies reserved-but-unimplemented drive tokens:
-  - `C:` returns `DRIVE NOT PRESENT`
-  - `D:` returns `DRIVE NOT PRESENT`
-- verifies implicit program launch separately through `make vice-launch`:
-  - `BOOT3 DIR` resolves as `BOOT3.PRG`
-  - `DIR` is passed as the command line
-- verifies wildcard copy separately through `make vice-copy`:
-  - `COPY *.* WORK` copies both `BOOT.ASM` and `HELLO.PRG`
-- verifies reserved drive-token handling separately through `make vice-drive`:
-  - `C:` returns `DRIVE NOT PRESENT`
-  - `D:` returns `DRIVE NOT PRESENT`
-- verifies real VICE tree write behavior separately:
-  - `make vice-real-tree-write`
-  - `make vice-real-tree-rename`
-  - `make vice-real-tree-wild`
- - verifies resident batch support separately:
-  - `make vice-batch-args`
-  - `make vice-batch-stop`
-  - `make vice-autoexec`
+- validates the boot path reaches the resident prompt:
+  - `A:D64/>`
+- validates the default boot-root `AUTOEXEC.BAT` output:
+  - `AUTOEXEC OK`
 - verifies `MEM` separately through the Python test suite:
   - derives resident usage from `build/udos-resident.labels`
   - checks the live shell prints matching decimal RAM usage/free values
-  - checks the current REU placeholder line remains `REU USED 0 FREE 16777216`
-- verifies mounted-image parsing and label derivation:
-  - `MOUNT B: /IMAGES/ALT.D81` yields `B:ALT D81`
-  - `MOUNT B: /IMAGES/WORK.DNP` restores `A:SYSTEM D64 B:WORK DNP`
-- verifies limited wildcard delete:
-  - `DEL *.PRG` deletes `BOOT3.PRG`
-  - `DIR` still shows `BOOT4.ASM`
-- verifies real VICE tree write-side lifecycles:
-  - exact `COPY` / `REN` / `DEL` on created files
-  - exact host-backed `REN`
-  - wildcard `COPY` and `DEL`
-- verifies resident snapshots:
-  - cached backend-path length:
-    - `A:` = `1` (`/`)
-    - `B:` = `5` (`/WORK`) after the smoke sequence
-  - `A:` bind = `D64/flat`
-  - `B:` bind = `DNP/tree`
-  - current drive = `B:`
-  - transport mode = `mock`
-  - mount kind = `DNP`
-  - ABI version = `1`
-  - program state after implicit launch = exited with `0` status on `B:/WORK`
-  - loaded program image length = `22` bytes (`BOOT3.PRG` from the mock `BOOT.ASM` content)
-
-Current validated resident transcript from `make vice-resident`:
-
-```text
-UDOS FOR COMMODORE 64
-  A:D64/> MOUNT B: /IMAGES/WORK.DNP
-  A:D64/> VOL
-A:SYSTEM D64 B:WORK DNP
-  A:D64/> B:
-B:DNP/
-  B:DNP/> CD SRC
-B:DNP/SRC
-  B:DNP/SRC> COPY BOOT.ASM WORK/BOOT2.PRG
-COPIED
-  B:DNP/SRC> COPY BOOT.ASM WORK/BOOT4.ASM
-COPIED
-  B:DNP/SRC> CD WORK
-  B:DNP/WORK
-  B:DNP/WORK> REN BOOT2.PRG BOOT3.PRG
-RENAMED
-  B:DNP/WORK> DELBOOT3
-PROGRAM NOT FOUND
-  B:DNP/WORK> DEL *.PRG
-DELETED
-  B:DNP/WORK> DIR
-B:DNP/WORK BOOT4.ASM
-```
+  - checks the live shell prints the current REU reservation line:
+    - `REU USED 3060`
+    - `FREE 16774156`
 
 Separate VICE smoke targets:
 - `make vice-launch`
@@ -198,8 +118,9 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$6A50`
+- resident core code: `$6B59`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$9000`
+- VICE validation now enables a `16 MiB` REU by default
 - hardware directory cache budget:
   - `6` entries per drive
   - `20` bytes per cached name

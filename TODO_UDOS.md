@@ -48,7 +48,7 @@
   - `*.*`
   - `*.EXT`
   - `NAME.*`
-- define and implement REU-backed resident spill/restore for later command/program launch headroom
+- extend the current REU-backed resident spill/restore beyond the VICE tree content cache for later command/program launch headroom
 - hardware-validate and harden the current `MOUNT_DISK` path on target
 - hardware-validate and harden the current flat-image header-label import path on target
 - extend `VOL` from flat-image header import to true mounted-image metadata across the remaining formats

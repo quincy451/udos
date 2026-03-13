@@ -99,11 +99,15 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
   - checked-in expected final-screen transcripts under `tests/selftest`
   - generated `build/udos-selftest-*.d64` and `build/udos-selftest-*.actual.txt` artifacts through `make vice-selftest`
+- added a first REU-backed resident shrink path:
+  - VICE tree content payloads now spill into REU
+  - the resident image now keeps one shared `PROGRAM_IMAGE_MAX` slot cache in RAM instead of two full in-RAM payload banks
+  - VICE validation now enables a `16 MiB` REU by default
 - updated resident `MEM` to report decimal usage:
   - RAM used bytes
   - RAM free bytes using the current `FFFF-used` policy
-  - REU used bytes
-  - REU free bytes using the current `16 MiB-used` placeholder policy
+  - REU used bytes from the current REU-backed reservation
+  - REU free bytes from the current `16 MiB-used` budget
 - replaced the placeholder mount form with a real image-path `MOUNT` syntax:
   - `MOUNT A: /path/to/system.d81`
   - `MOUNT B: /path/to/work.dnp`
@@ -290,8 +294,8 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
 - resident `MEM` now reports:
-  - `RAM USED 30481 FREE 35054 REU USED 0 FREE 16777216`
-- resident core code footprint: `$7731`
+  - `RAM USED 27481 FREE 38054 REU USED 3060 FREE 16774156`
+- resident core code footprint: `$6B59`
 - resident load window in `udos_c64.cfg`: `$9000`
 
 ## What Works

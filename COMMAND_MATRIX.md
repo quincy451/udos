@@ -45,7 +45,7 @@ Legend:
 
 Current priority:
 
-1. build a self-test image flow that reports success or failure through `AUTOEXEC.BAT`
-2. add REU-backed resident spill/shrink after the command surface is stable
-3. hardware-validate the existing UCI paths on a real Ultimate target
-4. then build release-style images without `AUTOEXEC.BAT`
+1. extend the new REU-backed resident spill/shrink beyond the VICE tree content cache
+2. hardware-validate the existing UCI paths on a real Ultimate target
+3. build release-style images without `AUTOEXEC.BAT`
+4. then resume the Action development toolchain work on top of UDOS

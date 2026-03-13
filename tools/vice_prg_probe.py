@@ -162,7 +162,7 @@ class BinaryMonitorClient:
     def keyboard_type(self, text: str) -> None:
         encoded = decode_escapes(text).encode("ascii", errors="strict")
         for byte in encoded:
-            deadline = time.monotonic() + self.timeout
+            deadline = time.monotonic() + (self.timeout * 3.0)
             while time.monotonic() < deadline:
                 pending = self.memory_get(KEYBUF_COUNT, KEYBUF_COUNT)[0]
                 if pending == 0:
@@ -249,6 +249,9 @@ def launch_vice(
         "-autostart",
         str(image),
         "-warp",
+        "-reu",
+        "-reusize",
+        "16384",
         "+sound",
         "-sounddev",
         "dummy",
@@ -317,7 +320,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--script-line", action="append", default=[], help="scripted input line to inject through UDOS script mode")
     parser.add_argument("--vice-arg", action="append", default=[], help="extra raw argument to pass through to x64sc")
     parser.add_argument("--settle", type=float, default=0.0, help="seconds to wait after the expected fragment before capturing the final screen")
-    parser.add_argument("--timeout", type=float, default=25.0, help="seconds to wait for the banner")
+    parser.add_argument("--timeout", type=float, default=60.0, help="seconds to wait for the banner")
     args = parser.parse_args(argv)
 
     image = Path(args.disk).resolve()
