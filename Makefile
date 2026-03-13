@@ -8,6 +8,7 @@ C1541 := c1541
 VICE_FS_ROOT := tests/vicefs
 AUTOEXEC_SRC ?= $(ASM_DIR)/autoexec_default.txt
 AUTOEXEC_INC := $(BUILD_DIR)/autoexec_script.inc
+RESIDENT_DEFINES ?=
 SELFTEST_ROOT := tests/selftest
 SELFTEST_READ_BUILD := build/selftest-read
 SELFTEST_COPY_BUILD := build/selftest-copy
@@ -69,8 +70,11 @@ RESIDENT_AUTO_PRG := $(BUILD_DIR)/udosres.prg
 RESIDENT_DISK := $(BUILD_DIR)/udos-resident.d64
 RESIDENT_LABELS := $(BUILD_DIR)/udos-resident.labels
 RESIDENT_MAP := $(BUILD_DIR)/udos-resident.map
+RELEASE_BUILD := build/release
+RELEASE_DISK := build/udos-release.d64
+RELEASE_FS := build/udos-release-fs
 
-.PHONY: all clean acheron-dep force proof vice-proof resident vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-resident vice-launch vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -97,7 +101,7 @@ $(AUTOEXEC_INC): $(AUTOEXEC_SRC) | $(BUILD_DIR)
 	$(PYTHON) tools/make_autoexec_include.py --input $< --output $@
 
 $(RESIDENT_OBJ): force $(ASM_DIR)/udos_resident.asm $(AUTOEXEC_INC) | $(BUILD_DIR)
-	$(CA65) -g -o $@ $(ASM_DIR)/udos_resident.asm -I $(BUILD_DIR) -I $(ACHERON_DIR)/bin -I $(ACHERON_DIR)/src
+	$(CA65) -g $(RESIDENT_DEFINES) -o $@ $(ASM_DIR)/udos_resident.asm -I $(BUILD_DIR) -I $(ACHERON_DIR)/bin -I $(ACHERON_DIR)/src
 
 $(RESIDENT_BOOT_OBJ): force $(ASM_DIR)/udos_boot.asm | $(BUILD_DIR)
 	$(CA65) -g -o $@ $(ASM_DIR)/udos_boot.asm
@@ -110,14 +114,21 @@ resident: acheron-dep $(RESIDENT_OBJ) $(RESIDENT_BOOT_OBJ)
 	$(PYTHON) tools/make_basic_autostart.py --input $(RESIDENT_BOOT_LOAD_PRG) --labels $(RESIDENT_BOOT_LABELS) --output $(RESIDENT_AUTO_PRG) --expected-load-addr 0x0810
 	$(C1541) -format "udos,01" d64 $(RESIDENT_DISK) -write $(RESIDENT_AUTO_PRG) udosboot -write $(RESIDENT_RAW) udoscore
 
+release:
+	$(MAKE) BUILD_DIR=$(RELEASE_BUILD) RESIDENT_DEFINES="-D UDOS_INCLUDE_AUTOEXEC=0" resident
+	$(PYTHON) tools/prepare_release_fs.py --base $(VICE_FS_ROOT) --output $(RELEASE_FS)
+	cp $(RELEASE_BUILD)/udos-resident.d64 $(RELEASE_DISK)
+
+vice-release: release
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RELEASE_DISK) \
+		--expected "A:D64/>" --settle 1.0 --absent "AUTOEXEC OK"
+
 vice-proof: proof
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_AUTO_PRG) --expected "UDOS VM OK"
 
 vice-resident: resident
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
-		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
-		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(VICE_FS_ROOT) \
-		--vice-arg=-fslongnames --expected "A:D64/>" --settle 1.0 --contains "AUTOEXEC OK"
+		--expected "A:D64/>" --settle 1.0 --contains "AUTOEXEC OK"
 
 vice-launch: resident
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
@@ -138,7 +149,8 @@ vice-copy: resident
 vice-drive: resident
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
-		--feed-after "A:D64/>" --feed-text "C:\rD:\r" --expected "DRIVE NOT PRESENT" --contains "DRIVE NOT PRESENT"
+		--feed-after "A:D64/>" --feed-text "C:\rD:\r" \
+		--expected "DRIVE NOT PRESENT" --contains "DRIVE NOT PRESENT"
 
 vice-real-read: resident
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \

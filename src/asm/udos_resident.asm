@@ -258,6 +258,10 @@ FULL_PATH_BUF_LEN = MAX_LINE_LEN + 8
 FLAT_LABEL_LEN = 16
 FLAT_DIR_READ_LEN = 247
 FLAT_SECTOR_READ_LEN = 255
+.ifndef UDOS_INCLUDE_AUTOEXEC
+UDOS_INCLUDE_AUTOEXEC = 1
+.endif
+FLAT_ENTRY_COUNT = 3 + UDOS_INCLUDE_AUTOEXEC
 UCI_WRITE_DATA_MAX = 251
 D64_LABEL_OFF_0 = $90
 D64_LABEL_OFF_1 = $65
@@ -321,6 +325,7 @@ IMG_FILE_WORK_COUNT = 33
 
 start:
     jsr clear_rstack
+    jsr clear_hiram
     jsr acheron
         call resident_main
         native
@@ -13132,6 +13137,8 @@ volume_ptr_lo:
     .byte <volume_system, <volume_work
 volume_ptr_hi:
     .byte >volume_system, >volume_work
+
+.segment "HIRAM"
 volume_label_a:
     .res MAX_LINE_LEN+1
 volume_label_b:
@@ -13164,8 +13171,6 @@ program_image_buffer:
     .res PROGRAM_IMAGE_MAX
 uci_write_buffer:
     .res MAX_RESPONSE_LEN+4
-script_line_data:
-    .res (MAX_LINE_LEN+1) * SCRIPT_LINE_MAX
 uci_cmd_buffer:
     .res (FULL_PATH_BUF_LEN * 2) + 3
 uci_data_buffer:
@@ -13201,7 +13206,6 @@ hw_dir_names_b:
 flat_entry_name_buffer:
     .res HW_DIR_NAME_STRIDE
 
-.segment "HIRAM"
 flat_dir_sector_buffer:
     .res 256
 flat_bam_primary_buffer:
@@ -13242,6 +13246,8 @@ vice_line_num_lo:
     .res 1
 vice_line_num_hi:
     .res 1
+script_line_data:
+    .res (MAX_LINE_LEN+1) * SCRIPT_LINE_MAX
 
 header_text:
     .byte "UDOS FOR COMMODORE 64", 0
@@ -13285,8 +13291,10 @@ entry_flat_commands:
     .byte "COMMANDS", 0
 entry_flat_readme:
     .byte "README", 0
+.if UDOS_INCLUDE_AUTOEXEC
 entry_flat_autoexec:
     .byte "AUTOEXEC.BAT", 0
+.endif
 entry_root_bin:
     .byte "BIN/", 0
 entry_root_src:
@@ -13309,8 +13317,10 @@ content_flat_commands:
     .byte "HELP VER VOL MEM DIR CD MD RD ECHO MOUNT TYPE COPY REN DEL", 0
 content_flat_readme:
     .byte "MOCK FLAT IMAGE CONTENT", 0
+.if UDOS_INCLUDE_AUTOEXEC
 content_flat_autoexec:
     .include "autoexec_script.inc"
+.endif
 content_bin_shell:
     .byte "SHELL OVERLAY PLACEHOLDER", 0
 content_bin_dir:
@@ -13320,9 +13330,15 @@ content_src_boot:
 content_src_fs:
     .byte "; FS.AVM MOCK SOURCE", 0
 flat_entry_lo:
-    .byte <entry_flat_system, <entry_flat_commands, <entry_flat_readme, <entry_flat_autoexec
+    .byte <entry_flat_system, <entry_flat_commands, <entry_flat_readme
+.if UDOS_INCLUDE_AUTOEXEC
+    .byte <entry_flat_autoexec
+.endif
 flat_entry_hi:
-    .byte >entry_flat_system, >entry_flat_commands, >entry_flat_readme, >entry_flat_autoexec
+    .byte >entry_flat_system, >entry_flat_commands, >entry_flat_readme
+.if UDOS_INCLUDE_AUTOEXEC
+    .byte >entry_flat_autoexec
+.endif
 root_entry_lo:
     .byte <entry_root_bin, <entry_root_src, <entry_root_work
 root_entry_hi:
@@ -13345,7 +13361,9 @@ flat_file_records:
     .byte <entry_flat_system, >entry_flat_system, <content_flat_system, >content_flat_system
     .byte <entry_flat_commands, >entry_flat_commands, <content_flat_commands, >content_flat_commands
     .byte <entry_flat_readme, >entry_flat_readme, <content_flat_readme, >content_flat_readme
+.if UDOS_INCLUDE_AUTOEXEC
     .byte <entry_flat_autoexec, >entry_flat_autoexec, <content_flat_autoexec, >content_flat_autoexec
+.endif
 bin_file_records:
     .byte <entry_bin_shell, >entry_bin_shell, <content_bin_shell, >content_bin_shell
     .byte <entry_bin_dir, >entry_bin_dir, <content_bin_dir, >content_bin_dir
@@ -13424,31 +13442,31 @@ image_none_b:
     .byte <empty_file_records, >empty_file_records, 0
 image_a_d64:
     .byte <volume_system, >volume_system
-    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 3
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, FLAT_ENTRY_COUNT
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
-    .byte <flat_file_records, >flat_file_records, 4
+    .byte <flat_file_records, >flat_file_records, FLAT_ENTRY_COUNT
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
 image_a_d71:
     .byte <volume_system, >volume_system
-    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 3
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, FLAT_ENTRY_COUNT
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
-    .byte <flat_file_records, >flat_file_records, 4
+    .byte <flat_file_records, >flat_file_records, FLAT_ENTRY_COUNT
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
 image_a_d81:
     .byte <volume_system, >volume_system
-    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 3
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, FLAT_ENTRY_COUNT
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
-    .byte <flat_file_records, >flat_file_records, 4
+    .byte <flat_file_records, >flat_file_records, FLAT_ENTRY_COUNT
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
@@ -13464,31 +13482,31 @@ image_a_dnp:
     .byte <empty_file_records, >empty_file_records, 0
 image_b_d64:
     .byte <volume_work, >volume_work
-    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 3
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, FLAT_ENTRY_COUNT
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
-    .byte <flat_file_records, >flat_file_records, 4
+    .byte <flat_file_records, >flat_file_records, FLAT_ENTRY_COUNT
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
 image_b_d71:
     .byte <volume_work, >volume_work
-    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 3
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, FLAT_ENTRY_COUNT
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
-    .byte <flat_file_records, >flat_file_records, 4
+    .byte <flat_file_records, >flat_file_records, FLAT_ENTRY_COUNT
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
 image_b_d81:
     .byte <volume_work, >volume_work
-    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 3
+    .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, FLAT_ENTRY_COUNT
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
     .byte <flat_entry_lo, >flat_entry_lo, <flat_entry_hi, >flat_entry_hi, 0
-    .byte <flat_file_records, >flat_file_records, 4
+    .byte <flat_file_records, >flat_file_records, FLAT_ENTRY_COUNT
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0
     .byte <empty_file_records, >empty_file_records, 0

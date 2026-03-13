@@ -99,6 +99,10 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
   - checked-in expected final-screen transcripts under `tests/selftest`
   - generated `build/udos-selftest-*.d64` and `build/udos-selftest-*.actual.txt` artifacts through `make vice-selftest`
+- added release-style boot packaging for VICE:
+  - `build/udos-release.d64`
+  - `build/udos-release-fs`
+  - release boot now reaches `A:D64/>` without a resident `AUTOEXEC.BAT`
 - added a first REU-backed resident shrink path:
   - VICE tree content payloads now spill into REU
   - the resident image now keeps one shared `PROGRAM_IMAGE_MAX` slot cache in RAM instead of two full in-RAM payload banks
@@ -294,8 +298,8 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
 - resident `MEM` now reports:
-  - `RAM USED 27481 FREE 38054 REU USED 3060 FREE 16774156`
-- resident core code footprint: `$6B59`
+  - `RAM USED 25778 FREE 39757 REU USED 3060 FREE 16774156`
+- resident core code footprint: `$64B2`
 - resident load window in `udos_c64.cfg`: `$9000`
 
 ## What Works
@@ -354,16 +358,6 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
 
 ## Next Concrete Step
 
-- replace the current descriptor-backed mock filesystem with real image-backed services behind the existing ABI
-- first targets:
-  - hardware-validate the new `MOUNT_DISK` path and harden error handling on target
-  - hardware-validate and harden the new flat-image header-label import path on target
-  - hardware-validate and harden the new flat-image raw root-directory parsing path on target
-  - hardware-validate and harden the new flat-image raw file-read path on target
-  - hardware-validate and harden the new flat-image raw program-image load path on target
-  - hardware-validate and harden the new flat-image raw delete path on target
-  - hardware-validate and harden the new flat-image raw rename path on target
-  - hardware-validate and harden the new flat-image raw copy path on target
-  - extend `VOL` beyond flat-image header import to full mounted-image metadata where the formats permit it
-  - hardware-validate and harden the new program-image load path
-- keep shell semantics stable while swapping the backend
+- extend the REU-backed resident spill/restore beyond the VICE tree content cache
+- keep the release boot package stable while preparing the next milestone
+- then resume the Action development tools work on top of the UDOS resident/runtime base

@@ -72,6 +72,10 @@ Current milestone:
   - focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
   - checked-in expected final-screen transcripts
   - generated actual transcripts for direct `diff -u` comparison
+- Phase 5 now also includes a release-style boot image:
+  - `build/udos-release.d64`
+  - boots directly to `A:D64/>` with no resident `AUTOEXEC.BAT`
+  - companion VICE workspace tree staged under `build/udos-release-fs`
 
 Current command parser rule:
 - shell keywords require a separator before arguments
@@ -90,6 +94,8 @@ Current command parser rule:
   the current REU-backed reservation line
 - the VICE backend now spills VICE tree content payloads into REU and keeps only a
   single slot cache in RAM
+- current direct `MEM` probe:
+  - `RAM USED 25778 FREE 39757 REU USED 3060 FREE 16774156`
 
 See:
 - `PIVOT_PLAN.md`

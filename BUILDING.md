@@ -48,6 +48,24 @@ Outputs:
 - `build/udosres.prg`
 - `build/udos-resident.d64`
 
+## Build The Release Image
+
+```sh
+cd /mnt/c/test/action/udos
+make release
+```
+
+Outputs:
+- `build/udos-release.d64`
+- `build/udos-release-fs`
+
+Release behavior:
+- the release boot image omits the resident `AUTOEXEC.BAT` file entry
+- boot reaches the shell prompt directly:
+  - `A:D64/>`
+- the staged VICE workspace tree for `B:` is under:
+  - `build/udos-release-fs/IMAGES/WORK.DNP`
+
 ## Emulator Validation
 
 ### Proof
@@ -108,6 +126,8 @@ Separate VICE smoke targets:
   - validates stop-on-error through `STOP.BAT`
 - `make vice-autoexec`
   - validates boot `AUTOEXEC.BAT` from the default `A:` boot root
+- `make vice-release`
+  - validates the release boot image reaches `A:D64/>` without printing `AUTOEXEC OK`
 - `make vice-selftest`
   - builds focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
   - writes the generated D64 artifacts under `build/udos-selftest-*.d64`
@@ -118,9 +138,11 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$6B59`
+- resident core code: `$64B2`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$9000`
 - VICE validation now enables a `16 MiB` REU by default
+- current direct `MEM` probe:
+  - `RAM USED 25778 FREE 39757 REU USED 3060 FREE 16774156`
 - hardware directory cache budget:
   - `6` entries per drive
   - `20` bytes per cached name

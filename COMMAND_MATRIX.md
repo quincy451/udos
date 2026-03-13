@@ -47,5 +47,4 @@ Current priority:
 
 1. extend the new REU-backed resident spill/shrink beyond the VICE tree content cache
 2. hardware-validate the existing UCI paths on a real Ultimate target
-3. build release-style images without `AUTOEXEC.BAT`
-4. then resume the Action development toolchain work on top of UDOS
+3. resume the Action development toolchain work on top of UDOS
