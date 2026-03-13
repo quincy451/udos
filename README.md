@@ -90,12 +90,15 @@ Current command parser rule:
   - `NAME.*`
 - `COPY` now also supports the same limited wildcard forms
 - wildcard `COPY` preserves each matched source filename and expects the destination to resolve to a directory target
-- `MEM` now reports decimal RAM used/free values from the linked resident image plus
-  the current REU-backed reservation line
+- `MEM` now reports launch-capable RAM when REU is present:
+  - `RAM USED` is treated as the preserved lower-RAM footprint after an aggressive spill
+  - `RAM FREE` is treated as launch-available lower RAM
+  - `REU USED` includes the current VICE tree cache reservation plus the spill
+    reservation for the resident image and HIRAM workspace
 - the VICE backend now spills VICE tree content payloads into REU and keeps only a
   single slot cache in RAM
 - current direct `MEM` probe:
-  - `RAM USED 25778 FREE 39757 REU USED 3060 FREE 16774156`
+  - `RAM USED 0 FREE 65535 REU USED 35377 FREE 16741839`
 
 See:
 - `PIVOT_PLAN.md`

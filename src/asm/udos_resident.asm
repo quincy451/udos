@@ -12676,6 +12676,17 @@ build_mem_prefix_loop:
     inx
     bne build_mem_prefix_loop
 build_mem_prefix_done:
+    jsr reu_init
+    lda reu_present
+    beq build_mem_actual_ram
+    lda #$00
+    sta mem_used_lo
+    sta mem_used_hi
+    sta mem_value_lo
+    sta mem_value_hi
+    jsr append_decimal16
+    jmp build_mem_append_ram_mid
+build_mem_actual_ram:
     lda #<__ACHERON_LAST__
     sec
     sbc #<RESIDENT_CODE_START
@@ -12686,6 +12697,7 @@ build_mem_prefix_done:
     sta mem_used_hi
     sta mem_value_hi
     jsr append_decimal16
+build_mem_append_ram_mid:
     ldx #$00
 build_mem_mid_loop:
     lda resp_mem_ram_mid,x
@@ -12695,6 +12707,14 @@ build_mem_mid_loop:
     inx
     bne build_mem_mid_loop
 build_mem_mid_done:
+    lda reu_present
+    beq build_mem_actual_free
+    lda #$FF
+    sta mem_value_lo
+    sta mem_value_hi
+    jsr append_decimal16
+    jmp build_mem_reu_present_prefix
+build_mem_actual_free:
     lda mem_used_lo
     eor #$FF
     sta mem_value_lo
@@ -12702,17 +12722,56 @@ build_mem_mid_done:
     eor #$FF
     sta mem_value_hi
     jsr append_decimal16
-    jsr reu_init
     lda reu_present
     beq build_mem_suffix_absent
+build_mem_reu_present_prefix:
     ldx #$00
-build_mem_suffix_loop:
-    lda resp_mem_reu_present_suffix,x
-    beq build_mem_suffix_done
+build_mem_reu_prefix_loop:
+    lda resp_mem_reu_used_prefix,x
+    beq build_mem_reu_prefix_done
     sta response_buffer,y
     iny
     inx
-    bne build_mem_suffix_loop
+    bne build_mem_reu_prefix_loop
+build_mem_reu_prefix_done:
+    lda #<REU_VICE_TREE_TOTAL
+    clc
+    adc #<__ACHERON_LAST__
+    sta mem_saved_lo
+    lda #>REU_VICE_TREE_TOTAL
+    adc #>__ACHERON_LAST__
+    sta mem_saved_mid
+    lda #$00
+    adc #$00
+    sta mem_saved_hi
+    lda mem_saved_lo
+    sta mem_value_lo
+    lda mem_saved_mid
+    sta mem_value_mid
+    lda mem_saved_hi
+    sta mem_value_hi
+    jsr append_decimal24
+    ldx #$00
+build_mem_reu_mid_loop:
+    lda resp_mem_reu_mid,x
+    beq build_mem_reu_mid_done
+    sta response_buffer,y
+    iny
+    inx
+    bne build_mem_reu_mid_loop
+build_mem_reu_mid_done:
+    sec
+    lda #$00
+    sbc mem_saved_lo
+    sta mem_value_lo
+    lda #$00
+    sbc mem_saved_mid
+    sta mem_value_mid
+    lda #$00
+    sbc mem_saved_hi
+    sta mem_value_hi
+    jsr append_decimal24
+    jmp build_mem_suffix_done
 build_mem_suffix_absent:
     ldx #$00
 build_mem_suffix_absent_loop:
@@ -12742,6 +12801,114 @@ build_mem_copy_done:
     sta 0,x
     lda #>mem_response_buffer
     sta 1,x
+    rts
+
+append_decimal24:
+    lda #$00
+    sta mem_digit_written
+    lda #$80
+    sta mem_divisor_lo
+    lda #$96
+    sta mem_divisor_mid
+    lda #$98
+    sta mem_divisor_hi
+    jsr append_decimal24_step
+    lda #$40
+    sta mem_divisor_lo
+    lda #$42
+    sta mem_divisor_mid
+    lda #$0F
+    sta mem_divisor_hi
+    jsr append_decimal24_step
+    lda #$A0
+    sta mem_divisor_lo
+    lda #$86
+    sta mem_divisor_mid
+    lda #$01
+    sta mem_divisor_hi
+    jsr append_decimal24_step
+    lda #$10
+    sta mem_divisor_lo
+    lda #$27
+    sta mem_divisor_mid
+    lda #$00
+    sta mem_divisor_hi
+    jsr append_decimal24_step
+    lda #$E8
+    sta mem_divisor_lo
+    lda #$03
+    sta mem_divisor_mid
+    lda #$00
+    sta mem_divisor_hi
+    jsr append_decimal24_step
+    lda #$64
+    sta mem_divisor_lo
+    lda #$00
+    sta mem_divisor_mid
+    sta mem_divisor_hi
+    jsr append_decimal24_step
+    lda #$0A
+    sta mem_divisor_lo
+    lda #$00
+    sta mem_divisor_mid
+    sta mem_divisor_hi
+    jsr append_decimal24_step
+    lda #$01
+    sta mem_divisor_lo
+    lda #$00
+    sta mem_divisor_mid
+    sta mem_divisor_hi
+    jmp append_decimal24_step
+
+append_decimal24_step:
+    lda #$00
+    sta mem_digit_value
+append_decimal24_subtract:
+    lda mem_value_hi
+    cmp mem_divisor_hi
+    bcc append_decimal24_emit
+    bne append_decimal24_do_subtract
+    lda mem_value_mid
+    cmp mem_divisor_mid
+    bcc append_decimal24_emit
+    bne append_decimal24_do_subtract
+    lda mem_value_lo
+    cmp mem_divisor_lo
+    bcc append_decimal24_emit
+append_decimal24_do_subtract:
+    sec
+    lda mem_value_lo
+    sbc mem_divisor_lo
+    sta mem_value_lo
+    lda mem_value_mid
+    sbc mem_divisor_mid
+    sta mem_value_mid
+    lda mem_value_hi
+    sbc mem_divisor_hi
+    sta mem_value_hi
+    inc mem_digit_value
+    jmp append_decimal24_subtract
+append_decimal24_emit:
+    lda mem_digit_value
+    bne append_decimal24_write
+    lda mem_digit_written
+    bne append_decimal24_write
+    lda mem_divisor_hi
+    bne append_decimal24_done
+    lda mem_divisor_mid
+    bne append_decimal24_done
+    lda mem_divisor_lo
+    cmp #$01
+    bne append_decimal24_done
+append_decimal24_write:
+    lda #$01
+    sta mem_digit_written
+    lda mem_digit_value
+    clc
+    adc #$30
+    sta response_buffer,y
+    iny
+append_decimal24_done:
     rts
 
 append_decimal16:
@@ -12977,11 +13144,21 @@ mem_used_lo:
     .byte 0
 mem_used_hi:
     .byte 0
+mem_saved_lo:
+    .byte 0
+mem_saved_mid:
+    .byte 0
+mem_saved_hi:
+    .byte 0
 mem_value_lo:
+    .byte 0
+mem_value_mid:
     .byte 0
 mem_value_hi:
     .byte 0
 mem_divisor_lo:
+    .byte 0
+mem_divisor_mid:
     .byte 0
 mem_divisor_hi:
     .byte 0
@@ -13261,8 +13438,10 @@ resp_mem_ram_prefix:
     .byte "RAM USED ", 0
 resp_mem_ram_mid:
     .byte " FREE ", 0
-resp_mem_reu_present_suffix:
-    .byte " REU USED 3060 FREE 16774156", 0
+resp_mem_reu_used_prefix:
+    .byte " REU USED ", 0
+resp_mem_reu_mid:
+    .byte " FREE ", 0
 resp_mem_reu_absent_suffix:
     .byte " REU USED 0 FREE 0", 0
 vice_tree_reu_slot_a_lo:

@@ -97,11 +97,9 @@ Current `vice-resident` behavior:
 - validates the default boot-root `AUTOEXEC.BAT` output:
   - `AUTOEXEC OK`
 - verifies `MEM` separately through the Python test suite:
-  - derives resident usage from `build/udos-resident.labels`
-  - checks the live shell prints matching decimal RAM usage/free values
-  - checks the live shell prints the current REU reservation line:
-    - `REU USED 3060`
-    - `FREE 16774156`
+  - derives the launch-capable REU reservation from `build/udos-resident.labels`
+  - checks the live shell prints launch-capable RAM usage/free values when REU is present
+  - checks the live shell prints the matching REU reservation/free values
 
 Separate VICE smoke targets:
 - `make vice-launch`
@@ -138,11 +136,11 @@ Current resident map facts:
 - linked entrypoint: `$1810`
 - Acheron dispatcher: `$00E6`
 - Acheron runtime body: `$072A`
-- resident core code: `$64B2`
+- resident core code: `$662D`
 - resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$9000`
 - VICE validation now enables a `16 MiB` REU by default
 - current direct `MEM` probe:
-  - `RAM USED 25778 FREE 39757 REU USED 3060 FREE 16774156`
+  - `RAM USED 0 FREE 65535 REU USED 35377 FREE 16741839`
 - hardware directory cache budget:
   - `6` entries per drive
   - `20` bytes per cached name

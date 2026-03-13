@@ -108,9 +108,10 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - the resident image now keeps one shared `PROGRAM_IMAGE_MAX` slot cache in RAM instead of two full in-RAM payload banks
   - VICE validation now enables a `16 MiB` REU by default
 - updated resident `MEM` to report decimal usage:
-  - RAM used bytes
-  - RAM free bytes using the current `FFFF-used` policy
-  - REU used bytes from the current REU-backed reservation
+  - launch-capable RAM used bytes when REU is present
+  - launch-capable RAM free bytes using the current `FFFF-used` policy
+  - REU used bytes including the current VICE tree reservation plus the
+    spill reservation for the resident image and HIRAM workspace
   - REU free bytes from the current `16 MiB-used` budget
 - replaced the placeholder mount form with a real image-path `MOUNT` syntax:
   - `MOUNT A: /path/to/system.d81`
@@ -298,8 +299,8 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
 - resident `MEM` now reports:
-  - `RAM USED 25778 FREE 39757 REU USED 3060 FREE 16774156`
-- resident core code footprint: `$64B2`
+  - `RAM USED 0 FREE 65535 REU USED 35377 FREE 16741839`
+- resident core code footprint: `$662D`
 - resident load window in `udos_c64.cfg`: `$9000`
 
 ## What Works

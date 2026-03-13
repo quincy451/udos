@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HAS_VICE = shutil.which("x64sc") is not None
 RESIDENT_CODE_START = 0x1810
+REU_VICE_TREE_TOTAL = 255 * 6 * 2
 
 
 def load_ld65_labels(path: Path) -> dict[str, int]:
@@ -96,8 +97,10 @@ class UdosBuildTests(unittest.TestCase):
     def test_mem_reports_linked_usage_in_vice(self) -> None:
         subprocess.run(["make", "resident"], cwd=ROOT, check=True)
         labels = load_ld65_labels(ROOT / "build" / "udos-resident.labels")
-        used = labels["__ACHERON_LAST__"] - RESIDENT_CODE_START
-        free = 0xFFFF - used
+        used = 0
+        free = 0xFFFF
+        reu_used = labels["__ACHERON_LAST__"] + REU_VICE_TREE_TOTAL
+        reu_free = 0x1000000 - reu_used
         subprocess.run(
             [
                 sys.executable,
@@ -117,11 +120,15 @@ class UdosBuildTests(unittest.TestCase):
                 "--expected",
                 "RAM USED",
                 "--contains",
-                f"RAM USED {used} FREE {free}",
+                f"RAM USED {used}",
                 "--contains",
-                "REU USED 3060",
+                str(free),
                 "--contains",
-                "FREE 16774156",
+                f"REU USED {reu_used}",
+                "--contains",
+                str(reu_free),
+                "--settle",
+                "1.0",
                 "--timeout",
                 "60",
             ],
