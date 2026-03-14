@@ -131,6 +131,9 @@ Separate VICE smoke targets:
   - validates boot `AUTOEXEC.BAT` from the default `A:` boot root
 - `make vice-release`
   - validates the release boot image reaches `A:D64/>` without printing `AUTOEXEC OK`
+- `make vice-action-workspace`
+  - validates the release workspace exposes `IMAGES/ACTION.DNP`
+  - mounts the exported Action bridge payload, lists its root entries, and reads `README.TXT` through the live shell
 - `make vice-selftest`
   - builds focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
   - writes the generated D64 artifacts under `build/udos-selftest-*.d64`

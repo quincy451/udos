@@ -94,6 +94,10 @@ class UdosBuildTests(unittest.TestCase):
         subprocess.run(["make", "vice-selftest"], cwd=ROOT, check=True)
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_workspace_bridge_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-workspace"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_mem_reports_linked_usage_in_vice(self) -> None:
         subprocess.run(["make", "resident"], cwd=ROOT, check=True)
         labels = load_ld65_labels(ROOT / "build" / "udos-resident.labels")

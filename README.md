@@ -78,6 +78,8 @@ Current milestone:
   - companion VICE workspace tree staged under `build/udos-release-fs`
   - when the sibling `actionc64u` exporter is present, the release workspace
     also includes `IMAGES/ACTION.DNP`
+  - `make vice-action-workspace` now validates mounting that exported Action
+    workspace, listing its root entries, and reading `README.TXT` from the shell
 
 Current command parser rule:
 - shell keywords require a separator before arguments
