@@ -303,26 +303,7 @@ def wait_for_screen_and_state(
     raise ViceError(f"timed out waiting for screen text {fragment!r}; last screen was:\n{last_screen}")
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Autostart a PRG or disk image in VICE and verify the expected runtime state")
-    parser.add_argument("--disk", required=True, help="path to a PRG or disk image to autostart")
-    parser.add_argument("--expected", required=True, help="screen fragment to wait for")
-    parser.add_argument("--marker-address", help="optional hex or decimal address for a marker byte")
-    parser.add_argument("--marker-value", help="optional expected marker byte value")
-    parser.add_argument("--check-byte", action="append", default=[], help="extra checks in addr=value form, hex or decimal")
-    parser.add_argument("--contains", action="append", default=[], help="extra screen fragments that must be present in the final screen")
-    parser.add_argument("--absent", action="append", default=[], help="screen fragments that must not be present in the final screen")
-    parser.add_argument("--keybuf", help="optional VICE -keybuf string to inject during autostart")
-    parser.add_argument("--keybuf-delay", type=int, help="optional VICE -keybuf-delay value")
-    parser.add_argument("--feed-after", help="optional screen fragment to wait for before binary-monitor keyboard feed")
-    parser.add_argument("--feed-text", help="optional text to feed through the VICE binary monitor after startup")
-    parser.add_argument("--labels", help="optional ld65 labels file for scripted resident input injection")
-    parser.add_argument("--script-line", action="append", default=[], help="scripted input line to inject through UDOS script mode")
-    parser.add_argument("--vice-arg", action="append", default=[], help="extra raw argument to pass through to x64sc")
-    parser.add_argument("--settle", type=float, default=0.0, help="seconds to wait after the expected fragment before capturing the final screen")
-    parser.add_argument("--timeout", type=float, default=60.0, help="seconds to wait for the banner")
-    args = parser.parse_args(argv)
-
+def run_probe(args: argparse.Namespace) -> str:
     image = Path(args.disk).resolve()
     if not image.is_file():
         raise SystemExit(f"disk image not found: {image}")
@@ -380,7 +361,7 @@ def main(argv: list[str] | None = None) -> int:
             client.memory_set(labels["script_index"], b"\x00")
             client.memory_set(labels["script_line_count"], bytes((len(args.script_line),)))
             client.memory_set(labels["input_mode"], bytes((INPUT_MODE_SCRIPT,)))
-        if args.feed_text is not None:
+        if args.feed_text is not None or args.feed_step:
             if args.feed_after:
                 wait_for_screen_and_state(
                     client,
@@ -391,7 +372,13 @@ def main(argv: list[str] | None = None) -> int:
                     extra_checks=[],
                     timeout=args.timeout,
                 )
+        if args.feed_text is not None:
             client.keyboard_type(args.feed_text)
+        if args.feed_step:
+            for chunk in args.feed_step:
+                client.keyboard_feed(chunk)
+                if args.feed_step_settle > 0.0:
+                    time.sleep(args.feed_step_settle)
         screen = wait_for_screen_and_state(
             client,
             process,
@@ -410,11 +397,7 @@ def main(argv: list[str] | None = None) -> int:
         for fragment in args.absent:
             if fragment in screen:
                 raise ViceError(f"screen fragment {fragment!r} should not be present in final screen:\n{screen}")
-        print(screen)
-        return 0
-    except ViceError as exc:
-        print(exc, file=sys.stderr)
-        return 1
+        return screen
     finally:
         try:
             client.quit_emulator()
@@ -427,6 +410,51 @@ def main(argv: list[str] | None = None) -> int:
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=5)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Autostart a PRG or disk image in VICE and verify the expected runtime state")
+    parser.add_argument("--disk", required=True, help="path to a PRG or disk image to autostart")
+    parser.add_argument("--expected", required=True, help="screen fragment to wait for")
+    parser.add_argument("--marker-address", help="optional hex or decimal address for a marker byte")
+    parser.add_argument("--marker-value", help="optional expected marker byte value")
+    parser.add_argument("--check-byte", action="append", default=[], help="extra checks in addr=value form, hex or decimal")
+    parser.add_argument("--contains", action="append", default=[], help="extra screen fragments that must be present in the final screen")
+    parser.add_argument("--absent", action="append", default=[], help="screen fragments that must not be present in the final screen")
+    parser.add_argument("--keybuf", help="optional VICE -keybuf string to inject during autostart")
+    parser.add_argument("--keybuf-delay", type=int, help="optional VICE -keybuf-delay value")
+    parser.add_argument("--feed-after", help="optional screen fragment to wait for before binary-monitor keyboard feed")
+    parser.add_argument("--feed-text", help="optional text to feed through the VICE binary monitor after startup")
+    parser.add_argument("--feed-step", action="append", default=[], help="stepwise text chunk to feed through the VICE binary monitor")
+    parser.add_argument("--feed-step-settle", type=float, default=1.0, help="seconds to wait after each --feed-step chunk")
+    parser.add_argument("--labels", help="optional ld65 labels file for scripted resident input injection")
+    parser.add_argument("--script-line", action="append", default=[], help="scripted input line to inject through UDOS script mode")
+    parser.add_argument("--vice-arg", action="append", default=[], help="extra raw argument to pass through to x64sc")
+    parser.add_argument("--settle", type=float, default=0.0, help="seconds to wait after the expected fragment before capturing the final screen")
+    parser.add_argument("--timeout", type=float, default=60.0, help="seconds to wait for the banner")
+    parser.add_argument("--attempts", type=int, default=1, help="number of times to retry the VICE probe before failing")
+    parser.add_argument("--attempt-delay", type=float, default=1.0, help="seconds to wait between failed attempts")
+    parser.add_argument("--output", help="optional file path to write the final captured screen")
+    args = parser.parse_args(argv)
+
+    attempts = max(1, args.attempts)
+    last_error: ViceError | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            screen = run_probe(args)
+            if args.output:
+                Path(args.output).write_text(screen + "\n")
+            print(screen)
+            return 0
+        except ViceError as exc:
+            last_error = exc
+            if attempt == attempts:
+                print(exc, file=sys.stderr)
+                return 1
+            time.sleep(max(0.0, args.attempt_delay))
+    assert last_error is not None
+    print(last_error, file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":

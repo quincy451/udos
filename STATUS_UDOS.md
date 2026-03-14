@@ -2,7 +2,7 @@
 
 ## Milestone
 
-Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 resident bootstrap/core complete, Phase 3 native UCI seam complete, Phase 4 filesystem abstraction seam complete, Phase 5 resident shell/backend slice complete through VICE tree read/write validation.
+Current milestone: Phase 0 complete, Phase 1 complete, Phase 2 resident bootstrap/core complete, Phase 3 native UCI seam complete, Phase 4 filesystem abstraction seam complete, Phase 5 resident shell/backend slice complete through VICE tree read/write validation and REU-backed UDOS-aware program return.
 
 UDOS remains a standalone C64 program path. It is not using CP/M-65 as the runtime environment for this work.
 
@@ -33,6 +33,11 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - exact `REN` now works for both overlay-created files and host-backed files
   - exact and wildcard `DEL` now hide host-backed files and remove overlay-created files
   - implicit launch now returns `PROGRAM NOT FOUND` correctly for missing tree-backed programs under VICE
+- added a REU-backed UDOS-aware external launch/return path under VICE
+  - implicit launch now stages `.PRG` payloads into REU and launches them through a native trampoline
+  - UDOS-aware programs now return through a fixed low-memory return stub and resume the resident shell
+  - exit status is captured into `PROGRAM_EXIT_SNAPSHOT`
+  - the current validation includes a clobber test that overwrites resident code and still returns to the prompt
 - added host-side `DNP` layout coverage for the next raw tree backend slice
   - the synthetic probe image now covers a native-partition root, one subdirectory, and chained file reads
   - the same probe image now also covers reference-sector semantics for `REN`, `DEL`, and `COPY`

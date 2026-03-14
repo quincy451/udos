@@ -36,7 +36,7 @@ Legend:
 | `B:` | Yes | Yes | N/A | N/A | N/A | Resident direct drive token; switches drives without resetting that drive's current directory. |
 | `C:` | Yes | Yes | N/A | N/A | N/A | Reserved token, returns `DRIVE NOT PRESENT`. |
 | `D:` | Yes | Yes | N/A | N/A | N/A | Reserved token, returns `DRIVE NOT PRESENT`. |
-| bare program launch | Yes | Yes | Yes | Yes | Partial | Mock and flat launch paths exist. Real VICE tree launch now passes for existing programs and returns `PROGRAM NOT FOUND` for missing ones. |
+| bare program launch | Yes | Yes | Yes | Yes | Partial | Mock and flat launch paths exist. Real VICE tree launch now passes for existing programs, captures exit status, and returns through the resident trampoline under VICE. Missing programs still return `PROGRAM NOT FOUND`. |
 | batch `.BAT` | Yes | Yes | Partial | Yes | Partial | Implicit `.BAT` fallback is working. `%1` / `%2` / `%3`, `ECHO`, and stop-on-error are validated on VICE. Default flat boot-root batch is working; real mounted flat-image batch validation is still incomplete. |
 | `AUTOEXEC.BAT` | Yes | Yes | Partial | N/A | Partial | Boot `AUTOEXEC.BAT` is working from the default `A:` boot root on VICE. Real mounted flat-image and hardware validation are still incomplete. |
 | `XCOPY` | No | No | No | No | No | Planned overlay/external command. |
@@ -45,6 +45,6 @@ Legend:
 
 Current priority:
 
-1. extend the new REU-backed resident spill/shrink beyond the VICE tree content cache
+1. finish packaging the new REU-backed external launch/restore path into the standard VICE test suite and release images
 2. hardware-validate the existing UCI paths on a real Ultimate target
 3. resume the Action development toolchain work on top of UDOS

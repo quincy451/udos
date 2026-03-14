@@ -208,6 +208,10 @@ PROGRAM_STATE_NONE = 0
 PROGRAM_STATE_RUNNING = 1
 PROGRAM_STATE_EXITED = 2
 PROGRAM_IMAGE_MAX = 255
+PROGRAM_LAUNCH_NONE = 0
+PROGRAM_LAUNCH_VICE_HOST = 1
+PROGRAM_LAUNCH_RESULT_OK = 0
+PROGRAM_LAUNCH_RESULT_LOAD_FAILED = 1
 WORK_DYNAMIC_MAX = 2
 WORK_NAME_MAX = 16
 REU_VICE_TREE_BYTES = PROGRAM_IMAGE_MAX * VICE_TREE_DYNAMIC_MAX
@@ -255,6 +259,26 @@ HW_DIR_CACHE_MAX = 6
 HW_DIR_NAME_MAX = 20
 HW_DIR_NAME_STRIDE = HW_DIR_NAME_MAX + 1
 FULL_PATH_BUF_LEN = MAX_LINE_LEN + 8
+PROGRAM_LOAD_MIN_ADDR = $0900
+LAUNCH_RESULT_FLAG = $03F0
+LAUNCH_EXIT_STATUS = $03F1
+LAUNCH_TRACE_BASE = $03F2
+LAUNCH_TRACE_STAGE = LAUNCH_TRACE_BASE + 0
+LAUNCH_TRACE_CODE = LAUNCH_TRACE_BASE + 1
+LAUNCH_STUB_ADDR = $CC00
+LAUNCH_RETURN_ADDR = $033C
+LAUNCH_RESTORE_ADDR = $CE00
+LAUNCH_STUB_LOAD_LO_PTR_PATCH = LAUNCH_STUB_ADDR + (launch_stub_load_lo_ptr_operand - launch_stub_entry_template)
+LAUNCH_STUB_LOAD_HI_PTR_PATCH = LAUNCH_STUB_ADDR + (launch_stub_load_hi_ptr_operand - launch_stub_entry_template)
+LAUNCH_STUB_LOAD_LO_CUR_PATCH = LAUNCH_STUB_ADDR + (launch_stub_load_lo_cur_operand - launch_stub_entry_template)
+LAUNCH_STUB_LOAD_HI_CUR_PATCH = LAUNCH_STUB_ADDR + (launch_stub_load_hi_cur_operand - launch_stub_entry_template)
+LAUNCH_STUB_LEN_LO_PATCH = LAUNCH_STUB_ADDR + (launch_stub_len_lo_operand - launch_stub_entry_template)
+LAUNCH_STUB_LEN_HI_PATCH = LAUNCH_STUB_ADDR + (launch_stub_len_hi_operand - launch_stub_entry_template)
+REU_LAUNCH_MAIN_BASE = REU_VICE_TREE_TOTAL
+REU_LAUNCH_MAIN_SIZE = __ACHERON_LAST__ - $1000
+REU_LAUNCH_HIRAM_BASE = REU_LAUNCH_MAIN_BASE + REU_LAUNCH_MAIN_SIZE
+REU_LAUNCH_HIRAM_SIZE = $0C00
+REU_LAUNCH_PROGRAM_BASE = REU_LAUNCH_HIRAM_BASE + REU_LAUNCH_HIRAM_SIZE
 FLAT_LABEL_LEN = 16
 FLAT_DIR_READ_LEN = 247
 FLAT_SECTOR_READ_LEN = 255
@@ -335,6 +359,7 @@ resident_halt:
 resident_main:
     mgrow 1
     calln svc_console_reset
+    calln svc_install_launch_stub
     calln svc_get_abi_version
     stma ABI_SNAPSHOT
     calln svc_transport_get_mode
@@ -458,6 +483,21 @@ shell_done:
     stma STAGE_SNAPSHOT
     calln svc_idle
     retm
+
+program_return_resume:
+    mgrow 1
+    calln svc_install_launch_stub
+    calln svc_program_consume_launch_result
+    case8 PROGRAM_LAUNCH_RESULT_LOAD_FAILED, program_return_load_failed
+    calln svc_command_status_from_program_exit
+    jump shell_loop
+
+program_return_load_failed:
+    calln svc_command_status_fail
+    setp16 resp_program_load_failed
+    calln svc_console_write_sc0
+    calln svc_console_newline
+    jump shell_loop
 
 svc_get_abi_version:
     lda #<ABI_VERSION
@@ -1700,6 +1740,27 @@ vice_read_open_file_into_ptr_len_done:
     clc
     rts
 
+vice_read_open_file_into_ptr_len_binary:
+    sta vice_read_limit
+    lda #$00
+    sta vice_read_length
+    tay
+vice_read_open_file_into_ptr_len_binary_loop:
+    cpy vice_read_limit
+    bcs vice_read_open_file_into_ptr_len_binary_full
+    jsr CHRIN
+    sta (PTR),y
+    iny
+    sty vice_read_length
+    jsr READST
+    and #$40
+    beq vice_read_open_file_into_ptr_len_binary_loop
+    sec
+    rts
+vice_read_open_file_into_ptr_len_binary_full:
+    clc
+    rts
+
 read_file_response_vice:
     jsr build_vice_open_path_from_name
     lda #VICE_LFN_FILE
@@ -1864,6 +1925,143 @@ load_program_image_vice_current_ok:
     jsr snapshot_program_image_length
     lda #RUN_STATUS_OK
     clc
+    rts
+
+prepare_external_program_launch:
+    jsr reu_init
+    lda reu_present
+    beq prepare_external_program_launch_fail
+    jsr uci_probe
+    bcc prepare_external_program_launch_fail
+    jsr vice_probe_available
+    bcs prepare_external_program_launch_fail
+    ldx temp_drive
+    lda mount_flag_table,x
+    cmp #MOUNT_FLAG_TREE
+    bne prepare_external_program_launch_fail
+    jsr current_mount_path_is_empty
+    bcs prepare_external_program_launch_fail
+    jsr query_program_file_vice_host_current
+    bcs prepare_external_program_launch_fail
+    jsr read_launch_header_vice_current
+    bcs prepare_external_program_launch_fail
+    jsr stage_launch_program_to_reu_vice_current
+    bcs prepare_external_program_launch_fail
+    lda #PROGRAM_LAUNCH_VICE_HOST
+    sta program_launch_mode
+    clc
+    rts
+prepare_external_program_launch_fail:
+    sec
+    rts
+
+copy_ptr_to_launch_name_buffer:
+    clc
+    rts
+
+read_launch_header_vice_current:
+    jsr build_vice_open_path_from_name
+    lda #VICE_LFN_FILE
+    sta vice_lfn
+    lda #VICE_SA_READ
+    sta vice_secondary
+    jsr vice_open_read_from_ptr
+    bcs read_launch_header_vice_current_fail
+    lda #<program_image_buffer
+    sta PTR
+    lda #>program_image_buffer
+    sta PTR+1
+    lda #$02
+    jsr vice_read_open_file_into_ptr_len
+    php
+    jsr vice_close_current_file
+    plp
+    lda vice_read_length
+    cmp #$02
+    bcc read_launch_header_vice_current_fail
+    lda program_image_buffer+0
+    sta launch_load_cache_lo
+    lda program_image_buffer+1
+    sta launch_load_cache_hi
+    lda launch_load_cache_hi
+    cmp #>PROGRAM_LOAD_MIN_ADDR
+    bcc read_launch_header_vice_current_too_low
+    bne read_launch_header_vice_current_ok
+    lda launch_load_cache_lo
+    cmp #<PROGRAM_LOAD_MIN_ADDR
+    bcc read_launch_header_vice_current_too_low
+read_launch_header_vice_current_ok:
+    clc
+    rts
+read_launch_header_vice_current_too_low:
+read_launch_header_vice_current_fail:
+    lda #RUN_STATUS_LOAD_FAILED
+    sta program_status
+    sec
+    rts
+
+stage_launch_program_to_reu_vice_current:
+    jsr build_vice_open_path_from_name
+    lda #VICE_LFN_FILE
+    sta vice_lfn
+    lda #VICE_SA_READ
+    sta vice_secondary
+    jsr vice_open_read_from_ptr
+    bcs stage_launch_program_to_reu_vice_current_fail
+    jsr CHRIN
+    jsr CHRIN
+    lda #$00
+    sta program_image_len_lo
+    sta program_image_len_hi
+    lda #<REU_LAUNCH_PROGRAM_BASE
+    sta launch_reu_reu_lo
+    lda #>REU_LAUNCH_PROGRAM_BASE
+    sta launch_reu_reu_hi
+stage_launch_program_to_reu_vice_current_loop:
+    lda #<program_image_buffer
+    sta PTR
+    lda #>program_image_buffer
+    sta PTR+1
+    lda #PROGRAM_IMAGE_MAX
+    jsr vice_read_open_file_into_ptr_len_binary
+    php
+    lda vice_read_length
+    bne :+
+    plp
+    jmp stage_launch_program_to_reu_vice_current_done
+:
+    lda #<program_image_buffer
+    sta launch_reu_c64_lo
+    lda #>program_image_buffer
+    sta launch_reu_c64_hi
+    lda vice_read_length
+    sta launch_reu_remaining_lo
+    lda #$00
+    sta launch_reu_remaining_hi
+    jsr spill_udos_chunk_loop
+    bcs stage_launch_program_to_reu_vice_current_fail_close
+    clc
+    lda program_image_len_lo
+    adc vice_read_length
+    sta program_image_len_lo
+    lda program_image_len_hi
+    adc #$00
+    sta program_image_len_hi
+    plp
+    bcs stage_launch_program_to_reu_vice_current_done
+    jmp stage_launch_program_to_reu_vice_current_loop
+stage_launch_program_to_reu_vice_current_done:
+    jsr vice_close_current_file
+    jsr snapshot_program_image_length
+    clc
+    rts
+stage_launch_program_to_reu_vice_current_fail_close:
+    plp
+    jsr vice_close_current_file
+stage_launch_program_to_reu_vice_current_fail:
+    lda #RUN_STATUS_LOAD_FAILED
+    sta program_status
+    sec
     rts
 
 fill_vice_dir_cache_current:
@@ -5367,6 +5565,8 @@ svc_program_prepare_run:
     stx saved_rp_x
     lda #RUN_STATUS_BAD
     sta program_status
+    lda #PROGRAM_LAUNCH_NONE
+    sta program_launch_mode
     lda #PROGRAM_STATE_NONE
     sta PROGRAM_STATE_SNAPSHOT
     lda #$00
@@ -5413,7 +5613,18 @@ program_status_unmounted:
     jmp program_status_return
 program_lookup:
     lda run_explicit_batch
-    bne program_lookup_batch
+    beq :+
+    jmp program_lookup_batch
+:
+    jsr prepare_external_program_launch
+    bcs :+
+    jmp program_ready
+:
+    lda program_status
+    cmp #RUN_STATUS_LOAD_FAILED
+    bne :+
+    jmp program_status_return
+:    
     jsr uci_probe
     bcc program_lookup_hw
     jsr vice_probe_available
@@ -6143,8 +6354,272 @@ svc_program_finish_prepare_ok:
 svc_program_finish_prepare_done:
     lda #$14
     sta STAGE_SNAPSHOT
+    jsr launch_external_program_if_ready
+    lda program_status
+    cmp #RUN_STATUS_LOAD_FAILED
+    beq svc_program_finish_prepare_load_failed
     jsr svc_program_exit
     jmp svc_command_status_from_program_exit
+svc_program_finish_prepare_load_failed:
+    jsr svc_command_status_fail
+    lda #<resp_program_load_failed
+    sta PTR
+    lda #>resp_program_load_failed
+    sta PTR+1
+    jsr svc_console_write_ptr
+    jmp svc_console_newline
+
+launch_external_program_if_ready:
+    lda program_launch_mode
+    beq launch_external_program_if_ready_done
+    cmp #PROGRAM_LAUNCH_VICE_HOST
+    bne launch_external_program_if_ready_done
+    lda #$E1
+    sta LAUNCH_TRACE_STAGE
+    lda #$A1
+    sta LAUNCH_TRACE_CODE
+    lda #$E2
+    sta LAUNCH_TRACE_STAGE
+    lda #$A2
+    sta LAUNCH_TRACE_CODE
+    jsr stage_launch_metadata
+    lda #$E3
+    sta LAUNCH_TRACE_STAGE
+    lda #$A3
+    sta LAUNCH_TRACE_CODE
+    jmp LAUNCH_STUB_ADDR
+launch_external_program_if_ready_done:
+    rts
+
+stage_launch_metadata:
+    lda #$B0
+    sta LAUNCH_TRACE_CODE
+    jsr svc_install_launch_return_stub
+    lda #PROGRAM_LAUNCH_RESULT_LOAD_FAILED
+    sta LAUNCH_RESULT_FLAG
+    lda #$00
+    sta LAUNCH_EXIT_STATUS
+    lda launch_load_cache_lo
+    sta LAUNCH_STUB_LOAD_LO_PTR_PATCH
+    sta LAUNCH_STUB_LOAD_LO_CUR_PATCH
+    lda launch_load_cache_hi
+    sta LAUNCH_STUB_LOAD_HI_PTR_PATCH
+    sta LAUNCH_STUB_LOAD_HI_CUR_PATCH
+    lda program_image_len_lo
+    sta LAUNCH_STUB_LEN_LO_PATCH
+    lda program_image_len_hi
+    sta LAUNCH_STUB_LEN_HI_PATCH
+    lda #$B1
+    sta LAUNCH_TRACE_CODE
+    rts
+
+open_launch_program_vice_host:
+    jsr build_vice_open_path_from_name
+    lda #VICE_LFN_FILE
+    sta vice_lfn
+    lda #VICE_SA_READ
+    sta vice_secondary
+    jmp vice_open_read_from_ptr
+
+spill_udos_to_reu:
+    jsr reu_init
+    lda reu_present
+    bne :+
+    sec
+    rts
+:
+    lda #$A4
+    sta LAUNCH_TRACE_CODE
+    lda #<$1000
+    sta launch_reu_c64_lo
+    lda #>$1000
+    sta launch_reu_c64_hi
+    lda #<REU_LAUNCH_MAIN_BASE
+    sta launch_reu_reu_lo
+    lda #>REU_LAUNCH_MAIN_BASE
+    sta launch_reu_reu_hi
+    lda #<REU_LAUNCH_MAIN_SIZE
+    sta launch_reu_remaining_lo
+    lda #>REU_LAUNCH_MAIN_SIZE
+    sta launch_reu_remaining_hi
+    jsr spill_udos_chunk_loop
+    bcs spill_udos_to_reu_fail
+    lda #$A5
+    sta LAUNCH_TRACE_CODE
+    lda #<$C000
+    sta launch_reu_c64_lo
+    lda #>$C000
+    sta launch_reu_c64_hi
+    lda #<REU_LAUNCH_HIRAM_BASE
+    sta launch_reu_reu_lo
+    lda #>REU_LAUNCH_HIRAM_BASE
+    sta launch_reu_reu_hi
+    lda #<$1000
+    sta launch_reu_remaining_lo
+    lda #>$1000
+    sta launch_reu_remaining_hi
+    jsr spill_udos_chunk_loop
+    bcs spill_udos_to_reu_fail
+    lda #$A6
+    sta LAUNCH_TRACE_CODE
+spill_udos_to_reu_fail:
+    rts
+
+spill_udos_chunk_loop:
+    lda launch_reu_remaining_lo
+    ora launch_reu_remaining_hi
+    bne :+
+    jmp spill_udos_chunk_done
+:
+    lda launch_reu_remaining_hi
+    beq spill_udos_chunk_remainder
+    lda #$FF
+    bne spill_udos_chunk_size_ready
+spill_udos_chunk_remainder:
+    lda launch_reu_remaining_lo
+spill_udos_chunk_size_ready:
+    sta launch_reu_chunk
+    lda C64_PORT
+    sta reu_saved_port
+    and #$F8
+    ora #C64_PORT_IO_ON
+    sta C64_PORT
+    lda launch_reu_c64_lo
+    sta REU_C64ADDR_LO
+    lda launch_reu_c64_hi
+    sta REU_C64ADDR_HI
+    lda launch_reu_reu_lo
+    sta REU_REUADDR_LO
+    lda launch_reu_reu_hi
+    sta REU_REUADDR_HI
+    lda #$00
+    sta REU_REUADDR_BANK
+    lda launch_reu_chunk
+    sta REU_COUNT_LO
+    lda #$00
+    sta REU_COUNT_HI
+    sta REU_IRQMASK
+    sta REU_CONTROL
+    lda #REU_CMD_COPY_C64_TO_REU
+    sta REU_COMMAND
+    lda reu_saved_port
+    and #$F8
+    sta C64_PORT
+    lda #$00
+    sta REU_TRIGGER
+    lda reu_saved_port
+    sta C64_PORT
+    clc
+    lda launch_reu_c64_lo
+    adc launch_reu_chunk
+    sta launch_reu_c64_lo
+    bcc :+
+    inc launch_reu_c64_hi
+:
+    clc
+    lda launch_reu_reu_lo
+    adc launch_reu_chunk
+    sta launch_reu_reu_lo
+    bcc :+
+    inc launch_reu_reu_hi
+:
+    sec
+    lda launch_reu_remaining_lo
+    sbc launch_reu_chunk
+    sta launch_reu_remaining_lo
+    lda launch_reu_remaining_hi
+    sbc #$00
+    sta launch_reu_remaining_hi
+    jmp spill_udos_chunk_loop
+spill_udos_chunk_done:
+    clc
+    rts
+
+svc_install_launch_stub:
+    lda #<launch_stub_entry_template
+    sta PTR
+    lda #>launch_stub_entry_template
+    sta PTR+1
+    lda #<LAUNCH_STUB_ADDR
+    sta SCREEN_PTR
+    lda #>LAUNCH_STUB_ADDR
+    sta SCREEN_PTR+1
+    lda #<(launch_stub_entry_template_end-launch_stub_entry_template)
+    sta launch_reu_remaining_lo
+    lda #>(launch_stub_entry_template_end-launch_stub_entry_template)
+    sta launch_reu_remaining_hi
+    jsr svc_install_copy_block
+    lda #<launch_stub_restore_template
+    sta PTR
+    lda #>launch_stub_restore_template
+    sta PTR+1
+    lda #<LAUNCH_RESTORE_ADDR
+    sta SCREEN_PTR
+    lda #>LAUNCH_RESTORE_ADDR
+    sta SCREEN_PTR+1
+    lda #<(launch_stub_restore_template_end-launch_stub_restore_template)
+    sta launch_reu_remaining_lo
+    lda #>(launch_stub_restore_template_end-launch_stub_restore_template)
+    sta launch_reu_remaining_hi
+    jsr svc_install_copy_block
+    rts
+
+svc_install_launch_return_stub:
+    lda #<launch_stub_return_template
+    sta PTR
+    lda #>launch_stub_return_template
+    sta PTR+1
+    lda #<LAUNCH_RETURN_ADDR
+    sta SCREEN_PTR
+    lda #>LAUNCH_RETURN_ADDR
+    sta SCREEN_PTR+1
+    lda #<(launch_stub_return_template_end-launch_stub_return_template)
+    sta launch_reu_remaining_lo
+    lda #>(launch_stub_return_template_end-launch_stub_return_template)
+    sta launch_reu_remaining_hi
+    jsr svc_install_copy_block
+    rts
+
+svc_install_copy_block:
+    lda launch_reu_remaining_lo
+    ora launch_reu_remaining_hi
+    beq svc_install_copy_block_done
+    ldy #$00
+    lda (PTR),y
+    sta (SCREEN_PTR),y
+    inc PTR
+    bne :+
+    inc PTR+1
+:
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    sec
+    lda launch_reu_remaining_lo
+    sbc #$01
+    sta launch_reu_remaining_lo
+    lda launch_reu_remaining_hi
+    sbc #$00
+    sta launch_reu_remaining_hi
+    jmp svc_install_copy_block
+svc_install_copy_block_done:
+    rts
+
+svc_program_consume_launch_result:
+    lda LAUNCH_EXIT_STATUS
+    sta PROGRAM_EXIT_SNAPSHOT
+    lda #PROGRAM_STATE_EXITED
+    sta PROGRAM_STATE_SNAPSHOT
+    lda LAUNCH_RESULT_FLAG
+    sta 0,x
+    lda #$00
+    sta 1,x
+    lda #PROGRAM_LAUNCH_RESULT_OK
+    sta LAUNCH_RESULT_FLAG
+    lda #$00
+    sta LAUNCH_EXIT_STATUS
+    rts
 
 svc_program_error_ptr:
     lda 0,x
@@ -7039,7 +7514,9 @@ rename_file_vice_load_source:
     sta temp_dir_id
     jsr copy_source_name_to_path_buffer
     jsr read_file_response_vice_current
-    bcs rename_file_vice_fail
+    bcc :+
+    jmp rename_file_vice_fail
+:
     lda dest_drive
     sta temp_drive
     lda dest_dir_id
@@ -13048,6 +13525,313 @@ svc_idle:
 idle_loop:
     jmp idle_loop
 
+launch_stub_entry_template:
+    sei
+    lda #$F1
+    sta LAUNCH_TRACE_STAGE
+    lda #$C1
+    sta LAUNCH_TRACE_CODE
+    ldx #$FF
+    txs
+    lda #<$1000
+    sta $F9
+    lda #>$1000
+    sta $FA
+    lda #<REU_LAUNCH_MAIN_BASE
+    sta $FB
+    lda #>REU_LAUNCH_MAIN_BASE
+    sta $FC
+    lda #<REU_LAUNCH_MAIN_SIZE
+    sta $FD
+    lda #>REU_LAUNCH_MAIN_SIZE
+    sta $FE
+    jsr launch_stub_spill_loop
+    lda #<$C000
+    sta $F9
+    lda #>$C000
+    sta $FA
+    lda #<REU_LAUNCH_HIRAM_BASE
+    sta $FB
+    lda #>REU_LAUNCH_HIRAM_BASE
+    sta $FC
+    lda #<REU_LAUNCH_HIRAM_SIZE
+    sta $FD
+    lda #>REU_LAUNCH_HIRAM_SIZE
+    sta $FE
+    jsr launch_stub_spill_loop
+launch_stub_load_lo_ptr_patch_instr:
+    lda #$00
+launch_stub_load_lo_ptr_operand = * - 1
+    sta $F7
+launch_stub_load_hi_ptr_patch_instr:
+    lda #$00
+launch_stub_load_hi_ptr_operand = * - 1
+    sta $F8
+launch_stub_load_lo_cur_patch_instr:
+    lda #$00
+launch_stub_load_lo_cur_operand = * - 1
+    sta $FB
+launch_stub_load_hi_cur_patch_instr:
+    lda #$00
+launch_stub_load_hi_cur_operand = * - 1
+    sta $FC
+    lda #<REU_LAUNCH_PROGRAM_BASE
+    sta $F9
+    lda #>REU_LAUNCH_PROGRAM_BASE
+    sta $FA
+launch_stub_len_lo_patch_instr:
+    lda #$00
+launch_stub_len_lo_operand = * - 1
+    sta $FD
+launch_stub_len_hi_patch_instr:
+    lda #$00
+launch_stub_len_hi_operand = * - 1
+    sta $FE
+    lda #$F2
+    sta LAUNCH_TRACE_STAGE
+    lda #$C2
+    sta LAUNCH_TRACE_CODE
+launch_stub_copy_loop:
+    lda $FD
+    ora $FE
+    beq launch_stub_copy_done
+    lda $FE
+    beq launch_stub_copy_remainder
+    lda #$FF
+    bne launch_stub_copy_chunk_ready
+launch_stub_copy_remainder:
+    lda $FD
+launch_stub_copy_chunk_ready:
+    sta REU_COUNT_LO
+    lda #$00
+    sta REU_COUNT_HI
+    lda $FB
+    sta REU_C64ADDR_LO
+    lda $FC
+    sta REU_C64ADDR_HI
+    lda $F9
+    sta REU_REUADDR_LO
+    lda $FA
+    sta REU_REUADDR_HI
+    lda #$00
+    sta REU_REUADDR_BANK
+    sta REU_IRQMASK
+    sta REU_CONTROL
+    lda #REU_CMD_COPY_REU_TO_C64
+    sta REU_COMMAND
+    lda #$30
+    sta C64_PORT
+    lda #$00
+    sta REU_TRIGGER
+    lda #$37
+    sta C64_PORT
+    clc
+    lda $FB
+    adc REU_COUNT_LO
+    sta $FB
+    bcc :+
+    inc $FC
+:
+    clc
+    lda $F9
+    adc REU_COUNT_LO
+    sta $F9
+    bcc :+
+    inc $FA
+:
+    sec
+    lda $FD
+    sbc REU_COUNT_LO
+    sta $FD
+    lda $FE
+    sbc #$00
+    sta $FE
+    jmp launch_stub_copy_loop
+launch_stub_copy_done:
+    lda #$F3
+    sta LAUNCH_TRACE_STAGE
+    lda #$C3
+    sta LAUNCH_TRACE_CODE
+    cli
+    jmp ($00F7)
+
+launch_stub_spill_loop:
+    lda $FD
+    ora $FE
+    beq launch_stub_spill_done
+    lda $FE
+    beq launch_stub_spill_remainder
+    lda #$FF
+    bne launch_stub_spill_chunk_ready
+launch_stub_spill_remainder:
+    lda $FD
+launch_stub_spill_chunk_ready:
+    sta REU_COUNT_LO
+    lda #$00
+    sta REU_COUNT_HI
+    lda $F9
+    sta REU_C64ADDR_LO
+    lda $FA
+    sta REU_C64ADDR_HI
+    lda $FB
+    sta REU_REUADDR_LO
+    lda $FC
+    sta REU_REUADDR_HI
+    lda #$00
+    sta REU_REUADDR_BANK
+    sta REU_IRQMASK
+    sta REU_CONTROL
+    lda #REU_CMD_COPY_C64_TO_REU
+    sta REU_COMMAND
+    lda #$30
+    sta C64_PORT
+    lda #$00
+    sta REU_TRIGGER
+    lda #$37
+    sta C64_PORT
+    clc
+    lda $F9
+    adc REU_COUNT_LO
+    sta $F9
+    bcc :+
+    inc $FA
+:
+    clc
+    lda $FB
+    adc REU_COUNT_LO
+    sta $FB
+    bcc :+
+    inc $FC
+:
+    sec
+    lda $FD
+    sbc REU_COUNT_LO
+    sta $FD
+    lda $FE
+    sbc #$00
+    sta $FE
+    jmp launch_stub_spill_loop
+launch_stub_spill_done:
+    rts
+launch_stub_entry_template_end:
+
+launch_stub_return_template:
+    sei
+    pha
+    lda #$F4
+    sta LAUNCH_TRACE_STAGE
+    lda #$C4
+    sta LAUNCH_TRACE_CODE
+    pla
+    sta LAUNCH_EXIT_STATUS
+    lda #PROGRAM_LAUNCH_RESULT_OK
+    sta LAUNCH_RESULT_FLAG
+    jmp LAUNCH_RESTORE_ADDR
+launch_stub_return_template_end:
+
+launch_stub_restore_template:
+    lda #$F5
+    sta LAUNCH_TRACE_STAGE
+    lda #$C5
+    sta LAUNCH_TRACE_CODE
+    lda #<$1000
+    sta $F9
+    lda #>$1000
+    sta $FA
+    lda #<REU_LAUNCH_MAIN_BASE
+    sta $FB
+    lda #>REU_LAUNCH_MAIN_BASE
+    sta $FC
+    lda #<REU_LAUNCH_MAIN_SIZE
+    sta $FD
+    lda #>REU_LAUNCH_MAIN_SIZE
+    sta $FE
+    jsr launch_stub_restore_loop
+    lda #<$C000
+    sta $F9
+    lda #>$C000
+    sta $FA
+    lda #<REU_LAUNCH_HIRAM_BASE
+    sta $FB
+    lda #>REU_LAUNCH_HIRAM_BASE
+    sta $FC
+    lda #<REU_LAUNCH_HIRAM_SIZE
+    sta $FD
+    lda #>REU_LAUNCH_HIRAM_SIZE
+    sta $FE
+    jsr launch_stub_restore_loop
+    cli
+    ldx #$FF
+    txs
+    lda #$F6
+    sta LAUNCH_TRACE_STAGE
+    lda #$C6
+    sta LAUNCH_TRACE_CODE
+    jsr clear_rstack
+    jsr acheron
+        jump program_return_resume
+        native
+
+launch_stub_restore_loop:
+    lda $FD
+    ora $FE
+    beq launch_stub_restore_done
+    lda $FE
+    beq launch_stub_restore_remainder
+    lda #$FF
+    bne launch_stub_restore_chunk_ready
+launch_stub_restore_remainder:
+    lda $FD
+launch_stub_restore_chunk_ready:
+    sta REU_COUNT_LO
+    lda #$00
+    sta REU_COUNT_HI
+    lda $F9
+    sta REU_C64ADDR_LO
+    lda $FA
+    sta REU_C64ADDR_HI
+    lda $FB
+    sta REU_REUADDR_LO
+    lda $FC
+    sta REU_REUADDR_HI
+    lda #$00
+    sta REU_REUADDR_BANK
+    sta REU_IRQMASK
+    sta REU_CONTROL
+    lda #REU_CMD_COPY_REU_TO_C64
+    sta REU_COMMAND
+    lda #$30
+    sta C64_PORT
+    lda #$00
+    sta REU_TRIGGER
+    lda #$37
+    sta C64_PORT
+    clc
+    lda $F9
+    adc REU_COUNT_LO
+    sta $F9
+    bcc :+
+    inc $FA
+:
+    clc
+    lda $FB
+    adc REU_COUNT_LO
+    sta $FB
+    bcc :+
+    inc $FC
+:
+    sec
+    lda $FD
+    sbc REU_COUNT_LO
+    sta $FD
+    lda $FE
+    sbc #$00
+    sta $FE
+    jmp launch_stub_restore_loop
+launch_stub_restore_done:
+    rts
+launch_stub_restore_template_end:
+
 current_drive:
     .byte DRIVE_A
 input_mode:
@@ -13063,6 +13847,24 @@ reu_slot_hi:
 reu_slot_bank:
     .byte 0
 reu_command_temp:
+    .byte 0
+launch_reu_c64_lo:
+    .byte 0
+launch_reu_c64_hi:
+    .byte 0
+launch_reu_reu_lo:
+    .byte 0
+launch_reu_reu_hi:
+    .byte 0
+launch_reu_remaining_lo:
+    .byte 0
+launch_reu_remaining_hi:
+    .byte 0
+launch_reu_chunk:
+    .byte 0
+launch_load_cache_lo:
+    .byte 0
+launch_load_cache_hi:
     .byte 0
 saved_rp_x:
     .byte 0
@@ -13190,6 +13992,8 @@ uci_status_length:
     .byte 0
 program_status:
     .byte RUN_STATUS_BAD
+program_launch_mode:
+    .byte PROGRAM_LAUNCH_NONE
 flat_dir_track:
     .byte 0
 flat_dir_sector:

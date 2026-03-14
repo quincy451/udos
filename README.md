@@ -97,6 +97,9 @@ Current command parser rule:
     reservation for the resident image and HIRAM workspace
 - the VICE backend now spills VICE tree content payloads into REU and keeps only a
   single slot cache in RAM
+- UDOS-aware external launch now returns through a resident trampoline under VICE
+- the current launch/return validation includes a clobber test that overwrites
+  resident code and still returns to the shell through REU-backed restore
 - current direct `MEM` probe:
   - `RAM USED 0 FREE 65535 REU USED 35377 FREE 16741839`
 

@@ -103,7 +103,9 @@ Current `vice-resident` behavior:
 
 Separate VICE smoke targets:
 - `make vice-launch`
-  - validates implicit launch with `BOOT3 DIR`
+  - validates implicit launch plus controlled return with `RETTEST DIR`
+- `make vice-clobber`
+  - validates REU-backed launch/restore with a program that overwrites resident code before returning
 - `make vice-copy`
   - validates wildcard copy with `COPY *.* WORK`
 - `make vice-drive`
