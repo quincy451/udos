@@ -76,6 +76,8 @@ Current milestone:
   - `build/udos-release.d64`
   - boots directly to `A:D64/>` with no resident `AUTOEXEC.BAT`
   - companion VICE workspace tree staged under `build/udos-release-fs`
+  - when the sibling `actionc64u` exporter is present, the release workspace
+    also includes `IMAGES/ACTION.DNP`
 
 Current command parser rule:
 - shell keywords require a separator before arguments

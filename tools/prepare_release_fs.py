@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 
@@ -23,6 +26,30 @@ def rewrite_manifest(path: Path, drop: set[str]) -> None:
             continue
         kept.append(stripped)
     path.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="ascii")
+
+
+def import_action_workspace(output: Path) -> None:
+    workspace = Path(__file__).resolve().parents[2]
+    action_root = workspace / "actionc64u"
+    exporter = action_root / "tools" / "export_udos_workspace.py"
+    if not exporter.is_file():
+        return
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        staging = Path(tmpdir) / "action"
+        subprocess.run(
+            [sys.executable, str(exporter), "--output", str(staging)],
+            cwd=action_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        exported = staging / "IMAGES" / "ACTION.DNP"
+        if exported.is_dir():
+            target = output / "IMAGES" / "ACTION.DNP"
+            if target.exists():
+                shutil.rmtree(target)
+            shutil.copytree(exported, target)
 
 
 def main() -> int:
@@ -51,6 +78,8 @@ def main() -> int:
     work_dir.mkdir(parents=True, exist_ok=True)
     if not work_manifest.exists():
         work_manifest.write_text("", encoding="ascii")
+
+    import_action_workspace(output)
     return 0
 
 

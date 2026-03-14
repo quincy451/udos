@@ -65,6 +65,9 @@ Release behavior:
   - `A:D64/>`
 - the staged VICE workspace tree for `B:` is under:
   - `build/udos-release-fs/IMAGES/WORK.DNP`
+- if the sibling `actionc64u` exporter is present, the staged workspace also
+  includes:
+  - `build/udos-release-fs/IMAGES/ACTION.DNP`
 
 ## Emulator Validation
 

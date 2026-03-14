@@ -108,6 +108,8 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `build/udos-release.d64`
   - `build/udos-release-fs`
   - release boot now reaches `A:D64/>` without a resident `AUTOEXEC.BAT`
+  - when the sibling Action exporter is present, the staged release workspace
+    also includes `build/udos-release-fs/IMAGES/ACTION.DNP`
 - added a first REU-backed resident shrink path:
   - VICE tree content payloads now spill into REU
   - the resident image now keeps one shared `PROGRAM_IMAGE_MAX` slot cache in RAM instead of two full in-RAM payload banks
