@@ -135,21 +135,26 @@ Separate VICE smoke targets:
   - validates the release workspace exposes `IMAGES/ACTION.DNP`
   - mounts the exported Action bridge payload, lists its root entries, and reads `README.TXT` through the live shell
 - `make vice-action-actdir`
+  - uses the release image plus deterministic typed input
   - validates `ACTDIR.PRG` launches from mounted `ACTION.DNP`
   - enumerates the current directory through the preserved external-tool directory ABI
   - prints the mounted Action workspace root entries and returns to the shell
 - `make vice-action-actinfo`
+  - uses the release image plus deterministic typed input
   - validates `ACTINFO.PRG` launches from mounted `ACTION.DNP` and returns to the shell
 - `make vice-action-avminfo`
+  - uses the release image plus deterministic typed input
   - validates `AVMINFO.PRG` launches from mounted `ACTION.DNP`
   - loads `HELLO.AVM` through the preserved external-tool file-load ABI
   - prints `AVM VERSION`, `PAYLOAD`, `ENTRY`, and `AVM OK`
 - `make vice-action-avmrun`
+  - uses the release image plus deterministic typed input
   - validates `AVMRUN.PRG` launches from mounted `ACTION.DNP`
   - loads `UDOSHELLO.AVM` through the preserved external-tool file-load ABI
   - executes the current constrained flagged Acheron-backed `AVM1` subset
   - prints `UDOS AVM OK` and returns to the shell
 - `make vice-action-avmrun-flow`
+  - uses the release image plus deterministic typed input
   - validates `AVMRUN.PRG` can run `UDOSFLOW.AVM`
   - proves the current constrained subset can execute `jump`, `call`, and `ret`
   - prints `UDOS AVM FLOW OK` and returns to the shell

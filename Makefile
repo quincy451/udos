@@ -172,12 +172,9 @@ vice-action-workspace: release
 		--contains "ACTION WORKSPACE OK"
 
 vice-action-actdir: release
-	$(MAKE) BUILD_DIR=$(ACTION_ACTDIR_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actdir.txt resident
-	cp $(ACTION_ACTDIR_BUILD)/udos-resident.d64 $(ACTION_ACTDIR_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTDIR_ARTIFACT) \
-		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
-		--vice-arg=-fslongnames --expected "B:DNP/>" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--command "ACTDIR" --run-marker "RUN ACTDIR.PRG" --done-fragment "ACTINFO.PRG" --prompt-count 2 \
 		--contains "RUN ACTDIR.PRG" \
 		--contains "BIN/" \
 		--contains "DOC/" \
@@ -185,25 +182,18 @@ vice-action-actdir: release
 		--contains "SRC/"
 
 vice-action-actinfo: release
-	$(MAKE) BUILD_DIR=$(ACTION_ACTINFO_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actinfo.txt resident
-	cp $(ACTION_ACTINFO_BUILD)/udos-resident.d64 $(ACTION_ACTINFO_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTINFO_ARTIFACT) \
-		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
-		--vice-arg=-fslongnames --expected "B:ACTION DNP" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--command "ACTINFO ONE TWO" --run-marker "RUN ACTINFO.PRG" --done-fragment "ACTINFO DONE" --prompt-count 2 \
 		--contains "ACTINFO ABI 1" \
 		--contains "ARGS ONE TWO" \
 		--contains "ACTINFO DONE" \
-		--contains "RUN ACTINFO.PRG" \
-		--contains "B:DNP/>"
+		--contains "RUN ACTINFO.PRG"
 
 vice-action-avminfo: release
-	$(MAKE) BUILD_DIR=$(ACTION_AVMINFO_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_avminfo.txt resident
-	cp $(ACTION_AVMINFO_BUILD)/udos-resident.d64 $(ACTION_AVMINFO_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_AVMINFO_ARTIFACT) \
-		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
-		--vice-arg=-fslongnames --expected "B:DNP/>" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--command "AVMINFO HELLO.AVM" --run-marker "RUN AVMINFO.PRG" --done-fragment "AVM OK" --prompt-count 2 \
 		--contains "RUN AVMINFO.PRG" \
 		--contains "AVM VERSION 1" \
 		--contains "PAYLOAD" \
@@ -212,11 +202,15 @@ vice-action-avminfo: release
 
 vice-action-avmrun: release
 	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS)
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--command "AVMRUN UDOSHELLO.AVM" --run-marker "RUN AVMRUN.PRG" --done-fragment "UDOS AVM OK" --prompt-count 2 \
+		--contains "UDOS AVM OK"
 
 vice-action-avmrun-flow: release
 	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) --payload UDOSFLOW.AVM --expect "UDOS AVM FLOW OK"
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--command "AVMRUN UDOSFLOW.AVM" --run-marker "RUN AVMRUN.PRG" --done-fragment "UDOS AVM FLOW OK" --prompt-count 2 \
+		--contains "UDOS AVM FLOW OK"
 
 vice-proof: proof
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_AUTO_PRG) --expected "UDOS VM OK"

@@ -81,16 +81,17 @@ Current milestone:
   - `make vice-action-workspace` now builds an autoexec-backed Action test image
     that mounts the exported Action workspace, lists its root entries, and reads
     `README.TXT` from the shell
-  - `make vice-action-actdir` now builds an autoexec-backed Action test image
-    that launches `ACTDIR.PRG` from the mounted Action workspace, enumerates the
-    current directory through the preserved external-tool directory ABI, and
-    returns to the UDOS prompt
-  - `make vice-action-actinfo` now builds an autoexec-backed Action test image
-    that launches `ACTINFO.PRG` from the mounted Action workspace through the
-    preserved launch-safe external-tool ABI and returns to the UDOS prompt
-  - `make vice-action-avminfo` now builds an autoexec-backed Action test image
-    that launches `AVMINFO.PRG`, loads `HELLO.AVM` through the preserved
-    launch-safe file-load ABI, and returns to the UDOS prompt
+  - `make vice-action-actdir` now uses the release image with deterministic
+    typed input, mounts the Action workspace, launches `ACTDIR.PRG`,
+    enumerates the current directory through the preserved external-tool
+    directory ABI, and returns to the UDOS prompt
+  - `make vice-action-actinfo` now uses the release image with deterministic
+    typed input, launches `ACTINFO.PRG` from the mounted Action workspace
+    through the preserved launch-safe external-tool ABI, and returns to the
+    UDOS prompt
+  - `make vice-action-avminfo` now uses the release image with deterministic
+    typed input, launches `AVMINFO.PRG`, loads `HELLO.AVM` through the
+    preserved launch-safe file-load ABI, and returns to the UDOS prompt
   - `make vice-action-avmrun` now mounts the exported Action workspace from the
     release image, launches `AVMRUN.PRG`, loads `UDOSHELLO.AVM` through the
     preserved launch-safe file-load ABI, executes the current constrained

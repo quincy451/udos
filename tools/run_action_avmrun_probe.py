@@ -9,22 +9,44 @@ from pathlib import Path
 import vice_prg_probe as vp
 
 
+def screen_text(client: vp.BinaryMonitorClient) -> str:
+    return vp.screen_ram_to_text(client.memory_get(0x0400, 0x07E7))
+
+
 def wait_for_screen_fragment(client: vp.BinaryMonitorClient, fragment: str, timeout: float) -> str:
     deadline = time.monotonic() + timeout
     last_screen = ""
     while time.monotonic() < deadline:
-        last_screen = vp.screen_ram_to_text(client.memory_get(0x0400, 0x07E7))
+        last_screen = screen_text(client)
         if fragment in last_screen:
             return last_screen
         time.sleep(0.2)
     raise vp.ViceError(f"expected screen fragment {fragment!r} was not present in final screen:\n{last_screen}")
 
 
+def wait_for_screen_fragment_count(
+    client: vp.BinaryMonitorClient,
+    fragment: str,
+    minimum: int,
+    timeout: float,
+) -> str:
+    deadline = time.monotonic() + timeout
+    last_screen = ""
+    while time.monotonic() < deadline:
+        last_screen = screen_text(client)
+        if last_screen.count(fragment) >= minimum:
+            return last_screen
+        time.sleep(0.2)
+    raise vp.ViceError(
+        f"expected screen fragment {fragment!r} at least {minimum} times in final screen:\n{last_screen}"
+    )
+
+
 def wait_for_mount_completion(client: vp.BinaryMonitorClient, timeout: float) -> str:
     deadline = time.monotonic() + timeout
     last_screen = ""
     while time.monotonic() < deadline:
-        last_screen = vp.screen_ram_to_text(client.memory_get(0x0400, 0x07E7))
+        last_screen = screen_text(client)
         if "B:ACTION DNP" in last_screen:
             return last_screen
         if last_screen.count("A:D64/>") >= 2:
@@ -43,65 +65,97 @@ def wait_for_keyboard_idle(client: vp.BinaryMonitorClient, timeout: float) -> No
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run the focused AVMRUN Action workspace probe in VICE")
+    parser = argparse.ArgumentParser(description="Run a focused Action workspace command probe in VICE")
     parser.add_argument("--disk", required=True)
     parser.add_argument("--fs-root", required=True)
-    parser.add_argument("--payload", default="UDOSHELLO.AVM")
-    parser.add_argument("--expect", default="UDOS AVM OK")
+    parser.add_argument("--command", default="AVMRUN UDOSHELLO.AVM")
+    parser.add_argument("--mount-path", default="/IMAGES/ACTION.DNP")
+    parser.add_argument("--mount-result", default="B:ACTION DNP")
+    parser.add_argument("--b-prompt", default="B:DNP/>")
+    parser.add_argument("--run-marker", default="RUN AVMRUN.PRG")
+    parser.add_argument("--done-fragment", default="UDOS AVM OK")
+    parser.add_argument("--prompt-count", type=int, default=2)
+    parser.add_argument("--initial-settle", type=float, default=1.0)
+    parser.add_argument("--command-settle", type=float, default=0.5)
+    parser.add_argument("--attempts", type=int, default=2)
+    parser.add_argument("--attempt-delay", type=float, default=1.0)
+    parser.add_argument("--contains", action="append", default=[])
     args = parser.parse_args()
 
     image = Path(args.disk).resolve()
     fs_root = Path(args.fs_root).resolve()
-    port = vp.reserve_tcp_port()
-    process = vp.launch_vice(
-        image,
-        port,
-        extra_args=[
-            "-iecdevice9",
-            "-device9",
-            "1",
-            "-fs9",
-            str(fs_root),
-            "-fslongnames",
-        ],
-    )
-    client = vp.BinaryMonitorClient("127.0.0.1", port, timeout=5.0)
+    last_error: Exception | None = None
+    last_screen = ""
 
-    try:
-        client.connect(time.monotonic() + 20.0)
-        client.ping()
-        client.resume()
+    for attempt in range(1, args.attempts + 1):
+        port = vp.reserve_tcp_port()
+        process = vp.launch_vice(
+            image,
+            port,
+            extra_args=[
+                "-iecdevice9",
+                "-device9",
+                "1",
+                "-fs9",
+                str(fs_root),
+                "-fslongnames",
+            ],
+        )
+        client = vp.BinaryMonitorClient("127.0.0.1", port, timeout=5.0)
 
-        wait_for_screen_fragment(client, "A:D64/>", 60.0)
-        client.keyboard_type("MOUNT B: /IMAGES/ACTION.DNP\r")
-        wait_for_keyboard_idle(client, 30.0)
-        time.sleep(1.0)
-        client.keyboard_type("B:\r")
-        wait_for_screen_fragment(client, "B:DNP/>", 30.0)
-        client.keyboard_type(f"AVMRUN {args.payload}\r")
-        wait_for_screen_fragment(client, "RUN AVMRUN.PRG", 30.0)
-        screen = wait_for_screen_fragment(client, args.expect, 30.0)
-        print(screen)
-        return 0
-    except Exception as exc:
         try:
-            screen = vp.screen_ram_to_text(client.memory_get(0x0400, 0x07E7))
+            client.connect(time.monotonic() + 20.0)
+            client.ping()
+            client.resume()
+
+            wait_for_screen_fragment(client, "A:D64/>", 60.0)
+            time.sleep(args.initial_settle)
+            client.keyboard_type(f"MOUNT B: {args.mount_path}\r")
+            wait_for_keyboard_idle(client, 30.0)
+            time.sleep(1.0)
+            wait_for_mount_completion(client, 30.0)
+            client.keyboard_type("B:\r")
+            wait_for_screen_fragment(client, args.b_prompt, 30.0)
+            time.sleep(args.command_settle)
+            client.keyboard_type(f"{args.command}\r")
+            wait_for_keyboard_idle(client, 30.0)
+            if args.run_marker:
+                wait_for_screen_fragment(client, args.run_marker, 30.0)
+            if args.done_fragment:
+                wait_for_screen_fragment(client, args.done_fragment, 30.0)
+            screen = wait_for_screen_fragment_count(client, args.b_prompt, args.prompt_count, 30.0)
+            for fragment in args.contains:
+                if fragment not in screen:
+                    raise vp.ViceError(
+                        f"expected screen fragment {fragment!r} was not present in final screen:\n{screen}"
+                    )
             print(screen)
-        except Exception:
-            pass
-        print(exc, file=sys.stderr)
-        return 1
-    finally:
-        try:
-            client.quit_emulator()
-        except Exception:
-            pass
-        client.close()
-        process.terminate()
-        try:
-            process.wait(timeout=5.0)
-        except Exception:
-            process.kill()
+            return 0
+        except Exception as exc:
+            last_error = exc
+            try:
+                last_screen = screen_text(client)
+            except Exception:
+                last_screen = ""
+            if attempt < args.attempts:
+                time.sleep(args.attempt_delay)
+            else:
+                if last_screen:
+                    print(last_screen)
+                print(exc, file=sys.stderr)
+        finally:
+            try:
+                client.quit_emulator()
+            except Exception:
+                pass
+            client.close()
+            process.terminate()
+            try:
+                process.wait(timeout=5.0)
+            except Exception:
+                process.kill()
+
+    return 1 if last_error is not None else 0
 
 
 if __name__ == "__main__":
