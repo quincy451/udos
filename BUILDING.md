@@ -140,6 +140,11 @@ Separate VICE smoke targets:
   - validates `AVMINFO.PRG` launches from mounted `ACTION.DNP`
   - loads `HELLO.AVM` through the preserved external-tool file-load ABI
   - prints `AVM VERSION`, `PAYLOAD`, `ENTRY`, and `AVM OK`
+- `make vice-action-avmrun`
+  - validates `AVMRUN.PRG` launches from mounted `ACTION.DNP`
+  - loads `UDOSHELLO.AVM` through the preserved external-tool file-load ABI
+  - executes the current constrained flagged Acheron-backed `AVM1` subset
+  - prints `UDOS AVM OK` and returns to the shell
 - `make vice-selftest`
   - builds focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
   - writes the generated D64 artifacts under `build/udos-selftest-*.d64`

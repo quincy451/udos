@@ -376,7 +376,10 @@ def run_probe(args: argparse.Namespace) -> str:
             client.keyboard_type(args.feed_text)
         if args.feed_step:
             for chunk in args.feed_step:
-                client.keyboard_feed(chunk)
+                if args.feed_step_mode == "type":
+                    client.keyboard_type(chunk)
+                else:
+                    client.keyboard_feed(chunk)
                 if args.feed_step_settle > 0.0:
                     time.sleep(args.feed_step_settle)
         screen = wait_for_screen_and_state(
@@ -426,6 +429,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--feed-after", help="optional screen fragment to wait for before binary-monitor keyboard feed")
     parser.add_argument("--feed-text", help="optional text to feed through the VICE binary monitor after startup")
     parser.add_argument("--feed-step", action="append", default=[], help="stepwise text chunk to feed through the VICE binary monitor")
+    parser.add_argument("--feed-step-mode", choices=["feed", "type"], default="feed", help="transport to use for each --feed-step chunk")
     parser.add_argument("--feed-step-settle", type=float, default=1.0, help="seconds to wait after each --feed-step chunk")
     parser.add_argument("--labels", help="optional ld65 labels file for scripted resident input injection")
     parser.add_argument("--script-line", action="append", default=[], help="scripted input line to inject through UDOS script mode")

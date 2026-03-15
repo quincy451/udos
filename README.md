@@ -87,6 +87,10 @@ Current milestone:
   - `make vice-action-avminfo` now builds an autoexec-backed Action test image
     that launches `AVMINFO.PRG`, loads `HELLO.AVM` through the preserved
     launch-safe file-load ABI, and returns to the UDOS prompt
+  - `make vice-action-avmrun` now mounts the exported Action workspace from the
+    release image, launches `AVMRUN.PRG`, loads `UDOSHELLO.AVM` through the
+    preserved launch-safe file-load ABI, executes the current constrained
+    flagged Acheron-backed `AVM1` subset, and returns to the UDOS prompt
 
 Current command parser rule:
 - shell keywords require a separator before arguments

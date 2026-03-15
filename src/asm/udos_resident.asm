@@ -12891,9 +12891,9 @@ query_file_vice_host_current:
     cmp #MOUNT_FLAG_TREE
     bne query_file_vice_host_current_open
     jsr fill_vice_manifest_dir_cache_host_current
-    bcs query_file_vice_host_current_fail
+    bcs query_file_vice_host_current_open
     jsr find_hw_dir_cache_matching_path_name
-    bcs query_file_vice_host_current_fail
+    bcs query_file_vice_host_current_open
     clc
     rts
 query_file_vice_host_current_open:
@@ -12908,9 +12908,9 @@ query_program_file_vice_host_current:
     cmp #MOUNT_FLAG_TREE
     bne query_program_file_vice_host_current_open
     jsr fill_vice_manifest_dir_cache_host_current
-    bcs query_program_file_vice_host_current_fail
+    bcs query_program_file_vice_host_current_open
     jsr find_hw_dir_cache_matching_path_name_strict
-    bcs query_program_file_vice_host_current_fail
+    bcs query_program_file_vice_host_current_open
     clc
     rts
 query_program_file_vice_host_current_open:
@@ -14093,7 +14093,7 @@ tool_abi_build_open_path_copy_prefix:
     beq tool_abi_build_open_path_prefix_done
     sta TOOL_ABI_OPEN_PATH,y
     iny
-    cpy #MAX_LINE_LEN
+    cpy #FULL_PATH_BUF_LEN-6
     bcc tool_abi_build_open_path_copy_prefix
     sec
     rts
@@ -14124,12 +14124,24 @@ tool_abi_build_open_path_copy_name:
     inc vice_name_index
     iny
     lda vice_name_index
-    cmp #MAX_LINE_LEN
+    cmp #FULL_PATH_BUF_LEN-5
     bcc tool_abi_build_open_path_copy_name
     sec
     rts
 tool_abi_build_open_path_done:
     ldx vice_name_index
+    lda #ASCII_COMMA
+    sta TOOL_ABI_OPEN_PATH,x
+    inx
+    lda #'S'
+    sta TOOL_ABI_OPEN_PATH,x
+    inx
+    lda #ASCII_COMMA
+    sta TOOL_ABI_OPEN_PATH,x
+    inx
+    lda #'R'
+    sta TOOL_ABI_OPEN_PATH,x
+    inx
     lda #$00
     sta TOOL_ABI_OPEN_PATH,x
     lda #<TOOL_ABI_OPEN_PATH

@@ -120,6 +120,11 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     that launches `AVMINFO.PRG`, loads `HELLO.AVM` through the preserved
     launch-safe file-load ABI, prints the `AVM1` header fields, and returns to
     the UDOS prompt
+  - `make vice-action-avmrun` now mounts the exported Action workspace from the
+    release image, launches `AVMRUN.PRG`, loads `UDOSHELLO.AVM` through the
+    preserved launch-safe file-load ABI, executes the current constrained
+    flagged Acheron-backed `AVM1` subset, prints `UDOS AVM OK`, and returns to
+    the UDOS prompt
 - added a first REU-backed resident shrink path:
   - VICE tree content payloads now spill into REU
   - the resident image now keeps one shared `PROGRAM_IMAGE_MAX` slot cache in RAM instead of two full in-RAM payload banks
