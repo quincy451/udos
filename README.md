@@ -81,14 +81,17 @@ Current milestone:
   - `make vice-action-workspace` now builds an autoexec-backed Action test image
     that mounts the exported Action workspace, lists its root entries, and reads
     `README.TXT` from the shell
-  - `make vice-action-actdir` now uses the release image with deterministic
-    typed input, mounts the Action workspace, launches `ACTDIR.PRG`,
+  - `make vice-action-actdir` now uses an autoexec-backed Action test image on
+    top of the release workspace, launches `ACTDIR.PRG`,
     enumerates the current directory through the preserved external-tool
     directory ABI, and returns to the UDOS prompt
-  - `make vice-action-actinfo` now uses the release image with deterministic
-    typed input, launches `ACTINFO.PRG` from the mounted Action workspace
+  - `make vice-action-actinfo` now uses an autoexec-backed Action test image on
+    top of the release workspace, launches `ACTINFO.PRG` from the mounted Action workspace
     through the preserved launch-safe external-tool ABI, and returns to the
     UDOS prompt
+  - `make vice-action-actwrite` now uses the release image with deterministic
+    typed input, launches `ACTWRITE.PRG`, writes `OUT.TXT` through the
+    preserved file-save ABI, and reads the file back through the shell
   - `make vice-action-avminfo` now uses the release image with deterministic
     typed input, launches `AVMINFO.PRG`, loads `HELLO.AVM` through the
     preserved launch-safe file-load ABI, and returns to the UDOS prompt

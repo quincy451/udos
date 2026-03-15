@@ -72,6 +72,7 @@ TOOL_SVC_PROGRAM_EXIT = TOOL_ABI_BASE + 15
 TOOL_SVC_FILE_LOAD_SC0 = TOOL_ABI_BASE + 18
 TOOL_SVC_DIR_BEGIN_CURRENT = TOOL_ABI_BASE + 21
 TOOL_SVC_DIR_NEXT = TOOL_ABI_BASE + 24
+TOOL_SVC_FILE_SAVE_SC0 = TOOL_ABI_BASE + 27
 TOOL_ABI_CMDLINE_LEN = $CF70
 TOOL_ABI_CMDLINE_BUF = $CF80
 TOOL_ABI_CURRENT_PATH = $CD00
@@ -296,6 +297,16 @@ LAUNCH_EXIT_STATUS = $03F1
 LAUNCH_TRACE_BASE = $03F2
 LAUNCH_TRACE_STAGE = LAUNCH_TRACE_BASE + 0
 LAUNCH_TRACE_CODE = LAUNCH_TRACE_BASE + 1
+TOOL_WRITEBACK_NAME_MAX = 32
+TOOL_WRITEBACK_KIND_NONE = 0
+TOOL_WRITEBACK_KIND_FILE_SAVE = 1
+TOOL_WRITEBACK_KIND_OFFSET = 0
+TOOL_WRITEBACK_SLOT_OFFSET = 1
+TOOL_WRITEBACK_DRIVE_OFFSET = 2
+TOOL_WRITEBACK_DIR_OFFSET = 3
+TOOL_WRITEBACK_STATE_OFFSET = 4
+TOOL_WRITEBACK_NAME_OFFSET = 5
+TOOL_WRITEBACK_SIZE = TOOL_WRITEBACK_NAME_OFFSET + TOOL_WRITEBACK_NAME_MAX
 LAUNCH_STUB_ADDR = $CC00
 LAUNCH_RETURN_ADDR = $033C
 LAUNCH_RESTORE_ADDR = $CE00
@@ -310,6 +321,7 @@ REU_LAUNCH_MAIN_SIZE = __ACHERON_LAST__ - $1000
 REU_LAUNCH_HIRAM_BASE = REU_LAUNCH_MAIN_BASE + REU_LAUNCH_MAIN_SIZE
 REU_LAUNCH_HIRAM_SIZE = $0C00
 REU_LAUNCH_PROGRAM_BASE = REU_LAUNCH_HIRAM_BASE + REU_LAUNCH_HIRAM_SIZE
+REU_TOOL_WRITEBACK_BASE = REU_LAUNCH_PROGRAM_BASE + PROGRAM_IMAGE_MAX
 FLAT_LABEL_LEN = 16
 FLAT_DIR_READ_LEN = 247
 FLAT_SECTOR_READ_LEN = 255
@@ -519,6 +531,7 @@ shell_done:
 program_return_resume:
     mgrow 1
     calln svc_install_launch_stub
+    calln svc_apply_tool_writeback
     calln svc_program_consume_launch_result
     case8 PROGRAM_LAUNCH_RESULT_LOAD_FAILED, program_return_load_failed
     calln svc_command_status_from_program_exit
@@ -6433,6 +6446,7 @@ stage_launch_metadata:
     sta LAUNCH_RESULT_FLAG
     lda #$00
     sta LAUNCH_EXIT_STATUS
+    jsr tool_writeback_clear_and_save
     lda launch_load_cache_lo
     sta LAUNCH_STUB_LOAD_LO_PTR_PATCH
     sta LAUNCH_STUB_LOAD_LO_CUR_PATCH
@@ -6699,6 +6713,92 @@ svc_install_copy_block:
     sta launch_reu_remaining_hi
     jmp svc_install_copy_block
 svc_install_copy_block_done:
+    rts
+
+tool_writeback_transfer:
+    pha
+    jsr reu_init
+    lda reu_present
+    bne :+
+    pla
+    sec
+    rts
+:
+    lda C64_PORT
+    sta reu_saved_port
+    and #$F8
+    ora #C64_PORT_IO_ON
+    sta C64_PORT
+    lda #<tool_writeback_buffer
+    sta REU_C64ADDR_LO
+    lda #>tool_writeback_buffer
+    sta REU_C64ADDR_HI
+    lda #<REU_TOOL_WRITEBACK_BASE
+    sta REU_REUADDR_LO
+    lda #>REU_TOOL_WRITEBACK_BASE
+    sta REU_REUADDR_HI
+    lda #$00
+    sta REU_REUADDR_BANK
+    lda #TOOL_WRITEBACK_SIZE
+    sta REU_COUNT_LO
+    lda #$00
+    sta REU_COUNT_HI
+    sta REU_IRQMASK
+    sta REU_CONTROL
+    pla
+    sta REU_COMMAND
+    lda reu_saved_port
+    and #$F8
+    sta C64_PORT
+    lda #$00
+    sta REU_TRIGGER
+    lda reu_saved_port
+    sta C64_PORT
+    clc
+    rts
+
+tool_writeback_save_reu:
+    lda #REU_CMD_COPY_C64_TO_REU
+    jmp tool_writeback_transfer
+
+tool_writeback_load_reu:
+    lda #REU_CMD_COPY_REU_TO_C64
+    jmp tool_writeback_transfer
+
+tool_writeback_clear_and_save:
+    lda #TOOL_WRITEBACK_KIND_NONE
+    sta tool_writeback_buffer+TOOL_WRITEBACK_KIND_OFFSET
+    jmp tool_writeback_save_reu
+
+svc_apply_tool_writeback:
+    jsr tool_writeback_load_reu
+    bcs svc_apply_tool_writeback_done
+    lda tool_writeback_buffer+TOOL_WRITEBACK_KIND_OFFSET
+    beq svc_apply_tool_writeback_done
+    cmp #TOOL_WRITEBACK_KIND_FILE_SAVE
+    bne svc_apply_tool_writeback_clear
+    lda tool_writeback_buffer+TOOL_WRITEBACK_DRIVE_OFFSET
+    sta temp_drive
+    lda tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
+    sta file_index
+    lda tool_writeback_buffer+TOOL_WRITEBACK_STATE_OFFSET
+    jsr store_vice_tree_state_for_index
+    lda tool_writeback_buffer+TOOL_WRITEBACK_DIR_OFFSET
+    jsr store_vice_tree_dir_for_index
+    jsr select_vice_tree_name_slot
+    ldy #$00
+svc_apply_tool_writeback_name_loop:
+    lda tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET,y
+    sta (PTR),y
+    beq svc_apply_tool_writeback_clear
+    iny
+    cpy #TOOL_WRITEBACK_NAME_MAX
+    bcc svc_apply_tool_writeback_name_loop
+    lda #$00
+    sta (PTR),y
+svc_apply_tool_writeback_clear:
+    jsr tool_writeback_clear_and_save
+svc_apply_tool_writeback_done:
     rts
 
 svc_program_consume_launch_result:
@@ -12924,9 +13024,9 @@ query_program_file_vice_host_current_fail:
 
 store_vice_tree_live_current_from_screen_ptr:
     lda SCREEN_PTR
-    sta matched_name_lo
+    sta vice_tree_content_src_lo
     lda SCREEN_PTR+1
-    sta matched_name_hi
+    sta vice_tree_content_src_hi
     jsr vice_tree_find_current_slot
     bcc store_vice_tree_live_current_reuse
     jsr vice_tree_alloc_slot
@@ -12958,9 +13058,9 @@ store_vice_tree_live_current_new:
     jsr store_vice_tree_dir_for_index
     jsr select_vice_tree_name_slot
     jsr copy_path_name_to_vice_tree_slot_ascii
-    lda matched_name_lo
+    lda vice_tree_content_src_lo
     sta SCREEN_PTR
-    lda matched_name_hi
+    lda vice_tree_content_src_hi
     sta SCREEN_PTR+1
     jsr copy_screen_ptr_to_vice_tree_slot_content
     lda vice_tree_state_temp
@@ -13937,6 +14037,7 @@ tool_abi_fixed_template:
     jmp tool_abi_file_load_sc0
     jmp tool_abi_dir_begin_current
     jmp tool_abi_dir_next
+    jmp tool_abi_file_save_sc0
 tool_abi_fixed_template_end:
 
 tool_abi_get_abi_version:
@@ -14121,6 +14222,72 @@ tool_abi_dir_next_copy:
     lda #>TOOL_ABI_DIR_ENTRY_BUF
     sta 1,x
     rts
+
+tool_abi_file_save_sc0:
+    stx saved_rp_x
+    lda 0,x
+    sta TOOL_ABI_FILE_NAME_LO
+    lda 1,x
+    sta TOOL_ABI_FILE_NAME_HI
+    lda 2,x
+    sta TOOL_ABI_FILE_DEST_LO
+    lda 3,x
+    sta TOOL_ABI_FILE_DEST_HI
+    lda #TOOL_FILE_STATUS_FAIL
+    sta 4,x
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta temp_drive
+    lda PROGRAM_DIR_SNAPSHOT
+    sta temp_dir_id
+    ldy temp_drive
+    lda mount_flag_table,y
+    cmp #MOUNT_FLAG_TREE
+    bne tool_abi_file_save_fail
+    jsr vice_probe_available
+    bcs tool_abi_file_save_fail
+    lda TOOL_ABI_FILE_NAME_LO
+    sta PTR
+    lda TOOL_ABI_FILE_NAME_HI
+    sta PTR+1
+    jsr copy_ptr_name_to_path_buffer
+    lda TOOL_ABI_FILE_DEST_LO
+    sta SCREEN_PTR
+    lda TOOL_ABI_FILE_DEST_HI
+    sta SCREEN_PTR+1
+    jsr store_vice_tree_live_current_from_screen_ptr
+    bcs tool_abi_file_save_fail
+    jsr stash_tool_file_save_writeback
+    ldx saved_rp_x
+    lda #TOOL_FILE_STATUS_OK
+    sta 4,x
+tool_abi_file_save_fail:
+    ldx saved_rp_x
+    rts
+
+stash_tool_file_save_writeback:
+    lda #TOOL_WRITEBACK_KIND_FILE_SAVE
+    sta tool_writeback_buffer+TOOL_WRITEBACK_KIND_OFFSET
+    lda file_index
+    sta tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
+    lda temp_drive
+    sta tool_writeback_buffer+TOOL_WRITEBACK_DRIVE_OFFSET
+    lda temp_dir_id
+    sta tool_writeback_buffer+TOOL_WRITEBACK_DIR_OFFSET
+    lda vice_tree_state_temp
+    sta tool_writeback_buffer+TOOL_WRITEBACK_STATE_OFFSET
+    ldy #$00
+stash_tool_file_save_writeback_loop:
+    lda path_name_buffer,y
+    beq stash_tool_file_save_writeback_done
+    jsr screen_code_to_ascii
+    sta tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET,y
+    iny
+    cpy #TOOL_WRITEBACK_NAME_MAX-1
+    bcc stash_tool_file_save_writeback_loop
+stash_tool_file_save_writeback_done:
+    lda #$00
+    sta tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET,y
+    jmp tool_writeback_save_reu
 
 tool_abi_copy_enum_entry:
     ldy #$00
@@ -14653,10 +14820,16 @@ flat_sector_buffer:
     .res 256
 vice_tree_slot_cache:
     .res PROGRAM_IMAGE_MAX
+tool_writeback_buffer:
+    .res TOOL_WRITEBACK_SIZE
 
 .segment "CODE"
 vice_name_buffer:
     .res HW_DIR_NAME_STRIDE
+vice_tree_content_src_lo:
+    .res 1
+vice_tree_content_src_hi:
+    .res 1
 vice_lfn:
     .res 1
 vice_secondary:

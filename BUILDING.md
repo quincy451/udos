@@ -135,13 +135,18 @@ Separate VICE smoke targets:
   - validates the release workspace exposes `IMAGES/ACTION.DNP`
   - mounts the exported Action bridge payload, lists its root entries, and reads `README.TXT` through the live shell
 - `make vice-action-actdir`
-  - uses the release image plus deterministic typed input
+  - uses an autoexec-backed Action test image on top of the release workspace
   - validates `ACTDIR.PRG` launches from mounted `ACTION.DNP`
   - enumerates the current directory through the preserved external-tool directory ABI
   - prints the mounted Action workspace root entries and returns to the shell
 - `make vice-action-actinfo`
-  - uses the release image plus deterministic typed input
+  - uses an autoexec-backed Action test image on top of the release workspace
   - validates `ACTINFO.PRG` launches from mounted `ACTION.DNP` and returns to the shell
+- `make vice-action-actwrite`
+  - uses the release image plus deterministic typed input
+  - validates `ACTWRITE.PRG` launches from mounted `ACTION.DNP`
+  - writes `OUT.TXT` through the preserved external-tool file-save ABI
+  - reads `OUT.TXT` back through the shell and verifies `ACTION WRITE OK`
 - `make vice-action-avminfo`
   - uses the release image plus deterministic typed input
   - validates `AVMINFO.PRG` launches from mounted `ACTION.DNP`

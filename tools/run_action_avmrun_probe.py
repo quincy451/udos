@@ -24,22 +24,16 @@ def wait_for_screen_fragment(client: vp.BinaryMonitorClient, fragment: str, time
     raise vp.ViceError(f"expected screen fragment {fragment!r} was not present in final screen:\n{last_screen}")
 
 
-def wait_for_screen_fragment_count(
-    client: vp.BinaryMonitorClient,
-    fragment: str,
-    minimum: int,
-    timeout: float,
-) -> str:
+def wait_for_screen_fragments(client: vp.BinaryMonitorClient, fragments: list[str], timeout: float) -> str:
     deadline = time.monotonic() + timeout
     last_screen = ""
     while time.monotonic() < deadline:
         last_screen = screen_text(client)
-        if last_screen.count(fragment) >= minimum:
+        if all(fragment in last_screen for fragment in fragments):
             return last_screen
         time.sleep(0.2)
-    raise vp.ViceError(
-        f"expected screen fragment {fragment!r} at least {minimum} times in final screen:\n{last_screen}"
-    )
+    missing = [fragment for fragment in fragments if fragment not in last_screen]
+    raise vp.ViceError(f"expected screen fragments {missing!r} were not present in final screen:\n{last_screen}")
 
 
 def wait_for_mount_completion(client: vp.BinaryMonitorClient, timeout: float) -> str:
@@ -64,6 +58,14 @@ def wait_for_keyboard_idle(client: vp.BinaryMonitorClient, timeout: float) -> No
     raise vp.ViceError("timed out waiting for C64 keyboard buffer to drain after command")
 
 
+def type_command(client: vp.BinaryMonitorClient, command: str, timeout: float) -> None:
+    client.keyboard_type(command)
+    wait_for_keyboard_idle(client, timeout)
+    time.sleep(0.2)
+    client.keyboard_type("\r")
+    wait_for_keyboard_idle(client, timeout)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run a focused Action workspace command probe in VICE")
     parser.add_argument("--disk", required=True)
@@ -75,10 +77,12 @@ def main() -> int:
     parser.add_argument("--run-marker", default="RUN AVMRUN.PRG")
     parser.add_argument("--done-fragment", default="UDOS AVM OK")
     parser.add_argument("--prompt-count", type=int, default=2)
-    parser.add_argument("--initial-settle", type=float, default=1.0)
-    parser.add_argument("--command-settle", type=float, default=0.5)
-    parser.add_argument("--attempts", type=int, default=2)
-    parser.add_argument("--attempt-delay", type=float, default=1.0)
+    parser.add_argument("--initial-settle", type=float, default=1.5)
+    parser.add_argument("--command-settle", type=float, default=1.0)
+    parser.add_argument("--attempts", type=int, default=4)
+    parser.add_argument("--attempt-delay", type=float, default=2.0)
+    parser.add_argument("--post-command")
+    parser.add_argument("--post-done-fragment")
     parser.add_argument("--contains", action="append", default=[])
     args = parser.parse_args()
 
@@ -110,20 +114,26 @@ def main() -> int:
 
             wait_for_screen_fragment(client, "A:D64/>", 60.0)
             time.sleep(args.initial_settle)
-            client.keyboard_type(f"MOUNT B: {args.mount_path}\r")
-            wait_for_keyboard_idle(client, 30.0)
+            type_command(client, f"MOUNT B: {args.mount_path}", 30.0)
             time.sleep(1.0)
             wait_for_mount_completion(client, 30.0)
-            client.keyboard_type("B:\r")
+            type_command(client, "B:", 30.0)
             wait_for_screen_fragment(client, args.b_prompt, 30.0)
             time.sleep(args.command_settle)
-            client.keyboard_type(f"{args.command}\r")
-            wait_for_keyboard_idle(client, 30.0)
+            type_command(client, args.command, 30.0)
             if args.run_marker:
                 wait_for_screen_fragment(client, args.run_marker, 30.0)
+            fragments = [args.b_prompt]
             if args.done_fragment:
-                wait_for_screen_fragment(client, args.done_fragment, 30.0)
-            screen = wait_for_screen_fragment_count(client, args.b_prompt, args.prompt_count, 30.0)
+                fragments.insert(0, args.done_fragment)
+            screen = wait_for_screen_fragments(client, fragments, 30.0)
+            if args.post_command:
+                time.sleep(args.command_settle)
+                type_command(client, args.post_command, 30.0)
+                post_fragments = [args.b_prompt]
+                if args.post_done_fragment:
+                    post_fragments.insert(0, args.post_done_fragment)
+                screen = wait_for_screen_fragments(client, post_fragments, 30.0)
             for fragment in args.contains:
                 if fragment not in screen:
                     raise vp.ViceError(

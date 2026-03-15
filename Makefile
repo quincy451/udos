@@ -59,11 +59,17 @@ ACTIONTEST_ROOT := tests/action
 ACTION_WORKSPACE_BUILD := build/action-workspace
 ACTION_ACTDIR_BUILD := build/action-actdir
 ACTION_ACTINFO_BUILD := build/action-actinfo
+ACTION_ACTWRITE_BUILD := build/action-actwrite
 ACTION_AVMINFO_BUILD := build/action-avminfo
+ACTION_AVMRUN_BUILD := build/action-avmrun
+ACTION_AVMRUN_FLOW_BUILD := build/action-avmrun-flow
 ACTION_WORKSPACE_ARTIFACT := build/udos-action-workspace.d64
 ACTION_ACTDIR_ARTIFACT := build/udos-action-actdir.d64
 ACTION_ACTINFO_ARTIFACT := build/udos-action-actinfo.d64
+ACTION_ACTWRITE_ARTIFACT := build/udos-action-actwrite.d64
 ACTION_AVMINFO_ARTIFACT := build/udos-action-avminfo.d64
+ACTION_AVMRUN_ARTIFACT := build/udos-action-avmrun.d64
+ACTION_AVMRUN_FLOW_ARTIFACT := build/udos-action-avmrun-flow.d64
 
 PROOF_OBJ := $(BUILD_DIR)/udos_proof.o
 PROOF_PRG := $(BUILD_DIR)/udos-proof.prg
@@ -94,7 +100,7 @@ RELEASE_BUILD := build/release
 RELEASE_DISK := build/udos-release.d64
 RELEASE_FS := build/udos-release-fs
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actdir vice-action-actinfo vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actdir vice-action-actinfo vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -172,23 +178,31 @@ vice-action-workspace: release
 		--contains "ACTION WORKSPACE OK"
 
 vice-action-actdir: release
+	$(MAKE) BUILD_DIR=$(ACTION_ACTDIR_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actdir.txt resident
+	cp $(ACTION_ACTDIR_BUILD)/udos-resident.d64 $(ACTION_ACTDIR_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
-		--command "ACTDIR" --run-marker "RUN ACTDIR.PRG" --done-fragment "ACTINFO.PRG" --prompt-count 2 \
-		--contains "RUN ACTDIR.PRG" \
-		--contains "BIN/" \
-		--contains "DOC/" \
-		--contains "LIB/" \
-		--contains "SRC/"
+	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTDIR_ARTIFACT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
+		--vice-arg=-fslongnames --expected "B:DNP/>" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+		--contains "RUN ACTDIR.PRG" --contains "BIN/" --contains "DOC/" --contains "LIB/" --contains "SRC/"
 
 vice-action-actinfo: release
+	$(MAKE) BUILD_DIR=$(ACTION_ACTINFO_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actinfo.txt resident
+	cp $(ACTION_ACTINFO_BUILD)/udos-resident.d64 $(ACTION_ACTINFO_ARTIFACT)
+	sleep 2
+	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTINFO_ARTIFACT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
+		--vice-arg=-fslongnames --expected "B:DNP/>" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+		--contains "RUN ACTINFO.PRG" --contains "ACTINFO ABI 1" --contains "ARGS ONE TWO" --contains "ACTINFO DONE"
+
+vice-action-actwrite: release
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
-		--command "ACTINFO ONE TWO" --run-marker "RUN ACTINFO.PRG" --done-fragment "ACTINFO DONE" --prompt-count 2 \
-		--contains "ACTINFO ABI 1" \
-		--contains "ARGS ONE TWO" \
-		--contains "ACTINFO DONE" \
-		--contains "RUN ACTINFO.PRG"
+		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" --prompt-count 2 \
+		--post-command "TYPE OUT.TXT" --post-done-fragment "ACTION WRITE OK" \
+		--contains "RUN ACTWRITE.PRG" \
+		--contains "ACTWRITE OK" \
+		--contains "ACTION WRITE OK"
 
 vice-action-avminfo: release
 	sleep 2
