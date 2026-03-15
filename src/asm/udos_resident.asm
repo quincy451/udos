@@ -73,6 +73,8 @@ TOOL_SVC_FILE_LOAD_SC0 = TOOL_ABI_BASE + 18
 TOOL_SVC_DIR_BEGIN_CURRENT = TOOL_ABI_BASE + 21
 TOOL_SVC_DIR_NEXT = TOOL_ABI_BASE + 24
 TOOL_SVC_FILE_SAVE_SC0 = TOOL_ABI_BASE + 27
+TOOL_SVC_DIR_MAKE_SC0 = TOOL_ABI_BASE + 30
+TOOL_SVC_DIR_REMOVE_SC0 = TOOL_ABI_BASE + 33
 TOOL_ABI_CMDLINE_LEN = $CF70
 TOOL_ABI_CMDLINE_BUF = $CF80
 TOOL_ABI_CURRENT_PATH = $CD00
@@ -94,6 +96,12 @@ TOOL_FILE_STATUS_FAIL = 0
 TOOL_FILE_STATUS_OK = 1
 TOOL_FILE_STATUS_TOO_LARGE = 2
 TOOL_FILE_STATUS_NOFILE = 3
+TOOL_DIR_STATUS_FAIL = 0
+TOOL_DIR_STATUS_OK = 1
+TOOL_DIR_STATUS_EXISTS = 2
+TOOL_DIR_STATUS_NOFILE = 3
+TOOL_DIR_STATUS_NOT_EMPTY = 4
+TOOL_DIR_STATUS_BUSY = 5
 C64_PORT = $0001
 REU_STATUS = $DF00
 REU_COMMAND = $DF01
@@ -300,6 +308,8 @@ LAUNCH_TRACE_CODE = LAUNCH_TRACE_BASE + 1
 TOOL_WRITEBACK_NAME_MAX = 32
 TOOL_WRITEBACK_KIND_NONE = 0
 TOOL_WRITEBACK_KIND_FILE_SAVE = 1
+TOOL_WRITEBACK_KIND_DIR_MAKE = 2
+TOOL_WRITEBACK_KIND_DIR_REMOVE = 3
 TOOL_WRITEBACK_KIND_OFFSET = 0
 TOOL_WRITEBACK_SLOT_OFFSET = 1
 TOOL_WRITEBACK_DRIVE_OFFSET = 2
@@ -5308,6 +5318,8 @@ md_build_vice:
     bcc md_build_exists
     jsr find_hw_dir_cache_matching_dir_path_name
     bcc md_build_exists
+    jsr lookup_dynamic_dir_current_from_path_name
+    bcc md_build_exists
     jsr create_dir_vice_current
     bcc md_build_created
 md_build_fail:
@@ -5499,9 +5511,9 @@ create_dir_vice_current_fail:
 
 lookup_dir_target_current_vice:
     jsr fill_vice_manifest_dir_cache_current
-    bcs lookup_dir_target_current_vice_fail
+    bcs lookup_dir_target_current_vice_try_dynamic
     jsr find_hw_dir_cache_matching_dir_path_name
-    bcs lookup_dir_target_current_vice_fail
+    bcs lookup_dir_target_current_vice_try_dynamic
     lda temp_dir_id
     bne lookup_dir_target_current_vice_dynamic
     jsr match_fixed_root_path_name
@@ -5510,6 +5522,11 @@ lookup_dir_target_current_vice_dynamic:
     jsr ensure_dynamic_dir_current_from_path_name
     bcs lookup_dir_target_current_vice_fail
 lookup_dir_target_current_vice_ok:
+    clc
+    rts
+lookup_dir_target_current_vice_try_dynamic:
+    jsr lookup_dynamic_dir_current_from_path_name
+    bcs lookup_dir_target_current_vice_fail
     clc
     rts
 lookup_dir_target_current_vice_fail:
@@ -6776,7 +6793,23 @@ svc_apply_tool_writeback:
     lda tool_writeback_buffer+TOOL_WRITEBACK_KIND_OFFSET
     beq svc_apply_tool_writeback_done
     cmp #TOOL_WRITEBACK_KIND_FILE_SAVE
+    beq svc_apply_tool_writeback_file_save
+    cmp #TOOL_WRITEBACK_KIND_DIR_MAKE
+    beq svc_apply_tool_writeback_dir
+    cmp #TOOL_WRITEBACK_KIND_DIR_REMOVE
     bne svc_apply_tool_writeback_clear
+svc_apply_tool_writeback_dir:
+    lda tool_writeback_buffer+TOOL_WRITEBACK_DRIVE_OFFSET
+    sta temp_drive
+    lda tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
+    sta file_index
+    lda tool_writeback_buffer+TOOL_WRITEBACK_STATE_OFFSET
+    jsr store_vice_dir_state_for_index
+    lda tool_writeback_buffer+TOOL_WRITEBACK_DIR_OFFSET
+    jsr store_vice_dir_parent_for_index
+    jsr select_vice_dir_name_slot
+    jmp svc_apply_tool_writeback_copy_name
+svc_apply_tool_writeback_file_save:
     lda tool_writeback_buffer+TOOL_WRITEBACK_DRIVE_OFFSET
     sta temp_drive
     lda tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
@@ -6786,6 +6819,7 @@ svc_apply_tool_writeback:
     lda tool_writeback_buffer+TOOL_WRITEBACK_DIR_OFFSET
     jsr store_vice_tree_dir_for_index
     jsr select_vice_tree_name_slot
+svc_apply_tool_writeback_copy_name:
     ldy #$00
 svc_apply_tool_writeback_name_loop:
     lda tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET,y
@@ -10019,12 +10053,15 @@ match_path_component_vice:
     jsr copy_component_token_to_path_name
     bcs match_path_fail
     jsr fill_vice_manifest_dir_cache_current
-    bcs match_path_fail
+    bcs match_path_component_vice_try_dynamic
     jsr find_hw_dir_cache_matching_dir_path_name
     bcc match_path_component_vice_found
     jsr match_fixed_root_path_name
     bcc match_path_component_vice_ok
+match_path_component_vice_try_dynamic:
+    jsr lookup_dynamic_dir_current_from_path_name
     bcs match_path_fail
+    jmp match_path_component_vice_ok
 match_path_component_vice_found:
     lda temp_dir_id
     bne match_path_component_vice_dynamic
@@ -12651,6 +12688,20 @@ ensure_dynamic_dir_current_fail:
     sec
     rts
 
+lookup_dynamic_dir_current_from_path_name:
+    jsr vice_dir_find_current_slot
+    bcs lookup_dynamic_dir_current_from_path_name_fail
+    cmp #VICE_DIR_SLOT_TOMBSTONE
+    beq lookup_dynamic_dir_current_from_path_name_fail
+    lda file_index
+    clc
+    adc #DIR_ID_DYNAMIC_BASE
+    clc
+    rts
+lookup_dynamic_dir_current_from_path_name_fail:
+    sec
+    rts
+
 select_vice_tree_state_table:
     ldx temp_drive
     cpx #DRIVE_A
@@ -14038,6 +14089,8 @@ tool_abi_fixed_template:
     jmp tool_abi_dir_begin_current
     jmp tool_abi_dir_next
     jmp tool_abi_file_save_sc0
+    jmp tool_abi_dir_make_sc0
+    jmp tool_abi_dir_remove_sc0
 tool_abi_fixed_template_end:
 
 tool_abi_get_abi_version:
@@ -14263,6 +14316,147 @@ tool_abi_file_save_sc0:
 tool_abi_file_save_fail:
     ldx saved_rp_x
     rts
+
+tool_abi_dir_make_sc0:
+    stx saved_rp_x
+    lda 0,x
+    sta TOOL_ABI_FILE_NAME_LO
+    lda 1,x
+    sta TOOL_ABI_FILE_NAME_HI
+    lda #TOOL_DIR_STATUS_FAIL
+    sta 2,x
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta temp_drive
+    lda PROGRAM_DIR_SNAPSHOT
+    sta temp_dir_id
+    ldy temp_drive
+    lda mount_flag_table,y
+    cmp #MOUNT_FLAG_TREE
+    bne tool_abi_dir_make_fail
+    jsr vice_probe_available
+    bcs tool_abi_dir_make_fail
+    lda TOOL_ABI_FILE_NAME_LO
+    sta PTR
+    lda TOOL_ABI_FILE_NAME_HI
+    sta PTR+1
+    jsr copy_ptr_name_to_path_buffer
+    jsr fill_vice_manifest_dir_cache_current
+    bcs tool_abi_dir_make_fail
+    jsr find_hw_dir_cache_matching_path_name
+    bcc tool_abi_dir_make_exists
+    jsr find_hw_dir_cache_matching_dir_path_name
+    bcc tool_abi_dir_make_exists
+    jsr create_dir_vice_current
+    bcs tool_abi_dir_make_fail
+    lda #TOOL_WRITEBACK_KIND_DIR_MAKE
+    jsr stash_tool_dir_writeback
+    ldx saved_rp_x
+    lda #TOOL_DIR_STATUS_OK
+    sta 2,x
+tool_abi_dir_make_fail:
+    ldx saved_rp_x
+    rts
+tool_abi_dir_make_exists:
+    ldx saved_rp_x
+    lda #TOOL_DIR_STATUS_EXISTS
+    sta 2,x
+    rts
+
+tool_abi_dir_remove_sc0:
+    stx saved_rp_x
+    lda 0,x
+    sta TOOL_ABI_FILE_NAME_LO
+    lda 1,x
+    sta TOOL_ABI_FILE_NAME_HI
+    lda #TOOL_DIR_STATUS_FAIL
+    sta 2,x
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta source_drive
+    sta temp_drive
+    lda PROGRAM_DIR_SNAPSHOT
+    sta source_dir_id
+    sta temp_dir_id
+    ldy temp_drive
+    lda mount_flag_table,y
+    cmp #MOUNT_FLAG_TREE
+    bne tool_abi_dir_remove_fail
+    jsr vice_probe_available
+    bcs tool_abi_dir_remove_fail
+    lda TOOL_ABI_FILE_NAME_LO
+    sta PTR
+    lda TOOL_ABI_FILE_NAME_HI
+    sta PTR+1
+    jsr copy_ptr_name_to_path_buffer
+    jsr lookup_dir_target_current_vice
+    bcs tool_abi_dir_remove_nofile
+    sta dest_dir_id
+    lda source_drive
+    cmp current_drive
+    bne tool_abi_dir_remove_not_busy
+    tay
+    lda dir_state_table,y
+    cmp dest_dir_id
+    bne tool_abi_dir_remove_not_busy
+    ldx saved_rp_x
+    lda #TOOL_DIR_STATUS_BUSY
+    sta 2,x
+    rts
+tool_abi_dir_remove_not_busy:
+    lda dest_dir_id
+    sta temp_dir_id
+    jsr fill_vice_manifest_dir_cache_current
+    bcs tool_abi_dir_remove_fail
+    lda enum_count
+    beq tool_abi_dir_remove_empty
+    ldx saved_rp_x
+    lda #TOOL_DIR_STATUS_NOT_EMPTY
+    sta 2,x
+    rts
+tool_abi_dir_remove_empty:
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
+    jsr store_vice_dir_tombstone_current
+    bcs tool_abi_dir_remove_fail
+    lda #TOOL_WRITEBACK_KIND_DIR_REMOVE
+    jsr stash_tool_dir_writeback
+    ldx saved_rp_x
+    lda #TOOL_DIR_STATUS_OK
+    sta 2,x
+    rts
+tool_abi_dir_remove_nofile:
+    ldx saved_rp_x
+    lda #TOOL_DIR_STATUS_NOFILE
+    sta 2,x
+    rts
+tool_abi_dir_remove_fail:
+    ldx saved_rp_x
+    rts
+
+stash_tool_dir_writeback:
+    sta tool_writeback_buffer+TOOL_WRITEBACK_KIND_OFFSET
+    lda file_index
+    sta tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
+    lda temp_drive
+    sta tool_writeback_buffer+TOOL_WRITEBACK_DRIVE_OFFSET
+    lda temp_dir_id
+    sta tool_writeback_buffer+TOOL_WRITEBACK_DIR_OFFSET
+    lda vice_dir_state_temp
+    sta tool_writeback_buffer+TOOL_WRITEBACK_STATE_OFFSET
+    ldy #$00
+stash_tool_dir_writeback_loop:
+    lda path_name_buffer,y
+    beq stash_tool_dir_writeback_done
+    jsr screen_code_to_ascii
+    sta tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET,y
+    iny
+    cpy #TOOL_WRITEBACK_NAME_MAX-1
+    bcc stash_tool_dir_writeback_loop
+stash_tool_dir_writeback_done:
+    lda #$00
+    sta tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET,y
+    jmp tool_writeback_save_reu
 
 stash_tool_file_save_writeback:
     lda #TOOL_WRITEBACK_KIND_FILE_SAVE

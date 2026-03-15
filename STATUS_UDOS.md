@@ -121,6 +121,14 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     top of the release workspace, launches `ACTINFO.PRG` from the mounted Action workspace
     through the preserved launch-safe external-tool ABI, and returns to the
     UDOS prompt
+  - `make vice-action-actmkdir` now uses the release image with deterministic
+    typed input, launches `ACTMKDIR.PRG`, creates `OBJ` through the preserved
+    external-tool directory-mutation ABI, and proves the shell can enter
+    `B:DNP/OBJ>`
+  - `make vice-action-actrmdir` now uses the release image with deterministic
+    typed input, launches `ACTRMDIR.PRG`, removes `OBJ` through the preserved
+    external-tool directory-mutation ABI, and proves the shell reports
+    `NO SUCH DIR` for `CD OBJ`
   - `make vice-action-actwrite` now uses the release image with deterministic
     typed input, launches `ACTWRITE.PRG`, writes `OUT.TXT` through the
     preserved external-tool file-save ABI, reads it back through the shell,

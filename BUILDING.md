@@ -142,6 +142,16 @@ Separate VICE smoke targets:
 - `make vice-action-actinfo`
   - uses an autoexec-backed Action test image on top of the release workspace
   - validates `ACTINFO.PRG` launches from mounted `ACTION.DNP` and returns to the shell
+- `make vice-action-actmkdir`
+  - uses the release image plus deterministic typed input
+  - validates `ACTMKDIR.PRG` launches from mounted `ACTION.DNP`
+  - creates `OBJ` through the preserved external-tool directory-mutation ABI
+  - proves the shell can enter `B:DNP/OBJ>`
+- `make vice-action-actrmdir`
+  - uses the release image plus deterministic typed input
+  - validates `ACTRMDIR.PRG` launches from mounted `ACTION.DNP`
+  - removes `OBJ` through the preserved external-tool directory-mutation ABI
+  - proves the shell reports `NO SUCH DIR` for `CD OBJ`
 - `make vice-action-actwrite`
   - uses the release image plus deterministic typed input
   - validates `ACTWRITE.PRG` launches from mounted `ACTION.DNP`

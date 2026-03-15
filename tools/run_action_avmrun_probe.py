@@ -36,6 +36,35 @@ def wait_for_screen_fragments(client: vp.BinaryMonitorClient, fragments: list[st
     raise vp.ViceError(f"expected screen fragments {missing!r} were not present in final screen:\n{last_screen}")
 
 
+def wait_for_prompt_count(client: vp.BinaryMonitorClient, prompt: str, minimum: int, timeout: float) -> str:
+    deadline = time.monotonic() + timeout
+    last_screen = ""
+    while time.monotonic() < deadline:
+        last_screen = screen_text(client)
+        if last_screen.count(prompt) >= minimum:
+            return last_screen
+        time.sleep(0.2)
+    raise vp.ViceError(
+        f"expected prompt {prompt!r} at least {minimum} times, got {last_screen.count(prompt)}:\n{last_screen}"
+    )
+
+
+def wait_for_prompt_count_and_fragments(
+    client: vp.BinaryMonitorClient, prompt: str, minimum: int, fragments: list[str], timeout: float
+) -> str:
+    deadline = time.monotonic() + timeout
+    last_screen = ""
+    while time.monotonic() < deadline:
+        last_screen = screen_text(client)
+        if last_screen.count(prompt) >= minimum and all(fragment in last_screen for fragment in fragments):
+            return last_screen
+        time.sleep(0.2)
+    missing = [fragment for fragment in fragments if fragment not in last_screen]
+    raise vp.ViceError(
+        f"expected prompt {prompt!r} at least {minimum} times and fragments {missing!r}:\n{last_screen}"
+    )
+
+
 def wait_for_mount_completion(client: vp.BinaryMonitorClient, timeout: float) -> str:
     deadline = time.monotonic() + timeout
     last_screen = ""
@@ -81,9 +110,11 @@ def main() -> int:
     parser.add_argument("--command-settle", type=float, default=1.0)
     parser.add_argument("--attempts", type=int, default=4)
     parser.add_argument("--attempt-delay", type=float, default=2.0)
+    parser.add_argument("--pre-command", action="append", default=[])
     parser.add_argument("--post-command")
     parser.add_argument("--post-done-fragment")
     parser.add_argument("--contains", action="append", default=[])
+    parser.add_argument("--not-contains", action="append", default=[])
     args = parser.parse_args()
 
     image = Path(args.disk).resolve()
@@ -118,26 +149,44 @@ def main() -> int:
             time.sleep(1.0)
             wait_for_mount_completion(client, 30.0)
             type_command(client, "B:", 30.0)
-            wait_for_screen_fragment(client, args.b_prompt, 30.0)
+            screen = wait_for_screen_fragment(client, args.b_prompt, 30.0)
+            prompt_count = screen.count(args.b_prompt)
             time.sleep(args.command_settle)
+            for pre_command in args.pre_command:
+                type_command(client, pre_command, 30.0)
+                prompt_count += 1
+                wait_for_prompt_count(client, args.b_prompt, prompt_count, 30.0)
+                time.sleep(args.command_settle)
             type_command(client, args.command, 30.0)
             if args.run_marker:
                 wait_for_screen_fragment(client, args.run_marker, 30.0)
-            fragments = [args.b_prompt]
+            prompt_count += 1
+            fragments: list[str] = []
             if args.done_fragment:
-                fragments.insert(0, args.done_fragment)
-            screen = wait_for_screen_fragments(client, fragments, 30.0)
+                fragments.append(args.done_fragment)
+            screen = wait_for_prompt_count_and_fragments(client, args.b_prompt, prompt_count, fragments, 30.0)
             if args.post_command:
                 time.sleep(args.command_settle)
                 type_command(client, args.post_command, 30.0)
-                post_fragments = [args.b_prompt]
-                if args.post_done_fragment:
-                    post_fragments.insert(0, args.post_done_fragment)
-                screen = wait_for_screen_fragments(client, post_fragments, 30.0)
+                if args.post_done_fragment and args.post_done_fragment.endswith(">"):
+                    screen = wait_for_screen_fragment(client, args.post_done_fragment, 30.0)
+                else:
+                    prompt_count += 1
+                    post_fragments: list[str] = []
+                    if args.post_done_fragment:
+                        post_fragments.append(args.post_done_fragment)
+                    screen = wait_for_prompt_count_and_fragments(
+                        client, args.b_prompt, prompt_count, post_fragments, 30.0
+                    )
             for fragment in args.contains:
                 if fragment not in screen:
                     raise vp.ViceError(
                         f"expected screen fragment {fragment!r} was not present in final screen:\n{screen}"
+                    )
+            for fragment in args.not_contains:
+                if fragment in screen:
+                    raise vp.ViceError(
+                        f"unexpected screen fragment {fragment!r} was present in final screen:\n{screen}"
                     )
             print(screen)
             return 0
