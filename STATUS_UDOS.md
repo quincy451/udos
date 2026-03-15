@@ -110,11 +110,12 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - release boot now reaches `A:D64/>` without a resident `AUTOEXEC.BAT`
   - when the sibling Action exporter is present, the staged release workspace
     also includes `build/udos-release-fs/IMAGES/ACTION.DNP`
-  - `make vice-action-workspace` now validates mounting that exported Action
-    workspace, listing its root entries, and reading `README.TXT`
-  - `make vice-action-actinfo` now validates launching `ACTINFO.PRG` from the
-    mounted Action workspace through the preserved launch-safe external-tool ABI
-    and returning to the UDOS prompt
+  - `make vice-action-workspace` now builds an autoexec-backed Action test
+    image that mounts the exported Action workspace, lists its root entries,
+    and reads `README.TXT`
+  - `make vice-action-actinfo` now builds an autoexec-backed Action test image
+    that launches `ACTINFO.PRG` from the mounted Action workspace through the
+    preserved launch-safe external-tool ABI and returns to the UDOS prompt
 - added a first REU-backed resident shrink path:
   - VICE tree content payloads now spill into REU
   - the resident image now keeps one shared `PROGRAM_IMAGE_MAX` slot cache in RAM instead of two full in-RAM payload banks

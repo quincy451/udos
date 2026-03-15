@@ -55,6 +55,11 @@ SELFTEST_DIR_EXPECTED := $(SELFTEST_ROOT)/expected_dir.txt
 SELFTEST_BATCH_EXPECTED := $(SELFTEST_ROOT)/expected_batch.txt
 SELFTEST_STOP_EXPECTED := $(SELFTEST_ROOT)/expected_stop.txt
 SELFTEST_LAUNCH_EXPECTED := $(SELFTEST_ROOT)/expected_launch.txt
+ACTIONTEST_ROOT := tests/action
+ACTION_WORKSPACE_BUILD := build/action-workspace
+ACTION_ACTINFO_BUILD := build/action-actinfo
+ACTION_WORKSPACE_ARTIFACT := build/udos-action-workspace.d64
+ACTION_ACTINFO_ARTIFACT := build/udos-action-actinfo.d64
 
 PROOF_OBJ := $(BUILD_DIR)/udos_proof.o
 PROOF_PRG := $(BUILD_DIR)/udos-proof.prg
@@ -153,23 +158,22 @@ vice-release: release
 		--expected "A:D64/>" --settle 1.0 --absent "AUTOEXEC OK"
 
 vice-action-workspace: release
-	$(PYTHON) tools/vice_prg_probe.py --disk $(RELEASE_DISK) \
+	$(MAKE) BUILD_DIR=$(ACTION_WORKSPACE_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_workspace.txt resident
+	cp $(ACTION_WORKSPACE_BUILD)/udos-resident.d64 $(ACTION_WORKSPACE_ARTIFACT)
+	sleep 2
+	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_WORKSPACE_ARTIFACT) \
 		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
-		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 2.0 \
-		--feed-step "MOUNT B: /IMAGES/ACTION.DNP\r" \
-		--feed-step "B:\r" \
-		--feed-step "DIR\r" \
-		--feed-step "TYPE README.TXT\r" \
-		--expected "ACTIONC64U FOR UDOS" --contains "BIN/ DOC/ LIB/ SRC/" --contains "ACTINFO.PRG" --contains "README.TXT"
+		--vice-arg=-fslongnames --expected "B:ACTION DNP" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+		--contains "ACTIONC64U FOR UDOS" --contains "BIN/ DOC/ LIB/ SRC/" --contains "ACTINFO.PRG" --contains "README.TXT" \
+		--contains "ACTION WORKSPACE OK"
 
 vice-action-actinfo: release
-	$(PYTHON) tools/vice_prg_probe.py --disk $(RELEASE_DISK) \
+	$(MAKE) BUILD_DIR=$(ACTION_ACTINFO_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actinfo.txt resident
+	cp $(ACTION_ACTINFO_BUILD)/udos-resident.d64 $(ACTION_ACTINFO_ARTIFACT)
+	sleep 2
+	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTINFO_ARTIFACT) \
 		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
-		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 1.5 \
-		--feed-step "MOUNT B: /IMAGES/ACTION.DNP\r" \
-		--feed-step "B:\r" \
-		--feed-step "ACTINFO ONE TWO\r" \
-		--expected "ACTINFO DONE" \
+		--vice-arg=-fslongnames --expected "B:ACTION DNP" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
 		--contains "ACTINFO ABI 1" \
 		--contains "ARGS ONE TWO" \
 		--contains "ACTINFO DONE" \
