@@ -84,6 +84,9 @@ Current milestone:
   - `make vice-action-actinfo` now builds an autoexec-backed Action test image
     that launches `ACTINFO.PRG` from the mounted Action workspace through the
     preserved launch-safe external-tool ABI and returns to the UDOS prompt
+  - `make vice-action-avminfo` now builds an autoexec-backed Action test image
+    that launches `AVMINFO.PRG`, loads `HELLO.AVM` through the preserved
+    launch-safe file-load ABI, and returns to the UDOS prompt
 
 Current command parser rule:
 - shell keywords require a separator before arguments

@@ -134,6 +134,12 @@ Separate VICE smoke targets:
 - `make vice-action-workspace`
   - validates the release workspace exposes `IMAGES/ACTION.DNP`
   - mounts the exported Action bridge payload, lists its root entries, and reads `README.TXT` through the live shell
+- `make vice-action-actinfo`
+  - validates `ACTINFO.PRG` launches from mounted `ACTION.DNP` and returns to the shell
+- `make vice-action-avminfo`
+  - validates `AVMINFO.PRG` launches from mounted `ACTION.DNP`
+  - loads `HELLO.AVM` through the preserved external-tool file-load ABI
+  - prints `AVM VERSION`, `PAYLOAD`, `ENTRY`, and `AVM OK`
 - `make vice-selftest`
   - builds focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
   - writes the generated D64 artifacts under `build/udos-selftest-*.d64`

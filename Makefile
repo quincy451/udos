@@ -58,8 +58,10 @@ SELFTEST_LAUNCH_EXPECTED := $(SELFTEST_ROOT)/expected_launch.txt
 ACTIONTEST_ROOT := tests/action
 ACTION_WORKSPACE_BUILD := build/action-workspace
 ACTION_ACTINFO_BUILD := build/action-actinfo
+ACTION_AVMINFO_BUILD := build/action-avminfo
 ACTION_WORKSPACE_ARTIFACT := build/udos-action-workspace.d64
 ACTION_ACTINFO_ARTIFACT := build/udos-action-actinfo.d64
+ACTION_AVMINFO_ARTIFACT := build/udos-action-avminfo.d64
 
 PROOF_OBJ := $(BUILD_DIR)/udos_proof.o
 PROOF_PRG := $(BUILD_DIR)/udos-proof.prg
@@ -90,7 +92,7 @@ RELEASE_BUILD := build/release
 RELEASE_DISK := build/udos-release.d64
 RELEASE_FS := build/udos-release-fs
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actinfo vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actinfo vice-action-avminfo vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -179,6 +181,19 @@ vice-action-actinfo: release
 		--contains "ACTINFO DONE" \
 		--contains "RUN ACTINFO.PRG" \
 		--contains "B:DNP/>"
+
+vice-action-avminfo: release
+	$(MAKE) BUILD_DIR=$(ACTION_AVMINFO_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_avminfo.txt resident
+	cp $(ACTION_AVMINFO_BUILD)/udos-resident.d64 $(ACTION_AVMINFO_ARTIFACT)
+	sleep 2
+	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_AVMINFO_ARTIFACT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
+		--vice-arg=-fslongnames --expected "B:DNP/>" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+		--contains "RUN AVMINFO.PRG" \
+		--contains "AVM VERSION 1" \
+		--contains "PAYLOAD" \
+		--contains "ENTRY" \
+		--contains "AVM OK"
 
 vice-proof: proof
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_AUTO_PRG) --expected "UDOS VM OK"

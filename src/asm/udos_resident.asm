@@ -69,8 +69,27 @@ TOOL_SVC_CONSOLE_NEWLINE = TOOL_ABI_BASE + 6
 TOOL_SVC_PROGRAM_GET_CMDLINE_PTR = TOOL_ABI_BASE + 9
 TOOL_SVC_PROGRAM_GET_CMDLINE_LEN = TOOL_ABI_BASE + 12
 TOOL_SVC_PROGRAM_EXIT = TOOL_ABI_BASE + 15
+TOOL_SVC_FILE_LOAD_SC0 = TOOL_ABI_BASE + 18
 TOOL_ABI_CMDLINE_LEN = $CF70
 TOOL_ABI_CMDLINE_BUF = $CF80
+TOOL_ABI_CURRENT_PATH = $CD00
+TOOL_ABI_OPEN_PATH = $CD40
+TOOL_ABI_OPEN_LFN = $CDC0
+TOOL_ABI_FILE_STATUS = $CDC1
+TOOL_ABI_FILE_REMAIN_LO = $CDC2
+TOOL_ABI_FILE_REMAIN_HI = $CDC3
+TOOL_ABI_FILE_LEN_LO = $CDC4
+TOOL_ABI_FILE_LEN_HI = $CDC5
+TOOL_ABI_FILE_NAME_LO = $CDC6
+TOOL_ABI_FILE_NAME_HI = $CDC7
+TOOL_ABI_FILE_DEST_LO = $CDC8
+TOOL_ABI_FILE_DEST_HI = $CDC9
+TOOL_ABI_FILE_LIMIT_LO = $CDCA
+TOOL_ABI_FILE_LIMIT_HI = $CDCB
+TOOL_FILE_STATUS_FAIL = 0
+TOOL_FILE_STATUS_OK = 1
+TOOL_FILE_STATUS_TOO_LARGE = 2
+TOOL_FILE_STATUS_NOFILE = 3
 C64_PORT = $0001
 REU_STATUS = $DF00
 REU_COMMAND = $DF01
@@ -6406,6 +6425,7 @@ stage_launch_metadata:
     sta LAUNCH_TRACE_CODE
     jsr svc_install_launch_return_stub
     jsr svc_sync_tool_cmdline_shadow
+    jsr svc_sync_tool_backend_path_shadow
     lda #PROGRAM_LAUNCH_RESULT_LOAD_FAILED
     sta LAUNCH_RESULT_FLAG
     lda #$00
@@ -6592,22 +6612,23 @@ svc_install_launch_return_stub:
     rts
 
 svc_install_tool_abi:
-    lda #<tool_abi_template
+    lda #<tool_abi_fixed_template
     sta PTR
-    lda #>tool_abi_template
+    lda #>tool_abi_fixed_template
     sta PTR+1
     lda #<TOOL_ABI_BASE
     sta SCREEN_PTR
     lda #>TOOL_ABI_BASE
     sta SCREEN_PTR+1
-    lda #<(tool_abi_template_end-tool_abi_template)
+    lda #<(tool_abi_fixed_template_end-tool_abi_fixed_template)
     sta launch_reu_remaining_lo
-    lda #>(tool_abi_template_end-tool_abi_template)
+    lda #>(tool_abi_fixed_template_end-tool_abi_fixed_template)
     sta launch_reu_remaining_hi
     jsr svc_install_copy_block
     lda #$00
     sta TOOL_ABI_CMDLINE_LEN
     sta TOOL_ABI_CMDLINE_BUF
+    sta TOOL_ABI_CURRENT_PATH
     rts
 
 svc_sync_tool_cmdline_shadow:
@@ -6624,6 +6645,31 @@ svc_sync_tool_cmdline_shadow_loop:
 svc_sync_tool_cmdline_shadow_done:
     lda #$00
     sta TOOL_ABI_CMDLINE_BUF+MAX_LINE_LEN
+    rts
+
+svc_sync_tool_backend_path_shadow:
+    lda current_drive
+    sta temp_drive
+    tay
+    lda dir_state_table,y
+    sta temp_dir_id
+    jsr select_backend_path_cache
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    jsr fill_backend_path_vice
+    ldy #$00
+svc_sync_tool_backend_path_shadow_loop:
+    lda (PTR),y
+    sta TOOL_ABI_CURRENT_PATH,y
+    beq svc_sync_tool_backend_path_shadow_done
+    iny
+    cpy #MAX_LINE_LEN
+    bcc svc_sync_tool_backend_path_shadow_loop
+svc_sync_tool_backend_path_shadow_done:
+    lda #$00
+    sta TOOL_ABI_CURRENT_PATH+MAX_LINE_LEN
     rts
 
 svc_install_copy_block:
@@ -13878,13 +13924,15 @@ launch_stub_restore_done:
     rts
 launch_stub_restore_template_end:
 
-tool_abi_template:
+tool_abi_fixed_template:
     jmp tool_abi_get_abi_version
     jmp tool_abi_console_write_sc0
     jmp tool_abi_console_newline
     jmp tool_abi_program_get_cmdline_ptr
     jmp tool_abi_program_get_cmdline_len
     jmp tool_abi_program_exit
+    jmp tool_abi_file_load_sc0
+tool_abi_fixed_template_end:
 
 tool_abi_get_abi_version:
     lda #<ABI_VERSION
@@ -13937,6 +13985,180 @@ tool_abi_program_get_cmdline_len:
 tool_abi_program_exit:
     lda 0,x
     jmp LAUNCH_RETURN_ADDR
+
+tool_abi_file_load_sc0:
+    stx TOOL_ABI_OPEN_LFN
+    lda 0,x
+    sta TOOL_ABI_FILE_NAME_LO
+    lda 1,x
+    sta TOOL_ABI_FILE_NAME_HI
+    lda 2,x
+    sta TOOL_ABI_FILE_DEST_LO
+    lda 3,x
+    sta TOOL_ABI_FILE_DEST_HI
+    lda 4,x
+    sta TOOL_ABI_FILE_LIMIT_LO
+    lda 5,x
+    sta TOOL_ABI_FILE_LIMIT_HI
+    lda #TOOL_FILE_STATUS_FAIL
+    sta 6,x
+    lda #$00
+    sta 7,x
+    sta 8,x
+    jsr tool_abi_build_open_path
+    bcc :+
+    jmp tool_abi_file_load_fail
+:
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta temp_drive
+    lda #VICE_LFN_FILE
+    sta vice_lfn
+    lda #VICE_SA_READ
+    sta vice_secondary
+    jsr vice_open_read_from_ptr
+    bcc :+
+    jmp tool_abi_file_load_nofile
+:
+    ldx TOOL_ABI_OPEN_LFN
+    lda TOOL_ABI_FILE_DEST_LO
+    sta SCREEN_PTR
+    lda TOOL_ABI_FILE_DEST_HI
+    sta SCREEN_PTR+1
+    lda TOOL_ABI_FILE_LIMIT_LO
+    sta TOOL_ABI_FILE_REMAIN_LO
+    lda TOOL_ABI_FILE_LIMIT_HI
+    sta TOOL_ABI_FILE_REMAIN_HI
+    lda #$00
+    sta TOOL_ABI_FILE_LEN_LO
+    sta TOOL_ABI_FILE_LEN_HI
+tool_abi_file_load_loop:
+    lda TOOL_ABI_FILE_REMAIN_LO
+    ora TOOL_ABI_FILE_REMAIN_HI
+    beq tool_abi_file_load_too_large
+    jsr CHRIN
+    ldy #$00
+    sta (SCREEN_PTR),y
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    sec
+    lda TOOL_ABI_FILE_REMAIN_LO
+    sbc #$01
+    sta TOOL_ABI_FILE_REMAIN_LO
+    lda TOOL_ABI_FILE_REMAIN_HI
+    sbc #$00
+    sta TOOL_ABI_FILE_REMAIN_HI
+    inc TOOL_ABI_FILE_LEN_LO
+    bne :+
+    inc TOOL_ABI_FILE_LEN_HI
+:
+    jsr READST
+    and #$40
+    beq tool_abi_file_load_loop
+    jsr tool_abi_close_current_file
+    ldx TOOL_ABI_OPEN_LFN
+    lda #TOOL_FILE_STATUS_OK
+    sta 6,x
+    lda TOOL_ABI_FILE_LEN_LO
+    sta 7,x
+    lda TOOL_ABI_FILE_LEN_HI
+    sta 8,x
+    rts
+tool_abi_file_load_too_large:
+    jsr tool_abi_close_current_file
+    ldx TOOL_ABI_OPEN_LFN
+    lda #TOOL_FILE_STATUS_TOO_LARGE
+    sta 6,x
+    lda TOOL_ABI_FILE_LEN_LO
+    sta 7,x
+    lda TOOL_ABI_FILE_LEN_HI
+    sta 8,x
+    rts
+tool_abi_file_load_nofile:
+    ldx TOOL_ABI_OPEN_LFN
+    lda #TOOL_FILE_STATUS_NOFILE
+    sta 6,x
+tool_abi_file_load_fail:
+    rts
+
+tool_abi_build_open_path:
+    lda #<TOOL_ABI_OPEN_PATH
+    sta PTR
+    lda #>TOOL_ABI_OPEN_PATH
+    sta PTR+1
+    ldy #$00
+tool_abi_build_open_path_copy_prefix:
+    lda TOOL_ABI_CURRENT_PATH,y
+    beq tool_abi_build_open_path_prefix_done
+    sta TOOL_ABI_OPEN_PATH,y
+    iny
+    cpy #MAX_LINE_LEN
+    bcc tool_abi_build_open_path_copy_prefix
+    sec
+    rts
+tool_abi_build_open_path_prefix_done:
+    cpy #$00
+    beq tool_abi_build_open_path_name_start
+    dey
+    lda TOOL_ABI_OPEN_PATH,y
+    iny
+    cmp #ASCII_SLASH
+    beq tool_abi_build_open_path_name_start
+    lda #ASCII_SLASH
+    sta TOOL_ABI_OPEN_PATH,y
+    iny
+tool_abi_build_open_path_name_start:
+    sty vice_name_index
+    lda TOOL_ABI_FILE_NAME_LO
+    sta SCREEN_PTR
+    lda TOOL_ABI_FILE_NAME_HI
+    sta SCREEN_PTR+1
+    ldy #$00
+tool_abi_build_open_path_copy_name:
+    lda (SCREEN_PTR),y
+    beq tool_abi_build_open_path_done
+    jsr screen_code_to_ascii
+    ldx vice_name_index
+    sta TOOL_ABI_OPEN_PATH,x
+    inc vice_name_index
+    iny
+    lda vice_name_index
+    cmp #MAX_LINE_LEN
+    bcc tool_abi_build_open_path_copy_name
+    sec
+    rts
+tool_abi_build_open_path_done:
+    ldx vice_name_index
+    lda #$00
+    sta TOOL_ABI_OPEN_PATH,x
+    lda #<TOOL_ABI_OPEN_PATH
+    sta PTR
+    lda #>TOOL_ABI_OPEN_PATH
+    sta PTR+1
+    clc
+    rts
+
+tool_abi_close_current_file:
+    jsr CLRCHN
+    lda #VICE_LFN_FILE
+    jsr CLOSE_K
+    rts
+
+tool_abi_name_length_from_ptr:
+    ldy #$00
+tool_abi_name_length_loop:
+    lda (PTR),y
+    beq tool_abi_name_length_done
+    iny
+    cpy #96
+    bcc tool_abi_name_length_loop
+    sec
+    rts
+tool_abi_name_length_done:
+    tya
+    clc
+    rts
 
 tool_abi_console_putc:
     pha

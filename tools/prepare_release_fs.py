@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -28,6 +31,29 @@ def rewrite_manifest(path: Path, drop: set[str]) -> None:
     path.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="ascii")
 
 
+def _rmtree_onexc(func, path: str, excinfo) -> None:
+    try:
+        os.chmod(path, stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+    except OSError:
+        pass
+    func(path)
+
+
+def robust_rmtree(path: Path) -> None:
+    last_exc: Exception | None = None
+    for _ in range(5):
+        if not path.exists():
+            return
+        try:
+            shutil.rmtree(path, onexc=_rmtree_onexc)
+            return
+        except OSError as exc:
+            last_exc = exc
+            time.sleep(0.2)
+    if path.exists() and last_exc is not None:
+        raise last_exc
+
+
 def import_action_workspace(output: Path) -> None:
     workspace = Path(__file__).resolve().parents[2]
     action_root = workspace / "actionc64u"
@@ -48,7 +74,7 @@ def import_action_workspace(output: Path) -> None:
         if exported.is_dir():
             target = output / "IMAGES" / "ACTION.DNP"
             if target.exists():
-                shutil.rmtree(target)
+                robust_rmtree(target)
             shutil.copytree(exported, target)
 
 
@@ -61,7 +87,7 @@ def main() -> int:
     base = Path(args.base)
     output = Path(args.output)
     if output.exists():
-        shutil.rmtree(output)
+        robust_rmtree(output)
     shutil.copytree(base, output)
 
     src_dir = output / "IMAGES" / "WORK.DNP" / "SRC"

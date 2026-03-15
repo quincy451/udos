@@ -116,6 +116,10 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `make vice-action-actinfo` now builds an autoexec-backed Action test image
     that launches `ACTINFO.PRG` from the mounted Action workspace through the
     preserved launch-safe external-tool ABI and returns to the UDOS prompt
+  - `make vice-action-avminfo` now builds an autoexec-backed Action test image
+    that launches `AVMINFO.PRG`, loads `HELLO.AVM` through the preserved
+    launch-safe file-load ABI, prints the `AVM1` header fields, and returns to
+    the UDOS prompt
 - added a first REU-backed resident shrink path:
   - VICE tree content payloads now spill into REU
   - the resident image now keeps one shared `PROGRAM_IMAGE_MAX` slot cache in RAM instead of two full in-RAM payload banks
