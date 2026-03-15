@@ -70,6 +70,8 @@ TOOL_SVC_PROGRAM_GET_CMDLINE_PTR = TOOL_ABI_BASE + 9
 TOOL_SVC_PROGRAM_GET_CMDLINE_LEN = TOOL_ABI_BASE + 12
 TOOL_SVC_PROGRAM_EXIT = TOOL_ABI_BASE + 15
 TOOL_SVC_FILE_LOAD_SC0 = TOOL_ABI_BASE + 18
+TOOL_SVC_DIR_BEGIN_CURRENT = TOOL_ABI_BASE + 21
+TOOL_SVC_DIR_NEXT = TOOL_ABI_BASE + 24
 TOOL_ABI_CMDLINE_LEN = $CF70
 TOOL_ABI_CMDLINE_BUF = $CF80
 TOOL_ABI_CURRENT_PATH = $CD00
@@ -86,6 +88,7 @@ TOOL_ABI_FILE_DEST_LO = $CDC8
 TOOL_ABI_FILE_DEST_HI = $CDC9
 TOOL_ABI_FILE_LIMIT_LO = $CDCA
 TOOL_ABI_FILE_LIMIT_HI = $CDCB
+TOOL_ABI_DIR_ENTRY_BUF = $CDD0
 TOOL_FILE_STATUS_FAIL = 0
 TOOL_FILE_STATUS_OK = 1
 TOOL_FILE_STATUS_TOO_LARGE = 2
@@ -13932,6 +13935,8 @@ tool_abi_fixed_template:
     jmp tool_abi_program_get_cmdline_len
     jmp tool_abi_program_exit
     jmp tool_abi_file_load_sc0
+    jmp tool_abi_dir_begin_current
+    jmp tool_abi_dir_next
 tool_abi_fixed_template_end:
 
 tool_abi_get_abi_version:
@@ -14080,6 +14085,55 @@ tool_abi_file_load_nofile:
     lda #TOOL_FILE_STATUS_NOFILE
     sta 6,x
 tool_abi_file_load_fail:
+    rts
+
+tool_abi_dir_begin_current:
+    stx saved_rp_x
+    lda current_drive
+    sta temp_drive
+    tay
+    lda dir_state_table,y
+    sta temp_dir_id
+    ldy #$00
+    jsr fs_enum_begin_current
+    ldx saved_rp_x
+    lda enum_count
+    sta 0,x
+    lda #$00
+    sta 1,x
+    rts
+
+tool_abi_dir_next:
+    stx saved_rp_x
+    ldy #$00
+    jsr fs_enum_next_ptr
+    bcc tool_abi_dir_next_copy
+    ldx saved_rp_x
+    lda #$00
+    sta 0,x
+    sta 1,x
+    rts
+tool_abi_dir_next_copy:
+    jsr tool_abi_copy_enum_entry
+    ldx saved_rp_x
+    lda #<TOOL_ABI_DIR_ENTRY_BUF
+    sta 0,x
+    lda #>TOOL_ABI_DIR_ENTRY_BUF
+    sta 1,x
+    rts
+
+tool_abi_copy_enum_entry:
+    ldy #$00
+tool_abi_copy_enum_entry_loop:
+    lda (PTR),y
+    sta TOOL_ABI_DIR_ENTRY_BUF,y
+    beq tool_abi_copy_enum_entry_done
+    iny
+    cpy #MAX_LINE_LEN
+    bcc tool_abi_copy_enum_entry_loop
+    lda #$00
+    sta TOOL_ABI_DIR_ENTRY_BUF+MAX_LINE_LEN
+tool_abi_copy_enum_entry_done:
     rts
 
 tool_abi_build_open_path:
