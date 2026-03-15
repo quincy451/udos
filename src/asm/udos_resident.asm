@@ -62,6 +62,15 @@ ABI_VERSION = 1
 RESIDENT_CODE_START = $1810
 HIRAM_START = $C000
 HIRAM_PAGES = $10
+TOOL_ABI_BASE = $CF00
+TOOL_SVC_GET_ABI_VERSION = TOOL_ABI_BASE + 0
+TOOL_SVC_CONSOLE_WRITE_SC0 = TOOL_ABI_BASE + 3
+TOOL_SVC_CONSOLE_NEWLINE = TOOL_ABI_BASE + 6
+TOOL_SVC_PROGRAM_GET_CMDLINE_PTR = TOOL_ABI_BASE + 9
+TOOL_SVC_PROGRAM_GET_CMDLINE_LEN = TOOL_ABI_BASE + 12
+TOOL_SVC_PROGRAM_EXIT = TOOL_ABI_BASE + 15
+TOOL_ABI_CMDLINE_LEN = $CF70
+TOOL_ABI_CMDLINE_BUF = $CF80
 C64_PORT = $0001
 REU_STATUS = $DF00
 REU_COMMAND = $DF01
@@ -360,6 +369,7 @@ resident_main:
     mgrow 1
     calln svc_console_reset
     calln svc_install_launch_stub
+    calln svc_install_tool_abi
     calln svc_get_abi_version
     stma ABI_SNAPSHOT
     calln svc_transport_get_mode
@@ -6395,6 +6405,7 @@ stage_launch_metadata:
     lda #$B0
     sta LAUNCH_TRACE_CODE
     jsr svc_install_launch_return_stub
+    jsr svc_sync_tool_cmdline_shadow
     lda #PROGRAM_LAUNCH_RESULT_LOAD_FAILED
     sta LAUNCH_RESULT_FLAG
     lda #$00
@@ -6578,6 +6589,41 @@ svc_install_launch_return_stub:
     lda #>(launch_stub_return_template_end-launch_stub_return_template)
     sta launch_reu_remaining_hi
     jsr svc_install_copy_block
+    rts
+
+svc_install_tool_abi:
+    lda #<tool_abi_template
+    sta PTR
+    lda #>tool_abi_template
+    sta PTR+1
+    lda #<TOOL_ABI_BASE
+    sta SCREEN_PTR
+    lda #>TOOL_ABI_BASE
+    sta SCREEN_PTR+1
+    lda #<(tool_abi_template_end-tool_abi_template)
+    sta launch_reu_remaining_lo
+    lda #>(tool_abi_template_end-tool_abi_template)
+    sta launch_reu_remaining_hi
+    jsr svc_install_copy_block
+    lda #$00
+    sta TOOL_ABI_CMDLINE_LEN
+    sta TOOL_ABI_CMDLINE_BUF
+    rts
+
+svc_sync_tool_cmdline_shadow:
+    lda program_cmdline_len
+    sta TOOL_ABI_CMDLINE_LEN
+    ldx #$00
+svc_sync_tool_cmdline_shadow_loop:
+    lda program_cmdline_buffer,x
+    sta TOOL_ABI_CMDLINE_BUF,x
+    beq svc_sync_tool_cmdline_shadow_done
+    inx
+    cpx #MAX_LINE_LEN
+    bcc svc_sync_tool_cmdline_shadow_loop
+svc_sync_tool_cmdline_shadow_done:
+    lda #$00
+    sta TOOL_ABI_CMDLINE_BUF+MAX_LINE_LEN
     rts
 
 svc_install_copy_block:
@@ -13831,6 +13877,128 @@ launch_stub_restore_chunk_ready:
 launch_stub_restore_done:
     rts
 launch_stub_restore_template_end:
+
+tool_abi_template:
+    jmp tool_abi_get_abi_version
+    jmp tool_abi_console_write_sc0
+    jmp tool_abi_console_newline
+    jmp tool_abi_program_get_cmdline_ptr
+    jmp tool_abi_program_get_cmdline_len
+    jmp tool_abi_program_exit
+
+tool_abi_get_abi_version:
+    lda #<ABI_VERSION
+    sta 0,x
+    lda #>ABI_VERSION
+    sta 1,x
+    rts
+
+tool_abi_console_write_sc0:
+    lda 0,x
+    sta PTR
+    lda 1,x
+    sta PTR+1
+tool_abi_console_write_ptr:
+    ldy #$00
+tool_abi_write_loop:
+    lda (PTR),y
+    beq tool_abi_write_done
+    jsr tool_abi_console_putc
+    iny
+    bne tool_abi_write_loop
+tool_abi_write_done:
+    rts
+
+tool_abi_console_newline:
+    jsr tool_abi_console_mod40
+    beq tool_abi_newline_done
+tool_abi_newline_loop:
+    lda #$20
+    jsr tool_abi_console_putc
+    jsr tool_abi_console_mod40
+    bne tool_abi_newline_loop
+tool_abi_newline_done:
+    rts
+
+tool_abi_program_get_cmdline_ptr:
+    lda #<TOOL_ABI_CMDLINE_BUF
+    sta 0,x
+    lda #>TOOL_ABI_CMDLINE_BUF
+    sta 1,x
+    rts
+
+tool_abi_program_get_cmdline_len:
+    lda TOOL_ABI_CMDLINE_LEN
+    sta 0,x
+    lda #$00
+    sta 1,x
+    rts
+
+tool_abi_program_exit:
+    lda 0,x
+    jmp LAUNCH_RETURN_ADDR
+
+tool_abi_console_putc:
+    pha
+    clc
+    lda CURSOR
+    adc #<SCREEN
+    sta SCREEN_PTR
+    lda CURSOR+1
+    adc #>SCREEN
+    sta SCREEN_PTR+1
+    pla
+    jsr tool_abi_normalize_output_char
+    ldx #$00
+    sta (SCREEN_PTR,x)
+    inc CURSOR
+    bne :+
+    inc CURSOR+1
+:
+    rts
+
+tool_abi_normalize_output_char:
+    cmp #$41
+    bcc tool_abi_output_char_done
+    cmp #$5B
+    bcc tool_abi_output_char_upper
+    cmp #$61
+    bcc tool_abi_output_char_done
+    cmp #$7B
+    bcs tool_abi_output_char_done
+    sec
+    sbc #$60
+    rts
+tool_abi_output_char_upper:
+    sec
+    sbc #$40
+tool_abi_output_char_done:
+    rts
+
+tool_abi_console_mod40:
+    lda CURSOR
+    sta SCREEN_PTR
+    lda CURSOR+1
+    sta SCREEN_PTR+1
+tool_abi_mod40_loop:
+    lda SCREEN_PTR+1
+    bne tool_abi_mod40_sub
+    lda SCREEN_PTR
+    cmp #40
+    bcc tool_abi_mod40_done
+tool_abi_mod40_sub:
+    sec
+    lda SCREEN_PTR
+    sbc #40
+    sta SCREEN_PTR
+    lda SCREEN_PTR+1
+    sbc #0
+    sta SCREEN_PTR+1
+    jmp tool_abi_mod40_loop
+tool_abi_mod40_done:
+    lda SCREEN_PTR
+    rts
+tool_abi_template_end:
 
 current_drive:
     .byte DRIVE_A

@@ -81,7 +81,8 @@ Current milestone:
   - `make vice-action-workspace` now validates mounting that exported Action
     workspace, listing its root entries, and reading `README.TXT` from the shell
   - `make vice-action-actinfo` now validates launching `ACTINFO.PRG` from the
-    mounted Action workspace and returning to the UDOS prompt
+    mounted Action workspace through the preserved launch-safe external-tool ABI
+    and returning to the UDOS prompt
 
 Current command parser rule:
 - shell keywords require a separator before arguments

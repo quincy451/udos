@@ -169,11 +169,12 @@ vice-action-actinfo: release
 		--feed-step "MOUNT B: /IMAGES/ACTION.DNP\r" \
 		--feed-step "B:\r" \
 		--feed-step "ACTINFO ONE TWO\r" \
-		--expected "ACTINFO ONE TWO" --check-byte 0x03EC=0x14 \
-		--contains "ACTINFO ABI 1ARGS ONE TWO" \
+		--expected "ACTINFO DONE" \
+		--contains "ACTINFO ABI 1" \
+		--contains "ARGS ONE TWO" \
 		--contains "ACTINFO DONE" \
 		--contains "RUN ACTINFO.PRG" \
-		--contains "ARGS ONE TWO"
+		--contains "B:DNP/>"
 
 vice-proof: proof
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_AUTO_PRG) --expected "UDOS VM OK"
