@@ -91,6 +91,9 @@ Current milestone:
     release image, launches `AVMRUN.PRG`, loads `UDOSHELLO.AVM` through the
     preserved launch-safe file-load ABI, executes the current constrained
     flagged Acheron-backed `AVM1` subset, and returns to the UDOS prompt
+  - `make vice-action-avmrun-flow` now runs `UDOSFLOW.AVM` from the mounted
+    Action workspace and proves the current constrained subset can handle
+    `jump`, `call`, and `ret` before returning to the UDOS prompt
 
 Current command parser rule:
 - shell keywords require a separator before arguments

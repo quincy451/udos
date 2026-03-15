@@ -20,10 +20,34 @@ def wait_for_screen_fragment(client: vp.BinaryMonitorClient, fragment: str, time
     raise vp.ViceError(f"expected screen fragment {fragment!r} was not present in final screen:\n{last_screen}")
 
 
+def wait_for_mount_completion(client: vp.BinaryMonitorClient, timeout: float) -> str:
+    deadline = time.monotonic() + timeout
+    last_screen = ""
+    while time.monotonic() < deadline:
+        last_screen = vp.screen_ram_to_text(client.memory_get(0x0400, 0x07E7))
+        if "B:ACTION DNP" in last_screen:
+            return last_screen
+        if last_screen.count("A:D64/>") >= 2:
+            return last_screen
+        time.sleep(0.2)
+    raise vp.ViceError(f"mount did not complete in time:\n{last_screen}")
+
+
+def wait_for_keyboard_idle(client: vp.BinaryMonitorClient, timeout: float) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if client.memory_get(vp.KEYBUF_COUNT, vp.KEYBUF_COUNT)[0] == 0:
+            return
+        time.sleep(0.05)
+    raise vp.ViceError("timed out waiting for C64 keyboard buffer to drain after command")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the focused AVMRUN Action workspace probe in VICE")
     parser.add_argument("--disk", required=True)
     parser.add_argument("--fs-root", required=True)
+    parser.add_argument("--payload", default="UDOSHELLO.AVM")
+    parser.add_argument("--expect", default="UDOS AVM OK")
     args = parser.parse_args()
 
     image = Path(args.disk).resolve()
@@ -50,15 +74,13 @@ def main() -> int:
 
         wait_for_screen_fragment(client, "A:D64/>", 60.0)
         client.keyboard_type("MOUNT B: /IMAGES/ACTION.DNP\r")
-        time.sleep(2.0)
-        client.keyboard_type("B:\r")
-        time.sleep(2.0)
-        client.keyboard_type("AVMRUN UDOSHELLO.AVM\r")
+        wait_for_keyboard_idle(client, 30.0)
         time.sleep(1.0)
-
-        screen = wait_for_screen_fragment(client, "UDOS AVM OK", 30.0)
-        if "RUN AVMRUN.PRG" not in screen:
-            raise vp.ViceError(f"expected screen fragment 'RUN AVMRUN.PRG' was not present in final screen:\n{screen}")
+        client.keyboard_type("B:\r")
+        wait_for_screen_fragment(client, "B:DNP/>", 30.0)
+        client.keyboard_type(f"AVMRUN {args.payload}\r")
+        wait_for_screen_fragment(client, "RUN AVMRUN.PRG", 30.0)
+        screen = wait_for_screen_fragment(client, args.expect, 30.0)
         print(screen)
         return 0
     except Exception as exc:

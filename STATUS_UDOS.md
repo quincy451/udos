@@ -125,6 +125,10 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     preserved launch-safe file-load ABI, executes the current constrained
     flagged Acheron-backed `AVM1` subset, prints `UDOS AVM OK`, and returns to
     the UDOS prompt
+  - `make vice-action-avmrun-flow` now runs `UDOSFLOW.AVM` from the mounted
+    Action workspace and proves the current constrained subset can execute
+    `jump`, `call`, and `ret` by printing `UDOS AVM FLOW OK` and returning to
+    the UDOS prompt
 - added a first REU-backed resident shrink path:
   - VICE tree content payloads now spill into REU
   - the resident image now keeps one shared `PROGRAM_IMAGE_MAX` slot cache in RAM instead of two full in-RAM payload banks

@@ -145,6 +145,10 @@ Separate VICE smoke targets:
   - loads `UDOSHELLO.AVM` through the preserved external-tool file-load ABI
   - executes the current constrained flagged Acheron-backed `AVM1` subset
   - prints `UDOS AVM OK` and returns to the shell
+- `make vice-action-avmrun-flow`
+  - validates `AVMRUN.PRG` can run `UDOSFLOW.AVM`
+  - proves the current constrained subset can execute `jump`, `call`, and `ret`
+  - prints `UDOS AVM FLOW OK` and returns to the shell
 - `make vice-selftest`
   - builds focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
   - writes the generated D64 artifacts under `build/udos-selftest-*.d64`
