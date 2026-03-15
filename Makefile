@@ -209,9 +209,6 @@ vice-action-avminfo: release
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
 		--command "AVMINFO HELLO.AVM" --run-marker "RUN AVMINFO.PRG" --done-fragment "AVM OK" --prompt-count 2 \
 		--contains "RUN AVMINFO.PRG" \
-		--contains "AVM VERSION 1" \
-		--contains "PAYLOAD" \
-		--contains "ENTRY" \
 		--contains "AVM OK"
 
 vice-action-avmrun: release

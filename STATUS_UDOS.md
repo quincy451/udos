@@ -127,7 +127,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     and returns to the UDOS prompt
   - `make vice-action-avminfo` now uses the release image with deterministic
     typed input, launches `AVMINFO.PRG`, loads `HELLO.AVM` through the
-    preserved launch-safe file-load ABI, prints the `AVM1` header fields, and
+    preserved launch-safe file-load ABI, validates the `AVM1` header, and
     returns to the UDOS prompt
   - `make vice-action-avmrun` now mounts the exported Action workspace from the
     release image, launches `AVMRUN.PRG`, loads `UDOSHELLO.AVM` through the

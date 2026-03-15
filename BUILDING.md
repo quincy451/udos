@@ -151,7 +151,7 @@ Separate VICE smoke targets:
   - uses the release image plus deterministic typed input
   - validates `AVMINFO.PRG` launches from mounted `ACTION.DNP`
   - loads `HELLO.AVM` through the preserved external-tool file-load ABI
-  - prints `AVM VERSION`, `PAYLOAD`, `ENTRY`, and `AVM OK`
+  - validates the `AVM1` header and prints `AVM OK`
 - `make vice-action-avmrun`
   - uses the release image plus deterministic typed input
   - validates `AVMRUN.PRG` launches from mounted `ACTION.DNP`
