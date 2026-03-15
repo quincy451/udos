@@ -27,6 +27,7 @@ class TestReleaseFs(unittest.TestCase):
             self.assertTrue((output / "IMAGES" / "WORK.DNP").is_dir())
             action_root = output / "IMAGES" / "ACTION.DNP"
             self.assertTrue(action_root.is_dir())
+            self.assertTrue((action_root / "ACTINFO.PRG").is_file())
             self.assertTrue((action_root / "DOC" / "OPERATOR.TXT").is_file())
             self.assertTrue((action_root / "SRC" / "HELLO.ACT").is_file())
             self.assertTrue((action_root / "BIN" / "HELLO.AVM").is_file())

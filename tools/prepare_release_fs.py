@@ -38,7 +38,7 @@ def import_action_workspace(output: Path) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         staging = Path(tmpdir) / "action"
         subprocess.run(
-            [sys.executable, str(exporter), "--output", str(staging)],
+            [sys.executable, str(exporter), "--output", str(staging), "--build-udos-tools"],
             cwd=action_root,
             check=True,
             capture_output=True,

@@ -85,7 +85,7 @@ RELEASE_BUILD := build/release
 RELEASE_DISK := build/udos-release.d64
 RELEASE_FS := build/udos-release-fs
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actinfo vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -160,7 +160,20 @@ vice-action-workspace: release
 		--feed-step "B:\r" \
 		--feed-step "DIR\r" \
 		--feed-step "TYPE README.TXT\r" \
-		--expected "ACTIONC64U FOR UDOS" --contains "BIN/ DOC/ LIB/ SRC/ README.TXT"
+		--expected "ACTIONC64U FOR UDOS" --contains "BIN/ DOC/ LIB/ SRC/" --contains "ACTINFO.PRG" --contains "README.TXT"
+
+vice-action-actinfo: release
+	$(PYTHON) tools/vice_prg_probe.py --disk $(RELEASE_DISK) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 1.5 \
+		--feed-step "MOUNT B: /IMAGES/ACTION.DNP\r" \
+		--feed-step "B:\r" \
+		--feed-step "ACTINFO ONE TWO\r" \
+		--expected "ACTINFO ONE TWO" --check-byte 0x03EC=0x14 \
+		--contains "ACTINFO ABI 1ARGS ONE TWO" \
+		--contains "ACTINFO DONE" \
+		--contains "RUN ACTINFO.PRG" \
+		--contains "ARGS ONE TWO"
 
 vice-proof: proof
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_AUTO_PRG) --expected "UDOS VM OK"
