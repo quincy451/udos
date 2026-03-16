@@ -121,6 +121,10 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     top of the release workspace, launches `ACTINFO.PRG` from the mounted Action workspace
     through the preserved launch-safe external-tool ABI, and returns to the
     UDOS prompt
+  - `make vice-action-actflow` now uses the release image with deterministic
+    typed input, launches `ACTFLOW.BAT`, exercises preserved file
+    save/copy/move/delete/load behavior in one composite Action-side workspace
+    flow, and proves the deleted target is gone through shell-side `TYPE`
   - `make vice-action-actcopy` now uses the release image with deterministic
     typed input, launches `ACTCOPY.PRG`, copies `OUT.TXT` to `COPY.TXT`
     through the preserved external-tool file-copy ABI, and proves the shell

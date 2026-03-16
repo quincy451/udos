@@ -142,6 +142,11 @@ Separate VICE smoke targets:
 - `make vice-action-actinfo`
   - uses an autoexec-backed Action test image on top of the release workspace
   - validates `ACTINFO.PRG` launches from mounted `ACTION.DNP` and returns to the shell
+- `make vice-action-actflow`
+  - uses the release image plus deterministic typed input
+  - validates `ACTFLOW.BAT` launches from mounted `ACTION.DNP`
+  - exercises preserved file save/copy/move/delete/load behavior in one composite Action-side workspace flow
+  - proves the final deleted target is gone through shell-side `TYPE`
 - `make vice-action-actcopy`
   - uses the release image plus deterministic typed input
   - validates `ACTCOPY.PRG` launches from mounted `ACTION.DNP`

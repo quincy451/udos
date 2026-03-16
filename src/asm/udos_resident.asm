@@ -5642,8 +5642,12 @@ svc_program_prepare_run:
     sta PROGRAM_STATE_SNAPSHOT
     lda #$00
     sta PROGRAM_EXIT_SNAPSHOT
+    ldy input_mode
+    cpy #INPUT_MODE_SCRIPT
+    beq :+
     sta batch_mode
     sta script_abort_on_error
+:
     lda current_drive
     sta PROGRAM_DRIVE_SNAPSHOT
     tay
