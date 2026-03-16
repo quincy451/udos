@@ -142,6 +142,11 @@ Separate VICE smoke targets:
 - `make vice-action-actinfo`
   - uses an autoexec-backed Action test image on top of the release workspace
   - validates `ACTINFO.PRG` launches from mounted `ACTION.DNP` and returns to the shell
+- `make vice-action-actdel`
+  - uses the release image plus deterministic typed input
+  - validates `ACTDEL.PRG` launches from mounted `ACTION.DNP`
+  - deletes `OUT.TXT` through the preserved external-tool file-delete ABI
+  - proves the shell reports `NO SUCH FILE` for the deleted file
 - `make vice-action-actmkdir`
   - uses the release image plus deterministic typed input
   - validates `ACTMKDIR.PRG` launches from mounted `ACTION.DNP`

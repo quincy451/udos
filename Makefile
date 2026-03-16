@@ -100,7 +100,7 @@ RELEASE_BUILD := build/release
 RELEASE_DISK := build/udos-release.d64
 RELEASE_FS := build/udos-release-fs
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actdir vice-action-actinfo vice-action-actmkdir vice-action-actrmdir vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actdir vice-action-actinfo vice-action-actdel vice-action-actmkdir vice-action-actrmdir vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -194,6 +194,16 @@ vice-action-actinfo: release
 		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
 		--vice-arg=-fslongnames --expected "B:DNP/>" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
 		--contains "RUN ACTINFO.PRG" --contains "ACTINFO ABI 1" --contains "ARGS ONE TWO" --contains "ACTINFO DONE"
+
+vice-action-actdel: release
+	sleep 2
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--pre-command "ACTWRITE OUT.TXT" \
+		--command "ACTDEL OUT.TXT" --run-marker "RUN ACTDEL.PRG" --done-fragment "ACTDEL OK" --prompt-count 2 \
+		--post-command "TYPE OUT.TXT" --post-done-fragment "NO SUCH FILE" \
+		--contains "RUN ACTDEL.PRG" \
+		--contains "ACTDEL OK" \
+		--contains "NO SUCH FILE"
 
 vice-action-actmkdir: release
 	sleep 2

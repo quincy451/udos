@@ -75,6 +75,7 @@ TOOL_SVC_DIR_NEXT = TOOL_ABI_BASE + 24
 TOOL_SVC_FILE_SAVE_SC0 = TOOL_ABI_BASE + 27
 TOOL_SVC_DIR_MAKE_SC0 = TOOL_ABI_BASE + 30
 TOOL_SVC_DIR_REMOVE_SC0 = TOOL_ABI_BASE + 33
+TOOL_SVC_FILE_DELETE_SC0 = TOOL_ABI_BASE + 36
 TOOL_ABI_CMDLINE_LEN = $CF70
 TOOL_ABI_CMDLINE_BUF = $CF80
 TOOL_ABI_CURRENT_PATH = $CD00
@@ -310,6 +311,7 @@ TOOL_WRITEBACK_KIND_NONE = 0
 TOOL_WRITEBACK_KIND_FILE_SAVE = 1
 TOOL_WRITEBACK_KIND_DIR_MAKE = 2
 TOOL_WRITEBACK_KIND_DIR_REMOVE = 3
+TOOL_WRITEBACK_KIND_FILE_DELETE = 4
 TOOL_WRITEBACK_KIND_OFFSET = 0
 TOOL_WRITEBACK_SLOT_OFFSET = 1
 TOOL_WRITEBACK_DRIVE_OFFSET = 2
@@ -6789,11 +6791,17 @@ tool_writeback_clear_and_save:
 
 svc_apply_tool_writeback:
     jsr tool_writeback_load_reu
-    bcs svc_apply_tool_writeback_done
+    bcc :+
+    jmp svc_apply_tool_writeback_done
+:
     lda tool_writeback_buffer+TOOL_WRITEBACK_KIND_OFFSET
-    beq svc_apply_tool_writeback_done
+    bne :+
+    jmp svc_apply_tool_writeback_done
+:
     cmp #TOOL_WRITEBACK_KIND_FILE_SAVE
     beq svc_apply_tool_writeback_file_save
+    cmp #TOOL_WRITEBACK_KIND_FILE_DELETE
+    beq svc_apply_tool_writeback_file_delete
     cmp #TOOL_WRITEBACK_KIND_DIR_MAKE
     beq svc_apply_tool_writeback_dir
     cmp #TOOL_WRITEBACK_KIND_DIR_REMOVE
@@ -6819,6 +6827,23 @@ svc_apply_tool_writeback_file_save:
     lda tool_writeback_buffer+TOOL_WRITEBACK_DIR_OFFSET
     jsr store_vice_tree_dir_for_index
     jsr select_vice_tree_name_slot
+    jmp svc_apply_tool_writeback_copy_name
+svc_apply_tool_writeback_file_delete:
+    lda tool_writeback_buffer+TOOL_WRITEBACK_DRIVE_OFFSET
+    sta temp_drive
+    lda tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
+    sta file_index
+    lda tool_writeback_buffer+TOOL_WRITEBACK_STATE_OFFSET
+    cmp #VICE_TREE_SLOT_EMPTY
+    beq svc_apply_tool_writeback_file_delete_empty
+    jsr store_vice_tree_state_for_index
+    lda tool_writeback_buffer+TOOL_WRITEBACK_DIR_OFFSET
+    jsr store_vice_tree_dir_for_index
+    jsr select_vice_tree_name_slot
+    jmp svc_apply_tool_writeback_copy_name
+svc_apply_tool_writeback_file_delete_empty:
+    jsr clear_vice_tree_slot
+    jmp svc_apply_tool_writeback_clear
 svc_apply_tool_writeback_copy_name:
     ldy #$00
 svc_apply_tool_writeback_name_loop:
@@ -14091,6 +14116,7 @@ tool_abi_fixed_template:
     jmp tool_abi_file_save_sc0
     jmp tool_abi_dir_make_sc0
     jmp tool_abi_dir_remove_sc0
+    jmp tool_abi_file_delete_sc0
 tool_abi_fixed_template_end:
 
 tool_abi_get_abi_version:
@@ -14434,6 +14460,70 @@ tool_abi_dir_remove_fail:
     ldx saved_rp_x
     rts
 
+tool_abi_file_delete_sc0:
+    stx saved_rp_x
+    lda 0,x
+    sta TOOL_ABI_FILE_NAME_LO
+    lda 1,x
+    sta TOOL_ABI_FILE_NAME_HI
+    lda #TOOL_FILE_STATUS_FAIL
+    sta 2,x
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta temp_drive
+    lda PROGRAM_DIR_SNAPSHOT
+    sta temp_dir_id
+    ldy temp_drive
+    lda mount_flag_table,y
+    cmp #MOUNT_FLAG_TREE
+    bne tool_abi_file_delete_fail
+    jsr vice_probe_available
+    bcs tool_abi_file_delete_fail
+    lda TOOL_ABI_FILE_NAME_LO
+    sta PTR
+    lda TOOL_ABI_FILE_NAME_HI
+    sta PTR+1
+    jsr copy_ptr_name_to_path_buffer
+    jsr vice_tree_find_current_slot
+    bcs tool_abi_file_delete_host
+    cmp #VICE_TREE_SLOT_TOMBSTONE
+    beq tool_abi_file_delete_nofile
+    sta vice_tree_source_state
+    jsr delete_file_vice
+    bcs tool_abi_file_delete_fail
+    lda vice_tree_source_state
+    cmp #VICE_TREE_SLOT_LIVE
+    bne tool_abi_file_delete_tombstone
+    lda #VICE_TREE_SLOT_EMPTY
+    sta vice_tree_state_temp
+    jsr stash_tool_file_delete_writeback
+    jmp tool_abi_file_delete_ok
+tool_abi_file_delete_tombstone:
+    lda #VICE_TREE_SLOT_TOMBSTONE
+    sta vice_tree_state_temp
+    jsr stash_tool_file_delete_writeback
+    jmp tool_abi_file_delete_ok
+tool_abi_file_delete_host:
+    jsr query_file_response_vice_current
+    bcs tool_abi_file_delete_nofile
+    jsr delete_file_vice
+    bcs tool_abi_file_delete_fail
+    lda #VICE_TREE_SLOT_TOMBSTONE
+    sta vice_tree_state_temp
+    jsr stash_tool_file_delete_writeback
+tool_abi_file_delete_ok:
+    ldx saved_rp_x
+    lda #TOOL_FILE_STATUS_OK
+    sta 2,x
+    rts
+tool_abi_file_delete_nofile:
+    ldx saved_rp_x
+    lda #TOOL_FILE_STATUS_NOFILE
+    sta 2,x
+    rts
+tool_abi_file_delete_fail:
+    ldx saved_rp_x
+    rts
+
 stash_tool_dir_writeback:
     sta tool_writeback_buffer+TOOL_WRITEBACK_KIND_OFFSET
     lda file_index
@@ -14479,6 +14569,31 @@ stash_tool_file_save_writeback_loop:
     cpy #TOOL_WRITEBACK_NAME_MAX-1
     bcc stash_tool_file_save_writeback_loop
 stash_tool_file_save_writeback_done:
+    lda #$00
+    sta tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET,y
+    jmp tool_writeback_save_reu
+
+stash_tool_file_delete_writeback:
+    lda #TOOL_WRITEBACK_KIND_FILE_DELETE
+    sta tool_writeback_buffer+TOOL_WRITEBACK_KIND_OFFSET
+    lda file_index
+    sta tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
+    lda temp_drive
+    sta tool_writeback_buffer+TOOL_WRITEBACK_DRIVE_OFFSET
+    lda temp_dir_id
+    sta tool_writeback_buffer+TOOL_WRITEBACK_DIR_OFFSET
+    lda vice_tree_state_temp
+    sta tool_writeback_buffer+TOOL_WRITEBACK_STATE_OFFSET
+    ldy #$00
+stash_tool_file_delete_writeback_loop:
+    lda path_name_buffer,y
+    beq stash_tool_file_delete_writeback_done
+    jsr screen_code_to_ascii
+    sta tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET,y
+    iny
+    cpy #TOOL_WRITEBACK_NAME_MAX-1
+    bcc stash_tool_file_delete_writeback_loop
+stash_tool_file_delete_writeback_done:
     lda #$00
     sta tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET,y
     jmp tool_writeback_save_reu
