@@ -76,6 +76,7 @@ TOOL_SVC_FILE_SAVE_SC0 = TOOL_ABI_BASE + 27
 TOOL_SVC_DIR_MAKE_SC0 = TOOL_ABI_BASE + 30
 TOOL_SVC_DIR_REMOVE_SC0 = TOOL_ABI_BASE + 33
 TOOL_SVC_FILE_DELETE_SC0 = TOOL_ABI_BASE + 36
+TOOL_SVC_FILE_RENAME_SC0 = TOOL_ABI_BASE + 39
 TOOL_ABI_CMDLINE_LEN = $CF70
 TOOL_ABI_CMDLINE_BUF = $CF80
 TOOL_ABI_CURRENT_PATH = $CD00
@@ -97,6 +98,7 @@ TOOL_FILE_STATUS_FAIL = 0
 TOOL_FILE_STATUS_OK = 1
 TOOL_FILE_STATUS_TOO_LARGE = 2
 TOOL_FILE_STATUS_NOFILE = 3
+TOOL_FILE_STATUS_EXISTS = 4
 TOOL_DIR_STATUS_FAIL = 0
 TOOL_DIR_STATUS_OK = 1
 TOOL_DIR_STATUS_EXISTS = 2
@@ -312,13 +314,17 @@ TOOL_WRITEBACK_KIND_FILE_SAVE = 1
 TOOL_WRITEBACK_KIND_DIR_MAKE = 2
 TOOL_WRITEBACK_KIND_DIR_REMOVE = 3
 TOOL_WRITEBACK_KIND_FILE_DELETE = 4
+TOOL_WRITEBACK_KIND_FILE_RENAME = 5
 TOOL_WRITEBACK_KIND_OFFSET = 0
 TOOL_WRITEBACK_SLOT_OFFSET = 1
 TOOL_WRITEBACK_DRIVE_OFFSET = 2
 TOOL_WRITEBACK_DIR_OFFSET = 3
 TOOL_WRITEBACK_STATE_OFFSET = 4
 TOOL_WRITEBACK_NAME_OFFSET = 5
-TOOL_WRITEBACK_SIZE = TOOL_WRITEBACK_NAME_OFFSET + TOOL_WRITEBACK_NAME_MAX
+TOOL_WRITEBACK_SECOND_SLOT_OFFSET = TOOL_WRITEBACK_NAME_OFFSET + TOOL_WRITEBACK_NAME_MAX
+TOOL_WRITEBACK_SECOND_STATE_OFFSET = TOOL_WRITEBACK_SECOND_SLOT_OFFSET + 1
+TOOL_WRITEBACK_SECOND_NAME_OFFSET = TOOL_WRITEBACK_SECOND_STATE_OFFSET + 1
+TOOL_WRITEBACK_SIZE = TOOL_WRITEBACK_SECOND_NAME_OFFSET + TOOL_WRITEBACK_NAME_MAX
 LAUNCH_STUB_ADDR = $CC00
 LAUNCH_RETURN_ADDR = $033C
 LAUNCH_RESTORE_ADDR = $CE00
@@ -6802,10 +6808,13 @@ svc_apply_tool_writeback:
     beq svc_apply_tool_writeback_file_save
     cmp #TOOL_WRITEBACK_KIND_FILE_DELETE
     beq svc_apply_tool_writeback_file_delete
+    cmp #TOOL_WRITEBACK_KIND_FILE_RENAME
+    beq svc_apply_tool_writeback_file_rename
     cmp #TOOL_WRITEBACK_KIND_DIR_MAKE
     beq svc_apply_tool_writeback_dir
     cmp #TOOL_WRITEBACK_KIND_DIR_REMOVE
-    bne svc_apply_tool_writeback_clear
+    beq svc_apply_tool_writeback_dir
+    jmp svc_apply_tool_writeback_clear
 svc_apply_tool_writeback_dir:
     lda tool_writeback_buffer+TOOL_WRITEBACK_DRIVE_OFFSET
     sta temp_drive
@@ -6843,6 +6852,45 @@ svc_apply_tool_writeback_file_delete:
     jmp svc_apply_tool_writeback_copy_name
 svc_apply_tool_writeback_file_delete_empty:
     jsr clear_vice_tree_slot
+    jmp svc_apply_tool_writeback_clear
+svc_apply_tool_writeback_file_rename:
+    lda tool_writeback_buffer+TOOL_WRITEBACK_DRIVE_OFFSET
+    sta temp_drive
+    lda tool_writeback_buffer+TOOL_WRITEBACK_DIR_OFFSET
+    sta temp_dir_id
+    lda tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
+    sta file_index
+    lda tool_writeback_buffer+TOOL_WRITEBACK_STATE_OFFSET
+    cmp #VICE_TREE_SLOT_EMPTY
+    beq svc_apply_tool_writeback_file_rename_source_empty
+    jsr store_vice_tree_state_for_index
+    lda temp_dir_id
+    jsr store_vice_tree_dir_for_index
+    jsr select_vice_tree_name_slot
+    lda #<(tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET)
+    sta SCREEN_PTR
+    lda #>(tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET)
+    sta SCREEN_PTR+1
+    jsr copy_slot_name_between_ptrs
+    jmp svc_apply_tool_writeback_file_rename_dest
+svc_apply_tool_writeback_file_rename_source_empty:
+    lda tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
+    cmp tool_writeback_buffer+TOOL_WRITEBACK_SECOND_SLOT_OFFSET
+    beq svc_apply_tool_writeback_file_rename_dest
+    jsr clear_vice_tree_slot
+svc_apply_tool_writeback_file_rename_dest:
+    lda tool_writeback_buffer+TOOL_WRITEBACK_SECOND_SLOT_OFFSET
+    sta file_index
+    lda tool_writeback_buffer+TOOL_WRITEBACK_SECOND_STATE_OFFSET
+    jsr store_vice_tree_state_for_index
+    lda temp_dir_id
+    jsr store_vice_tree_dir_for_index
+    jsr select_vice_tree_name_slot
+    lda #<(tool_writeback_buffer+TOOL_WRITEBACK_SECOND_NAME_OFFSET)
+    sta SCREEN_PTR
+    lda #>(tool_writeback_buffer+TOOL_WRITEBACK_SECOND_NAME_OFFSET)
+    sta SCREEN_PTR+1
+    jsr copy_slot_name_between_ptrs
     jmp svc_apply_tool_writeback_clear
 svc_apply_tool_writeback_copy_name:
     ldy #$00
@@ -13072,7 +13120,7 @@ query_file_vice_host_current:
     jsr fill_vice_manifest_dir_cache_host_current
     bcs query_file_vice_host_current_open
     jsr find_hw_dir_cache_matching_path_name
-    bcs query_file_vice_host_current_open
+    bcs query_file_vice_host_current_fail
     clc
     rts
 query_file_vice_host_current_open:
@@ -14117,6 +14165,7 @@ tool_abi_fixed_template:
     jmp tool_abi_dir_make_sc0
     jmp tool_abi_dir_remove_sc0
     jmp tool_abi_file_delete_sc0
+    jmp tool_abi_file_rename_sc0
 tool_abi_fixed_template_end:
 
 tool_abi_get_abi_version:
@@ -14524,6 +14573,130 @@ tool_abi_file_delete_fail:
     ldx saved_rp_x
     rts
 
+tool_abi_file_rename_sc0:
+    stx saved_rp_x
+    lda 0,x
+    sta TOOL_ABI_FILE_NAME_LO
+    lda 1,x
+    sta TOOL_ABI_FILE_NAME_HI
+    lda 2,x
+    sta TOOL_ABI_FILE_DEST_LO
+    lda 3,x
+    sta TOOL_ABI_FILE_DEST_HI
+    lda #TOOL_FILE_STATUS_FAIL
+    sta 4,x
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta source_drive
+    sta temp_drive
+    sta dest_drive
+    lda PROGRAM_DIR_SNAPSHOT
+    sta source_dir_id
+    sta temp_dir_id
+    sta dest_dir_id
+    ldy temp_drive
+    lda mount_flag_table,y
+    cmp #MOUNT_FLAG_TREE
+    beq :+
+    jmp tool_abi_file_rename_fail
+:
+    jsr vice_probe_available
+    bcc :+
+    jmp tool_abi_file_rename_fail
+:
+    lda TOOL_ABI_FILE_NAME_LO
+    sta PTR
+    lda TOOL_ABI_FILE_NAME_HI
+    sta PTR+1
+    jsr copy_ptr_name_to_path_buffer
+    jsr copy_ptr_name_to_source_buffer
+    jsr query_file_response_vice_current
+    bcc :+
+    jmp tool_abi_file_rename_nofile
+:
+    jsr vice_tree_find_current_slot
+    bcs tool_abi_file_rename_no_overlay_source
+    sta tool_rename_src_state
+    lda file_index
+    sta tool_rename_src_slot
+    jmp tool_abi_file_rename_dest_ready
+tool_abi_file_rename_no_overlay_source:
+    lda #VICE_TREE_SLOT_EMPTY
+    sta tool_rename_src_state
+    lda #$00
+    sta tool_rename_src_slot
+tool_abi_file_rename_dest_ready:
+    lda TOOL_ABI_FILE_DEST_LO
+    sta PTR
+    lda TOOL_ABI_FILE_DEST_HI
+    sta PTR+1
+    jsr copy_ptr_name_to_path_buffer
+    lda tool_rename_src_state
+    beq tool_abi_file_rename_host_path
+    cmp #VICE_TREE_SLOT_TOMBSTONE
+    beq tool_abi_file_rename_host_path
+    jsr query_file_response_vice_current
+    bcs tool_abi_file_rename_overlay_store
+    ldx saved_rp_x
+    lda #TOOL_FILE_STATUS_EXISTS
+    sta 4,x
+    rts
+tool_abi_file_rename_overlay_store:
+    jsr copy_path_name_to_copy_dst_buffer
+    lda tool_rename_src_slot
+    sta tool_rename_dst_slot
+    lda tool_rename_src_state
+    sta tool_rename_dst_state
+    lda #VICE_TREE_SLOT_EMPTY
+    sta tool_rename_src_state
+    jmp tool_abi_file_rename_writeback
+tool_abi_file_rename_host_path:
+    jsr rename_file_vice
+    bcc tool_abi_file_rename_capture
+    cmp #RENAME_STATUS_EXISTS
+    bne tool_abi_file_rename_fail
+    ldx saved_rp_x
+    lda #TOOL_FILE_STATUS_EXISTS
+    sta 4,x
+    rts
+tool_abi_file_rename_capture:
+    lda TOOL_ABI_FILE_DEST_LO
+    sta PTR
+    lda TOOL_ABI_FILE_DEST_HI
+    sta PTR+1
+    jsr copy_ptr_name_to_path_buffer
+    jsr copy_path_name_to_copy_dst_buffer
+    jsr vice_tree_find_current_slot
+    bcs tool_abi_file_rename_fail
+    sta tool_rename_dst_state
+    lda file_index
+    sta tool_rename_dst_slot
+    jsr copy_source_name_to_path_buffer
+    jsr vice_tree_find_current_slot
+    bcs tool_abi_file_rename_source_missing
+    sta tool_rename_src_state
+    lda file_index
+    sta tool_rename_src_slot
+    jmp tool_abi_file_rename_writeback
+tool_abi_file_rename_source_missing:
+    lda tool_rename_src_state
+    beq tool_abi_file_rename_fail
+    lda #VICE_TREE_SLOT_EMPTY
+    sta tool_rename_src_state
+tool_abi_file_rename_writeback:
+    jsr stash_tool_file_rename_writeback
+    ldx saved_rp_x
+    lda #TOOL_FILE_STATUS_OK
+    sta 4,x
+    rts
+tool_abi_file_rename_nofile:
+    ldx saved_rp_x
+    lda #TOOL_FILE_STATUS_NOFILE
+    sta 4,x
+    rts
+tool_abi_file_rename_fail:
+    ldx saved_rp_x
+    rts
+
 stash_tool_dir_writeback:
     sta tool_writeback_buffer+TOOL_WRITEBACK_KIND_OFFSET
     lda file_index
@@ -14596,6 +14769,47 @@ stash_tool_file_delete_writeback_loop:
 stash_tool_file_delete_writeback_done:
     lda #$00
     sta tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET,y
+    jmp tool_writeback_save_reu
+
+stash_tool_file_rename_writeback:
+    lda #TOOL_WRITEBACK_KIND_FILE_RENAME
+    sta tool_writeback_buffer+TOOL_WRITEBACK_KIND_OFFSET
+    lda tool_rename_src_slot
+    sta tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
+    lda temp_drive
+    sta tool_writeback_buffer+TOOL_WRITEBACK_DRIVE_OFFSET
+    lda temp_dir_id
+    sta tool_writeback_buffer+TOOL_WRITEBACK_DIR_OFFSET
+    lda tool_rename_src_state
+    sta tool_writeback_buffer+TOOL_WRITEBACK_STATE_OFFSET
+    ldy #$00
+stash_tool_file_rename_writeback_source_loop:
+    lda source_name_buffer,y
+    beq stash_tool_file_rename_writeback_source_done
+    jsr screen_code_to_ascii
+    sta tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET,y
+    iny
+    cpy #TOOL_WRITEBACK_NAME_MAX-1
+    bcc stash_tool_file_rename_writeback_source_loop
+stash_tool_file_rename_writeback_source_done:
+    lda #$00
+    sta tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET,y
+    lda tool_rename_dst_slot
+    sta tool_writeback_buffer+TOOL_WRITEBACK_SECOND_SLOT_OFFSET
+    lda tool_rename_dst_state
+    sta tool_writeback_buffer+TOOL_WRITEBACK_SECOND_STATE_OFFSET
+    ldy #$00
+stash_tool_file_rename_writeback_dest_loop:
+    lda copy_dst_buffer,y
+    beq stash_tool_file_rename_writeback_dest_done
+    jsr screen_code_to_ascii
+    sta tool_writeback_buffer+TOOL_WRITEBACK_SECOND_NAME_OFFSET,y
+    iny
+    cpy #TOOL_WRITEBACK_NAME_MAX-1
+    bcc stash_tool_file_rename_writeback_dest_loop
+stash_tool_file_rename_writeback_dest_done:
+    lda #$00
+    sta tool_writeback_buffer+TOOL_WRITEBACK_SECOND_NAME_OFFSET,y
     jmp tool_writeback_save_reu
 
 tool_abi_copy_enum_entry:
@@ -15015,6 +15229,14 @@ vice_tree_state_temp:
 vice_tree_source_state:
     .byte 0
 vice_tree_slot_index:
+    .byte 0
+tool_rename_src_slot:
+    .byte 0
+tool_rename_src_state:
+    .byte 0
+tool_rename_dst_slot:
+    .byte 0
+tool_rename_dst_state:
     .byte 0
 vice_dir_state_temp:
     .byte 0

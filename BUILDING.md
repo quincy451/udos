@@ -147,6 +147,12 @@ Separate VICE smoke targets:
   - validates `ACTDEL.PRG` launches from mounted `ACTION.DNP`
   - deletes `OUT.TXT` through the preserved external-tool file-delete ABI
   - proves the shell reports `NO SUCH FILE` for the deleted file
+- `make vice-action-actmove`
+  - uses the release image plus deterministic typed input
+  - validates `ACTMOVE.PRG` launches from mounted `ACTION.DNP`
+  - validates the rename by reading back `NEXT.TXT` after return
+  - renames `OUT.TXT` to `NEXT.TXT` through the preserved external-tool file-rename ABI
+  - reads `NEXT.TXT` back through the shell and verifies `ACTION WRITE OK`
 - `make vice-action-actmkdir`
   - uses the release image plus deterministic typed input
   - validates `ACTMKDIR.PRG` launches from mounted `ACTION.DNP`

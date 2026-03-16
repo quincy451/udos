@@ -100,7 +100,7 @@ RELEASE_BUILD := build/release
 RELEASE_DISK := build/udos-release.d64
 RELEASE_FS := build/udos-release-fs
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actdir vice-action-actinfo vice-action-actdel vice-action-actmkdir vice-action-actrmdir vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actdir vice-action-actinfo vice-action-actdel vice-action-actmkdir vice-action-actmove vice-action-actrmdir vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -213,6 +213,15 @@ vice-action-actmkdir: release
 		--contains "RUN ACTMKDIR.PRG" \
 		--contains "ACTMKDIR OK" \
 		--contains "B:DNP/OBJ>"
+
+vice-action-actmove: release
+	sleep 2
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--pre-command "ACTWRITE OUT.TXT" \
+		--command "ACTMOVE OUT.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --done-fragment "" --prompt-count 2 \
+		--post-command "TYPE NEXT.TXT" --post-done-fragment "ACTION WRITE OK" \
+		--contains "RUN ACTMOVE.PRG" \
+		--contains "ACTION WRITE OK"
 
 vice-action-actrmdir: release
 	sleep 2

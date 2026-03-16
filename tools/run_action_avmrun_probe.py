@@ -158,6 +158,7 @@ def main() -> int:
                 wait_for_prompt_count(client, args.b_prompt, prompt_count, 30.0)
                 time.sleep(args.command_settle)
             type_command(client, args.command, 30.0)
+            time.sleep(args.command_settle)
             if args.run_marker:
                 wait_for_screen_fragment(client, args.run_marker, 30.0)
             prompt_count += 1
