@@ -89,6 +89,10 @@ Current milestone:
     top of the release workspace, launches `ACTINFO.PRG` from the mounted Action workspace
     through the preserved launch-safe external-tool ABI, and returns to the
     UDOS prompt
+  - `make vice-action-actcopy` now uses the release image with deterministic
+    typed input, launches `ACTCOPY.PRG`, copies `OUT.TXT` to `COPY.TXT`
+    through the preserved external-tool file-copy ABI, and proves the shell
+    reads back `ACTION WRITE OK` from `COPY.TXT`
   - `make vice-action-actdel` now uses the release image with deterministic
     typed input, launches `ACTDEL.PRG`, deletes `OUT.TXT` through the
     preserved external-tool file-delete ABI, and proves the shell reports

@@ -77,6 +77,7 @@ TOOL_SVC_DIR_MAKE_SC0 = TOOL_ABI_BASE + 30
 TOOL_SVC_DIR_REMOVE_SC0 = TOOL_ABI_BASE + 33
 TOOL_SVC_FILE_DELETE_SC0 = TOOL_ABI_BASE + 36
 TOOL_SVC_FILE_RENAME_SC0 = TOOL_ABI_BASE + 39
+TOOL_SVC_FILE_COPY_SC0 = TOOL_ABI_BASE + 42
 TOOL_ABI_CMDLINE_LEN = $CF70
 TOOL_ABI_CMDLINE_BUF = $CF80
 TOOL_ABI_CURRENT_PATH = $CD00
@@ -7678,9 +7679,10 @@ copy_file_vice_need_source:
     jsr copy_source_name_to_path_buffer
     jsr read_file_response_vice_current
     bcs copy_file_vice_fail
-    lda PTR
+    jsr copy_ptr_to_program_image_buffer
+    lda #<program_image_buffer
     sta SCREEN_PTR
-    lda PTR+1
+    lda #>program_image_buffer
     sta SCREEN_PTR+1
     lda dest_drive
     sta temp_drive
@@ -7690,6 +7692,21 @@ copy_file_vice_need_source:
     jmp store_vice_tree_live_current_from_screen_ptr
 copy_file_vice_fail:
     sec
+    rts
+
+copy_ptr_to_program_image_buffer:
+    ldy #$00
+copy_ptr_to_program_image_buffer_loop:
+    lda (PTR),y
+    sta program_image_buffer,y
+    beq copy_ptr_to_program_image_buffer_done
+    iny
+    cpy #PROGRAM_IMAGE_MAX
+    bcc copy_ptr_to_program_image_buffer_loop
+    dey
+    lda #$00
+    sta program_image_buffer,y
+copy_ptr_to_program_image_buffer_done:
     rts
 
 copy_matching_files_vice:
@@ -14166,6 +14183,7 @@ tool_abi_fixed_template:
     jmp tool_abi_dir_remove_sc0
     jmp tool_abi_file_delete_sc0
     jmp tool_abi_file_rename_sc0
+    jmp tool_abi_file_copy_sc0
 tool_abi_fixed_template_end:
 
 tool_abi_get_abi_version:
@@ -14694,6 +14712,64 @@ tool_abi_file_rename_nofile:
     sta 4,x
     rts
 tool_abi_file_rename_fail:
+    ldx saved_rp_x
+    rts
+
+tool_abi_file_copy_sc0:
+    stx saved_rp_x
+    lda 0,x
+    sta TOOL_ABI_FILE_NAME_LO
+    lda 1,x
+    sta TOOL_ABI_FILE_NAME_HI
+    lda 2,x
+    sta TOOL_ABI_FILE_DEST_LO
+    lda 3,x
+    sta TOOL_ABI_FILE_DEST_HI
+    lda #TOOL_FILE_STATUS_FAIL
+    sta 4,x
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta source_drive
+    sta temp_drive
+    sta dest_drive
+    lda PROGRAM_DIR_SNAPSHOT
+    sta source_dir_id
+    sta temp_dir_id
+    sta dest_dir_id
+    ldy temp_drive
+    lda mount_flag_table,y
+    cmp #MOUNT_FLAG_TREE
+    bne tool_abi_file_copy_fail
+    jsr vice_probe_available
+    bcs tool_abi_file_copy_fail
+    lda TOOL_ABI_FILE_NAME_LO
+    sta PTR
+    lda TOOL_ABI_FILE_NAME_HI
+    sta PTR+1
+    jsr copy_ptr_name_to_path_buffer
+    jsr copy_ptr_name_to_source_buffer
+    jsr query_file_response_vice_current
+    bcs tool_abi_file_copy_nofile
+    lda TOOL_ABI_FILE_DEST_LO
+    sta PTR
+    lda TOOL_ABI_FILE_DEST_HI
+    sta PTR+1
+    jsr copy_ptr_name_to_path_buffer
+    jsr copy_file_vice
+    bcs tool_abi_file_copy_fail
+    jsr vice_tree_find_current_slot
+    bcs tool_abi_file_copy_fail
+    sta vice_tree_state_temp
+    jsr stash_tool_file_save_writeback
+    ldx saved_rp_x
+    lda #TOOL_FILE_STATUS_OK
+    sta 4,x
+    rts
+tool_abi_file_copy_nofile:
+    ldx saved_rp_x
+    lda #TOOL_FILE_STATUS_NOFILE
+    sta 4,x
+    rts
+tool_abi_file_copy_fail:
     ldx saved_rp_x
     rts
 
