@@ -153,6 +153,7 @@ KEY_BACKSPACE = $14
 MAX_LINE_LEN = 31
 MAX_RESPONSE_LEN = 128
 SCRIPT_LINE_MAX = 12
+SCRIPT_LINE_STRIDE = MAX_LINE_LEN + 1
 ASCII_COLON = $3A
 ASCII_SLASH = $2F
 ASCII_SPACE = $20
@@ -1930,6 +1931,56 @@ query_program_file_vice_current_missing:
     sec
     rts
 
+program_target_is_simple_name:
+    ldy #$00
+program_target_is_simple_name_loop:
+    cpy arg_length
+    bcs program_target_is_simple_name_yes
+    lda arg_buffer,y
+    cmp #ASCII_SLASH
+    beq program_target_is_simple_name_no
+    iny
+    bne program_target_is_simple_name_loop
+program_target_is_simple_name_yes:
+    clc
+    rts
+program_target_is_simple_name_no:
+    sec
+    rts
+
+query_program_file_vice_search:
+    lda temp_dir_id
+    pha
+    jsr query_program_file_vice_current
+    bcc query_program_file_vice_search_found
+    cmp #RUN_STATUS_NOFILE
+    bne query_program_file_vice_search_restore
+    jsr program_target_is_simple_name
+    bcs query_program_file_vice_search_restore
+    pla
+    pha
+    beq query_program_file_vice_search_try_bin
+    lda #DIR_ID_ROOT
+    sta temp_dir_id
+    jsr query_program_file_vice_current
+    bcc query_program_file_vice_search_found
+    cmp #RUN_STATUS_NOFILE
+    bne query_program_file_vice_search_restore
+query_program_file_vice_search_try_bin:
+    lda #DIR_ID_BIN
+    sta temp_dir_id
+    jsr query_program_file_vice_current
+    bcc query_program_file_vice_search_found
+query_program_file_vice_search_restore:
+    pla
+    sta temp_dir_id
+    sec
+    rts
+query_program_file_vice_search_found:
+    pla
+    clc
+    rts
+
 load_program_image_vice:
     jsr build_vice_open_path_from_name
     lda #VICE_LFN_FILE
@@ -1994,29 +2045,71 @@ load_program_image_vice_current_ok:
 prepare_external_program_launch:
     jsr reu_init
     lda reu_present
-    beq prepare_external_program_launch_fail
+    beq prepare_external_program_launch_fail_jump
     jsr uci_probe
-    bcc prepare_external_program_launch_fail
+    bcc prepare_external_program_launch_fail_jump
     jsr vice_probe_available
-    bcs prepare_external_program_launch_fail
+    bcs prepare_external_program_launch_fail_jump
     ldx temp_drive
     lda mount_flag_table,x
     cmp #MOUNT_FLAG_TREE
-    bne prepare_external_program_launch_fail
+    bne prepare_external_program_launch_fail_jump
     jsr current_mount_path_is_empty
-    bcs prepare_external_program_launch_fail
-    jsr query_program_file_vice_host_current
-    bcs prepare_external_program_launch_fail
-    jsr read_launch_header_vice_current
-    bcs prepare_external_program_launch_fail
-    jsr stage_launch_program_to_reu_vice_current
-    bcs prepare_external_program_launch_fail
+    bcs prepare_external_program_launch_fail_jump
+    lda temp_dir_id
+    pha
+    lda #$90
+    sta LAUNCH_TRACE_STAGE
+    lda #$91
+    sta LAUNCH_TRACE_CODE
+    jsr copy_program_target_to_path_name_buffer
+    jsr prepare_external_program_launch_try_here
+    bcc prepare_external_program_launch_found
+    jsr program_target_is_simple_name
+    bcs prepare_external_program_launch_fail_restore
+    pla
+    pha
+    beq prepare_external_program_launch_try_bin
+    lda #DIR_ID_ROOT
+    sta temp_dir_id
+    lda #$96
+    sta LAUNCH_TRACE_CODE
+    jsr prepare_external_program_launch_try_here
+    bcc prepare_external_program_launch_found
+prepare_external_program_launch_try_bin:
+    lda #DIR_ID_BIN
+    sta temp_dir_id
+    lda #$97
+    sta LAUNCH_TRACE_CODE
+    jsr prepare_external_program_launch_try_here
+    bcs prepare_external_program_launch_fail_restore
+prepare_external_program_launch_found:
+    pla
+    sta temp_dir_id
+    lda #$95
+    sta LAUNCH_TRACE_CODE
     lda #PROGRAM_LAUNCH_VICE_HOST
     sta program_launch_mode
     clc
     rts
+prepare_external_program_launch_fail_jump:
+    jmp prepare_external_program_launch_fail
+prepare_external_program_launch_fail_restore:
+    pla
+    sta temp_dir_id
 prepare_external_program_launch_fail:
     sec
+    rts
+
+prepare_external_program_launch_try_here:
+    lda #$92
+    sta LAUNCH_TRACE_CODE
+    jsr read_launch_header_vice_current
+    bcs prepare_external_program_launch_try_here_fail
+    lda #$94
+    sta LAUNCH_TRACE_CODE
+    jsr stage_launch_program_to_reu_vice_current
+prepare_external_program_launch_try_here_fail:
     rts
 
 copy_ptr_to_launch_name_buffer:
@@ -2167,6 +2260,7 @@ fill_vice_dir_cache_current_fail:
     rts
 
 fill_vice_manifest_dir_cache_current:
+    jsr save_path_name_shadow
     jsr fill_vice_manifest_dir_cache_host_current
     bcc fill_vice_manifest_dir_cache_current_host_ok
     jsr select_hw_dir_tables
@@ -2177,6 +2271,7 @@ fill_vice_manifest_dir_cache_current:
 fill_vice_manifest_dir_cache_current_host_ok:
     jsr apply_vice_dir_overlay_current_to_hw_cache
     jsr apply_vice_tree_overlay_current_to_hw_cache
+    jsr restore_path_name_shadow
     clc
     rts
 
@@ -2747,6 +2842,13 @@ remove_hw_dir_cache_current_index_done:
     rts
 
 append_ptr_to_hw_dir_cache_current:
+    lda enum_count
+    cmp #HW_DIR_CACHE_MAX
+    bcc append_ptr_to_hw_dir_cache_current_store
+    lda #HW_DIR_CACHE_MAX-1
+    sta file_index
+    jsr remove_hw_dir_cache_current_index
+append_ptr_to_hw_dir_cache_current_store:
     jsr copy_ptr_to_vice_name_buffer
     jsr store_vice_dir_entry_if_any
     rts
@@ -3122,6 +3224,7 @@ clear_hiram_page:
 
 console_putc:
     pha
+    jsr console_ensure_visible
     clc
     lda CURSOR
     adc #<SCREEN
@@ -3137,6 +3240,119 @@ console_putc:
     bne :+
     inc CURSOR+1
 :
+    rts
+
+console_ensure_visible:
+    sty saved_response_y
+    lda PTR
+    sta console_saved_ptr_lo
+    lda PTR+1
+    sta console_saved_ptr_hi
+    lda SCREEN_PTR
+    sta console_saved_screen_lo
+    lda SCREEN_PTR+1
+    sta console_saved_screen_hi
+console_ensure_visible_loop:
+    lda CURSOR+1
+    cmp #$03
+    bcc console_ensure_visible_done
+    bne console_ensure_visible_scroll
+    lda CURSOR
+    cmp #$E8
+    bcc console_ensure_visible_done
+console_ensure_visible_scroll:
+    jsr console_scroll_up
+    sec
+    lda CURSOR
+    sbc #40
+    sta CURSOR
+    lda CURSOR+1
+    sbc #$00
+    sta CURSOR+1
+    jmp console_ensure_visible_loop
+console_ensure_visible_done:
+    lda console_saved_ptr_lo
+    sta PTR
+    lda console_saved_ptr_hi
+    sta PTR+1
+    lda console_saved_screen_lo
+    sta SCREEN_PTR
+    lda console_saved_screen_hi
+    sta SCREEN_PTR+1
+    ldy saved_response_y
+    rts
+
+console_scroll_up:
+    lda #<SCREEN
+    sta PTR
+    lda #>SCREEN
+    sta PTR+1
+    lda #<(SCREEN+40)
+    sta SCREEN_PTR
+    lda #>(SCREEN+40)
+    sta SCREEN_PTR+1
+    ldx #$03
+    ldy #$00
+console_scroll_up_screen_page:
+    lda (SCREEN_PTR),y
+    sta (PTR),y
+    iny
+    bne console_scroll_up_screen_page
+    inc PTR+1
+    inc SCREEN_PTR+1
+    dex
+    bne console_scroll_up_screen_page
+    ldy #$00
+console_scroll_up_screen_tail:
+    cpy #$C0
+    bcs console_scroll_up_color
+    lda (SCREEN_PTR),y
+    sta (PTR),y
+    iny
+    bne console_scroll_up_screen_tail
+console_scroll_up_color:
+    lda #<COLOR
+    sta PTR
+    lda #>COLOR
+    sta PTR+1
+    lda #<(COLOR+40)
+    sta SCREEN_PTR
+    lda #>(COLOR+40)
+    sta SCREEN_PTR+1
+    ldx #$03
+    ldy #$00
+console_scroll_up_color_page:
+    lda (SCREEN_PTR),y
+    sta (PTR),y
+    iny
+    bne console_scroll_up_color_page
+    inc PTR+1
+    inc SCREEN_PTR+1
+    dex
+    bne console_scroll_up_color_page
+    ldy #$00
+console_scroll_up_color_tail:
+    cpy #$C0
+    bcs console_scroll_up_clear
+    lda (SCREEN_PTR),y
+    sta (PTR),y
+    iny
+    bne console_scroll_up_color_tail
+console_scroll_up_clear:
+    ldy #$00
+    lda #$20
+console_scroll_up_clear_screen:
+    sta SCREEN+$03C0,y
+    iny
+    cpy #40
+    bcc console_scroll_up_clear_screen
+    ldy #$00
+    lda #$01
+console_scroll_up_clear_color:
+    sta COLOR+$03C0,y
+    iny
+    cpy #40
+    bcc console_scroll_up_clear_color
     rts
 
 normalize_output_char:
@@ -3381,17 +3597,7 @@ svc_line_read_script:
     jmp line_empty
 :
     tya
-    asl
-    asl
-    asl
-    asl
-    asl
-    clc
-    adc #<script_line_data
-    sta PTR
-    lda #>script_line_data
-    adc #$00
-    sta PTR+1
+    jsr select_script_line_ptr
     inc script_index
     lda #$00
     sta line_length
@@ -5308,15 +5514,23 @@ build_md_response:
 :
     jsr resolve_copy_dest
     cmp #PATH_STATUS_OK
-    beq md_build_ready
+    bne :+
+    jmp md_build_ready
+:
     cmp #PATH_STATUS_FLAT
-    beq md_build_flat
+    bne :+
+    jmp md_build_flat
+:
     cmp #PATH_STATUS_UNMOUNTED
-    beq md_build_unmounted
+    bne :+
+    jmp md_build_unmounted
+:
     jmp md_build_bad
 md_build_ready:
     jsr uci_probe
-    bcc md_build_read_only
+    bcs :+
+    jmp md_build_read_only
+:
     jsr vice_probe_available
     bcc md_build_vice
     jmp md_build_read_only
@@ -5324,11 +5538,17 @@ md_build_vice:
     jsr fill_vice_manifest_dir_cache_current
     bcs md_build_fail
     jsr find_hw_dir_cache_matching_path_name
-    bcc md_build_exists
+    bcs :+
+    jmp md_build_exists
+:
     jsr find_hw_dir_cache_matching_dir_path_name
-    bcc md_build_exists
+    bcs :+
+    jmp md_build_exists
+:
     jsr lookup_dynamic_dir_current_from_path_name
-    bcc md_build_exists
+    bcs :+
+    jmp md_build_exists
+:
     jsr create_dir_vice_current
     bcc md_build_created
 md_build_fail:
@@ -5671,6 +5891,7 @@ program_have_target:
     lda #RUN_STATUS_BAD
     jmp program_status_return
 :
+    jsr copy_arg_to_program_target
     jsr resolve_file_target
     cmp #PATH_STATUS_OK
     beq program_lookup
@@ -5706,7 +5927,7 @@ program_lookup:
     bcs program_lookup_mock
     jsr current_mount_path_is_empty
     bcs program_lookup_mock
-    jsr query_program_file_vice_current
+    jsr query_program_file_vice_search
     bcc :+
     jmp program_try_batch_fallback
 :
@@ -5746,7 +5967,7 @@ program_lookup_batch:
     bcs program_lookup_batch_mock
     jsr current_mount_path_is_empty
     bcs program_lookup_batch_mock
-    jsr query_program_file_vice_current
+    jsr query_program_file_vice_search
     bcc :+
     lda #RUN_STATUS_NOFILE
     jmp program_status_return
@@ -5779,6 +6000,7 @@ program_try_batch_fallback:
     lda #RUN_STATUS_BAD
     jmp program_status_return
 :
+    jsr copy_arg_to_program_target
     jsr resolve_file_target
     cmp #PATH_STATUS_OK
     beq program_lookup_batch
@@ -5792,15 +6014,10 @@ program_status_nofile:
     lda #RUN_STATUS_NOFILE
     jmp program_status_return
 program_ready:
-    jsr copy_path_name_to_program_target
     lda #<program_target_buffer
     sta program_target_lo
     lda #>program_target_buffer
     sta program_target_hi
-    lda temp_drive
-    sta PROGRAM_DRIVE_SNAPSHOT
-    lda temp_dir_id
-    sta PROGRAM_DIR_SNAPSHOT
     lda #PROGRAM_STATE_RUNNING
     sta PROGRAM_STATE_SNAPSHOT
     lda #RUN_STATUS_OK
@@ -5815,10 +6032,6 @@ program_ready_batch:
     sta PROGRAM_STATE_SNAPSHOT
     lda #$00
     sta PROGRAM_EXIT_SNAPSHOT
-    lda temp_drive
-    sta PROGRAM_DRIVE_SNAPSHOT
-    lda temp_dir_id
-    sta PROGRAM_DIR_SNAPSHOT
     lda #RUN_STATUS_BATCH
 program_status_return:
     sta program_status
@@ -6049,6 +6262,27 @@ store_a_at_ptr_plus_x_preserve_y:
     ldy saved_response_y
     rts
 
+select_script_line_ptr:
+    tax
+    lda #<script_line_data
+    sta PTR
+    lda #>script_line_data
+    sta PTR+1
+    txa
+    beq select_script_line_ptr_done
+select_script_line_ptr_loop:
+    clc
+    lda PTR
+    adc #SCRIPT_LINE_STRIDE
+    sta PTR
+    bcc :+
+    inc PTR+1
+:
+    dex
+    bne select_script_line_ptr_loop
+select_script_line_ptr_done:
+    rts
+
 load_batch_script_from_program_image:
     lda #$00
     sta script_index
@@ -6060,17 +6294,7 @@ load_batch_script_next_line:
     lda script_line_count
     cmp #SCRIPT_LINE_MAX
     bcs load_batch_script_too_large
-    asl
-    asl
-    asl
-    asl
-    asl
-    clc
-    adc #<script_line_data
-    sta PTR
-    lda #>script_line_data
-    adc #$00
-    sta PTR+1
+    jsr select_script_line_ptr
     lda #$00
     sta file_index
 load_batch_script_copy:
@@ -6347,6 +6571,35 @@ copy_path_name_to_program_target_loop:
 copy_path_name_to_program_target_done:
     lda #$00
     sta program_target_buffer,y
+    rts
+
+copy_arg_to_program_target:
+    ldy #$00
+copy_arg_to_program_target_loop:
+    cpy arg_length
+    bcs copy_arg_to_program_target_done
+    lda arg_buffer,y
+    sta program_target_buffer,y
+    iny
+    cpy #MAX_LINE_LEN
+    bcc copy_arg_to_program_target_loop
+copy_arg_to_program_target_done:
+    lda #$00
+    sta program_target_buffer,y
+    rts
+
+copy_program_target_to_path_name_buffer:
+    ldy #$00
+copy_program_target_to_path_name_buffer_loop:
+    lda program_target_buffer,y
+    sta path_name_buffer,y
+    beq copy_program_target_to_path_name_buffer_done
+    iny
+    cpy #MAX_LINE_LEN
+    bcc copy_program_target_to_path_name_buffer_loop
+copy_program_target_to_path_name_buffer_done:
+    lda #$00
+    sta path_name_buffer,y
     rts
 
 snapshot_program_image_length:
@@ -7402,6 +7655,34 @@ copy_path_name_to_copy_dst_buffer_loop:
 copy_path_name_to_copy_dst_buffer_done:
     lda #$00
     sta copy_dst_buffer,y
+    rts
+
+save_path_name_shadow:
+    ldy #$00
+save_path_name_shadow_loop:
+    lda path_name_buffer,y
+    sta path_name_shadow_buffer,y
+    beq save_path_name_shadow_done
+    iny
+    cpy #MAX_LINE_LEN
+    bcc save_path_name_shadow_loop
+save_path_name_shadow_done:
+    lda #$00
+    sta path_name_shadow_buffer,y
+    rts
+
+restore_path_name_shadow:
+    ldy #$00
+restore_path_name_shadow_loop:
+    lda path_name_shadow_buffer,y
+    sta path_name_buffer,y
+    beq restore_path_name_shadow_done
+    iny
+    cpy #MAX_LINE_LEN
+    bcc restore_path_name_shadow_loop
+restore_path_name_shadow_done:
+    lda #$00
+    sta path_name_buffer,y
     rts
 
 copy_copy_dst_to_path_buffer:
@@ -10083,7 +10364,9 @@ file_bad:
 
 match_path_component:
     jsr vice_probe_available
-    bcc match_path_component_vice
+    bcs :+
+    jmp match_path_component_vice
+:
     lda cmd_length
     cmp #3
     beq match_path_len3
@@ -10099,11 +10382,15 @@ match_path_len3:
     iny
     lda arg_buffer,y
     cmp #CMD_I
-    bne match_path_fail
+    beq :+
+    jmp match_path_fail
+:
     iny
     lda arg_buffer,y
     cmp #CMD_N
-    bne match_path_fail
+    beq :+
+    jmp match_path_fail
+:
     lda #DIR_ID_BIN
     clc
     rts
@@ -10111,15 +10398,21 @@ match_path_src:
     ldy parse_cmd_start
     lda arg_buffer,y
     cmp #CMD_S
-    bne match_path_fail
+    beq :+
+    jmp match_path_fail
+:
     iny
     lda arg_buffer,y
     cmp #CMD_R
-    bne match_path_fail
+    beq :+
+    jmp match_path_fail
+:
     iny
     lda arg_buffer,y
     cmp #CMD_C
-    bne match_path_fail
+    beq :+
+    jmp match_path_fail
+:
     lda #DIR_ID_SRC
     clc
     rts
@@ -10127,19 +10420,27 @@ match_path_len4:
     ldy parse_cmd_start
     lda arg_buffer,y
     cmp #CMD_W
-    bne match_path_fail
+    beq :+
+    jmp match_path_fail
+:
     iny
     lda arg_buffer,y
     cmp #CMD_O
-    bne match_path_fail
+    beq :+
+    jmp match_path_fail
+:
     iny
     lda arg_buffer,y
     cmp #CMD_R
-    bne match_path_fail
+    beq :+
+    jmp match_path_fail
+:
     iny
     lda arg_buffer,y
     cmp #CMD_K
-    bne match_path_fail
+    beq :+
+    jmp match_path_fail
+:
     lda #DIR_ID_WORK
     clc
     rts
@@ -10150,6 +10451,8 @@ match_path_component_vice:
     bcs match_path_component_vice_try_dynamic
     jsr find_hw_dir_cache_matching_dir_path_name
     bcc match_path_component_vice_found
+    lda temp_dir_id
+    bne match_path_component_vice_try_dynamic
     jsr match_fixed_root_path_name
     bcc match_path_component_vice_ok
 match_path_component_vice_try_dynamic:
@@ -10365,14 +10668,7 @@ copy_dest_component:
     cpy arg_length
     bcs copy_dest_bad
     ldy parse_scan_index
-copy_dest_name_scan:
-    cpy arg_length
-    bcs copy_dest_name
-    lda arg_buffer,y
-    cmp #ASCII_SLASH
-    beq copy_dest_bad
-    iny
-    bne copy_dest_name_scan
+    jmp copy_dest_scan_loop
 copy_dest_name:
     jsr copy_path_name_from_parse
     bcs copy_dest_bad
@@ -13141,14 +13437,11 @@ query_file_vice_host_current:
     jsr fill_vice_manifest_dir_cache_host_current
     bcs query_file_vice_host_current_open
     jsr find_hw_dir_cache_matching_path_name
-    bcs query_file_vice_host_current_fail
+    bcs query_file_vice_host_current_open
     clc
     rts
 query_file_vice_host_current_open:
     jmp query_file_vice_open_current
-query_file_vice_host_current_fail:
-    sec
-    rts
 
 query_program_file_vice_host_current:
     ldx temp_drive
@@ -13180,6 +13473,9 @@ store_vice_tree_live_current_from_screen_ptr:
     sta vice_tree_slot_index
     lda #VICE_TREE_SLOT_LIVE
     sta vice_tree_state_temp
+    lda temp_dir_id
+    cmp #DIR_ID_DYNAMIC_BASE
+    bcs store_vice_tree_live_current_new
     jsr query_file_vice_host_current
     lda vice_tree_slot_index
     sta file_index
@@ -14998,6 +15294,7 @@ tool_abi_name_length_done:
 
 tool_abi_console_putc:
     pha
+    jsr tool_abi_console_ensure_visible
     clc
     lda CURSOR
     adc #<SCREEN
@@ -15013,6 +15310,119 @@ tool_abi_console_putc:
     bne :+
     inc CURSOR+1
 :
+    rts
+
+tool_abi_console_ensure_visible:
+    sty saved_response_y
+    lda PTR
+    sta console_saved_ptr_lo
+    lda PTR+1
+    sta console_saved_ptr_hi
+    lda SCREEN_PTR
+    sta console_saved_screen_lo
+    lda SCREEN_PTR+1
+    sta console_saved_screen_hi
+tool_abi_console_ensure_visible_loop:
+    lda CURSOR+1
+    cmp #$03
+    bcc tool_abi_console_ensure_visible_done
+    bne tool_abi_console_ensure_visible_scroll
+    lda CURSOR
+    cmp #$E8
+    bcc tool_abi_console_ensure_visible_done
+tool_abi_console_ensure_visible_scroll:
+    jsr tool_abi_console_scroll_up
+    sec
+    lda CURSOR
+    sbc #40
+    sta CURSOR
+    lda CURSOR+1
+    sbc #$00
+    sta CURSOR+1
+    jmp tool_abi_console_ensure_visible_loop
+tool_abi_console_ensure_visible_done:
+    lda console_saved_ptr_lo
+    sta PTR
+    lda console_saved_ptr_hi
+    sta PTR+1
+    lda console_saved_screen_lo
+    sta SCREEN_PTR
+    lda console_saved_screen_hi
+    sta SCREEN_PTR+1
+    ldy saved_response_y
+    rts
+
+tool_abi_console_scroll_up:
+    lda #<SCREEN
+    sta PTR
+    lda #>SCREEN
+    sta PTR+1
+    lda #<(SCREEN+40)
+    sta SCREEN_PTR
+    lda #>(SCREEN+40)
+    sta SCREEN_PTR+1
+    ldx #$03
+    ldy #$00
+tool_abi_console_scroll_up_screen_page:
+    lda (SCREEN_PTR),y
+    sta (PTR),y
+    iny
+    bne tool_abi_console_scroll_up_screen_page
+    inc PTR+1
+    inc SCREEN_PTR+1
+    dex
+    bne tool_abi_console_scroll_up_screen_page
+    ldy #$00
+tool_abi_console_scroll_up_screen_tail:
+    cpy #$C0
+    bcs tool_abi_console_scroll_up_color
+    lda (SCREEN_PTR),y
+    sta (PTR),y
+    iny
+    bne tool_abi_console_scroll_up_screen_tail
+tool_abi_console_scroll_up_color:
+    lda #<COLOR
+    sta PTR
+    lda #>COLOR
+    sta PTR+1
+    lda #<(COLOR+40)
+    sta SCREEN_PTR
+    lda #>(COLOR+40)
+    sta SCREEN_PTR+1
+    ldx #$03
+    ldy #$00
+tool_abi_console_scroll_up_color_page:
+    lda (SCREEN_PTR),y
+    sta (PTR),y
+    iny
+    bne tool_abi_console_scroll_up_color_page
+    inc PTR+1
+    inc SCREEN_PTR+1
+    dex
+    bne tool_abi_console_scroll_up_color_page
+    ldy #$00
+tool_abi_console_scroll_up_color_tail:
+    cpy #$C0
+    bcs tool_abi_console_scroll_up_clear
+    lda (SCREEN_PTR),y
+    sta (PTR),y
+    iny
+    bne tool_abi_console_scroll_up_color_tail
+tool_abi_console_scroll_up_clear:
+    ldy #$00
+    lda #$20
+tool_abi_console_scroll_up_clear_screen:
+    sta SCREEN+$03C0,y
+    iny
+    cpy #40
+    bcc tool_abi_console_scroll_up_clear_screen
+    ldy #$00
+    lda #$01
+tool_abi_console_scroll_up_clear_color:
+    sta COLOR+$03C0,y
+    iny
+    cpy #40
+    bcc tool_abi_console_scroll_up_clear_color
     rts
 
 tool_abi_normalize_output_char:
@@ -15127,6 +15537,14 @@ temp_dir_id:
 temp_mount_kind:
     .byte MOUNT_KIND_NONE
 saved_response_y:
+    .byte 0
+console_saved_ptr_lo:
+    .byte 0
+console_saved_ptr_hi:
+    .byte 0
+console_saved_screen_lo:
+    .byte 0
+console_saved_screen_hi:
     .byte 0
 saved_enum_y:
     .byte 0
@@ -15359,10 +15777,12 @@ volume_label_a:
 volume_label_b:
     .res MAX_LINE_LEN+1
 line_buffer:
-    .res MAX_LINE_LEN
+    .res MAX_LINE_LEN+1
 arg_buffer:
     .res MAX_LINE_LEN+1
 copy_dst_buffer:
+    .res MAX_LINE_LEN+1
+path_name_shadow_buffer:
     .res MAX_LINE_LEN+1
 program_cmdline_buffer:
     .res MAX_LINE_LEN+1

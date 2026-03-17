@@ -103,6 +103,7 @@ def main() -> int:
     parser.add_argument("--mount-path", default="/IMAGES/ACTION.DNP")
     parser.add_argument("--mount-result", default="B:ACTION DNP")
     parser.add_argument("--b-prompt", default="B:DNP/>")
+    parser.add_argument("--final-prompt")
     parser.add_argument("--run-marker", default="RUN AVMRUN.PRG")
     parser.add_argument("--done-fragment", default="UDOS AVM OK")
     parser.add_argument("--prompt-count", type=int, default=2)
@@ -151,6 +152,7 @@ def main() -> int:
             type_command(client, "B:", 30.0)
             screen = wait_for_screen_fragment(client, args.b_prompt, 30.0)
             prompt_count = screen.count(args.b_prompt)
+            final_prompt = args.final_prompt or args.b_prompt
             time.sleep(args.command_settle)
             for pre_command in args.pre_command:
                 type_command(client, pre_command, 30.0)
@@ -165,7 +167,7 @@ def main() -> int:
             fragments: list[str] = []
             if args.done_fragment:
                 fragments.append(args.done_fragment)
-            screen = wait_for_prompt_count_and_fragments(client, args.b_prompt, prompt_count, fragments, 30.0)
+            screen = wait_for_prompt_count_and_fragments(client, final_prompt, 1, fragments, 30.0)
             if args.post_command:
                 time.sleep(args.command_settle)
                 type_command(client, args.post_command, 30.0)
@@ -177,7 +179,7 @@ def main() -> int:
                     if args.post_done_fragment:
                         post_fragments.append(args.post_done_fragment)
                     screen = wait_for_prompt_count_and_fragments(
-                        client, args.b_prompt, prompt_count, post_fragments, 30.0
+                        client, final_prompt, 1, post_fragments, 30.0
                     )
             for fragment in args.contains:
                 if fragment not in screen:
