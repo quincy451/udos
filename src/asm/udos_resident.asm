@@ -2089,6 +2089,37 @@ build_vice_dir_open_path_done:
     sta PTR+1
     rts
 
+build_vice_dir_open_path_from_path_name:
+    jsr build_vice_full_path_from_path_name
+    lda #'$'
+    sta dest_fullpath_buffer
+    lda #ASCII_COLON
+    sta dest_fullpath_buffer+1
+    ldx #$00
+    ldy #$02
+build_vice_dir_open_path_from_path_name_copy:
+    lda source_fullpath_buffer,x
+    beq build_vice_dir_open_path_from_path_name_suffix
+    sta dest_fullpath_buffer,y
+    inx
+    iny
+    cpy #FULL_PATH_BUF_LEN-4
+    bcc build_vice_dir_open_path_from_path_name_copy
+build_vice_dir_open_path_from_path_name_suffix:
+    lda #ASCII_SLASH
+    sta dest_fullpath_buffer,y
+    iny
+    lda #'*'
+    sta dest_fullpath_buffer,y
+    iny
+    lda #$00
+    sta dest_fullpath_buffer,y
+    lda #<dest_fullpath_buffer
+    sta PTR
+    lda #>dest_fullpath_buffer
+    sta PTR+1
+    rts
+
 vice_read_open_file_into_ptr_len:
     sta vice_read_limit
     lda #$00
@@ -5970,7 +6001,7 @@ rd_build_vice:
 rd_build_not_busy:
     lda dest_dir_id
     sta temp_dir_id
-    jsr fill_vice_manifest_dir_cache_current
+    jsr fill_vice_dir_cache_current
     bcs rd_build_fail
     lda enum_count
     beq rd_build_empty
@@ -6076,6 +6107,10 @@ lookup_dir_target_current_vice_ok:
     rts
 lookup_dir_target_current_vice_try_dynamic:
     jsr lookup_dynamic_dir_current_from_path_name
+    bcc lookup_dir_target_current_vice_ok
+    jsr query_dir_vice_host_current
+    bcs lookup_dir_target_current_vice_fail
+    jsr ensure_dynamic_dir_current_from_path_name
     bcs lookup_dir_target_current_vice_fail
     clc
     rts
@@ -14019,6 +14054,25 @@ query_file_vice_host_current_restore_open:
     jsr restore_path_name_shadow
 query_file_vice_host_current_open:
     jmp query_file_vice_open_current
+
+query_dir_vice_host_current:
+    ldx temp_drive
+    lda mount_flag_table,x
+    cmp #MOUNT_FLAG_TREE
+    bne query_dir_vice_host_current_fail
+    jsr build_vice_dir_open_path_from_path_name
+    lda #VICE_LFN_DIR
+    sta vice_lfn
+    lda #$00
+    sta vice_secondary
+    jsr vice_open_read_from_ptr
+    bcs query_dir_vice_host_current_fail
+    jsr vice_close_current_file
+    clc
+    rts
+query_dir_vice_host_current_fail:
+    sec
+    rts
 
 query_file_vice_host_exact_current:
     ldx temp_drive

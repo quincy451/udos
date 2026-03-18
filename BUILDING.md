@@ -190,8 +190,9 @@ Separate VICE smoke targets:
 - `make vice-action-actrmdir-persist`
   - uses the resident image plus a retrying mounted-tree probe
   - validates `ACTRMDIR.PRG` launches from mounted `ACTION.DNP`
-  - creates `OBJ` in-session, removes it through `ACTRMDIR.PRG`, and validates
-    the host-persistent VICE tree remove-dir path after VICE exits
+  - seeds `OBJ` on the host fs before launch, removes it through
+    `ACTRMDIR.PRG`, and validates the host-persistent VICE tree remove-dir path
+    after VICE exits
   - requires `IMAGES/ACTION.DNP/OBJ` to be absent
 - `make vice-action-actwrite`
   - uses the release image plus deterministic typed input

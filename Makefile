@@ -302,8 +302,8 @@ vice-action-actrmdir-persist: resident release
 	rm -rf $(ACTION_ACTRMDIR_PERSIST_FS)
 	mkdir -p $(ACTION_ACTRMDIR_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTRMDIR_PERSIST_FS)/
+	mkdir -p $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/OBJ
 	$(PYTHON) tools/run_vice_tree_persist_probe.py --disk $(RESIDENT_DISK) --fs-root $(ACTION_ACTRMDIR_PERSIST_FS) \
-		--pre-command "MD OBJ" \
 		--command "ACTRMDIR OBJ" \
 		--contains "RUN ACTRMDIR.PRG" \
 		--contains "ACTRMDIR OK"

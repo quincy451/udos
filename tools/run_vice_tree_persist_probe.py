@@ -37,6 +37,15 @@ def wait_for_mount_completion(client: vp.BinaryMonitorClient, timeout: float) ->
     raise vp.ViceError(f"mount did not complete in time:\n{last_screen}")
 
 
+def wait_for_keyboard_idle(client: vp.BinaryMonitorClient, timeout: float) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if client.memory_get(vp.KEYBUF_COUNT, vp.KEYBUF_COUNT)[0] == 0:
+            return
+        time.sleep(0.05)
+    raise vp.ViceError("timed out waiting for C64 keyboard buffer to drain after command")
+
+
 def wait_for_tree_prompt(client: vp.BinaryMonitorClient, timeout: float) -> str:
     deadline = time.monotonic() + timeout
     last_screen = ""
@@ -74,9 +83,12 @@ def wait_for_fragments(client: vp.BinaryMonitorClient, fragments: list[str], tim
 
 
 def type_command(client: vp.BinaryMonitorClient, command: str, timeout: float) -> None:
-    del timeout
-    client.keyboard_feed(command + "\r")
-    time.sleep(0.5)
+    clear_keyboard_buffer(client)
+    client.keyboard_type(command)
+    wait_for_keyboard_idle(client, timeout)
+    time.sleep(0.2)
+    client.keyboard_type("\r")
+    wait_for_keyboard_idle(client, timeout)
 
 
 def clear_keyboard_buffer(client: vp.BinaryMonitorClient) -> None:
@@ -137,6 +149,8 @@ def main() -> int:
             client.ping()
             step = "resume"
             client.resume()
+            step = "boot_prompt"
+            wait_for_screen_fragment(client, "A:D64/>", 60.0)
             step = "initial_settle"
             time.sleep(args.initial_settle)
             step = "clear_keyboard"
@@ -162,8 +176,11 @@ def main() -> int:
             time.sleep(args.command_settle)
             step = "final_screen"
             fragments = list(args.contains)
+            prompt_count += 1
             fragments.append("B:DNP/>")
-            final_screen = wait_for_fragments(client, fragments, 20.0)
+            final_screen = wait_for_prompt_count(client, "B:DNP/>", prompt_count, 20.0)
+            if not all(fragment in final_screen for fragment in fragments):
+                final_screen = wait_for_fragments(client, fragments, 20.0)
             print(final_screen)
             break
         except Exception as exc:
