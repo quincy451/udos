@@ -163,11 +163,15 @@ Separate VICE smoke targets:
   - deletes `OUT.TXT` through the preserved external-tool file-delete ABI
   - proves the shell reports `NO SUCH FILE` for the deleted file
 - `make vice-action-actmove`
-  - uses the release image plus deterministic typed input
+  - uses the resident image plus a retrying mounted-tree probe
   - validates `ACTMOVE.PRG` launches from mounted `ACTION.DNP`
-  - validates the rename by reading back `NEXT.TXT` after return
   - renames `OUT.TXT` to `NEXT.TXT` through the preserved external-tool file-rename ABI
-  - reads `NEXT.TXT` back through the shell and verifies `ACTION WRITE OK`
+  - requires `IMAGES/ACTION.DNP/NEXT.TXT` to exist with `ACTION WRITE OK`
+- `make vice-action-actmove-persist`
+  - uses the resident image plus a retrying mounted-tree probe
+  - validates `ACTMOVE.PRG` launches from mounted `ACTION.DNP`
+  - validates the host-persistent VICE tree rename path after VICE exits
+  - requires `IMAGES/ACTION.DNP/NEXT.TXT` to exist and `OUT.TXT` to be absent
 - `make vice-action-actmkdir`
   - uses the release image plus deterministic typed input
   - validates `ACTMKDIR.PRG` launches from mounted `ACTION.DNP`

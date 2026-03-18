@@ -134,6 +134,10 @@ class UdosBuildTests(unittest.TestCase):
         subprocess.run(["make", "vice-action-actmove"], cwd=ROOT, check=True)
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actmove_persists_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-actmove-persist"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actrmdir_runs_in_vice(self) -> None:
         subprocess.run(["make", "vice-action-actrmdir"], cwd=ROOT, check=True)
 

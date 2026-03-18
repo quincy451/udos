@@ -64,6 +64,7 @@ ACTION_ACTWRITE_BUILD := build/action-actwrite
 ACTION_AVMINFO_BUILD := build/action-avminfo
 ACTION_AVMRUN_BUILD := build/action-avmrun
 ACTION_AVMRUN_FLOW_BUILD := build/action-avmrun-flow
+ACTION_ACTMOVE_PERSIST_FS := build/action-actmove-persist-fs
 ACTION_WORKSPACE_ARTIFACT := build/udos-action-workspace.d64
 ACTION_ACTDIR_ARTIFACT := build/udos-action-actdir.d64
 ACTION_ACTNEW_ARTIFACT := build/udos-action-actnew.d64
@@ -102,7 +103,7 @@ RELEASE_BUILD := build/release
 RELEASE_DISK := build/udos-release.d64
 RELEASE_FS := build/udos-release-fs
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actcopy vice-action-actdir vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actdel vice-action-actmkdir vice-action-actmove vice-action-actrmdir vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actcopy vice-action-actdir vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actdel vice-action-actmkdir vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -254,14 +255,26 @@ vice-action-actmkdir: release
 		--contains "ACTMKDIR OK" \
 		--contains "B:DNP/OBJ>"
 
-vice-action-actmove: release
-	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
-		--pre-command "ACTWRITE OUT.TXT" \
-		--command "ACTMOVE OUT.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --done-fragment "" --prompt-count 2 \
-		--post-command "TYPE NEXT.TXT" --post-done-fragment "ACTION WRITE OK" \
+vice-action-actmove: resident release
+	rm -rf $(ACTION_ACTMOVE_PERSIST_FS)
+	mkdir -p $(ACTION_ACTMOVE_PERSIST_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTMOVE_PERSIST_FS)/
+	printf 'ACTION WRITE OK' > $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/OUT.TXT
+	$(PYTHON) tools/run_vice_tree_persist_probe.py --disk $(RESIDENT_DISK) --fs-root $(ACTION_ACTMOVE_PERSIST_FS) \
+		--command "ACTMOVE OUT.TXT NEXT.TXT" \
 		--contains "RUN ACTMOVE.PRG" \
-		--contains "ACTION WRITE OK"
+		--expect-file-text "IMAGES/ACTION.DNP/NEXT.TXT=ACTION WRITE OK"
+
+vice-action-actmove-persist: resident release
+	rm -rf $(ACTION_ACTMOVE_PERSIST_FS)
+	mkdir -p $(ACTION_ACTMOVE_PERSIST_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTMOVE_PERSIST_FS)/
+	printf 'ACTION WRITE OK' > $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/OUT.TXT
+	$(PYTHON) tools/run_vice_tree_persist_probe.py --disk $(RESIDENT_DISK) --fs-root $(ACTION_ACTMOVE_PERSIST_FS) \
+		--command "ACTMOVE OUT.TXT NEXT.TXT" \
+		--contains "RUN ACTMOVE.PRG" \
+		--expect-file-text "IMAGES/ACTION.DNP/NEXT.TXT=ACTION WRITE OK" \
+		--absent-file "IMAGES/ACTION.DNP/OUT.TXT"
 
 vice-action-actrmdir: release
 	sleep 2

@@ -137,11 +137,12 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     typed input, launches `ACTDEL.PRG`, deletes `OUT.TXT` through the
     preserved external-tool file-delete ABI, and proves the shell reports
     `NO SUCH FILE` for the deleted file
-  - `make vice-action-actmove` now uses the release image with deterministic
-    typed input, launches `ACTMOVE.PRG`, renames `OUT.TXT` to `NEXT.TXT`,
-    then validates the renamed file through shell-side `TYPE NEXT.TXT`
-    through the preserved external-tool file-rename ABI, and proves the shell
-    reads back `ACTION WRITE OK` from `NEXT.TXT`
+  - `make vice-action-actmove` now uses the resident image with a retrying
+    mounted-tree probe and proves the renamed file persists on the host fs
+    tree with `ACTION WRITE OK`
+  - `make vice-action-actmove-persist` now uses the resident image with a
+    retrying mounted-tree probe and proves the same rename persists on the
+    host fs tree after VICE exits
   - `make vice-action-actmkdir` now uses the release image with deterministic
     typed input, launches `ACTMKDIR.PRG`, creates `OBJ` through the preserved
     external-tool directory-mutation ABI, and proves the shell can enter
