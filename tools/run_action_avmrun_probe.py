@@ -107,12 +107,13 @@ def main() -> int:
     parser.add_argument("--run-marker", default="RUN AVMRUN.PRG")
     parser.add_argument("--done-fragment", default="UDOS AVM OK")
     parser.add_argument("--prompt-count", type=int, default=2)
-    parser.add_argument("--initial-settle", type=float, default=1.5)
+    parser.add_argument("--initial-settle", type=float, default=3.0)
     parser.add_argument("--command-settle", type=float, default=1.0)
     parser.add_argument("--attempts", type=int, default=4)
     parser.add_argument("--attempt-delay", type=float, default=2.0)
     parser.add_argument("--pre-command", action="append", default=[])
     parser.add_argument("--pre-prompt", action="append", default=[])
+    parser.add_argument("--pre-fragment", action="append", default=[])
     parser.add_argument("--post-command")
     parser.add_argument("--post-done-fragment")
     parser.add_argument("--contains", action="append", default=[])
@@ -157,8 +158,13 @@ def main() -> int:
             time.sleep(args.command_settle)
             for index, pre_command in enumerate(args.pre_command):
                 type_command(client, pre_command, 30.0)
-                if index < len(args.pre_prompt):
-                    wait_for_screen_fragment(client, args.pre_prompt[index], 30.0)
+                pre_fragments: list[str] = []
+                if index < len(args.pre_prompt) and args.pre_prompt[index]:
+                    pre_fragments.append(args.pre_prompt[index])
+                if index < len(args.pre_fragment) and args.pre_fragment[index]:
+                    pre_fragments.append(args.pre_fragment[index])
+                if pre_fragments:
+                    wait_for_screen_fragments(client, pre_fragments, 30.0)
                 else:
                     prompt_count += 1
                     wait_for_prompt_count(client, args.b_prompt, prompt_count, 30.0)

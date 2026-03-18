@@ -140,13 +140,15 @@ Separate VICE smoke targets:
   - enumerates the current directory through the preserved external-tool directory ABI
   - prints the mounted Action workspace root entries and returns to the shell
 - `make vice-action-actadd`
-  - uses the release image plus a preseeded marked project root
+  - uses the release image plus a project created by `ACTNEW.PRG`
   - validates `ACTADD.PRG` launches from mounted `ACTION.DNP`
+  - validates `ACTNEW.PRG` creates and marks the project root with `ACTION.PROJ`
   - writes `SRC/HELPER.ACT` through the preserved external-tool file-save ABI
   - reads the created source back through the shell and verifies `PROC HELPER()` / `ENDPROC`
 - `make vice-action-actadd-persist`
-  - uses the release image plus a preseeded marked project root
+  - uses the release image plus a project created by `ACTNEW.PRG`
   - validates `ACTADD.PRG` launches from mounted `ACTION.DNP`
+  - validates `ACTNEW.PRG` creates and marks the project root with `ACTION.PROJ`
   - verifies the created `src/helper.act` persists on the host fs tree after VICE exits
 - `make vice-action-actinfo`
   - uses an autoexec-backed Action test image on top of the release workspace
@@ -159,12 +161,13 @@ Separate VICE smoke targets:
 - `make vice-action-actnew-prg`
   - uses the release image plus deterministic typed input
   - validates `ACTNEW.PRG` launches from mounted `ACTION.DNP`
-  - creates `SRC/`, `BIN/`, `OBJ/`, `README.TXT`, and `SRC/MAIN.ACT`
+  - creates `SRC/`, `BIN/`, `OBJ/`, `ACTION.PROJ`, `README.TXT`, and `SRC/MAIN.ACT`
   - returns to UDOS and then reaches `B:DNP/DEMO/SRC>` on a follow-up `CD`
 - `make vice-action-actnew-prg-persist`
   - builds a focused resident autoexec image
   - validates `ACTNEW.PRG` creates a host-persistent project tree after VICE exits
   - requires `IMAGES/ACTION.DNP/PROJ2/bin`, `obj`, and `src` to exist
+  - requires `IMAGES/ACTION.DNP/PROJ2/ACTION.PROJ` to exist
   - validates host-created file contents through `PROJ2/readme.txt` and `PROJ2/src/main.act`
 - `make vice-action-actcopy`
   - uses the release image plus deterministic typed input

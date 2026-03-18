@@ -117,13 +117,15 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     top of the release workspace, launches `ACTDIR.PRG`, enumerates the current mounted
     directory through the preserved external-tool directory ABI, and returns to
     the UDOS prompt
-  - `make vice-action-actadd` now uses the release image with a preseeded
-    marked project root, launches `ACTADD.PRG`, writes `SRC/HELPER.ACT`
-    through the preserved external-tool file-save ABI, and proves the created
-    source can be read back through the shell
-  - `make vice-action-actadd-persist` now uses the release image with a
-    preseeded marked project root and proves the created `src/helper.act`
-    persists on the host fs tree after VICE exits
+  - `make vice-action-actadd` now uses the release image, launches `ACTNEW.PRG`
+    to create and mark a project root with `ACTION.PROJ`, launches
+    `ACTADD.PRG`, writes `SRC/HELPER.ACT` through the preserved external-tool
+    file-save ABI, and proves the created source can be read back through the
+    shell
+  - `make vice-action-actadd-persist` now uses the release image, creates and
+    marks a project root through `ACTNEW.PRG`, launches `ACTADD.PRG`, and
+    proves the created `src/helper.act` persists on the host fs tree after
+    VICE exits
   - `make vice-action-actinfo` now uses an autoexec-backed Action test image on
     top of the release workspace, launches `ACTINFO.PRG` from the mounted Action workspace
     through the preserved launch-safe external-tool ABI, and returns to the
@@ -134,8 +136,8 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     flow, and proves the deleted target is gone through shell-side `TYPE`
   - `make vice-action-actnew-prg` now uses the release image with deterministic
     typed input, launches `ACTNEW.PRG`, creates a project skeleton through the
-    preserved directory/file ABI, and proves the created tree is reachable by
-    changing into `B:DNP/DEMO/SRC>` after the tool returns
+    preserved directory/file ABI, writes `ACTION.PROJ`, and proves the created
+    tree is reachable by changing into `B:DNP/DEMO/SRC>` after the tool returns
   - `make vice-action-actnew-prg-persist` now builds a focused resident
     autoexec image, runs `ACTNEW.PRG`, and proves the created project persists
     on the host fs tree after VICE exits
