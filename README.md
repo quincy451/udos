@@ -97,6 +97,12 @@ Current milestone:
     typed input, launches `ACTNEW.PRG`, creates a project skeleton through the
     preserved directory/file ABI, and proves the created tree is reachable by
     changing into `B:DNP/DEMO/SRC>` after the tool returns
+  - `make vice-action-actnew-prg-persist` now builds a focused resident
+    autoexec image, runs `ACTNEW.PRG`, and proves the created project persists
+    on the host fs tree after VICE exits
+  - current VICE host persistence for that path reopens the new files under the
+    host-side short-name forms `readme.` and `src/mai`; the directories and
+    contents are correct, but long-name fidelity is still a follow-up gap
   - `make vice-action-actcopy` now uses the release image with deterministic
     typed input, launches `ACTCOPY.PRG`, copies `OUT.TXT` to `COPY.TXT`
     through the preserved external-tool file-copy ABI, and proves the shell

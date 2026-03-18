@@ -118,6 +118,10 @@ class UdosBuildTests(unittest.TestCase):
         subprocess.run(["make", "vice-action-actnew-prg"], cwd=ROOT, check=True)
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actnew_prg_persists_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-actnew-prg-persist"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actcopy_runs_in_vice(self) -> None:
         subprocess.run(["make", "vice-action-actcopy"], cwd=ROOT, check=True)
 

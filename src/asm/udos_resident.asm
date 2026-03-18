@@ -1976,9 +1976,6 @@ build_vice_rmdir_command_done:
     rts
 
 store_vice_host_current_from_screen_ptr:
-    lda temp_dir_id
-    cmp #DIR_ID_DYNAMIC_BASE
-    bcs store_vice_host_current_from_screen_ptr_fail
     lda SCREEN_PTR
     sta vice_tree_content_src_lo
     lda SCREEN_PTR+1
@@ -2000,9 +1997,6 @@ store_vice_host_current_from_screen_ptr_fail:
     rts
 
 delete_file_vice_host_current:
-    lda temp_dir_id
-    cmp #DIR_ID_DYNAMIC_BASE
-    bcs delete_file_vice_host_current_fail
     jsr build_vice_delete_command_from_path_name
     lda #VICE_LFN_CMD
     sta vice_lfn
@@ -2014,9 +2008,6 @@ delete_file_vice_host_current_fail:
     rts
 
 create_dir_vice_host_current:
-    lda temp_dir_id
-    cmp #DIR_ID_DYNAMIC_BASE
-    bcs create_dir_vice_host_current_fail
     jsr build_vice_mkdir_command_from_path_name
     lda #VICE_LFN_CMD
     sta vice_lfn
@@ -2028,9 +2019,6 @@ create_dir_vice_host_current_fail:
     rts
 
 remove_dir_vice_host_current:
-    lda temp_dir_id
-    cmp #DIR_ID_DYNAMIC_BASE
-    bcs remove_dir_vice_host_current_fail
     jsr build_vice_rmdir_command_from_path_name
     lda #VICE_LFN_CMD
     sta vice_lfn
@@ -11065,6 +11053,10 @@ match_path_component_vice:
     bcc match_path_component_vice_ok
 match_path_component_vice_try_dynamic:
     jsr lookup_dynamic_dir_current_from_path_name
+    bcc match_path_component_vice_ok
+    jsr query_dir_vice_host_current
+    bcs match_path_fail
+    jsr ensure_dynamic_dir_current_from_path_name
     bcs match_path_fail
     jmp match_path_component_vice_ok
 match_path_component_vice_found:
@@ -15429,7 +15421,7 @@ tool_abi_dir_make_sc0:
     bne tool_abi_dir_make_fail
     jsr vice_probe_available
     bcs tool_abi_dir_make_fail
-    jsr fill_vice_manifest_dir_cache_current
+    jsr fill_vice_dir_cache_current
     bcs tool_abi_dir_make_fail
     jsr find_hw_dir_cache_matching_path_name
     bcc tool_abi_dir_make_exists
