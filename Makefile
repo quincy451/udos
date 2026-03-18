@@ -64,7 +64,9 @@ ACTION_ACTWRITE_BUILD := build/action-actwrite
 ACTION_AVMINFO_BUILD := build/action-avminfo
 ACTION_AVMRUN_BUILD := build/action-avmrun
 ACTION_AVMRUN_FLOW_BUILD := build/action-avmrun-flow
+ACTION_ACTMKDIR_PERSIST_FS := build/action-actmkdir-persist-fs
 ACTION_ACTMOVE_PERSIST_FS := build/action-actmove-persist-fs
+ACTION_ACTRMDIR_PERSIST_FS := build/action-actrmdir-persist-fs
 ACTION_WORKSPACE_ARTIFACT := build/udos-action-workspace.d64
 ACTION_ACTDIR_ARTIFACT := build/udos-action-actdir.d64
 ACTION_ACTNEW_ARTIFACT := build/udos-action-actnew.d64
@@ -103,7 +105,7 @@ RELEASE_BUILD := build/release
 RELEASE_DISK := build/udos-release.d64
 RELEASE_FS := build/udos-release-fs
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actcopy vice-action-actdir vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actdel vice-action-actmkdir vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actcopy vice-action-actdir vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -255,6 +257,16 @@ vice-action-actmkdir: release
 		--contains "ACTMKDIR OK" \
 		--contains "B:DNP/OBJ>"
 
+vice-action-actmkdir-persist: resident release
+	rm -rf $(ACTION_ACTMKDIR_PERSIST_FS)
+	mkdir -p $(ACTION_ACTMKDIR_PERSIST_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTMKDIR_PERSIST_FS)/
+	$(PYTHON) tools/run_vice_tree_persist_probe.py --disk $(RESIDENT_DISK) --fs-root $(ACTION_ACTMKDIR_PERSIST_FS) \
+		--command "ACTMKDIR OBJ" \
+		--contains "RUN ACTMKDIR.PRG" \
+		--contains "ACTMKDIR OK"
+	test -d $(ACTION_ACTMKDIR_PERSIST_FS)/IMAGES/ACTION.DNP/OBJ
+
 vice-action-actmove: resident release
 	rm -rf $(ACTION_ACTMOVE_PERSIST_FS)
 	mkdir -p $(ACTION_ACTMOVE_PERSIST_FS)
@@ -285,6 +297,17 @@ vice-action-actrmdir: release
 		--contains "RUN ACTRMDIR.PRG" \
 		--contains "ACTRMDIR OK" \
 		--contains "NO SUCH DIR"
+
+vice-action-actrmdir-persist: resident release
+	rm -rf $(ACTION_ACTRMDIR_PERSIST_FS)
+	mkdir -p $(ACTION_ACTRMDIR_PERSIST_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTRMDIR_PERSIST_FS)/
+	$(PYTHON) tools/run_vice_tree_persist_probe.py --disk $(RESIDENT_DISK) --fs-root $(ACTION_ACTRMDIR_PERSIST_FS) \
+		--pre-command "MD OBJ" \
+		--command "ACTRMDIR OBJ" \
+		--contains "RUN ACTRMDIR.PRG" \
+		--contains "ACTRMDIR OK"
+	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/OBJ
 
 vice-action-actwrite: release
 	sleep 2

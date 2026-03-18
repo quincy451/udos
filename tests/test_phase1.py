@@ -130,6 +130,10 @@ class UdosBuildTests(unittest.TestCase):
         subprocess.run(["make", "vice-action-actmkdir"], cwd=ROOT, check=True)
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actmkdir_persists_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-actmkdir-persist"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actmove_runs_in_vice(self) -> None:
         subprocess.run(["make", "vice-action-actmove"], cwd=ROOT, check=True)
 
@@ -140,6 +144,10 @@ class UdosBuildTests(unittest.TestCase):
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actrmdir_runs_in_vice(self) -> None:
         subprocess.run(["make", "vice-action-actrmdir"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actrmdir_persists_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-actrmdir-persist"], cwd=ROOT, check=True)
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actwrite_runs_in_vice(self) -> None:

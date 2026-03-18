@@ -147,10 +147,17 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     typed input, launches `ACTMKDIR.PRG`, creates `OBJ` through the preserved
     external-tool directory-mutation ABI, and proves the shell can enter
     `B:DNP/OBJ>`
+  - `make vice-action-actmkdir-persist` now uses the resident image with a
+    retrying mounted-tree probe and proves the new `OBJ` directory persists on
+    the host fs tree after VICE exits
   - `make vice-action-actrmdir` now uses the release image with deterministic
     typed input, launches `ACTRMDIR.PRG`, removes `OBJ` through the preserved
     external-tool directory-mutation ABI, and proves the shell reports
     `NO SUCH DIR` for `CD OBJ`
+  - `make vice-action-actrmdir-persist` now uses the resident image with a
+    retrying mounted-tree probe, removes an in-session-created `OBJ`
+    directory through `ACTRMDIR.PRG`, and proves the directory is absent on the
+    host fs tree after VICE exits
   - `make vice-action-actwrite` now uses the release image with deterministic
     typed input, launches `ACTWRITE.PRG`, writes `OUT.TXT` through the
     preserved external-tool file-save ABI, reads it back through the shell,

@@ -1927,6 +1927,54 @@ build_vice_delete_command_done:
     sta PTR+1
     rts
 
+build_vice_mkdir_command_from_path_name:
+    jsr build_vice_full_path_from_path_name
+    lda #'M'
+    sta uci_cmd_buffer
+    lda #'D'
+    sta uci_cmd_buffer+1
+    lda #ASCII_COLON
+    sta uci_cmd_buffer+2
+    ldx #$00
+    ldy #$03
+build_vice_mkdir_command_copy:
+    lda source_fullpath_buffer,x
+    sta uci_cmd_buffer,y
+    beq build_vice_mkdir_command_done
+    inx
+    iny
+    bne build_vice_mkdir_command_copy
+build_vice_mkdir_command_done:
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    rts
+
+build_vice_rmdir_command_from_path_name:
+    jsr build_vice_full_path_from_path_name
+    lda #'R'
+    sta uci_cmd_buffer
+    lda #'D'
+    sta uci_cmd_buffer+1
+    lda #ASCII_COLON
+    sta uci_cmd_buffer+2
+    ldx #$00
+    ldy #$03
+build_vice_rmdir_command_copy:
+    lda source_fullpath_buffer,x
+    sta uci_cmd_buffer,y
+    beq build_vice_rmdir_command_done
+    inx
+    iny
+    bne build_vice_rmdir_command_copy
+build_vice_rmdir_command_done:
+    lda #<uci_cmd_buffer
+    sta PTR
+    lda #>uci_cmd_buffer
+    sta PTR+1
+    rts
+
 store_vice_host_current_from_screen_ptr:
     lda temp_dir_id
     cmp #DIR_ID_DYNAMIC_BASE
@@ -1962,6 +2010,34 @@ delete_file_vice_host_current:
     sta vice_secondary
     jmp vice_issue_command_from_ptr
 delete_file_vice_host_current_fail:
+    sec
+    rts
+
+create_dir_vice_host_current:
+    lda temp_dir_id
+    cmp #DIR_ID_DYNAMIC_BASE
+    bcs create_dir_vice_host_current_fail
+    jsr build_vice_mkdir_command_from_path_name
+    lda #VICE_LFN_CMD
+    sta vice_lfn
+    lda #VICE_SA_CMD
+    sta vice_secondary
+    jmp vice_issue_command_from_ptr
+create_dir_vice_host_current_fail:
+    sec
+    rts
+
+remove_dir_vice_host_current:
+    lda temp_dir_id
+    cmp #DIR_ID_DYNAMIC_BASE
+    bcs remove_dir_vice_host_current_fail
+    jsr build_vice_rmdir_command_from_path_name
+    lda #VICE_LFN_CMD
+    sta vice_lfn
+    lda #VICE_SA_CMD
+    sta vice_secondary
+    jmp vice_issue_command_from_ptr
+remove_dir_vice_host_current_fail:
     sec
     rts
 
@@ -5966,6 +6042,8 @@ create_dir_vice_current:
     jsr vice_dir_alloc_slot
     bcs create_dir_vice_current_fail
 create_dir_vice_current_store:
+    jsr create_dir_vice_host_current
+    bcs create_dir_vice_current_fail
     lda temp_dir_id
     jsr store_vice_dir_parent_for_index
     jsr select_vice_dir_name_slot
@@ -6011,6 +6089,8 @@ store_vice_dir_tombstone_current:
     jsr vice_dir_alloc_slot
     bcs store_vice_dir_tombstone_current_fail
 store_vice_dir_tombstone_current_have_slot:
+    jsr remove_dir_vice_host_current
+    bcs store_vice_dir_tombstone_current_fail
     lda temp_dir_id
     jsr store_vice_dir_parent_for_index
     jsr select_vice_dir_name_slot

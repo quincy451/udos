@@ -48,6 +48,19 @@ def wait_for_tree_prompt(client: vp.BinaryMonitorClient, timeout: float) -> str:
     raise vp.ViceError(f"timed out waiting for B:DNP/>:\n{last_screen}")
 
 
+def wait_for_prompt_count(client: vp.BinaryMonitorClient, prompt: str, minimum: int, timeout: float) -> str:
+    deadline = time.monotonic() + timeout
+    last_screen = ""
+    while time.monotonic() < deadline:
+        last_screen = screen_text(client)
+        if last_screen.count(prompt) >= minimum:
+            return last_screen
+        time.sleep(0.2)
+    raise vp.ViceError(
+        f"expected prompt {prompt!r} at least {minimum} times, got {last_screen.count(prompt)}:\n{last_screen}"
+    )
+
+
 def wait_for_fragments(client: vp.BinaryMonitorClient, fragments: list[str], timeout: float) -> str:
     deadline = time.monotonic() + timeout
     last_screen = ""
@@ -60,21 +73,15 @@ def wait_for_fragments(client: vp.BinaryMonitorClient, fragments: list[str], tim
     raise vp.ViceError(f"missing screen fragments {missing!r}:\n{last_screen}")
 
 
-def wait_for_keyboard_idle(client: vp.BinaryMonitorClient, timeout: float) -> None:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if client.memory_get(vp.KEYBUF_COUNT, vp.KEYBUF_COUNT)[0] == 0:
-            return
-        time.sleep(0.05)
-    raise vp.ViceError("timed out waiting for C64 keyboard buffer to drain after command")
-
-
 def type_command(client: vp.BinaryMonitorClient, command: str, timeout: float) -> None:
-    client.keyboard_type(command)
-    wait_for_keyboard_idle(client, timeout)
-    time.sleep(0.2)
-    client.keyboard_type("\r")
-    wait_for_keyboard_idle(client, timeout)
+    del timeout
+    client.keyboard_feed(command + "\r")
+    time.sleep(0.5)
+
+
+def clear_keyboard_buffer(client: vp.BinaryMonitorClient) -> None:
+    client.memory_set(vp.KEYBUF_DATA, bytes(10))
+    client.memory_set(vp.KEYBUF_COUNT, b"\x00")
 
 
 def parse_file_text_check(spec: str) -> tuple[Path, str]:
@@ -90,6 +97,7 @@ def main() -> int:
     parser.add_argument("--fs-root", required=True)
     parser.add_argument("--command", required=True)
     parser.add_argument("--mount-path", default="/IMAGES/ACTION.DNP")
+    parser.add_argument("--pre-command", action="append", default=[])
     parser.add_argument("--contains", action="append", default=[])
     parser.add_argument("--expect-file", action="append", default=[])
     parser.add_argument("--absent-file", action="append", default=[])
@@ -119,19 +127,40 @@ def main() -> int:
             ],
         )
         client = vp.BinaryMonitorClient("127.0.0.1", port, timeout=5.0)
+        step = "connect"
+        last_screen = ""
 
         try:
+            step = "connect"
             client.connect(time.monotonic() + 20.0)
+            step = "ping"
             client.ping()
+            step = "resume"
             client.resume()
+            step = "initial_settle"
             time.sleep(args.initial_settle)
+            step = "clear_keyboard"
+            clear_keyboard_buffer(client)
+            step = "mount"
             type_command(client, f"MOUNT B: {args.mount_path}", 30.0)
             time.sleep(1.0)
+            step = "mount_wait"
             wait_for_mount_completion(client, 30.0)
+            step = "drive_b"
             type_command(client, "B:", 30.0)
-            wait_for_tree_prompt(client, 30.0)
+            step = "tree_prompt"
+            screen = wait_for_tree_prompt(client, 30.0)
+            prompt_count = screen.count("B:DNP/>")
+            for pre_command in args.pre_command:
+                step = f"pre:{pre_command}"
+                type_command(client, pre_command, 30.0)
+                time.sleep(args.command_settle)
+                prompt_count += 1
+                wait_for_prompt_count(client, "B:DNP/>", prompt_count, 20.0)
+            step = f"command:{args.command}"
             type_command(client, args.command, 30.0)
             time.sleep(args.command_settle)
+            step = "final_screen"
             fragments = list(args.contains)
             fragments.append("B:DNP/>")
             final_screen = wait_for_fragments(client, fragments, 20.0)
@@ -140,6 +169,13 @@ def main() -> int:
         except Exception as exc:
             last_error = exc
             if attempt >= args.attempts:
+                try:
+                    last_screen = screen_text(client)
+                except Exception:
+                    last_screen = ""
+                if last_screen:
+                    print(last_screen)
+                print(f"probe step: {step}", file=sys.stderr)
                 print(exc, file=sys.stderr)
                 return 1
             time.sleep(args.attempt_delay)

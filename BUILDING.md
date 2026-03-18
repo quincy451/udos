@@ -177,11 +177,22 @@ Separate VICE smoke targets:
   - validates `ACTMKDIR.PRG` launches from mounted `ACTION.DNP`
   - creates `OBJ` through the preserved external-tool directory-mutation ABI
   - proves the shell can enter `B:DNP/OBJ>`
+- `make vice-action-actmkdir-persist`
+  - uses the resident image plus a retrying mounted-tree probe
+  - validates `ACTMKDIR.PRG` launches from mounted `ACTION.DNP`
+  - validates the host-persistent VICE tree create-dir path after VICE exits
+  - requires `IMAGES/ACTION.DNP/OBJ` to exist
 - `make vice-action-actrmdir`
   - uses the release image plus deterministic typed input
   - validates `ACTRMDIR.PRG` launches from mounted `ACTION.DNP`
   - removes `OBJ` through the preserved external-tool directory-mutation ABI
   - proves the shell reports `NO SUCH DIR` for `CD OBJ`
+- `make vice-action-actrmdir-persist`
+  - uses the resident image plus a retrying mounted-tree probe
+  - validates `ACTRMDIR.PRG` launches from mounted `ACTION.DNP`
+  - creates `OBJ` in-session, removes it through `ACTRMDIR.PRG`, and validates
+    the host-persistent VICE tree remove-dir path after VICE exits
+  - requires `IMAGES/ACTION.DNP/OBJ` to be absent
 - `make vice-action-actwrite`
   - uses the release image plus deterministic typed input
   - validates `ACTWRITE.PRG` launches from mounted `ACTION.DNP`
