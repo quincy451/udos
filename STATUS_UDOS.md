@@ -125,6 +125,10 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     typed input, launches `ACTFLOW.BAT`, exercises preserved file
     save/copy/move/delete/load behavior in one composite Action-side workspace
     flow, and proves the deleted target is gone through shell-side `TYPE`
+  - `make vice-action-actnew-prg` now uses the release image with deterministic
+    typed input, launches `ACTNEW.PRG`, creates a project skeleton through the
+    preserved directory/file ABI, and proves the created tree is reachable by
+    changing into `B:DNP/DEMO/SRC>` after the tool returns
   - `make vice-action-actcopy` now uses the release image with deterministic
     typed input, launches `ACTCOPY.PRG`, copies `OUT.TXT` to `COPY.TXT`
     through the preserved external-tool file-copy ABI, and proves the shell

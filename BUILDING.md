@@ -147,6 +147,11 @@ Separate VICE smoke targets:
   - validates `ACTFLOW.BAT` launches from mounted `ACTION.DNP`
   - exercises preserved file save/copy/move/delete/load behavior in one composite Action-side workspace flow
   - proves the final deleted target is gone through shell-side `TYPE`
+- `make vice-action-actnew-prg`
+  - uses the release image plus deterministic typed input
+  - validates `ACTNEW.PRG` launches from mounted `ACTION.DNP`
+  - creates `SRC/`, `BIN/`, `OBJ/`, `README.TXT`, and `SRC/MAIN.ACT`
+  - returns to UDOS and then reaches `B:DNP/DEMO/SRC>` on a follow-up `CD`
 - `make vice-action-actcopy`
   - uses the release image plus deterministic typed input
   - validates `ACTCOPY.PRG` launches from mounted `ACTION.DNP`

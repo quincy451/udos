@@ -102,7 +102,7 @@ RELEASE_BUILD := build/release
 RELEASE_DISK := build/udos-release.d64
 RELEASE_FS := build/udos-release-fs
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actcopy vice-action-actdir vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actdel vice-action-actmkdir vice-action-actmove vice-action-actrmdir vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actcopy vice-action-actdir vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actdel vice-action-actmkdir vice-action-actmove vice-action-actrmdir vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -197,6 +197,15 @@ vice-action-actnew: release
 		--post-command "DIR" --post-done-fragment "README.TXT" \
 		--contains "ACTNEW OK" --contains "BIN/" --contains "OBJ/" --contains "SRC/" \
 		--contains "README.TXT"
+
+vice-action-actnew-prg: release
+	sleep 2
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--command "ACTNEW DEMO" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/>" \
+		--attempts 4 --attempt-delay 2.0 \
+		--post-command "CD DEMO/SRC" --post-done-fragment "B:DNP/DEMO/SRC>" \
+		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK" --contains "B:DNP/DEMO/SRC>"
 
 vice-action-actinfo: release
 	$(MAKE) BUILD_DIR=$(ACTION_ACTINFO_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actinfo.txt resident
