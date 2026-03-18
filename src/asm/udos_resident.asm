@@ -308,7 +308,7 @@ VICE_SA_CMD = 15
 HW_DIR_CACHE_MAX = 6
 HW_DIR_NAME_MAX = 20
 HW_DIR_NAME_STRIDE = HW_DIR_NAME_MAX + 1
-FULL_PATH_BUF_LEN = MAX_LINE_LEN + 8
+FULL_PATH_BUF_LEN = (MAX_LINE_LEN * 2) + 8
 PROGRAM_LOAD_MIN_ADDR = $0900
 LAUNCH_RESULT_FLAG = $03F0
 LAUNCH_EXIT_STATUS = $03F1
@@ -1870,27 +1870,17 @@ build_vice_full_path_done:
 
 build_vice_write_path_from_name:
     jsr build_vice_full_path_from_path_name
-    lda #'@'
-    sta dest_fullpath_buffer
-    lda #ASCII_COLON
-    sta dest_fullpath_buffer+1
     ldx #$00
-    ldy #$02
+    ldy #$00
 build_vice_write_path_copy:
     lda source_fullpath_buffer,x
     beq build_vice_write_path_suffix
     sta dest_fullpath_buffer,y
     inx
     iny
-    cpy #FULL_PATH_BUF_LEN-5
+    cpy #FULL_PATH_BUF_LEN-3
     bcc build_vice_write_path_copy
 build_vice_write_path_suffix:
-    lda #ASCII_COMMA
-    sta dest_fullpath_buffer,y
-    iny
-    lda #'S'
-    sta dest_fullpath_buffer,y
-    iny
     lda #ASCII_COMMA
     sta dest_fullpath_buffer,y
     iny
@@ -1980,6 +1970,12 @@ store_vice_host_current_from_screen_ptr:
     sta vice_tree_content_src_lo
     lda SCREEN_PTR+1
     sta vice_tree_content_src_hi
+    jsr build_vice_delete_command_from_path_name
+    lda #VICE_LFN_CMD
+    sta vice_lfn
+    lda #VICE_SA_CMD
+    sta vice_secondary
+    jsr vice_issue_command_from_ptr
     jsr build_vice_write_path_from_name
     lda vice_tree_content_src_lo
     sta SCREEN_PTR

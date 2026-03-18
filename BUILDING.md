@@ -156,8 +156,7 @@ Separate VICE smoke targets:
   - builds a focused resident autoexec image
   - validates `ACTNEW.PRG` creates a host-persistent project tree after VICE exits
   - requires `IMAGES/ACTION.DNP/PROJ2/bin`, `obj`, and `src` to exist
-  - validates current VICE host-created file contents through `PROJ2/readme.` and `PROJ2/src/mai`
-  - current long-name fidelity for those host-created files is still a follow-up gap
+  - validates host-created file contents through `PROJ2/readme.txt` and `PROJ2/src/main.act`
 - `make vice-action-actcopy`
   - uses the release image plus deterministic typed input
   - validates `ACTCOPY.PRG` launches from mounted `ACTION.DNP`

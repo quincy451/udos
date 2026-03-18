@@ -132,9 +132,8 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `make vice-action-actnew-prg-persist` now builds a focused resident
     autoexec image, runs `ACTNEW.PRG`, and proves the created project persists
     on the host fs tree after VICE exits
-  - current VICE host persistence for that path reopens the new files under the
-    host-side short-name forms `readme.` and `src/mai`; contents and
-    directories are correct, but long-name fidelity is still a follow-up gap
+  - host-backed VICE persistence for that path now preserves the expected file
+    names on disk as `readme.txt` and `src/main.act`
   - `make vice-action-actcopy` now uses the release image with deterministic
     typed input, launches `ACTCOPY.PRG`, copies `OUT.TXT` to `COPY.TXT`
     through the preserved external-tool file-copy ABI, and proves the shell
