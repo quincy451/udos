@@ -65,6 +65,8 @@ ACTION_ACTWRITE_BUILD := build/action-actwrite
 ACTION_AVMINFO_BUILD := build/action-avminfo
 ACTION_AVMRUN_BUILD := build/action-avmrun
 ACTION_AVMRUN_FLOW_BUILD := build/action-avmrun-flow
+ACTION_ACTADD_FS := build/action-actadd-fs
+ACTION_ACTADD_PERSIST_FS := build/actadd-persist-fs
 ACTION_ACTNEW_PRG_PERSIST_FS := build/actnew-prg-persist-fs
 ACTION_ACTMKDIR_PERSIST_FS := build/action-actmkdir-persist-fs
 ACTION_ACTMOVE_PERSIST_FS := build/action-actmove-persist-fs
@@ -107,7 +109,7 @@ RELEASE_BUILD := build/release
 RELEASE_DISK := build/udos-release.d64
 RELEASE_FS := build/udos-release-fs
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actcopy vice-action-actdir vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-actcopy vice-action-actdir vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -184,6 +186,25 @@ vice-action-workspace: release
 		--contains "ACTIONC64U FOR UDOS" --contains "BIN/ DOC/ LIB/ SRC/" --contains "ACTINFO.PRG" --contains "README.TXT" \
 		--contains "ACTION WORKSPACE OK"
 
+vice-action-actadd: release
+	rm -rf $(ACTION_ACTADD_FS)
+	mkdir -p $(ACTION_ACTADD_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTADD_FS)/
+	rm -rf $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/DEMO $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/demo
+	mkdir -p $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/DEMO/src
+	mkdir -p $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/DEMO/bin
+	mkdir -p $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/DEMO/obj
+	printf 'ACTION PROJECT\n' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/DEMO/ACTION.PROJ
+	rm -f $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/DEMO/src/helper.act
+	rm -f $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/DEMO/src/HELPER.ACT
+	sleep 2
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTADD_FS) \
+		--pre-command "CD DEMO" --pre-prompt "B:DNP/DEMO>" \
+		--command "ACTADD.PRG HELPER" --run-marker "RUN ACTADD.PRG" \
+		--done-fragment "ACTADD OK" --final-prompt "B:DNP/DEMO>" \
+		--post-command "TYPE SRC/HELPER.ACT" --post-done-fragment "ENDPROC" \
+		--contains "PROC HELPER()" --contains "ACTADD OK"
+
 vice-action-actdir: release
 	$(MAKE) BUILD_DIR=$(ACTION_ACTDIR_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actdir.txt resident
 	cp $(ACTION_ACTDIR_BUILD)/udos-resident.d64 $(ACTION_ACTDIR_ARTIFACT)
@@ -228,6 +249,29 @@ vice-action-actnew-prg-persist: release
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/src
 	grep -q "ACTION PROJECT READY" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/readme.txt
 	grep -q "PROC MAIN()" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/src/main.act
+
+vice-action-actadd-persist: release
+	rm -rf $(ACTION_ACTADD_PERSIST_FS)
+	mkdir -p $(ACTION_ACTADD_PERSIST_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTADD_PERSIST_FS)/
+	rm -rf $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/proj3
+	mkdir -p $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src
+	mkdir -p $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/bin
+	mkdir -p $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/obj
+	printf 'ACTION PROJECT\n' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	rm -f $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	rm -f $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/HELPER.ACT
+	sleep 2
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTADD_PERSIST_FS) \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--command "ACTADD.PRG HELPER" --run-marker "RUN ACTADD.PRG" \
+		--done-fragment "ACTADD OK" --final-prompt "B:DNP/PROJ3>" \
+		--contains "ACTADD OK"
+	test -d $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/bin
+	test -d $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/obj
+	test -d $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src
+	grep -q "PROC HELPER()" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	grep -q "ENDPROC" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 
 vice-action-actinfo: release
 	$(MAKE) BUILD_DIR=$(ACTION_ACTINFO_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actinfo.txt resident

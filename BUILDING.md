@@ -139,6 +139,15 @@ Separate VICE smoke targets:
   - validates `ACTDIR.PRG` launches from mounted `ACTION.DNP`
   - enumerates the current directory through the preserved external-tool directory ABI
   - prints the mounted Action workspace root entries and returns to the shell
+- `make vice-action-actadd`
+  - uses the release image plus a preseeded marked project root
+  - validates `ACTADD.PRG` launches from mounted `ACTION.DNP`
+  - writes `SRC/HELPER.ACT` through the preserved external-tool file-save ABI
+  - reads the created source back through the shell and verifies `PROC HELPER()` / `ENDPROC`
+- `make vice-action-actadd-persist`
+  - uses the release image plus a preseeded marked project root
+  - validates `ACTADD.PRG` launches from mounted `ACTION.DNP`
+  - verifies the created `src/helper.act` persists on the host fs tree after VICE exits
 - `make vice-action-actinfo`
   - uses an autoexec-backed Action test image on top of the release workspace
   - validates `ACTINFO.PRG` launches from mounted `ACTION.DNP` and returns to the shell

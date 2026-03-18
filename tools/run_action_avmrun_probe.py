@@ -112,6 +112,7 @@ def main() -> int:
     parser.add_argument("--attempts", type=int, default=4)
     parser.add_argument("--attempt-delay", type=float, default=2.0)
     parser.add_argument("--pre-command", action="append", default=[])
+    parser.add_argument("--pre-prompt", action="append", default=[])
     parser.add_argument("--post-command")
     parser.add_argument("--post-done-fragment")
     parser.add_argument("--contains", action="append", default=[])
@@ -154,10 +155,13 @@ def main() -> int:
             prompt_count = screen.count(args.b_prompt)
             final_prompt = args.final_prompt or args.b_prompt
             time.sleep(args.command_settle)
-            for pre_command in args.pre_command:
+            for index, pre_command in enumerate(args.pre_command):
                 type_command(client, pre_command, 30.0)
-                prompt_count += 1
-                wait_for_prompt_count(client, args.b_prompt, prompt_count, 30.0)
+                if index < len(args.pre_prompt):
+                    wait_for_screen_fragment(client, args.pre_prompt[index], 30.0)
+                else:
+                    prompt_count += 1
+                    wait_for_prompt_count(client, args.b_prompt, prompt_count, 30.0)
                 time.sleep(args.command_settle)
             type_command(client, args.command, 30.0)
             time.sleep(args.command_settle)

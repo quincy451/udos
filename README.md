@@ -85,6 +85,13 @@ Current milestone:
     top of the release workspace, launches `ACTDIR.PRG`,
     enumerates the current directory through the preserved external-tool
     directory ABI, and returns to the UDOS prompt
+  - `make vice-action-actadd` now uses the release image with a preseeded
+    marked project root, launches `ACTADD.PRG`, writes `SRC/HELPER.ACT`
+    through the preserved external-tool file-save ABI, and proves the shell can
+    read the created source back through `TYPE`
+  - `make vice-action-actadd-persist` now uses the release image with a
+    preseeded marked project root and proves the created `src/helper.act`
+    persists on the host fs tree after VICE exits
   - `make vice-action-actinfo` now uses an autoexec-backed Action test image on
     top of the release workspace, launches `ACTINFO.PRG` from the mounted Action workspace
     through the preserved launch-safe external-tool ABI, and returns to the
