@@ -187,20 +187,19 @@ vice-action-workspace: release
 		--contains "ACTION WORKSPACE OK"
 
 vice-action-actadd: release
-	rm -rf $(ACTION_ACTADD_FS)
+	rm -rf $(ACTION_ACTADD_BUILD) $(ACTION_ACTADD_FS)
 	mkdir -p $(ACTION_ACTADD_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTADD_FS)/
-	rm -rf $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/DEMO $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/demo
+	rm -rf $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/proj3
+	mkdir -p $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src \
+		$(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/bin \
+		$(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/obj
+	printf 'ACTION PROJECT READY\n' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
+	printf 'PROJECT\n' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTADD_FS) \
-		--attempts 2 --attempt-delay 1.5 \
-		--pre-prompt "" --pre-prompt "B:DNP/DEMO>" \
-		--pre-command "ACTNEW DEMO" --pre-fragment "ACTNEW OK" \
-		--pre-command "CD DEMO" \
-		--command "ACTADD.PRG HELPER" --run-marker "RUN ACTADD.PRG" \
-		--done-fragment "ACTADD OK" --final-prompt "B:DNP/DEMO>" \
-		--post-command "TYPE SRC/HELPER.ACT" --post-done-fragment "ENDPROC" \
-		--contains "PROC HELPER()" --contains "ACTADD OK" --contains "ACTNEW OK"
+	$(PYTHON) tools/run_action_actadd_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTADD_FS) \
+		--project PROJ3 --module HELPER --expect create --attempts 4 --attempt-delay 2.0
 
 vice-action-actdir: release
 	$(MAKE) BUILD_DIR=$(ACTION_ACTDIR_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actdir.txt resident
@@ -253,22 +252,24 @@ vice-action-actadd-persist: release
 	mkdir -p $(ACTION_ACTADD_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTADD_PERSIST_FS)/
 	rm -rf $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/proj3
+	mkdir -p $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src \
+		$(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/bin \
+		$(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/obj
+	printf 'ACTION PROJECT READY\n' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
+	printf 'PROJECT\n' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
+	printf 'PROC OLDHELPER()\rENDPROC\r' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTADD_PERSIST_FS) \
-		--attempts 2 --attempt-delay 1.5 \
-		--pre-prompt "" --pre-prompt "B:DNP/PROJ3>" \
-		--pre-command "ACTNEW PROJ3" --pre-fragment "ACTNEW OK" \
-		--pre-command "CD PROJ3" \
-		--command "ACTADD.PRG HELPER" --run-marker "RUN ACTADD.PRG" \
-		--done-fragment "ACTADD OK" --final-prompt "B:DNP/PROJ3>" \
-		--contains "ACTADD OK" --contains "ACTNEW OK"
+	$(PYTHON) tools/run_action_actadd_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTADD_PERSIST_FS) \
+		--project PROJ3 --module HELPER --expect exists --attempts 4 --attempt-delay 2.0
 	test -d $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/bin
 	test -d $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/obj
 	test -d $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src
 	test -f $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	grep -q "ACTION PROJECT READY" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
 	grep -q "PROC MAIN()" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
-	grep -q "PROC HELPER()" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	grep -q "PROC OLDHELPER()" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	! grep -q "PROC HELPER()" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 	grep -q "ENDPROC" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 
 vice-action-actinfo: release

@@ -2593,6 +2593,36 @@ fill_vice_dir_cache_current_fail:
     sec
     rts
 
+fill_vice_dir_cache_from_ptr:
+    lda #VICE_LFN_DIR
+    sta vice_lfn
+    lda #$00
+    sta vice_secondary
+    jsr vice_open_read_from_ptr
+    bcs fill_vice_dir_cache_from_ptr_fail
+    lda #<flat_sector_buffer
+    sta PTR
+    lda #>flat_sector_buffer
+    sta PTR+1
+    lda #255
+    jsr vice_read_open_file_into_ptr_len
+    php
+    jsr vice_close_current_file
+    plp
+    bcs fill_vice_dir_cache_from_ptr_fail
+    jsr select_hw_dir_tables
+    lda #$00
+    sta enum_count
+    sta vice_parse_index
+    ldx temp_drive
+    sta hw_dir_count_table,x
+    jsr parse_vice_dir_buffer_entries
+    clc
+    rts
+fill_vice_dir_cache_from_ptr_fail:
+    sec
+    rts
+
 fill_vice_manifest_dir_cache_current:
     jsr save_path_name_shadow
     jsr fill_vice_manifest_dir_cache_host_current
@@ -15202,6 +15232,13 @@ tool_abi_file_load_sc0:
     lda #$00
     sta 7,x
     sta 8,x
+    lda TOOL_ABI_FILE_DEST_LO
+    ora TOOL_ABI_FILE_DEST_HI
+    ora TOOL_ABI_FILE_LIMIT_LO
+    ora TOOL_ABI_FILE_LIMIT_HI
+    bne :+
+    jmp tool_abi_file_probe_current
+:
     jsr tool_abi_build_open_path
     bcc :+
     jmp tool_abi_file_load_fail
@@ -15278,6 +15315,57 @@ tool_abi_file_load_nofile:
     sta 6,x
 tool_abi_file_load_fail:
     rts
+
+tool_abi_file_probe_current:
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta temp_drive
+    lda PROGRAM_DIR_SNAPSHOT
+    sta temp_dir_id
+    lda TOOL_ABI_FILE_NAME_LO
+    sta PTR
+    lda TOOL_ABI_FILE_NAME_HI
+    sta PTR+1
+    jsr tool_abi_copy_name_to_arg_buffer
+    jsr resolve_file_target
+    bne tool_abi_file_load_fail
+    jsr vice_tree_find_current_slot_strict
+    bcc tool_abi_file_probe_exists
+    jsr tool_abi_build_probe_dir_open_path
+    bcs tool_abi_file_load_nofile
+    jsr fill_vice_dir_cache_from_ptr
+    bcs tool_abi_file_probe_nofile
+    jsr find_hw_dir_cache_matching_path_name_strict
+    bcs tool_abi_file_probe_nofile
+    jmp tool_abi_file_probe_exists
+tool_abi_file_probe_exists:
+    ldx TOOL_ABI_OPEN_LFN
+    lda #TOOL_FILE_STATUS_OK
+    sta 6,x
+    rts
+tool_abi_file_probe_nofile:
+    jsr build_vice_open_path_from_name
+    bcs tool_abi_file_load_nofile
+    lda #VICE_LFN_FILE
+    sta vice_lfn
+    lda #VICE_SA_READ
+    sta vice_secondary
+    jsr vice_open_read_from_ptr
+    bcs tool_abi_file_probe_exact_open_fail
+    ldx #$03
+tool_abi_file_probe_exact_read_loop:
+    jsr CHRIN
+    dex
+    bne tool_abi_file_probe_exact_read_loop
+    jsr READST
+    and #$02
+    bne tool_abi_file_probe_exact_nofile
+    jsr tool_abi_close_current_file
+    jmp tool_abi_file_probe_exists
+tool_abi_file_probe_exact_nofile:
+    jsr tool_abi_close_current_file
+    jmp tool_abi_file_load_nofile
+tool_abi_file_probe_exact_open_fail:
+    jmp tool_abi_file_load_nofile
 
 tool_abi_dir_begin_current:
     stx saved_rp_x
@@ -16018,6 +16106,97 @@ tool_abi_build_open_path_done:
     sta TOOL_ABI_OPEN_PATH,x
     inx
     lda #'R'
+    sta TOOL_ABI_OPEN_PATH,x
+    inx
+    lda #$00
+    sta TOOL_ABI_OPEN_PATH,x
+    lda #<TOOL_ABI_OPEN_PATH
+    sta PTR
+    lda #>TOOL_ABI_OPEN_PATH
+    sta PTR+1
+    clc
+    rts
+
+tool_abi_build_probe_dir_open_path:
+    lda TOOL_ABI_FILE_NAME_LO
+    sta SCREEN_PTR
+    lda TOOL_ABI_FILE_NAME_HI
+    sta SCREEN_PTR+1
+    lda #$FF
+    sta saved_response_y
+    ldy #$00
+tool_abi_build_probe_find_parent_loop:
+    lda (SCREEN_PTR),y
+    beq tool_abi_build_probe_have_parent
+    cmp #ASCII_SLASH
+    bne :+
+    tya
+    sta saved_response_y
+:
+    iny
+    cpy #MAX_LINE_LEN
+    bcc tool_abi_build_probe_find_parent_loop
+    sec
+    rts
+tool_abi_build_probe_have_parent:
+    lda #'$'
+    sta TOOL_ABI_OPEN_PATH+0
+    lda #ASCII_COLON
+    sta TOOL_ABI_OPEN_PATH+1
+    ldx #$02
+    ldy #$00
+tool_abi_build_probe_copy_current:
+    lda TOOL_ABI_CURRENT_PATH,y
+    beq tool_abi_build_probe_current_done
+    sta TOOL_ABI_OPEN_PATH,x
+    inx
+    iny
+    cpx #FULL_PATH_BUF_LEN-4
+    bcc tool_abi_build_probe_copy_current
+    sec
+    rts
+tool_abi_build_probe_current_done:
+    lda saved_response_y
+    cmp #$FF
+    beq tool_abi_build_probe_add_wild
+    cpx #$02
+    beq tool_abi_build_probe_copy_parent
+    dex
+    lda TOOL_ABI_OPEN_PATH,x
+    inx
+    cmp #ASCII_SLASH
+    beq tool_abi_build_probe_copy_parent
+    lda #ASCII_SLASH
+    sta TOOL_ABI_OPEN_PATH,x
+    inx
+tool_abi_build_probe_copy_parent:
+    ldy #$00
+tool_abi_build_probe_copy_parent_loop:
+    cpy saved_response_y
+    bcs tool_abi_build_probe_add_wild
+    lda (SCREEN_PTR),y
+    jsr screen_code_to_ascii
+    sta TOOL_ABI_OPEN_PATH,x
+    inx
+    iny
+    cpx #FULL_PATH_BUF_LEN-3
+    bcc tool_abi_build_probe_copy_parent_loop
+    sec
+    rts
+tool_abi_build_probe_add_wild:
+    cpx #$02
+    beq tool_abi_build_probe_store_slash
+    dex
+    lda TOOL_ABI_OPEN_PATH,x
+    inx
+    cmp #ASCII_SLASH
+    beq tool_abi_build_probe_store_wild
+tool_abi_build_probe_store_slash:
+    lda #ASCII_SLASH
+    sta TOOL_ABI_OPEN_PATH,x
+    inx
+tool_abi_build_probe_store_wild:
+    lda #'*'
     sta TOOL_ABI_OPEN_PATH,x
     inx
     lda #$00
