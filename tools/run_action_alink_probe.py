@@ -86,6 +86,8 @@ def verify_host_output(project_root: Path) -> None:
         "EXPORT main",
         "EXPORT helper",
         "CALL main helper",
+        "LIVE main",
+        "LIVE helper",
         "INCLUDE rt.format_int",
         "INCLUDE rt.print_line",
         "INCLUDE rt.print_str",
