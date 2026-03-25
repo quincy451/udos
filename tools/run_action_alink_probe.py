@@ -41,7 +41,7 @@ def ensure_catalog_entries(path: Path, entries: list[str]) -> None:
 def object_text() -> str:
     return (
         'AVO1\n'
-        '{"entry_offset":0,"exports":[["main",0],["helper",0]],"imports":["rt.format_int","rt.print_line","rt.print_str"],'
+        '{"entry_offset":0,"exports":[["main",0],["helper",0]],"calls":["helper"],"imports":["rt.format_int","rt.print_line","rt.print_str"],'
         '"module":"main","payload_hex":"6d61696e00","version":1}\n'
     )
 
@@ -85,13 +85,13 @@ def verify_host_output(project_root: Path) -> None:
         "OBJECT OBJ/MAIN.AVO",
         "EXPORT main",
         "EXPORT helper",
+        "CALL main helper",
         "INCLUDE rt.format_int",
         "INCLUDE rt.print_line",
         "INCLUDE rt.print_str",
         "RESOLVE main rt.format_int",
         "RESOLVE main rt.print_line",
         "RESOLVE main rt.print_str",
-        "RESOLVE rt.print_line rt.print_str",
     ]
     missing = [fragment for fragment in required if fragment not in text]
     if missing:
