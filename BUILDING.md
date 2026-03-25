@@ -149,6 +149,56 @@ Separate VICE smoke targets:
   - seeds a project root marked by `ACTION.PROJ`
   - reruns `ACTADD.PRG HELPER` and verifies duplicate creation is refused with `EXISTS`
   - verifies the created `src/helper.act` persists on the host fs tree after VICE exits
+- `make vice-action-act2save`
+  - uses the release image with deterministic typed input on top of the release workspace
+  - seeds a project root marked by `ACTION.PROJ`
+  - validates `ACT2SAVE.PRG HELPER` launches from mounted `ACTION.DNP`
+  - rewrites `SRC/HELPER.ACT` through the preserved external-tool file-save ABI
+  - verifies the rewritten host file now contains `PROC HELPER()` instead of `PROC OLDHELPER()`
+- `make vice-action-actc`
+  - uses the release image with deterministic typed input on top of the release workspace
+  - seeds a project root marked by `ACTION.PROJ`
+  - validates `ACTC.PRG MAIN` launches from mounted `ACTION.DNP`
+  - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including the current source-inferred runtime-import metadata
+  - verifies the generated host-side object file contents directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough for stable shell-side `TYPE OBJ/...` readback
+- `make vice-action-alink`
+  - uses the release image with deterministic typed input on top of the release workspace
+  - seeds a project root marked by `ACTION.PROJ` plus a deterministic `OBJ/MAIN.AVO`
+  - validates `ALINK.PRG MAIN` launches from mounted `ACTION.DNP`
+  - emits a deterministic `BIN/MAIN.MAP` dependency map as the first UDOS-native linker slice
+  - verifies the generated host-side map file contents directly because the current linker slice is still a map/link-planning emitter, not a full shell-side final-image proof
+- `make vice-action-actchk`
+  - uses the release image with deterministic typed input on top of the release workspace
+  - seeds a healthy project root marked by `ACTION.PROJ`
+  - validates `ACTCHK.PRG` launches from mounted `ACTION.DNP`
+  - verifies expected `SRC/`, `BIN/`, and `OBJ/` directories plus tracked source presence
+  - proves the focused healthy-project integrity path returns `ACTCHK OK`
+- `make vice-action-actsrc`
+  - uses an autoexec-backed Action test image on top of the release workspace
+  - seeds a project root marked by `ACTION.PROJ`
+  - validates `ACTSRC.PRG` launches from mounted `ACTION.DNP`
+  - prints the tracked `ACTION.PROJ` source entries and returns to the shell
+- `make vice-action-actfile`
+  - uses an autoexec-backed Action test image on top of the release workspace
+  - seeds a project root marked by `ACTION.PROJ`
+  - validates `ACTFILE.PRG MAIN` launches from mounted `ACTION.DNP`
+  - prints `SRC/MAIN.ACT` through the preserved file-load ABI and returns to the shell
+- `make vice-action-actwork`
+  - uses an autoexec-backed Action test image on top of the release workspace
+  - seeds a project root marked by `ACTION.PROJ`
+  - validates `ACTWORK.PRG` launches from mounted `ACTION.DNP`
+  - reports project-marker presence, expected directories, and manifest module count
+- `make vice-action-actmon`
+  - uses dedicated typed-input `ACTMON` probes on top of the release workspace
+  - the current composite probe script targets `WORK`, `ADD EXTRA`, `REN HELPER RENAMED`, and `DEL HELPER` on seeded Action project states
+  - the `ACTMON` front end itself now also carries `COPY <OLD> <NEW>` for tracked-module duplication through the preserved file-copy ABI
+  - the intended proof is nested `SRC/<NAME>.ACT` rename/removal, `ACTION.PROJ` update, and shell-side `NO SUCH FILE` readback for `TYPE SRC/HELPER.ACT`
+  - the combined target is green again through the generic mounted-tree runner, with a clean host-tree reseed before each phase attempt so partial mutation attempts do not poison later retries
+- `make vice-action-actmon-check`
+  - uses the focused generic mounted-tree runner on top of the release workspace
+  - seeds a healthy Action project root marked by `ACTION.PROJ`
+  - validates `ACTMON CHECK` launches from mounted `ACTION.DNP`
+  - remains the narrower control proof for the recovered `WORK`/workspace-summary side by requiring `PROJECT YES`, `SRC YES`, `BIN YES`, `OBJ YES`, `MODULES 2`, `MISSING 0`, and `ACTMON OK`
 - `make vice-action-actinfo`
   - uses an autoexec-backed Action test image on top of the release workspace
   - validates `ACTINFO.PRG` launches from mounted `ACTION.DNP` and returns to the shell

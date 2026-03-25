@@ -106,8 +106,44 @@ class UdosBuildTests(unittest.TestCase):
         subprocess.run(["make", "vice-action-actadd-persist"], cwd=ROOT, check=True)
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_act2save_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-act2save"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actc_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-actc"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_alink_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-alink"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actchk_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-actchk"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actmon_check_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-actmon-check"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actmon_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-actmon"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actdir_runs_in_vice(self) -> None:
         subprocess.run(["make", "vice-action-actdir"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actsrc_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-actsrc"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actfile_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-actfile"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actwork_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-actwork"], cwd=ROOT, check=True)
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actflow_runs_in_vice(self) -> None:

@@ -95,6 +95,59 @@ Current milestone:
     root marked by `ACTION.PROJ`, reruns `ACTADD.PRG HELPER` to prove
     duplicate module creation is refused with `EXISTS`, and proves the created
     `src/helper.act` persists on the host fs tree after VICE exits
+  - `make vice-action-act2save` now uses the release image with deterministic
+    typed input on top of the release workspace, seeds a project root marked
+    by `ACTION.PROJ`, launches `ACT2SAVE.PRG HELPER`, rewrites
+    `SRC/HELPER.ACT` through the preserved external-tool file-save ABI, and
+    proves the updated source can be read back through the shell
+  - `make vice-action-actc` now uses the release image with deterministic
+    typed input on top of the release workspace, seeds a project root marked
+    by `ACTION.PROJ`, launches `ACTC.PRG MAIN`, and proves the first
+    UDOS-native compiler front-end slice can emit a deterministic
+    `OBJ/MAIN.AVO` object stub on the host fs tree, including the current
+    source-inferred runtime-import metadata; the focused proof keeps
+    verification host-side because `OBJ/UDOSDIR.TXT` is not yet refreshed
+    reliably enough for a stable shell-side `TYPE OBJ/...` readback
+  - `make vice-action-alink` now uses the release image with deterministic
+    typed input on top of the release workspace, seeds a project root marked
+    by `ACTION.PROJ` plus a deterministic `OBJ/MAIN.AVO`, launches
+    `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
+    deterministic `BIN/MAIN.MAP` dependency map on the host fs tree; the
+    focused proof keeps verification host-side because this slice is still a
+    map/link-planning emitter, not a final shell-side image-link proof
+  - `make vice-action-actchk` now uses the release image with deterministic
+    typed input on top of the release workspace, seeds a healthy project root
+    marked by `ACTION.PROJ`, launches `ACTCHK.PRG`, validates expected
+    project directories plus tracked source presence, and proves the focused
+    healthy-project integrity path returns `ACTCHK OK`
+  - `make vice-action-actsrc` now uses an autoexec-backed Action test image on
+    top of the release workspace, seeds a project root marked by
+    `ACTION.PROJ`, launches `ACTSRC.PRG`, lists the tracked source entries
+    from that project manifest, and returns to the UDOS prompt
+  - `make vice-action-actfile` now uses an autoexec-backed Action test image on
+    top of the release workspace, seeds a project root marked by
+    `ACTION.PROJ`, launches `ACTFILE.PRG MAIN`, loads `SRC/MAIN.ACT` through
+    the preserved external-tool file-load ABI, prints the source text, and
+    returns to the UDOS prompt
+  - `make vice-action-actwork` now uses an autoexec-backed Action test image on
+    top of the release workspace, seeds a project root marked by
+    `ACTION.PROJ`, launches `ACTWORK.PRG`, reports current project/workspace
+    state through the preserved directory and file-load ABI, and returns to
+    the UDOS prompt
+  - the `ACTMON` proof path is now centered on dedicated typed-input probes on
+    top of the release workspace; current direct validations cover `WORK`,
+    `CHECK`, `ADD EXTRA`, `REN HELPER RENAMED`, and `DEL HELPER` on seeded
+    Action project states, and the nested-source delete/rename paths now
+    remove or rename host-backed `SRC/<NAME>.ACT` files while updating
+    `ACTION.PROJ`;
+    the front-end command surface now also includes `COPY <OLD> <NEW>` for
+    tracked-module duplication through the preserved file-copy ABI
+  - the current `ACTMON` probe script targets that combined `WORK` /
+    `ADD EXTRA` / `REN HELPER RENAMED` / `DEL HELPER` flow and is green again
+    through the generic mounted-tree runner, with a clean host-tree reseed
+    before each phase attempt so partial mutation attempts do not poison
+    later retries; `make vice-action-actmon-check` remains the narrower
+    workspace-summary/integrity control proof
   - `make vice-action-actinfo` now uses an autoexec-backed Action test image on
     top of the release workspace, launches `ACTINFO.PRG` from the mounted Action workspace
     through the preserved launch-safe external-tool ABI, and returns to the

@@ -127,6 +127,71 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     project root marked by `ACTION.PROJ`, reruns `ACTADD.PRG HELPER` to prove
     duplicate module creation is refused with `EXISTS`, and proves the
     created `src/helper.act` persists on the host fs tree after VICE exits
+  - `make vice-action-act2save` now uses the release image with deterministic
+    typed input on top of the release workspace, seeds a project root marked
+    by `ACTION.PROJ`, launches `ACT2SAVE.PRG HELPER`, rewrites
+    `SRC/HELPER.ACT` through the preserved external-tool file-save ABI, and
+    proves the updated source persists on the host fs tree after VICE exits
+  - `make vice-action-actc` now uses the release image with deterministic
+    typed input on top of the release workspace, seeds a project root marked
+    by `ACTION.PROJ`, launches `ACTC.PRG MAIN`, and proves the first
+    UDOS-native compiler front-end slice can emit a deterministic
+    `OBJ/MAIN.AVO` object stub on the host fs tree, including the current
+    source-inferred runtime-import metadata; the current focused proof
+    verifies the host-side object directly because `OBJ/UDOSDIR.TXT` is not
+    yet refreshed reliably enough for a stable shell-side `TYPE OBJ/...`
+    readback
+  - `make vice-action-alink` now uses the release image with deterministic
+    typed input on top of the release workspace, seeds a project root marked
+    by `ACTION.PROJ` plus a deterministic `OBJ/MAIN.AVO`, launches
+    `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
+    deterministic `BIN/MAIN.MAP` dependency map on the host fs tree; the
+    current focused proof verifies the host-side map directly because this
+    slice is still a map/link-planning emitter, not a final shell-side image
+    linker
+  - `make vice-action-actchk` now uses the release image with deterministic
+    typed input on top of the release workspace, seeds a healthy project root
+    marked by `ACTION.PROJ`, launches `ACTCHK.PRG`, validates expected
+    project directories plus tracked source presence, and proves the focused
+    healthy-project integrity path returns `ACTCHK OK`
+  - `make vice-action-actsrc` now uses an autoexec-backed Action test image on
+    top of the release workspace, seeds a project root marked by
+    `ACTION.PROJ`, launches `ACTSRC.PRG`, lists the tracked source entries
+    from that project manifest, and returns to the UDOS prompt
+  - `make vice-action-actfile` now uses an autoexec-backed Action test image on
+    top of the release workspace, seeds a project root marked by
+    `ACTION.PROJ`, launches `ACTFILE.PRG MAIN`, loads `SRC/MAIN.ACT` through
+    the preserved external-tool file-load ABI, prints the source text, and
+    returns to the UDOS prompt
+  - `make vice-action-actwork` now uses an autoexec-backed Action test image on
+    top of the release workspace, seeds a project root marked by
+    `ACTION.PROJ`, launches `ACTWORK.PRG`, reports current
+    project/workspace state through the preserved directory and file-load ABI,
+    and returns to the UDOS prompt
+  - the `ACTMON` proof path now uses dedicated typed-input probes on top of
+    the release workspace; current direct validations cover `WORK`, `ADD
+    EXTRA`, `REN HELPER RENAMED`, and `DEL HELPER` on seeded Action project
+    states, and the nested source-delete/source-rename paths now mutate
+    host-backed `SRC/<NAME>.ACT` files while updating `ACTION.PROJ`; the
+    front-end command surface now also includes tracked-module
+    `COPY <OLD> <NEW>` through the preserved file-copy ABI
+  - shared `ACTION.PROJ` helper includes now back `ACTADD`, `ACT2SAVE`,
+    `ACTFILE`, `ACTSRC`, `ACTWORK`, and `ACTMON`, replacing the previous
+    per-tool manifest/path routine copies
+  - the current `ACTMON` probe script now targets the combined `WORK` /
+    `ADD EXTRA` / `REN HELPER RENAMED` / `DEL HELPER` proof and is intended
+    to confirm `NO SUCH FILE` for `TYPE SRC/HELPER.ACT` after the rename and
+    delete paths return; the earlier `WORK`/`CHECK` launch failure was a real
+    launch-window overlap caused by `ACTMON.PRG` growing past the current
+    `$0900-$180F` safe region and clobbering resident code at `$1810+`, and
+    the monitor was reduced back under that limit so focused headless
+    `ACTMON WORK` and `ACTMON CHECK` runs are now green again
+  - `make vice-action-actmon-check` now keeps the recovered workspace-summary
+    and integrity proof in the Make surface through the focused generic
+    mounted-tree runner, and `make vice-action-actmon` is green again as the
+    broader mutation proof after moving the composite runner onto the generic
+    mounted-tree probe path with a clean host-tree reseed before each phase
+    attempt
   - `make vice-action-actinfo` now uses an autoexec-backed Action test image on
     top of the release workspace, launches `ACTINFO.PRG` from the mounted Action workspace
     through the preserved launch-safe external-tool ABI, and returns to the
@@ -190,6 +255,12 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     Action workspace and proves the current constrained subset can execute
     `jump`, `call`, and `ret` by printing `UDOS AVM FLOW OK` and returning to
     the UDOS prompt
+- the tool-side VICE tree file-mutation ABI now resolves nested tree paths for
+  host-backed Action project files:
+  - direct `ACTDEL SRC/...` validation now removes host-backed source files
+  - direct `ACTCOPY SRC/... SRC/...` validation now creates nested copies on the host tree
+  - direct `ACTMOVE SRC/... SRC/...` validation now renames nested source files on the host tree
+  - direct `ACTMON.PRG DEL <NAME>` validation now removes `SRC/<NAME>.ACT` and updates `ACTION.PROJ`
 - added a first REU-backed resident shrink path:
   - VICE tree content payloads now spill into REU
   - the resident image now keeps one shared `PROGRAM_IMAGE_MAX` slot cache in RAM instead of two full in-RAM payload banks

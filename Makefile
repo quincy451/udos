@@ -58,6 +58,12 @@ SELFTEST_LAUNCH_EXPECTED := $(SELFTEST_ROOT)/expected_launch.txt
 ACTIONTEST_ROOT := tests/action
 ACTION_WORKSPACE_BUILD := build/action-workspace
 ACTION_ACTDIR_BUILD := build/action-actdir
+ACTION_ACTADD_BUILD := build/action-actadd
+ACTION_ACTC_BUILD := build/action-actc
+ACTION_ALINK_BUILD := build/action-alink
+ACTION_ACTFILE_BUILD := build/action-actfile
+ACTION_ACTSRC_BUILD := build/action-actsrc
+ACTION_ACTWORK_BUILD := build/action-actwork
 ACTION_ACTNEW_BUILD := build/action-actnew
 ACTION_ACTNEW_PRG_PERSIST_BUILD := build/actnew-prg-persist
 ACTION_ACTINFO_BUILD := build/action-actinfo
@@ -65,7 +71,15 @@ ACTION_ACTWRITE_BUILD := build/action-actwrite
 ACTION_AVMINFO_BUILD := build/action-avminfo
 ACTION_AVMRUN_BUILD := build/action-avmrun
 ACTION_AVMRUN_FLOW_BUILD := build/action-avmrun-flow
+ACTION_ACTSRC_FS := build/action-actsrc-fs
+ACTION_ACTFILE_FS := build/action-actfile-fs
 ACTION_ACTADD_FS := build/action-actadd-fs
+ACTION_ACT2SAVE_FS := build/action-act2save-fs
+ACTION_ACTC_FS := build/action-actc-fs
+ACTION_ALINK_FS := build/action-alink-fs
+ACTION_ACTCHK_FS := build/action-actchk-fs
+ACTION_ACTMON_FS := build/action-actmon-fs
+ACTION_ACTWORK_FS := build/action-actwork-fs
 ACTION_ACTADD_PERSIST_FS := build/actadd-persist-fs
 ACTION_ACTNEW_PRG_PERSIST_FS := build/actnew-prg-persist-fs
 ACTION_ACTMKDIR_PERSIST_FS := build/action-actmkdir-persist-fs
@@ -73,6 +87,12 @@ ACTION_ACTMOVE_PERSIST_FS := build/action-actmove-persist-fs
 ACTION_ACTRMDIR_PERSIST_FS := build/action-actrmdir-persist-fs
 ACTION_WORKSPACE_ARTIFACT := build/udos-action-workspace.d64
 ACTION_ACTDIR_ARTIFACT := build/udos-action-actdir.d64
+ACTION_ACTADD_ARTIFACT := build/udos-action-actadd.d64
+ACTION_ACTC_ARTIFACT := build/udos-action-actc.d64
+ACTION_ALINK_ARTIFACT := build/udos-action-alink.d64
+ACTION_ACTFILE_ARTIFACT := build/udos-action-actfile.d64
+ACTION_ACTSRC_ARTIFACT := build/udos-action-actsrc.d64
+ACTION_ACTWORK_ARTIFACT := build/udos-action-actwork.d64
 ACTION_ACTNEW_ARTIFACT := build/udos-action-actnew.d64
 ACTION_ACTINFO_ARTIFACT := build/udos-action-actinfo.d64
 ACTION_ACTWRITE_ARTIFACT := build/udos-action-actwrite.d64
@@ -109,7 +129,7 @@ RELEASE_BUILD := build/release
 RELEASE_DISK := build/udos-release.d64
 RELEASE_FS := build/udos-release-fs
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-actcopy vice-action-actdir vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -195,11 +215,16 @@ vice-action-actadd: release
 		$(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/bin \
 		$(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/obj
 	printf 'ACTION PROJECT READY\n' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
-	printf 'PROJECT\n' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	printf 'ACTION PROJECT\rMAIN.ACT\r' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
+	$(MAKE) BUILD_DIR=$(ACTION_ACTADD_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actadd.txt resident
+	cp $(ACTION_ACTADD_BUILD)/udos-resident.d64 $(ACTION_ACTADD_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/run_action_actadd_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTADD_FS) \
-		--project PROJ3 --module HELPER --expect create --attempts 4 --attempt-delay 2.0
+	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTADD_ARTIFACT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(ACTION_ACTADD_FS) \
+		--vice-arg=-fslongnames --expected "ACTADD DONE" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+		--contains "RUN ACTADD.PRG" --contains "ACTADD OK" --contains "PROC HELPER()" --contains "ENDPROC" \
+		--contains "MAIN.ACT" --contains "HELPER.ACT" --contains "B:DNP/PROJ3>"
 
 vice-action-actdir: release
 	$(MAKE) BUILD_DIR=$(ACTION_ACTDIR_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actdir.txt resident
@@ -209,6 +234,71 @@ vice-action-actdir: release
 		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
 		--vice-arg=-fslongnames --expected "B:DNP/>" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
 		--contains "RUN ACTDIR.PRG" --contains "BIN/" --contains "DOC/" --contains "LIB/" --contains "SRC/"
+
+vice-action-actsrc: release
+	rm -rf $(ACTION_ACTSRC_FS)
+	mkdir -p $(ACTION_ACTSRC_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTSRC_FS)/
+	rm -rf $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/proj3
+	mkdir -p $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/src \
+		$(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/bin \
+		$(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/obj
+	printf 'ACTION PROJECT READY\n' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
+	printf 'ACTION PROJECT\rMAIN.ACT\rHELPER.ACT\r' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
+	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	$(MAKE) BUILD_DIR=$(ACTION_ACTSRC_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actsrc.txt resident
+	cp $(ACTION_ACTSRC_BUILD)/udos-resident.d64 $(ACTION_ACTSRC_ARTIFACT)
+	sleep 2
+	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTSRC_ARTIFACT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(ACTION_ACTSRC_FS) \
+		--vice-arg=-fslongnames --expected "ACTSRC OK" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+		--contains "RUN ACTSRC.PRG" --contains "MAIN.ACT" --contains "HELPER.ACT" --contains "B:DNP/PROJ3>"
+
+vice-action-actfile: release
+	rm -rf $(ACTION_ACTFILE_FS)
+	mkdir -p $(ACTION_ACTFILE_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTFILE_FS)/
+	rm -rf $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/proj3
+	mkdir -p $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/src \
+		$(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/bin \
+		$(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/obj
+	printf 'ACTION PROJECT READY\n' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
+	printf 'ACTION PROJECT\rMAIN.ACT\rHELPER.ACT\r' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
+	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	$(MAKE) BUILD_DIR=$(ACTION_ACTFILE_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actfile.txt resident
+	cp $(ACTION_ACTFILE_BUILD)/udos-resident.d64 $(ACTION_ACTFILE_ARTIFACT)
+	sleep 2
+	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTFILE_ARTIFACT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(ACTION_ACTFILE_FS) \
+		--vice-arg=-fslongnames --expected "ACTFILE OK" --settle 8.0 --timeout 120 --attempts 4 --attempt-delay 2.0 \
+		--contains "RUN ACTFILE.PRG" --contains "PROC MAIN()" --contains "ENDPROC" --contains "B:DNP/PROJ3>"
+
+vice-action-actwork: release
+	rm -rf $(ACTION_ACTWORK_FS)
+	mkdir -p $(ACTION_ACTWORK_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTWORK_FS)/
+	rm -rf $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/proj3
+	mkdir -p $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/src \
+		$(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/bin \
+		$(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/obj
+	printf 'ACTION PROJECT READY\n' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
+	printf 'ACTION PROJECT\rMAIN.ACT\rHELPER.ACT\r' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	printf 'D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/UDOSDIR.TXT
+	printf 'F MAIN.ACT\nF HELPER.ACT\n' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/src/UDOSDIR.TXT
+	printf '' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/bin/UDOSDIR.TXT
+	printf '' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/obj/UDOSDIR.TXT
+	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
+	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	$(MAKE) BUILD_DIR=$(ACTION_ACTWORK_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actwork.txt resident
+	cp $(ACTION_ACTWORK_BUILD)/udos-resident.d64 $(ACTION_ACTWORK_ARTIFACT)
+	sleep 2
+	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTWORK_ARTIFACT) \
+		--vice-arg=-iecdevice9 --vice-arg=-device9 --vice-arg=1 --vice-arg=-fs9 --vice-arg=$(ACTION_ACTWORK_FS) \
+		--vice-arg=-fslongnames --expected "ACTWORK OK" --settle 8.0 --timeout 120 --attempts 4 --attempt-delay 2.0 \
+		--contains "RUN ACTWORK.PRG" --contains "PROJECT YES" --contains "SRC YES" --contains "BIN YES" \
+		--contains "OBJ YES" --contains "MODULES 2" --contains "B:DNP/PROJ3>"
 
 vice-action-actnew: release
 	sleep 2
@@ -244,6 +334,7 @@ vice-action-actnew-prg-persist: release
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/obj
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/src
 	test -f $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/ACTION.PROJ
+	grep -q "MAIN.ACT" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/ACTION.PROJ
 	grep -q "ACTION PROJECT READY" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/readme.txt
 	grep -q "PROC MAIN()" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/src/main.act
 
@@ -256,7 +347,7 @@ vice-action-actadd-persist: release
 		$(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/bin \
 		$(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/obj
 	printf 'ACTION PROJECT READY\n' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
-	printf 'PROJECT\n' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	printf 'ACTION PROJECT\rMAIN.ACT\r' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	printf 'PROC OLDHELPER()\rENDPROC\r' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 	sleep 2
@@ -266,11 +357,98 @@ vice-action-actadd-persist: release
 	test -d $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/obj
 	test -d $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src
 	test -f $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	grep -q "MAIN.ACT" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	! grep -q "HELPER.ACT" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	grep -q "ACTION PROJECT READY" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
 	grep -q "PROC MAIN()" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	grep -q "PROC OLDHELPER()" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 	! grep -q "PROC HELPER()" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 	grep -q "ENDPROC" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+
+vice-action-act2save: release
+	rm -rf $(ACTION_ACT2SAVE_FS)
+	mkdir -p $(ACTION_ACT2SAVE_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACT2SAVE_FS)/
+	rm -rf $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/proj3
+	mkdir -p $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/src \
+		$(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/bin \
+		$(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/obj
+	printf 'ACTION PROJECT READY\n' > $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
+	printf 'ACTION PROJECT\rMAIN.ACT\rHELPER.ACT\r' > $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
+	printf 'PROC OLDHELPER()\rENDPROC\r' > $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	sleep 2
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACT2SAVE_FS) \
+		--command "ACT2SAVE HELPER" --run-marker "RUN ACT2SAVE.PRG" --done-fragment "ACT2SAVE OK" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
+		--attempts 4 --attempt-delay 2.0 \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--post-command "TYPE SRC/HELPER.ACT" --post-done-fragment "ENDPROC" \
+		--contains "RUN ACT2SAVE.PRG" --contains "UPDATED" --contains "ACT2SAVE OK" \
+		--contains "PROC HELPER()" --contains "B:DNP/PROJ3>"
+	grep -q "PROC HELPER()" $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	! grep -q "PROC OLDHELPER()" $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	grep -q "ENDPROC" $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	grep -q "HELPER.ACT" $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+
+vice-action-actc: release
+	rm -rf $(ACTION_ACTC_FS)
+	mkdir -p $(ACTION_ACTC_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_FS)/
+	sleep 2
+	$(PYTHON) tools/run_action_actc_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_FS) \
+		--attempts 6 --attempt-delay 4.0
+
+vice-action-alink: release
+	rm -rf $(ACTION_ALINK_FS)
+	mkdir -p $(ACTION_ALINK_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_FS)/
+	sleep 2
+	$(PYTHON) tools/run_action_alink_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_FS) \
+		--attempts 6 --attempt-delay 4.0
+
+vice-action-actchk: release
+	rm -rf $(ACTION_ACTCHK_FS)
+	mkdir -p $(ACTION_ACTCHK_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTCHK_FS)/
+	rm -rf $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/proj3
+	mkdir -p $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/src \
+		$(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/bin \
+		$(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/obj
+	printf 'ACTION PROJECT READY\n' > $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
+	printf 'ACTION PROJECT\rMAIN.ACT\rHELPER.ACT\r' > $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	printf 'D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF ACTCHK.PRG\nF README.TXT\n' > $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/UDOSDIR.TXT
+	printf 'F MAIN.ACT\nF HELPER.ACT\n' > $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/src/UDOSDIR.TXT
+	printf '' > $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/bin/UDOSDIR.TXT
+	printf '' > $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/obj/UDOSDIR.TXT
+	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
+	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	cp $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/ACTCHK.PRG $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/ACTCHK.PRG
+	sleep 2
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTCHK_FS) \
+		--command "ACTCHK" --run-marker "RUN ACTCHK.PRG" --done-fragment "ACTCHK OK" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
+		--attempts 8 --attempt-delay 4.0 \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--contains "RUN ACTCHK.PRG" --contains "PROJECT YES" --contains "SRC YES" \
+		--contains "BIN YES" --contains "OBJ YES" --contains "MODULES 2" \
+		--contains "MISSING 0" --contains "ACTCHK OK"
+
+vice-action-actmon-check: release
+	rm -rf $(ACTION_ACTMON_FS)
+	mkdir -p $(ACTION_ACTMON_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTMON_FS)/
+	sleep 2
+	$(PYTHON) tools/run_action_actmon_check_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMON_FS) \
+		--attempts 6 --attempt-delay 2.0
+
+vice-action-actmon: release
+	rm -rf $(ACTION_ACTMON_FS)
+	mkdir -p $(ACTION_ACTMON_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTMON_FS)/
+	sleep 2
+	$(PYTHON) tools/run_action_actmon_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMON_FS) \
+		--attempts 4 --attempt-delay 2.0
 
 vice-action-actinfo: release
 	$(MAKE) BUILD_DIR=$(ACTION_ACTINFO_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actinfo.txt resident
