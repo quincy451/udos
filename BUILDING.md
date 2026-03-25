@@ -159,13 +159,13 @@ Separate VICE smoke targets:
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a project root marked by `ACTION.PROJ`
   - validates `ACTC.PRG MAIN` launches from mounted `ACTION.DNP`
-  - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including the current source-inferred runtime-import metadata
+  - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` exports plus the current source-inferred runtime-import metadata
   - verifies the generated host-side object file contents directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough for stable shell-side `TYPE OBJ/...` readback
 - `make vice-action-alink`
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a project root marked by `ACTION.PROJ` plus a deterministic `OBJ/MAIN.AVO`
   - validates `ALINK.PRG MAIN` launches from mounted `ACTION.DNP`
-  - emits a deterministic `BIN/MAIN.MAP` dependency map as the first UDOS-native linker slice
+  - emits a deterministic `BIN/MAIN.MAP` dependency map as the first UDOS-native linker slice, including export and resolve lines from the current object/import metadata
   - verifies the generated host-side map file contents directly because the current linker slice is still a map/link-planning emitter, not a full shell-side final-image proof
 - `make vice-action-actchk`
   - uses the release image with deterministic typed input on top of the release workspace

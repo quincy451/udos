@@ -41,7 +41,7 @@ def ensure_catalog_entries(path: Path, entries: list[str]) -> None:
 def object_text() -> str:
     return (
         'AVO1\n'
-        '{"entry_offset":0,"exports":[["main",0]],"imports":["rt.format_int","rt.print_line","rt.print_str"],'
+        '{"entry_offset":0,"exports":[["main",0],["helper",0]],"imports":["rt.format_int","rt.print_line","rt.print_str"],'
         '"module":"main","payload_hex":"6d61696e00","version":1}\n'
     )
 
@@ -83,7 +83,8 @@ def verify_host_output(project_root: Path) -> None:
         "ALINK1",
         "MODULE main",
         "OBJECT OBJ/MAIN.AVO",
-        "INCLUDE main",
+        "EXPORT main",
+        "EXPORT helper",
         "INCLUDE rt.format_int",
         "INCLUDE rt.print_line",
         "INCLUDE rt.print_str",
@@ -138,7 +139,7 @@ def main() -> int:
         "--feed-step",
         "ALINK MAIN\\r",
         "--feed-step-mode",
-        "feed",
+        "type",
         "--feed-step-settle",
         "2.0",
         "--expected",

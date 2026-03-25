@@ -136,19 +136,19 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     typed input on top of the release workspace, seeds a project root marked
     by `ACTION.PROJ`, launches `ACTC.PRG MAIN`, and proves the first
     UDOS-native compiler front-end slice can emit a deterministic
-    `OBJ/MAIN.AVO` object stub on the host fs tree, including the current
-    source-inferred runtime-import metadata; the current focused proof
-    verifies the host-side object directly because `OBJ/UDOSDIR.TXT` is not
-    yet refreshed reliably enough for a stable shell-side `TYPE OBJ/...`
-    readback
+    `OBJ/MAIN.AVO` object stub on the host fs tree, including extracted
+    top-level `PROC` exports plus the current source-inferred runtime-import
+    metadata; the current focused proof verifies the host-side object
+    directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough
+    for a stable shell-side `TYPE OBJ/...` readback
   - `make vice-action-alink` now uses the release image with deterministic
     typed input on top of the release workspace, seeds a project root marked
     by `ACTION.PROJ` plus a deterministic `OBJ/MAIN.AVO`, launches
     `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
-    deterministic `BIN/MAIN.MAP` dependency map on the host fs tree; the
-    current focused proof verifies the host-side map directly because this
-    slice is still a map/link-planning emitter, not a final shell-side image
-    linker
+    deterministic `BIN/MAIN.MAP` dependency map on the host fs tree with
+    export and resolve lines; the current focused proof verifies the
+    host-side map directly because this slice is still a map/link-planning
+    emitter, not a final shell-side image linker
   - `make vice-action-actchk` now uses the release image with deterministic
     typed input on top of the release workspace, seeds a healthy project root
     marked by `ACTION.PROJ`, launches `ACTCHK.PRG`, validates expected

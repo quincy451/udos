@@ -39,7 +39,16 @@ def ensure_catalog_entries(path: Path, entries: list[str]) -> None:
 
 
 def source_text() -> str:
-    return 'MODULE MAIN\rPROC MAIN()\rPrint("HELLO")\rPrintIE(42)\rRETURN\r'
+    return (
+        'MODULE MAIN\r'
+        'PROC MAIN()\r'
+        'Print("HELLO")\r'
+        'HELPER()\r'
+        'PrintIE(42)\r'
+        'RETURN\r'
+        'PROC HELPER()\r'
+        'RETURN\r'
+    )
 
 
 def prepare_workspace(fs_root: Path, project_name: str) -> Path:
@@ -77,7 +86,7 @@ def verify_host_output(project_root: Path) -> None:
     required = [
         "AVO1",
         '"module":"main"',
-        '"exports":[["main",0]]',
+        '"exports":[["main",0],["helper",0]]',
         '"imports":["rt.format_int","rt.print_line","rt.print_str"]',
         '"payload_hex":"6d61696e00"',
         '"version":1}',
