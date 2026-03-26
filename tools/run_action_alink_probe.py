@@ -43,8 +43,8 @@ def ensure_catalog_entries(path: Path, entries: list[str]) -> None:
 def object_text() -> str:
     return (
         'AVO1\n'
-        '{"entry_offset":0,"exports":[["main",0],["helper",0]],"calls":[["main","helper"]],"imports":["rt.format_int","rt.print_line","rt.print_str"],'
-        '"module":"main","payload_hex":"6d61696e00","version":1}\n'
+        '{"entry_offset":0,"exports":[["helper",4],["main",0]],"calls":[["main","helper"]],"imports":["rt.format_int","rt.print_line","rt.print_str"],'
+        '"module":"main","payload_hex":"4504004848","version":1}\n'
     )
 
 
