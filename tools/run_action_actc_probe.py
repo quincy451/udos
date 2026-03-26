@@ -88,10 +88,10 @@ def verify_host_output(project_root: Path) -> None:
     required = [
         "AVO1",
         '"module":"main"',
-        '"exports":[["main",0],["helper",0]]',
+        '"exports":[["main",0],["helper",4]]',
         '"calls":[["main","helper"]]',
         '"imports":["rt.format_int","rt.print_line","rt.print_str"]',
-        '"payload_hex":"6d61696e00"',
+        '"payload_hex":"4504004848"',
         '"version":1}',
     ]
     missing = [fragment for fragment in required if fragment not in text]
