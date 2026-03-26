@@ -84,8 +84,8 @@ def verify_host_output(project_root: Path) -> None:
     required = [
         "ALINK1",
         "MODULE main",
-        "EXPORT main",
-        "EXPORT helper",
+        "EXPORT main 0",
+        "EXPORT helper 4",
         "CALL main helper",
         "LIVE main",
         "LIVE helper",
