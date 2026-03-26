@@ -665,16 +665,37 @@ def run_probe(args: argparse.Namespace) -> str:
                     extra_checks=[],
                     timeout=args.timeout,
                 )
+                if args.feed_after_settle > 0.0:
+                    time.sleep(args.feed_after_settle)
         if args.feed_text is not None:
             client.keyboard_type(args.feed_text)
         if args.feed_step:
-            for chunk in args.feed_step:
-                if args.feed_step_mode == "type":
+            step_after = list(args.feed_step_after)
+            step_modes = list(args.feed_step_mode_seq)
+            while len(step_after) < len(args.feed_step):
+                step_after.append("")
+            while len(step_modes) < len(args.feed_step):
+                step_modes.append(args.feed_step_mode)
+            for index, chunk in enumerate(args.feed_step):
+                if step_modes[index] == "type":
                     client.keyboard_type(chunk)
                 else:
                     client.keyboard_feed(chunk)
                 if args.feed_step_settle > 0.0:
                     time.sleep(args.feed_step_settle)
+                fragment = step_after[index]
+                if fragment:
+                    wait_for_screen_and_state(
+                        client,
+                        process,
+                        fragment,
+                        marker_addr=None,
+                        marker_value=None,
+                        extra_checks=[],
+                        timeout=args.timeout,
+                    )
+                    if args.feed_step_after_settle > 0.0:
+                        time.sleep(args.feed_step_after_settle)
         screen = wait_for_screen_and_state(
             client,
             process,
@@ -716,7 +737,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--feed-after", help="optional screen fragment to wait for before binary-monitor keyboard feed")
     parser.add_argument("--feed-text", help="optional text to feed through the VICE binary monitor after startup")
     parser.add_argument("--feed-step", action="append", default=[], help="stepwise text chunk to feed through the VICE binary monitor")
+    parser.add_argument("--feed-step-after", action="append", default=[], help="optional screen fragment to wait for after the corresponding --feed-step")
+    parser.add_argument("--feed-step-after-settle", type=float, default=0.0, help="seconds to wait after a --feed-step-after match before sending the next step")
     parser.add_argument("--feed-step-mode", choices=["feed", "type"], default="feed", help="transport to use for each --feed-step chunk")
+    parser.add_argument("--feed-step-mode-seq", action="append", choices=["feed", "type"], default=[], help="optional transport override for the corresponding --feed-step")
+    parser.add_argument("--feed-after-settle", type=float, default=0.0, help="seconds to wait after --feed-after matches before sending feed text")
     parser.add_argument("--feed-step-settle", type=float, default=1.0, help="seconds to wait after each --feed-step chunk")
     parser.add_argument("--connect-delay", type=float, help="optional seconds to wait before attaching the binary monitor")
     parser.add_argument("--labels", help="optional ld65 labels file for scripted resident input injection")

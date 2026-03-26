@@ -3,14 +3,16 @@ from __future__ import annotations
 
 import argparse
 import shutil
-import subprocess
 import sys
 import time
 from pathlib import Path
 
+import vice_prg_probe as vp
+
 
 ROOT = Path(__file__).resolve().parent
 ACTION_ALINK_BUILD = ROOT.parent.parent / "actionc64u" / "build" / "udos_tools" / "ALINK.PRG"
+CONNECT_DELAYS = (32.0, 36.0, 40.0, 28.0, 24.0, 44.0)
 
 
 def write_ascii(path: Path, text: str) -> None:
@@ -41,7 +43,7 @@ def ensure_catalog_entries(path: Path, entries: list[str]) -> None:
 def object_text() -> str:
     return (
         'AVO1\n'
-        '{"entry_offset":0,"exports":[["main",0],["helper",0]],"calls":["helper"],"imports":["rt.format_int","rt.print_line","rt.print_str"],'
+        '{"entry_offset":0,"exports":[["main",0],["helper",0]],"calls":[["main","helper"]],"imports":["rt.format_int","rt.print_line","rt.print_str"],'
         '"module":"main","payload_hex":"6d61696e00","version":1}\n'
     )
 
@@ -100,6 +102,97 @@ def verify_host_output(project_root: Path) -> None:
         raise RuntimeError(f"expected host map {output_path} to contain {missing!r}")
 
 
+def run_once(image: Path, work_root: Path, project_name: str, connect_delay: float) -> None:
+    port = vp.reserve_tcp_port()
+    process = vp.launch_vice(
+        image,
+        port,
+        extra_args=[
+            "-iecdevice9",
+            "-device9",
+            "1",
+            "-fs9",
+            str(work_root),
+            "-fslongnames",
+        ],
+    )
+    client = vp.BinaryMonitorClient("127.0.0.1", port, timeout=5.0)
+    try:
+        if connect_delay > 0.0:
+            time.sleep(connect_delay)
+        client.connect(time.monotonic() + 20.0)
+        client.ping()
+        client.resume()
+
+        vp.wait_for_screen_and_state(
+            client,
+            process,
+            "A:D64/>",
+            marker_addr=None,
+            marker_value=None,
+            extra_checks=[],
+            timeout=90.0,
+        )
+        time.sleep(2.0)
+
+        client.keyboard_type("MOUNT B: /IMAGES/ACTION.DNP\r")
+        vp.wait_for_screen_and_state(
+            client,
+            process,
+            "A:D64/>",
+            marker_addr=None,
+            marker_value=None,
+            extra_checks=[],
+            timeout=90.0,
+        )
+        time.sleep(1.0)
+
+        client.keyboard_type("B:\r")
+        vp.wait_for_screen_and_state(
+            client,
+            process,
+            "B:DNP/>",
+            marker_addr=None,
+            marker_value=None,
+            extra_checks=[],
+            timeout=90.0,
+        )
+        time.sleep(1.0)
+
+        client.keyboard_type(f"CD {project_name}\r")
+        vp.wait_for_screen_and_state(
+            client,
+            process,
+            f"B:DNP/{project_name}>",
+            marker_addr=None,
+            marker_value=None,
+            extra_checks=[],
+            timeout=90.0,
+        )
+        time.sleep(1.0)
+
+        client.keyboard_type("ALINK MAIN\r")
+        screen = vp.wait_for_screen_and_state(
+            client,
+            process,
+            "ALINK OK",
+            marker_addr=None,
+            marker_value=None,
+            extra_checks=[],
+            timeout=90.0,
+        )
+
+        for fragment in ("RUN ALINK.PRG", "ARGS MAIN", "ALINK OK", f"B:DNP/{project_name}>"):
+            if fragment not in screen:
+                raise vp.ViceError(f"expected screen fragment {fragment!r} was not present in final screen:\n{screen}")
+    finally:
+        try:
+            client.quit_emulator()
+        finally:
+            client.close()
+        vp.terminate_process_tree(process)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run a focused ALINK proof through the generic Action VICE runner")
     parser.add_argument("--disk", required=True)
@@ -114,62 +207,23 @@ def main() -> int:
     project_name = args.project.upper()
 
     work_root = fs_root.parent / f"{fs_root.name}-alink"
-    shutil.rmtree(work_root, ignore_errors=True)
-    shutil.copytree(fs_root, work_root)
-    project_root = prepare_workspace(work_root, project_name)
-
-    probe = Path(__file__).with_name("vice_prg_probe.py")
-    command = [
-        sys.executable,
-        str(probe),
-        "--disk",
-        str(image),
-        "--vice-arg=-iecdevice9",
-        "--vice-arg=-device9",
-        "--vice-arg=1",
-        "--vice-arg=-fs9",
-        f"--vice-arg={work_root}",
-        "--vice-arg=-fslongnames",
-        "--feed-after",
-        "A:D64/>",
-        "--feed-step",
-        "MOUNT B: /IMAGES/ACTION.DNP\\r",
-        "--feed-step",
-        "B:\\r",
-        "--feed-step",
-        f"CD {project_name}\\r",
-        "--feed-step",
-        "ALINK MAIN\\r",
-        "--feed-step-mode",
-        "type",
-        "--feed-step-settle",
-        "2.0",
-        "--expected",
-        "ALINK OK",
-        "--contains",
-        "RUN ALINK.PRG",
-        "--contains",
-        "ARGS MAIN",
-        "--contains",
-        "ALINK OK",
-        "--contains",
-        f"B:DNP/{project_name}>",
-        "--settle",
-        "3.0",
-        "--timeout",
-        "90",
-        "--attempts",
-        "1",
-    ]
 
     for attempt in range(1, args.attempts + 1):
-        result = subprocess.run(command, cwd=ROOT.parent, check=False)
-        if result.returncode == 0:
+        connect_delay = CONNECT_DELAYS[(attempt - 1) % len(CONNECT_DELAYS)]
+        try:
+            shutil.rmtree(work_root, ignore_errors=True)
+            shutil.copytree(fs_root, work_root)
+            project_root = prepare_workspace(work_root, project_name)
+            vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, args.attempt_delay)))
+            run_once(image, work_root, project_name, connect_delay)
             verify_host_output(project_root)
             return 0
-        if attempt < args.attempts:
+        except vp.ViceError as exc:
+            if attempt == args.attempts:
+                print(exc, file=sys.stderr)
+                return 1
             time.sleep(args.attempt_delay)
-    return result.returncode
+    return 1
 
 
 if __name__ == "__main__":
