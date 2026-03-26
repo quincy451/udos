@@ -159,7 +159,7 @@ Separate VICE smoke targets:
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a project root marked by `ACTION.PROJ`
   - validates `ACTC.PRG MAIN` launches from mounted `ACTION.DNP`
-  - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` exports plus the current source-inferred runtime-import metadata
+  - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` exports, pair-form local call metadata, current source-inferred runtime-import metadata, and explicit `payload_bytes`
   - verifies the generated host-side object file contents directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough for stable shell-side `TYPE OBJ/...` readback
 - `make vice-action-alink`
   - uses the release image with deterministic typed input on top of the release workspace

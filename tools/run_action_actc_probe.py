@@ -92,6 +92,7 @@ def verify_host_output(project_root: Path) -> None:
         '"calls":[["main","helper"]]',
         '"imports":["rt.format_int","rt.print_line","rt.print_str"]',
         '"payload_hex":"4504004848"',
+        '"payload_bytes":5',
         '"version":1}',
     ]
     missing = [fragment for fragment in required if fragment not in text]

@@ -137,8 +137,9 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     by `ACTION.PROJ`, launches `ACTC.PRG MAIN`, and proves the first
     UDOS-native compiler front-end slice can emit a deterministic
     `OBJ/MAIN.AVO` object stub on the host fs tree, including extracted
-    top-level `PROC` exports plus the current source-inferred runtime-import
-    metadata; the current focused proof verifies the host-side object
+    top-level `PROC` exports, pair-form local call metadata, current
+    source-inferred runtime-import metadata, and explicit `payload_bytes`;
+    the current focused proof verifies the host-side object
     directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough
     for a stable shell-side `TYPE OBJ/...` readback
   - `make vice-action-alink` now uses the release image with deterministic
