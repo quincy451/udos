@@ -105,8 +105,9 @@ Current milestone:
     by `ACTION.PROJ`, launches `ACTC.PRG MAIN`, and proves the first
     UDOS-native compiler front-end slice can emit a deterministic
     `OBJ/MAIN.AVO` object stub on the host fs tree, including extracted
-    top-level `PROC` exports, pair-form local call metadata, current
-    source-inferred runtime-import metadata, and explicit `payload_bytes`;
+    top-level `PROC` export offset/size triplets, pair-form local call
+    metadata, current source-inferred runtime-import metadata, and explicit
+    `payload_bytes`;
     the focused proof keeps verification host-side because
     `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough for a stable
     shell-side `TYPE OBJ/...` readback
@@ -118,8 +119,10 @@ Current milestone:
     focused proof keeps verification host-side by waiting for that file,
     packing it through `avm_pack.py --text --flags 1`, checking the exact
     resulting `AVM1` bytes, and proving an unused local export is stripped
-    from the final image. This slice is closer to the final linker artifact,
-    but it is still not direct shell-side binary image emission
+    from the final image. `ALINK` now uses compiler-emitted export sizes for
+    procedure boundaries instead of inferring them only from the payload
+    shape. This slice is closer to the final linker artifact, but it is still
+    not direct shell-side binary image emission
   - `make vice-action-actchk` now uses the release image with deterministic
     typed input on top of the release workspace, seeds a healthy project root
     marked by `ACTION.PROJ`, launches `ACTCHK.PRG`, validates expected

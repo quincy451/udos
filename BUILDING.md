@@ -159,13 +159,13 @@ Separate VICE smoke targets:
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a project root marked by `ACTION.PROJ`
   - validates `ACTC.PRG MAIN` launches from mounted `ACTION.DNP`
-  - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` exports, pair-form local call metadata, current source-inferred runtime-import metadata, and explicit `payload_bytes`
+  - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` export offset/size triplets, pair-form local call metadata, current source-inferred runtime-import metadata, and explicit `payload_bytes`
   - verifies the generated host-side object file contents directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough for stable shell-side `TYPE OBJ/...` readback
 - `make vice-action-alink`
   - uses a resident autoexec image on top of the release workspace
   - seeds a project root marked by `ACTION.PROJ` plus a deterministic `OBJ/MAIN.AVO`
   - validates `ALINK.PRG MAIN` through host-side artifact creation instead of screen scraping
-  - emits a deterministic `BIN/MAIN.AVM.TXT` symbolic final-image text as the first UDOS-native linker slice
+  - emits a deterministic `BIN/MAIN.AVM.TXT` symbolic final-image text as the first UDOS-native linker slice, using compiler-emitted export sizes for procedure boundaries
   - verifies the generated host-side text directly by packing it through `avm_pack.py --text --flags 1`, checking the exact resulting `AVM1` bytes, and proving an unused local export is stripped from the final image
 - `make vice-action-actchk`
   - uses the release image with deterministic typed input on top of the release workspace

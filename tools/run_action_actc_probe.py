@@ -88,7 +88,7 @@ def verify_host_output(project_root: Path) -> None:
     required = [
         "AVO1",
         '"module":"main"',
-        '"exports":[["main",0],["helper",4]]',
+        '"exports":[["main",0,4],["helper",4,1]]',
         '"calls":[["main","helper"]]',
         '"imports":["rt.format_int","rt.print_line","rt.print_str"]',
         '"payload_hex":"4504004848"',
