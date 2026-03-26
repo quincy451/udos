@@ -110,15 +110,16 @@ Current milestone:
     the focused proof keeps verification host-side because
     `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough for a stable
     shell-side `TYPE OBJ/...` readback
-  - `make vice-action-alink` now uses the release image with deterministic
-    typed input on top of the release workspace, seeds a project root marked
-    by `ACTION.PROJ` plus a deterministic `OBJ/MAIN.AVO`, launches
-    `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
-    deterministic `BIN/MAIN.AVM.TXT` final-image text skeleton on the host fs
-    tree; the focused proof keeps verification host-side by packing that text
-    through `avm_pack.py --text --flags 1` and checking the exact resulting
-    `AVM1` bytes. This slice is closer to the final linker artifact, but it is
-    still not direct shell-side binary image emission
+  - `make vice-action-alink` now uses a resident autoexec image on top of the
+    release workspace, seeds a project root marked by `ACTION.PROJ` plus a
+    deterministic `OBJ/MAIN.AVO`, launches `ALINK.PRG MAIN`, and proves the
+    first UDOS-native linker slice can emit a deterministic
+    `BIN/MAIN.AVM.TXT` symbolic final-image text on the host fs tree; the
+    focused proof keeps verification host-side by waiting for that file,
+    packing it through `avm_pack.py --text --flags 1`, checking the exact
+    resulting `AVM1` bytes, and proving an unused local export is stripped
+    from the final image. This slice is closer to the final linker artifact,
+    but it is still not direct shell-side binary image emission
   - `make vice-action-actchk` now uses the release image with deterministic
     typed input on top of the release workspace, seeds a healthy project root
     marked by `ACTION.PROJ`, launches `ACTCHK.PRG`, validates expected

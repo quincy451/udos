@@ -400,12 +400,15 @@ vice-action-actc: release
 		--attempts 6 --attempt-delay 4.0
 
 vice-action-alink: release
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_BUILD)
 	rm -rf $(ACTION_ALINK_FS)
 	mkdir -p $(ACTION_ALINK_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_FS)/
+	$(MAKE) BUILD_DIR=$(ACTION_ALINK_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_alink.txt resident
+	cp $(ACTION_ALINK_BUILD)/udos-resident.d64 $(ACTION_ALINK_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/run_action_alink_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_FS) \
-		--attempts 6 --attempt-delay 4.0
+	$(PYTHON) tools/run_action_alink_autoexec_probe.py --disk $(ACTION_ALINK_ARTIFACT) --fs-root $(ACTION_ALINK_FS)
 
 vice-action-actchk: release
 	rm -rf $(ACTION_ACTCHK_FS)

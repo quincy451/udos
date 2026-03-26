@@ -46,8 +46,8 @@ def ensure_catalog_entries(path: Path, entries: list[str]) -> None:
 def object_text() -> str:
     return (
         'AVO1\n'
-        '{"entry_offset":0,"exports":[["helper",4],["main",0]],"calls":[["main","helper"]],"imports":["rt.format_int","rt.print_line","rt.print_str"],'
-        '"module":"main","payload_hex":"4504004848","payload_bytes":5,"version":1}\n'
+        '{"entry_offset":0,"exports":[["helper",4],["dead",5],["main",0]],"calls":[["main","helper"]],"imports":["rt.format_int","rt.print_line","rt.print_str"],'
+        '"module":"main","payload_hex":"450400484848","payload_bytes":6,"version":1}\n'
     )
 
 
@@ -85,12 +85,17 @@ def verify_host_output(project_root: Path) -> None:
         raise RuntimeError(f"expected host file {avm_text_path} to exist")
     avm_text = avm_text_path.read_text(encoding="ascii", errors="ignore")
     required_avm_text = [
-        "entry 0",
-        "db $45,$04,$00,$48,$48",
+        "entry main",
+        "main:",
+        "call helper",
+        "helper:",
+        "ret",
     ]
     missing_avm_text = [fragment for fragment in required_avm_text if fragment not in avm_text]
     if missing_avm_text:
         raise RuntimeError(f"expected host AVM text {avm_text_path} to contain {missing_avm_text!r}")
+    if "dead:" in avm_text:
+        raise RuntimeError(f"expected dead export to be stripped from {avm_text_path}")
     with tempfile.TemporaryDirectory() as tmpdir:
         packed_path = Path(tmpdir) / "main.avm"
         subprocess.run(
@@ -148,7 +153,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         )
         time.sleep(2.0)
 
-        client.keyboard_type("MOUNT B: /IMAGES/ACTION.DNP\r")
+        client.keyboard_feed("MOUNT B: /IMAGES/ACTION.DNP\r")
         vp.wait_for_screen_and_state(
             client,
             process,
@@ -160,7 +165,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         )
         time.sleep(1.0)
 
-        client.keyboard_type("B:\r")
+        client.keyboard_feed("B:\r")
         vp.wait_for_screen_and_state(
             client,
             process,
@@ -172,7 +177,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         )
         time.sleep(1.0)
 
-        client.keyboard_type(f"CD {project_name}\r")
+        client.keyboard_feed(f"CD {project_name}\r")
         vp.wait_for_screen_and_state(
             client,
             process,
@@ -184,7 +189,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         )
         time.sleep(1.0)
 
-        client.keyboard_type("ALINK MAIN\r")
+        client.keyboard_feed("ALINK MAIN\r")
         screen = vp.wait_for_screen_and_state(
             client,
             process,
