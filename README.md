@@ -114,7 +114,7 @@ Current milestone:
     by `ACTION.PROJ` plus a deterministic `OBJ/MAIN.AVO`, launches
     `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
     deterministic `BIN/MAIN.MAP` dependency map on the host fs tree with
-    export, call, live, include, and resolve lines; the focused proof keeps verification host-side
+    export, call, live, entry, payload, include, and resolve lines; the focused proof keeps verification host-side
     while no longer assuming export slot `0` is the entry proc; this slice is still a map/link-planning emitter, not a final
     shell-side image-link proof
   - `make vice-action-actchk` now uses the release image with deterministic

@@ -146,7 +146,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     by `ACTION.PROJ` plus a deterministic `OBJ/MAIN.AVO`, launches
     `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
     deterministic `BIN/MAIN.MAP` dependency map on the host fs tree with
-    export, call, live, include, and resolve lines; the current focused proof verifies the
+    export, call, live, entry, payload, include, and resolve lines; the current focused proof verifies the
     host-side map directly without assuming export slot `0` is the entry proc; this slice is still a map/link-planning
     emitter, not a final shell-side image linker
   - `make vice-action-actchk` now uses the release image with deterministic
