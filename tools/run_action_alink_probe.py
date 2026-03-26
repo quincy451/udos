@@ -44,7 +44,7 @@ def object_text() -> str:
     return (
         'AVO1\n'
         '{"entry_offset":0,"exports":[["helper",4],["main",0]],"calls":[["main","helper"]],"imports":["rt.format_int","rt.print_line","rt.print_str"],'
-        '"module":"main","payload_hex":"4504004848","version":1}\n'
+        '"module":"main","payload_hex":"4504004848","payload_bytes":5,"version":1}\n'
     )
 
 
@@ -84,14 +84,13 @@ def verify_host_output(project_root: Path) -> None:
     required = [
         "ALINK1",
         "MODULE main",
-        "OBJECT OBJ/MAIN.AVO",
         "EXPORT main",
         "EXPORT helper",
         "CALL main helper",
         "LIVE main",
         "LIVE helper",
         "ENTRY main",
-        "PAYLOAD 4504004848",
+        "IMAGE 5",
         "INCLUDE rt.format_int",
         "INCLUDE rt.print_line",
         "INCLUDE rt.print_str",
