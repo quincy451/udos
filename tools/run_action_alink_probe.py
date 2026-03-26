@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import subprocess
 import sys
 import time
+import tempfile
 from pathlib import Path
 
 import vice_prg_probe as vp
@@ -12,6 +14,7 @@ import vice_prg_probe as vp
 
 ROOT = Path(__file__).resolve().parent
 ACTION_ALINK_BUILD = ROOT.parent.parent / "actionc64u" / "build" / "udos_tools" / "ALINK.PRG"
+AVM_PACK = ROOT.parent.parent / "actionc64u" / "tools" / "avm_pack.py"
 CONNECT_DELAYS = (32.0, 36.0, 40.0, 28.0, 24.0, 44.0)
 
 
@@ -77,30 +80,39 @@ def prepare_workspace(fs_root: Path, project_name: str) -> Path:
 
 
 def verify_host_output(project_root: Path) -> None:
-    output_path = project_root / "bin" / "main.map"
-    if not output_path.is_file():
-        raise RuntimeError(f"expected host file {output_path} to exist")
-    text = output_path.read_text(encoding="ascii", errors="ignore")
-    required = [
-        "ALINK1",
-        "MODULE main",
-        "EXPORT main 0",
-        "EXPORT helper 4",
-        "CALL main helper",
-        "LIVE main",
-        "LIVE helper",
-        "ENTRY main",
-        "IMAGE 5",
-        "INCLUDE rt.format_int",
-        "INCLUDE rt.print_line",
-        "INCLUDE rt.print_str",
-        "RESOLVE main rt.format_int",
-        "RESOLVE main rt.print_line",
-        "RESOLVE main rt.print_str",
+    avm_text_path = project_root / "bin" / "main.avm.txt"
+    if not avm_text_path.is_file():
+        raise RuntimeError(f"expected host file {avm_text_path} to exist")
+    avm_text = avm_text_path.read_text(encoding="ascii", errors="ignore")
+    required_avm_text = [
+        "entry 0",
+        "db $45,$04,$00,$48,$48",
     ]
-    missing = [fragment for fragment in required if fragment not in text]
-    if missing:
-        raise RuntimeError(f"expected host map {output_path} to contain {missing!r}")
+    missing_avm_text = [fragment for fragment in required_avm_text if fragment not in avm_text]
+    if missing_avm_text:
+        raise RuntimeError(f"expected host AVM text {avm_text_path} to contain {missing_avm_text!r}")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        packed_path = Path(tmpdir) / "main.avm"
+        subprocess.run(
+            [
+                sys.executable,
+                str(AVM_PACK),
+                "--text",
+                "--flags",
+                "1",
+                str(avm_text_path),
+                "-o",
+                str(packed_path),
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        packed = packed_path.read_bytes()
+    expected = b"AVM1\x01\x05\x00\x00\x00\x01\x45\x04\x00\x48\x48"
+    if packed != expected:
+        raise RuntimeError(f"expected packed AVM bytes {expected!r}, got {packed!r}")
 
 
 def run_once(image: Path, work_root: Path, project_name: str, connect_delay: float) -> None:

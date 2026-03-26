@@ -114,10 +114,11 @@ Current milestone:
     typed input on top of the release workspace, seeds a project root marked
     by `ACTION.PROJ` plus a deterministic `OBJ/MAIN.AVO`, launches
     `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
-    deterministic `BIN/MAIN.MAP` dependency map on the host fs tree with
-    export-offset, call, live, entry, aggregate image-size, include, and resolve lines; the focused proof keeps verification host-side
-    while no longer assuming export slot `0` is the entry proc; this slice is still a map/link-planning emitter, not a final
-    shell-side image-link proof
+    deterministic `BIN/MAIN.AVM.TXT` final-image text skeleton on the host fs
+    tree; the focused proof keeps verification host-side by packing that text
+    through `avm_pack.py --text --flags 1` and checking the exact resulting
+    `AVM1` bytes. This slice is closer to the final linker artifact, but it is
+    still not direct shell-side binary image emission
   - `make vice-action-actchk` now uses the release image with deterministic
     typed input on top of the release workspace, seeds a healthy project root
     marked by `ACTION.PROJ`, launches `ACTCHK.PRG`, validates expected

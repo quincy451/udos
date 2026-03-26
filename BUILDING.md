@@ -165,8 +165,8 @@ Separate VICE smoke targets:
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a project root marked by `ACTION.PROJ` plus a deterministic `OBJ/MAIN.AVO`
   - validates `ALINK.PRG MAIN` launches from mounted `ACTION.DNP`
-  - emits a deterministic `BIN/MAIN.MAP` dependency map as the first UDOS-native linker slice, including export-offset, call, live, entry, aggregate image-size, include, and resolve lines from the current object metadata, without assuming export slot `0` is the entry proc
-  - verifies the generated host-side map file contents directly because the current linker slice is still a map/link-planning emitter, not a full shell-side final-image proof
+  - emits a deterministic `BIN/MAIN.AVM.TXT` final-image text skeleton as the first UDOS-native linker slice
+  - verifies the generated host-side text directly by packing it through `avm_pack.py --text --flags 1` and checking the exact resulting `AVM1` bytes
 - `make vice-action-actchk`
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a healthy project root marked by `ACTION.PROJ`
