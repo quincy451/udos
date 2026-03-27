@@ -405,8 +405,9 @@ vice-action-alink: release
 	mkdir -p $(ACTION_ALINK_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_FS)/
 	sleep 2
-	$(PYTHON) tools/run_action_alink_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_FS) \
-		--attempts 3 --attempt-delay 4.0
+	$(MAKE) BUILD_DIR=$(ACTION_ALINK_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_alink.txt resident
+	$(PYTHON) tools/run_action_alink_autoexec_probe.py --disk $(ACTION_ALINK_BUILD)/udos-resident.d64 --fs-root $(ACTION_ALINK_FS) \
+		--wait-seconds 160.0
 
 vice-action-actchk: release
 	rm -rf $(ACTION_ACTCHK_FS)

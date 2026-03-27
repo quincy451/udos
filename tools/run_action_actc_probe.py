@@ -45,6 +45,7 @@ def source_text() -> str:
         'MODULE MAIN\r'
         'PROC MAIN()\r'
         'Print("HELLO")\r'
+        'WORK()\r'
         'HELPER()\r'
         'PrintIE(42)\r'
         'RETURN\r'
@@ -87,13 +88,15 @@ def verify_host_output(project_root: Path) -> None:
     text = output_path.read_text(encoding="ascii", errors="ignore")
     required = [
         "AVO1",
-        '"module":"main"',
-        '"exports":[["main",0,4],["helper",4,1]]',
-        '"body_ops":["c1r","r"]',
-        '"imports":["rt.format_int","rt.print_line","rt.print_str"]',
-        '"payload_hex":"4504004848"',
-        '"payload_bytes":5',
-        '"version":1}',
+        "x main 0 19",
+        "x helper 19 1",
+        "b s0u0c1i0r",
+        "b r",
+        "u work",
+        "s HELLO",
+        "i 42",
+        "k 7",
+        "n main",
     ]
     missing = [fragment for fragment in required if fragment not in text]
     if missing:

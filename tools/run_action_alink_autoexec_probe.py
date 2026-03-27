@@ -22,7 +22,7 @@ def main() -> int:
     fs_root = Path(args.fs_root).resolve()
     project_name = args.project.upper()
     project_root = rap.prepare_workspace(fs_root, project_name)
-    output_path = project_root / "bin" / "main.avm.txt"
+    output_path = project_root / "bin" / "main.avmtxt"
 
     vp.cleanup_stale_vice(settle_seconds=2.0)
     port = vp.reserve_tcp_port()

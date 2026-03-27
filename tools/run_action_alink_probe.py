@@ -46,8 +46,33 @@ def ensure_catalog_entries(path: Path, entries: list[str]) -> None:
 def object_text() -> str:
     return (
         'AVO1\n'
-        '{"entry_offset":0,"exports":[["helper",4,1],["dead",5,1],["main",0,4]],"body_ops":["r","r","c0r"],"imports":["rt.format_int","rt.print_line","rt.print_str"],'
-        '"module":"main","payload_hex":"450400484848","payload_bytes":6,"version":1}\n'
+        'x helper 16 1\n'
+        'x dead 17 1\n'
+        'x main 0 16\n'
+        'b r\n'
+        'b r\n'
+        'b s0c0i0r\n'
+        's HELLO\n'
+        'i 42\n'
+        'k 7\n'
+        'n main\n'
+    )
+
+
+def expected_avm_text() -> str:
+    return (
+        "entry main\n"
+        "main:\n"
+        "setp16 main_str0\n"
+        "calln print\n"
+        "call helper\n"
+        "push16 42\n"
+        "calln printie\n"
+        "ret\n"
+        "helper:\n"
+        "ret\n"
+        "main_str0:\n"
+        "stringz HELLO\n"
     )
 
 
@@ -80,15 +105,20 @@ def prepare_workspace(fs_root: Path, project_name: str) -> Path:
 
 
 def verify_host_output(project_root: Path) -> None:
-    avm_text_path = project_root / "bin" / "main.avm.txt"
+    avm_text_path = project_root / "bin" / "main.avmtxt"
     if not avm_text_path.is_file():
         raise RuntimeError(f"expected host file {avm_text_path} to exist")
     avm_text = avm_text_path.read_text(encoding="ascii", errors="ignore")
     required_avm_text = [
         "entry main",
         "main:",
+        "setp16 main_str0",
+        "calln print",
         "call helper",
+        "push16 42",
+        "calln printie",
         "helper:",
+        "stringz HELLO",
         "ret",
     ]
     missing_avm_text = [fragment for fragment in required_avm_text if fragment not in avm_text]
@@ -98,24 +128,28 @@ def verify_host_output(project_root: Path) -> None:
         raise RuntimeError(f"expected dead export to be stripped from {avm_text_path}")
     with tempfile.TemporaryDirectory() as tmpdir:
         packed_path = Path(tmpdir) / "main.avm"
-        subprocess.run(
-            [
-                sys.executable,
-                str(AVM_PACK),
-                "--text",
-                "--flags",
-                "1",
-                str(avm_text_path),
-                "-o",
-                str(packed_path),
-            ],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        expected_text_path = Path(tmpdir) / "expected.avm.txt"
+        expected_packed_path = Path(tmpdir) / "expected.avm"
+        expected_text_path.write_text(expected_avm_text(), encoding="ascii")
+        for src, dst in ((avm_text_path, packed_path), (expected_text_path, expected_packed_path)):
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(AVM_PACK),
+                    "--text",
+                    "--flags",
+                    "1",
+                    str(src),
+                    "-o",
+                    str(dst),
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
         packed = packed_path.read_bytes()
-    expected = b"AVM1\x01\x05\x00\x00\x00\x01\x45\x04\x00\x48\x48"
+        expected = expected_packed_path.read_bytes()
     if packed != expected:
         raise RuntimeError(f"expected packed AVM bytes {expected!r}, got {packed!r}")
 
