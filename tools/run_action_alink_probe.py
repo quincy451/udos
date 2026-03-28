@@ -46,9 +46,10 @@ def ensure_catalog_entries(path: Path, entries: list[str]) -> None:
 def main_object_text() -> str:
     return (
         'AVO1\n'
-        'x main 0 16\n'
-        'b s0u0i0r\n'
+        'x main 0 19\n'
+        'b s0u0u1i0r\n'
         'u helper\n'
+        'u tool\n'
         's HELLO\n'
         'i 42\n'
         'k 7\n'
@@ -68,12 +69,32 @@ def helper_object_text() -> str:
     )
 
 
+def tool_object_text() -> str:
+    return (
+        'AVO1\n'
+        'x tool 0 4\n'
+        'b u0r\n'
+        'u util\n'
+        'n tool\n'
+    )
+
+
 def util_object_text() -> str:
     return (
         'AVO1\n'
-        'x util 0 1\n'
-        'b r\n'
+        'x util 0 4\n'
+        'b u0r\n'
+        'u leaf\n'
         'n util\n'
+    )
+
+
+def leaf_object_text() -> str:
+    return (
+        'AVO1\n'
+        'x leaf 0 1\n'
+        'b r\n'
+        'n leaf\n'
     )
 
 
@@ -84,6 +105,7 @@ def expected_avm_text() -> str:
         "setp16 main_str0\n"
         "calln print\n"
         "call helper\n"
+        "call tool\n"
         "push16 42\n"
         "calln printie\n"
         "ret\n"
@@ -93,7 +115,13 @@ def expected_avm_text() -> str:
         "ret\n"
         "tail:\n"
         "ret\n"
+        "tool:\n"
+        "call util\n"
+        "ret\n"
         "util:\n"
+        "call leaf\n"
+        "ret\n"
+        "leaf:\n"
         "ret\n"
         "main_str0:\n"
         "stringz HELLO\n"
@@ -114,11 +142,13 @@ def prepare_workspace(fs_root: Path, project_name: str) -> Path:
     write_ascii(project_root / "UDOSDIR.TXT", "D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n")
     write_ascii(project_root / "src" / "UDOSDIR.TXT", "F MAIN.ACT\n")
     write_ascii(project_root / "bin" / "UDOSDIR.TXT", "")
-    write_ascii(project_root / "obj" / "UDOSDIR.TXT", "F HELPER.AVO\nF MAIN.AVO\nF UTIL.AVO\n")
+    write_ascii(project_root / "obj" / "UDOSDIR.TXT", "F HELPER.AVO\nF LEAF.AVO\nF MAIN.AVO\nF TOOL.AVO\nF UTIL.AVO\n")
     write_ascii(project_root / "src" / "main.act", 'MODULE MAIN\rPROC MAIN()\rPrint("HELLO")\rPrintIE(42)\rRETURN\r')
     write_ascii(project_root / "obj" / "main.avo", main_object_text())
     write_ascii(project_root / "obj" / "helper.avo", helper_object_text())
+    write_ascii(project_root / "obj" / "tool.avo", tool_object_text())
     write_ascii(project_root / "obj" / "util.avo", util_object_text())
+    write_ascii(project_root / "obj" / "leaf.avo", leaf_object_text())
 
     if ACTION_ALINK_BUILD.is_file():
         root_target = fs_root / "IMAGES" / "ACTION.DNP" / "ALINK.PRG"
@@ -141,13 +171,18 @@ def verify_host_output(project_root: Path) -> None:
         "setp16 main_str0",
         "calln print",
         "call helper",
+        "call tool",
         "push16 42",
         "calln printie",
         "helper:",
         "call util",
         "call tail",
         "tail:",
+        "tool:",
+        "call util",
         "util:",
+        "call leaf",
+        "leaf:",
         "stringz HELLO",
         "ret",
     ]
@@ -231,7 +266,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         vp.wait_for_screen_and_state(
             client,
             process,
-            "B:DNP/>",
+            "B:DNP/",
             marker_addr=None,
             marker_value=None,
             extra_checks=[],
@@ -243,7 +278,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         vp.wait_for_screen_and_state(
             client,
             process,
-            f"B:DNP/{project_name}>",
+            f"B:DNP/{project_name}",
             marker_addr=None,
             marker_value=None,
             extra_checks=[],
@@ -262,7 +297,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
             timeout=90.0,
         )
 
-        for fragment in ("RUN ALINK.PRG", "ARGS MAIN", "ALINK OK", f"B:DNP/{project_name}>"):
+        for fragment in ("RUN ALINK.PRG", "ARGS MAIN", "ALINK OK", f"B:DNP/{project_name}"):
             if fragment not in screen:
                 raise vp.ViceError(f"expected screen fragment {fragment!r} was not present in final screen:\n{screen}")
     finally:
