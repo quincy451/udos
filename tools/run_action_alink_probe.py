@@ -72,9 +72,10 @@ def helper_object_text() -> str:
 def tool_object_text() -> str:
     return (
         'AVO1\n'
-        'x tool 0 4\n'
-        'b u0r\n'
+        'x tool 0 10\n'
+        'b u0i0r\n'
         'u util\n'
+        'i 7\n'
         'n tool\n'
     )
 
@@ -117,6 +118,8 @@ def expected_avm_text() -> str:
         "ret\n"
         "tool:\n"
         "call util\n"
+        "push16 7\n"
+        "calln printie\n"
         "ret\n"
         "util:\n"
         "call leaf\n"
@@ -180,6 +183,8 @@ def verify_host_output(project_root: Path) -> None:
         "tail:",
         "tool:",
         "call util",
+        "push16 7",
+        "calln printie",
         "util:",
         "call leaf",
         "leaf:",
