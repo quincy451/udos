@@ -16,6 +16,7 @@ def main() -> int:
     parser.add_argument("--fs-root", required=True)
     parser.add_argument("--project", default="PROJ3")
     parser.add_argument("--wait-seconds", type=float, default=160.0)
+    parser.add_argument("--connect-delay", type=float, default=40.0)
     args = parser.parse_args()
 
     image = Path(args.disk).resolve()
@@ -38,9 +39,15 @@ def main() -> int:
             "-fslongnames",
         ],
     )
+    client = vp.BinaryMonitorClient("127.0.0.1", port, timeout=5.0)
 
     deadline = time.monotonic() + args.wait_seconds
     try:
+        if args.connect_delay > 0.0:
+            time.sleep(args.connect_delay)
+        client.connect(time.monotonic() + 20.0)
+        client.ping()
+        client.resume()
         while time.monotonic() < deadline:
             if process.poll() is not None:
                 raise vp.ViceError("x64sc exited before ALINK produced host output")
@@ -49,6 +56,10 @@ def main() -> int:
                 return 0
             time.sleep(0.5)
     finally:
+        try:
+            client.quit_emulator()
+        finally:
+            client.close()
         vp.terminate_process_tree(process)
 
     print(f"expected host file {output_path} to exist after {args.wait_seconds:.1f} seconds", file=sys.stderr)

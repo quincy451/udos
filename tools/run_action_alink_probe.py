@@ -43,7 +43,7 @@ def ensure_catalog_entries(path: Path, entries: list[str]) -> None:
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="ascii")
 
 
-def object_text() -> str:
+def main_object_text() -> str:
     return (
         'AVO1\n'
         'x main 0 16\n'
@@ -53,6 +53,17 @@ def object_text() -> str:
         'i 42\n'
         'k 7\n'
         'n main\n'
+    )
+
+
+def helper_object_text() -> str:
+    return (
+        'AVO1\n'
+        'x helper 0 4\n'
+        'x tail 4 1\n'
+        'b c1r\n'
+        'b r\n'
+        'n helper\n'
     )
 
 
@@ -67,6 +78,9 @@ def expected_avm_text() -> str:
         "calln printie\n"
         "ret\n"
         "helper:\n"
+        "call tail\n"
+        "ret\n"
+        "tail:\n"
         "ret\n"
         "main_str0:\n"
         "stringz HELLO\n"
@@ -87,9 +101,10 @@ def prepare_workspace(fs_root: Path, project_name: str) -> Path:
     write_ascii(project_root / "UDOSDIR.TXT", "D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n")
     write_ascii(project_root / "src" / "UDOSDIR.TXT", "F MAIN.ACT\n")
     write_ascii(project_root / "bin" / "UDOSDIR.TXT", "")
-    write_ascii(project_root / "obj" / "UDOSDIR.TXT", "F MAIN.AVO\n")
+    write_ascii(project_root / "obj" / "UDOSDIR.TXT", "F HELPER.AVO\nF MAIN.AVO\n")
     write_ascii(project_root / "src" / "main.act", 'MODULE MAIN\rPROC MAIN()\rPrint("HELLO")\rPrintIE(42)\rRETURN\r')
-    write_ascii(project_root / "obj" / "main.avo", object_text())
+    write_ascii(project_root / "obj" / "main.avo", main_object_text())
+    write_ascii(project_root / "obj" / "helper.avo", helper_object_text())
 
     if ACTION_ALINK_BUILD.is_file():
         root_target = fs_root / "IMAGES" / "ACTION.DNP" / "ALINK.PRG"
@@ -115,6 +130,8 @@ def verify_host_output(project_root: Path) -> None:
         "push16 42",
         "calln printie",
         "helper:",
+        "call tail",
+        "tail:",
         "stringz HELLO",
         "ret",
     ]
