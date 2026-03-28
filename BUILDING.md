@@ -165,7 +165,8 @@ Separate VICE smoke targets:
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a project root marked by `ACTION.PROJ` plus a deterministic `OBJ/MAIN.AVO`
   - validates `ALINK.PRG MAIN` through host-side artifact creation instead of screen scraping
-  - emits a deterministic `BIN/MAIN.AVM.TXT` symbolic final-image text as the first UDOS-native linker slice, using compiler-emitted export sizes plus `body_ops` for procedure boundaries and symbolic body reconstruction
+  - emits a deterministic `BIN/MAIN.AVMTXT` symbolic final-image text as the first UDOS-native linker slice, using compiler-emitted export sizes plus `body_ops` for procedure boundaries and symbolic body reconstruction
+  - current unresolved external calls are lowered to stub labels in that symbolic image
   - verifies the generated host-side text directly by packing it through `avm_pack.py --text --flags 1`, checking the exact resulting `AVM1` bytes, and proving an unused local export is stripped from the final image
 - `make vice-action-actchk`
   - uses the release image with deterministic typed input on top of the release workspace

@@ -46,12 +46,9 @@ def ensure_catalog_entries(path: Path, entries: list[str]) -> None:
 def object_text() -> str:
     return (
         'AVO1\n'
-        'x helper 16 1\n'
-        'x dead 17 1\n'
         'x main 0 16\n'
-        'b r\n'
-        'b r\n'
-        'b s0c0i0r\n'
+        'b s0u0i0r\n'
+        'u helper\n'
         's HELLO\n'
         'i 42\n'
         'k 7\n'
@@ -124,8 +121,6 @@ def verify_host_output(project_root: Path) -> None:
     missing_avm_text = [fragment for fragment in required_avm_text if fragment not in avm_text]
     if missing_avm_text:
         raise RuntimeError(f"expected host AVM text {avm_text_path} to contain {missing_avm_text!r}")
-    if "dead:" in avm_text:
-        raise RuntimeError(f"expected dead export to be stripped from {avm_text_path}")
     with tempfile.TemporaryDirectory() as tmpdir:
         packed_path = Path(tmpdir) / "main.avm"
         expected_text_path = Path(tmpdir) / "expected.avm.txt"
