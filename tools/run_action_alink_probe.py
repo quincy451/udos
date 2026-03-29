@@ -94,37 +94,10 @@ def util_object_text() -> str:
 
 def expected_avm_text() -> str:
     return (
-        "entry main\n"
-        "main:\n"
-        "setp16 main_str0\n"
-        "calln print\n"
-        "call h\n"
-        "call t\n"
-        "push16 42\n"
-        "calln printie\n"
-        "ret\n"
-        "h:\n"
-        "call u\n"
-        "call z\n"
-        "ret\n"
-        "z:\n"
-        "ret\n"
-        "t:\n"
-        "setp16 t_str0\n"
-        "calln print\n"
-        "push16 7\n"
-        "calln printie\n"
-        "call u\n"
-        "ret\n"
-        "t_str0:\n"
-        "stringz TOOL\n"
-        "u:\n"
-        "call v\n"
-        "ret\n"
-        "v:\n"
-        "ret\n"
-        "main_str0:\n"
-        "stringz HELLO\n"
+        "entry 0\n"
+        "db $61,$35,$00,$49,$00,$ff,$45,$13,$00,$45,$1b,$00,$11,$2a,$00,$49,$31,$ff,$48,"
+        "$45,$30,$00,$45,$1a,$00,$48,$48,$61,$2b,$00,$49,$00,$ff,$11,$07,$00,$49,$31,$ff,"
+        "$45,$30,$00,$48,$54,$4f,$4f,$4c,$00,$45,$34,$00,$48,$48,$48,$45,$4c,$4c,$4f,$00\n"
     )
 
 
@@ -164,36 +137,9 @@ def verify_host_output(project_root: Path) -> None:
     if not avm_text_path.is_file():
         raise RuntimeError(f"expected host file {avm_text_path} to exist")
     avm_text = avm_text_path.read_text(encoding="ascii", errors="ignore")
-    required_avm_text = [
-        "entry main",
-        "main:",
-        "setp16 main_str0",
-        "calln print",
-        "call h",
-        "call t",
-        "push16 42",
-        "calln printie",
-        "h:",
-        "call u",
-        "call z",
-        "z:",
-        "t:",
-        "setp16 t_str0",
-        "calln print",
-        "push16 7",
-        "calln printie",
-        "call u",
-        "u:",
-        "call v",
-        "v:",
-        "t_str0:",
-        "stringz TOOL",
-        "stringz HELLO",
-        "ret",
-    ]
-    missing_avm_text = [fragment for fragment in required_avm_text if fragment not in avm_text]
-    if missing_avm_text:
-        raise RuntimeError(f"expected host AVM text {avm_text_path} to contain {missing_avm_text!r}")
+    expected_text = expected_avm_text()
+    if avm_text != expected_text:
+        raise RuntimeError(f"expected host AVM text {avm_text_path} to equal {expected_text!r}, got {avm_text!r}")
     with tempfile.TemporaryDirectory() as tmpdir:
         packed_path = Path(tmpdir) / "main.avm"
         expected_text_path = Path(tmpdir) / "expected.avm.txt"
@@ -292,15 +238,23 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         time.sleep(5.0)
 
         client.keyboard_type("ALINK MAIN\r")
-        screen = vp.wait_for_screen_and_state(
-            client,
-            process,
-            "ALINK OK",
-            marker_addr=None,
-            marker_value=None,
-            extra_checks=[],
-            timeout=90.0,
-        )
+        deadline = time.monotonic() + 90.0
+        screen = ""
+        while time.monotonic() < deadline:
+            screen, _d018, _dd00 = vp.read_active_screen_text(client)
+            if "ALINK OK" in screen:
+                break
+            if "TOO LARGE" in screen or "SAVE FAIL" in screen or "BAD AVO" in screen:
+                debug = {
+                    hex(addr): client.memory_get(addr, addr)[0]
+                    for addr in (0x03FC, 0x03FD, 0x03FE, 0x03FF)
+                }
+                raise vp.ViceError(
+                    f"ALINK terminal failure with screen:\n{screen}\nALINK debug bytes: {debug}"
+                )
+            time.sleep(0.2)
+        else:
+            raise vp.ViceError(f"timed out waiting for final ALINK screen; last screen was:\n{screen}")
 
         for fragment in ("RUN ALINK.PRG", "ARGS MAIN", "ALINK OK", f"B:DNP/{project_name}>"):
             if fragment not in screen:

@@ -147,13 +147,13 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     typed input on top of a copied Action workspace, seeds a project root
     marked by `ACTION.PROJ` plus deterministic `OBJ/*.AVO` fixtures, launches
     `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
-    deterministic `BIN/MAIN.AVMTXT` symbolic final-image text on the host fs
-    tree; the current focused proof verifies that host text by packing it
+    deterministic `BIN/MAIN.AVMTXT` byte-text final-image artifact on the host
+    fs tree; the current focused proof verifies that host text by packing it
     through `avm_pack.py --text --flags 1`, checking the exact resulting `AVM1`
     bytes, and proving an unused local export is stripped from the final
     image. `ALINK` now uses compiler-emitted export sizes plus `body_ops` for
-    procedure boundaries and symbolic body reconstruction instead of inferring
-    them only from the payload shape. The current focused proof also resolves
+    direct byte emission instead of inferring them only from the payload
+    shape. The current focused proof also resolves
     a wider unresolved external closure with sibling externals from `main`, a
     shared child object, and a deeper leaf, while carrying child-object
     integer and string literal pools. This slice is closer to the final
