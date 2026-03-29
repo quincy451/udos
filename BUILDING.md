@@ -162,11 +162,11 @@ Separate VICE smoke targets:
   - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`, current source-inferred runtime-import metadata, and explicit `payload_bytes`
   - verifies the generated host-side object file contents directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough for stable shell-side `TYPE OBJ/...` readback
 - `make vice-action-alink`
-  - uses the release image with deterministic typed input on top of the release workspace
-  - seeds a project root marked by `ACTION.PROJ` plus a deterministic `OBJ/MAIN.AVO`
+  - uses a resident autoexec image on top of a copied Action workspace
+  - seeds a project root marked by `ACTION.PROJ` plus deterministic `OBJ/*.AVO` fixtures
   - validates `ALINK.PRG MAIN` through host-side artifact creation instead of screen scraping
   - emits a deterministic `BIN/MAIN.AVMTXT` symbolic final-image text as the first UDOS-native linker slice, using compiler-emitted export sizes plus `body_ops` for procedure boundaries and symbolic body reconstruction
-  - current focused proof resolves one unresolved external by loading a second object and emitting its live code in that symbolic image
+  - current focused proof resolves a small unresolved external closure by loading secondary objects, emitting their live code in that symbolic image, and carrying child-object integer and string literal pools
   - verifies the generated host-side text directly by packing it through `avm_pack.py --text --flags 1`, checking the exact resulting `AVM1` bytes, and proving an unused local export is stripped from the final image
 - `make vice-action-actchk`
   - uses the release image with deterministic typed input on top of the release workspace
