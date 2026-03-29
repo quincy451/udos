@@ -162,7 +162,7 @@ Separate VICE smoke targets:
   - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`, current source-inferred runtime-import metadata, and explicit `payload_bytes`
   - verifies the generated host-side object file contents directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough for stable shell-side `TYPE OBJ/...` readback
 - `make vice-action-alink`
-  - uses a resident autoexec image on top of a copied Action workspace
+  - uses the release image with deterministic typed input on top of a copied Action workspace
   - seeds a project root marked by `ACTION.PROJ` plus deterministic `OBJ/*.AVO` fixtures
   - validates `ALINK.PRG MAIN` through host-side artifact creation instead of screen scraping
   - emits a deterministic `BIN/MAIN.AVMTXT` symbolic final-image text as the first UDOS-native linker slice, using compiler-emitted export sizes plus `body_ops` for procedure boundaries and symbolic body reconstruction

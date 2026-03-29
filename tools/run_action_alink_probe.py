@@ -15,7 +15,7 @@ import vice_prg_probe as vp
 ROOT = Path(__file__).resolve().parent
 ACTION_ALINK_BUILD = ROOT.parent.parent / "actionc64u" / "build" / "udos_tools" / "ALINK.PRG"
 AVM_PACK = ROOT.parent.parent / "actionc64u" / "tools" / "avm_pack.py"
-CONNECT_DELAYS = (32.0, 36.0, 40.0, 28.0, 24.0, 44.0)
+CONNECT_DELAYS = (44.0, 40.0, 36.0, 32.0, 28.0, 24.0)
 
 
 def write_ascii(path: Path, text: str) -> None:
@@ -253,7 +253,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
             extra_checks=[],
             timeout=90.0,
         )
-        time.sleep(2.0)
+        time.sleep(5.0)
 
         client.keyboard_type("MOUNT B: /IMAGES/ACTION.DNP\r")
         vp.wait_for_screen_and_state(
@@ -265,31 +265,31 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
             extra_checks=[],
             timeout=90.0,
         )
-        time.sleep(1.0)
+        time.sleep(5.0)
 
         client.keyboard_type("B:\r")
         vp.wait_for_screen_and_state(
             client,
             process,
-            "B:DNP/>",
+            "B:DNP/",
             marker_addr=None,
             marker_value=None,
             extra_checks=[],
             timeout=90.0,
         )
-        time.sleep(1.0)
+        time.sleep(5.0)
 
         client.keyboard_type(f"CD {project_name}\r")
         vp.wait_for_screen_and_state(
             client,
             process,
-            f"B:DNP/{project_name}>",
+            f"B:DNP/{project_name}",
             marker_addr=None,
             marker_value=None,
             extra_checks=[],
             timeout=90.0,
         )
-        time.sleep(1.0)
+        time.sleep(5.0)
 
         client.keyboard_type("ALINK MAIN\r")
         screen = vp.wait_for_screen_and_state(

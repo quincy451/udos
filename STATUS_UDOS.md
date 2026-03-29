@@ -143,13 +143,13 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     the current focused proof verifies the host-side object
     directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough
     for a stable shell-side `TYPE OBJ/...` readback
-  - `make vice-action-alink` now uses a resident autoexec image on top of a
-    copied Action workspace, seeds a project root marked by `ACTION.PROJ`
-    plus deterministic `OBJ/*.AVO` fixtures, launches `ALINK.PRG MAIN`, and
-    proves the first UDOS-native linker slice can emit a deterministic
-    `BIN/MAIN.AVMTXT` symbolic final-image text on the host fs tree; the
-    current focused proof verifies that host text by packing it through
-    `avm_pack.py --text --flags 1`, checking the exact resulting `AVM1`
+  - `make vice-action-alink` now uses the release image with deterministic
+    typed input on top of a copied Action workspace, seeds a project root
+    marked by `ACTION.PROJ` plus deterministic `OBJ/*.AVO` fixtures, launches
+    `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
+    deterministic `BIN/MAIN.AVMTXT` symbolic final-image text on the host fs
+    tree; the current focused proof verifies that host text by packing it
+    through `avm_pack.py --text --flags 1`, checking the exact resulting `AVM1`
     bytes, and proving an unused local export is stripped from the final
     image. `ALINK` now uses compiler-emitted export sizes plus `body_ops` for
     procedure boundaries and symbolic body reconstruction instead of inferring
