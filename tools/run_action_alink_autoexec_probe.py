@@ -9,6 +9,8 @@ from pathlib import Path
 import run_action_alink_probe as rap
 import vice_prg_probe as vp
 
+CONNECT_DELAYS = rap.CONNECT_DELAYS
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the focused ALINK proof through a resident autoexec image")
@@ -16,7 +18,7 @@ def main() -> int:
     parser.add_argument("--fs-root", required=True)
     parser.add_argument("--project", default="PROJ3")
     parser.add_argument("--wait-seconds", type=float, default=160.0)
-    parser.add_argument("--connect-delay", type=float, default=40.0)
+    parser.add_argument("--connect-delay", type=float, default=-1.0)
     parser.add_argument("--attempts", type=int, default=3)
     parser.add_argument("--attempt-delay", type=float, default=4.0)
     args = parser.parse_args()
@@ -24,11 +26,10 @@ def main() -> int:
     image = Path(args.disk).resolve()
     fs_root = Path(args.fs_root).resolve()
     project_name = args.project.upper()
-    project_root = rap.prepare_workspace(fs_root, project_name)
-    output_path = project_root / "bin" / "main.avmtxt"
-
     last_error: str | None = None
     for attempt in range(1, max(1, args.attempts) + 1):
+        project_root = rap.prepare_workspace(fs_root, project_name)
+        output_path = project_root / "bin" / "main.avmtxt"
         if output_path.exists():
             output_path.unlink()
         vp.cleanup_stale_vice(settle_seconds=2.0)
@@ -49,8 +50,11 @@ def main() -> int:
 
         deadline = time.monotonic() + args.wait_seconds
         try:
-            if args.connect_delay > 0.0:
-                time.sleep(args.connect_delay)
+            connect_delay = args.connect_delay
+            if connect_delay < 0.0:
+                connect_delay = CONNECT_DELAYS[(attempt - 1) % len(CONNECT_DELAYS)]
+            if connect_delay > 0.0:
+                time.sleep(connect_delay)
             client.connect(time.monotonic() + 20.0)
             client.ping()
             client.resume()

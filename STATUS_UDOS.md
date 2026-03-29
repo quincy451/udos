@@ -154,10 +154,10 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     image. `ALINK` now uses compiler-emitted export sizes plus `body_ops` for
     procedure boundaries and symbolic body reconstruction instead of inferring
     them only from the payload shape. The current focused proof also resolves
-    a small unresolved external closure by loading secondary objects, emitting
-    their live code into the symbolic image before literal data, and carrying
-    child-object integer and string literal pools. This slice is closer to the
-    final linker artifact, but it is still not direct shell-side binary image
+    a wider unresolved external closure with sibling externals from `main`, a
+    shared child object, and a deeper leaf, while carrying child-object
+    integer and string literal pools. This slice is closer to the final
+    linker artifact, but it is still not direct shell-side binary image
     emission
   - `make vice-action-actchk` now uses the release image with deterministic
     typed input on top of the release workspace, seeds a healthy project root
