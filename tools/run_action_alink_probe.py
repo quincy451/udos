@@ -95,9 +95,8 @@ def util_object_text() -> str:
 def expected_avm_text() -> str:
     return (
         "entry 0\n"
-        "db $61,$35,$00,$49,$00,$ff,$45,$13,$00,$45,$1b,$00,$11,$2a,$00,$49,$31,$ff,$48,"
-        "$45,$30,$00,$45,$1a,$00,$48,$48,$61,$2b,$00,$49,$00,$ff,$11,$07,$00,$49,$31,$ff,"
-        "$45,$30,$00,$48,$54,$4f,$4f,$4c,$00,$45,$34,$00,$48,$48,$48,$45,$4c,$4c,$4f,$00\n"
+        "code $32\n"
+        "hex 6132004900ff451500451d00112a004931ff4920ff452d00451c0048486138004900ff1107004931ff452d0048453100484848454c4c4f00544f4f4c00\n"
     )
 
 
@@ -138,7 +137,7 @@ def verify_host_output(project_root: Path) -> None:
         raise RuntimeError(f"expected host file {avm_text_path} to exist")
     avm_text = avm_text_path.read_text(encoding="ascii", errors="ignore")
     expected_text = expected_avm_text()
-    if avm_text != expected_text:
+    if avm_text.replace("\r\n", "\n").rstrip("\n") != expected_text.replace("\r\n", "\n").rstrip("\n"):
         raise RuntimeError(f"expected host AVM text {avm_text_path} to equal {expected_text!r}, got {avm_text!r}")
     with tempfile.TemporaryDirectory() as tmpdir:
         packed_path = Path(tmpdir) / "main.avm"

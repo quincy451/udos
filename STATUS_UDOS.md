@@ -147,7 +147,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     typed input on top of a copied Action workspace, seeds a project root
     marked by `ACTION.PROJ` plus deterministic `OBJ/*.AVO` fixtures, launches
     `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
-    deterministic `BIN/MAIN.AVMTXT` byte-text final-image artifact on the host
+    deterministic `BIN/MAIN.AVMTXT` compact final-image artifact on the host
     fs tree; the current focused proof verifies that host text by packing it
     through `avm_pack.py --text --flags 1`, checking the exact resulting `AVM1`
     bytes, and proving an unused local export is stripped from the final
@@ -159,6 +159,11 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     integer and string literal pools. This slice is closer to the final
     linker artifact, but it is still not direct shell-side binary image
     emission
+  - `make vice-action-alink-avmrun` now uses the release image with
+    deterministic typed input on top of a copied Action workspace, launches
+    `ALINK.PRG MAIN`, then launches `AVMRUN.PRG BIN/MAIN.AVMTXT`, and proves
+    the emitted compact `entry/code/hex` artifact executes by printing
+    `HELLOTOOL7` and `42` before returning to `B:DNP/PROJ3>`
   - `make vice-action-actchk` now uses the release image with deterministic
     typed input on top of the release workspace, seeds a healthy project root
     marked by `ACTION.PROJ`, launches `ACTCHK.PRG`, validates expected
