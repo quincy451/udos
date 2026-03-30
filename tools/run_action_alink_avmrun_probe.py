@@ -92,7 +92,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         else:
             raise vp.ViceError(f"timed out waiting for ALINK OK; last screen was:\n{screen}")
 
-        client.keyboard_type("AVMRUN BIN/MAIN.AVMTXT\r")
+        client.keyboard_type("AVMRUN BIN/MAIN.AVM\r")
         deadline = time.monotonic() + 90.0
         while time.monotonic() < deadline:
             screen, _d018, _dd00 = vp.read_active_screen_text(client)
@@ -102,7 +102,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
                     "RUN ALINK.PRG",
                     "ALINK OK",
                     "RUN AVMRUN.PRG",
-                    "ARGS BIN/MAIN.AVMTXT",
+                    "ARGS BIN/MAIN.AVM",
                     "HELLOTOOL7",
                     "42",
                     f"B:DNP/{project_name}>",

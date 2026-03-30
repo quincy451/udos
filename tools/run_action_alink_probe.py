@@ -92,7 +92,7 @@ def util_object_text() -> str:
     )
 
 
-def expected_avm_text() -> str:
+def expected_avm_source() -> str:
     return (
         "entry 0\n"
         "code $32\n"
@@ -132,36 +132,30 @@ def prepare_workspace(fs_root: Path, project_name: str) -> Path:
 
 
 def verify_host_output(project_root: Path) -> None:
-    avm_text_path = project_root / "bin" / "main.avmtxt"
-    if not avm_text_path.is_file():
-        raise RuntimeError(f"expected host file {avm_text_path} to exist")
-    avm_text = avm_text_path.read_text(encoding="ascii", errors="ignore")
-    expected_text = expected_avm_text()
-    if avm_text.replace("\r\n", "\n").rstrip("\n") != expected_text.replace("\r\n", "\n").rstrip("\n"):
-        raise RuntimeError(f"expected host AVM text {avm_text_path} to equal {expected_text!r}, got {avm_text!r}")
+    avm_path = project_root / "bin" / "main.avm"
+    if not avm_path.is_file():
+        raise RuntimeError(f"expected host file {avm_path} to exist")
     with tempfile.TemporaryDirectory() as tmpdir:
-        packed_path = Path(tmpdir) / "main.avm"
         expected_text_path = Path(tmpdir) / "expected.avm.txt"
         expected_packed_path = Path(tmpdir) / "expected.avm"
-        expected_text_path.write_text(expected_avm_text(), encoding="ascii")
-        for src, dst in ((avm_text_path, packed_path), (expected_text_path, expected_packed_path)):
-            subprocess.run(
-                [
-                    sys.executable,
-                    str(AVM_PACK),
-                    "--text",
-                    "--flags",
-                    "1",
-                    str(src),
-                    "-o",
-                    str(dst),
-                ],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-        packed = packed_path.read_bytes()
+        expected_text_path.write_text(expected_avm_source(), encoding="ascii")
+        subprocess.run(
+            [
+                sys.executable,
+                str(AVM_PACK),
+                "--text",
+                "--flags",
+                "1",
+                str(expected_text_path),
+                "-o",
+                str(expected_packed_path),
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        packed = avm_path.read_bytes()
         expected = expected_packed_path.read_bytes()
     if packed != expected:
         raise RuntimeError(f"expected packed AVM bytes {expected!r}, got {packed!r}")

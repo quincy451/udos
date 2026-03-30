@@ -1679,6 +1679,43 @@ vice_write_screen_ptr_to_current_file_fail_close:
     sec
     rts
 
+vice_write_screen_ptr_len_to_current_file:
+    lda TOOL_ABI_FILE_LIMIT_LO
+    sta TOOL_ABI_FILE_REMAIN_LO
+    lda TOOL_ABI_FILE_LIMIT_HI
+    sta TOOL_ABI_FILE_REMAIN_HI
+vice_write_screen_ptr_len_to_current_file_loop:
+    lda TOOL_ABI_FILE_REMAIN_LO
+    ora TOOL_ABI_FILE_REMAIN_HI
+    beq vice_write_screen_ptr_len_to_current_file_done
+    ldy #$00
+    lda (SCREEN_PTR),y
+    jsr CHROUT
+    jsr READST
+    bne vice_write_screen_ptr_len_to_current_file_fail_close
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    sec
+    lda TOOL_ABI_FILE_REMAIN_LO
+    sbc #$01
+    sta TOOL_ABI_FILE_REMAIN_LO
+    lda TOOL_ABI_FILE_REMAIN_HI
+    sbc #$00
+    sta TOOL_ABI_FILE_REMAIN_HI
+    jmp vice_write_screen_ptr_len_to_current_file_loop
+vice_write_screen_ptr_len_to_current_file_done:
+    jsr vice_close_current_file
+    clc
+    rts
+vice_write_screen_ptr_len_to_current_file_fail_close:
+    php
+    jsr vice_close_current_file
+    plp
+    sec
+    rts
+
 vice_close_current_file:
     jsr CLRCHN
     lda vice_lfn
@@ -2139,6 +2176,11 @@ store_vice_host_shadow_from_screen_ptr:
     sta save_debug_stage_byte
     sta TOOL_QUEUE_TRACE2
     sta WRITEBACK_TRACE_STAGE
+    lda TOOL_ABI_FILE_LIMIT_LO
+    ora TOOL_ABI_FILE_LIMIT_HI
+    beq :+
+    jmp vice_write_screen_ptr_len_to_current_file
+: 
     jmp vice_write_screen_ptr_to_current_file
 store_vice_host_shadow_from_screen_ptr_fail:
     lda #'f'
@@ -15917,6 +15959,22 @@ tool_abi_resolve_copy_dest_shadow_bad:
     rts
 
 tool_abi_file_save_sc0:
+    stx saved_rp_x
+    lda 0,x
+    sta TOOL_ABI_FILE_NAME_LO
+    lda 1,x
+    sta TOOL_ABI_FILE_NAME_HI
+    lda 2,x
+    sta TOOL_ABI_FILE_DEST_LO
+    lda 3,x
+    sta TOOL_ABI_FILE_DEST_HI
+    lda 4,x
+    sta TOOL_ABI_FILE_LIMIT_LO
+    lda 5,x
+    sta TOOL_ABI_FILE_LIMIT_HI
+    lda #TOOL_FILE_STATUS_FAIL
+    sta 6,x
+
     lda #$50
     sta RETURN_QUEUE_TRACE0
     sta TOOL_QUEUE_TRACE2
@@ -15929,17 +15987,6 @@ tool_abi_file_save_sc0:
     sta TOOL_QUEUE_TRACE4
     sta WRITEBACK_TRACE_COUNT
     sta WRITEBACK_TRACE_KIND
-    stx saved_rp_x
-    lda 0,x
-    sta TOOL_ABI_FILE_NAME_LO
-    lda 1,x
-    sta TOOL_ABI_FILE_NAME_HI
-    lda 2,x
-    sta TOOL_ABI_FILE_DEST_LO
-    lda 3,x
-    sta TOOL_ABI_FILE_DEST_HI
-    lda #TOOL_FILE_STATUS_FAIL
-    sta 4,x
     lda PROGRAM_DRIVE_SNAPSHOT
     sta temp_drive
     lda PROGRAM_DIR_SNAPSHOT
@@ -16018,6 +16065,11 @@ tool_abi_file_save_sc0:
     bcc :+
     jmp tool_abi_file_save_fail_host
 :
+    lda TOOL_ABI_FILE_LIMIT_LO
+    ora TOOL_ABI_FILE_LIMIT_HI
+    beq :+
+    jmp tool_abi_file_save_ok
+:   
     lda #$55
     sta RETURN_QUEUE_TRACE0
     lda TOOL_ABI_FILE_DEST_LO
@@ -16043,11 +16095,15 @@ tool_abi_file_save_sc0:
     sta RETURN_QUEUE_TRACE0
     lda tool_writeback_count
     sta WRITEBACK_TRACE_COUNT
+tool_abi_file_save_ok:
     ldx saved_rp_x
     lda #TOOL_FILE_STATUS_OK
-    sta 4,x
+    sta 6,x
+    clc
+    rts
 tool_abi_file_save_fail:
     ldx saved_rp_x
+    sec
     rts
 tool_abi_file_save_fail_resolve:
     lda #$E1
