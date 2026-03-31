@@ -234,6 +234,9 @@ Current milestone:
   - `make vice-action-avmrun-flow` now runs `UDOSFLOW.AVM` from the mounted
     Action workspace and proves the current constrained subset can handle
     `jump`, `call`, and `ret` before returning to the UDOS prompt
+  - `make vice-action-avmrun-runtime` now prepares focused runtime samples on
+    the mounted Action workspace and proves the current narrow interpreted
+    subset can execute `push16`, `add`, `sub`, and `gt`
 
 Current command parser rule:
 - shell keywords require a separator before arguments

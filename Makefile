@@ -73,6 +73,7 @@ ACTION_ACTWRITE_BUILD := build/action-actwrite
 ACTION_AVMINFO_BUILD := build/action-avminfo
 ACTION_AVMRUN_BUILD := build/action-avmrun
 ACTION_AVMRUN_FLOW_BUILD := build/action-avmrun-flow
+ACTION_AVMRUN_RUNTIME_FS := build/action-avmrun-runtime-fs
 ACTION_ACTSRC_FS := build/action-actsrc-fs
 ACTION_ACTFILE_FS := build/action-actfile-fs
 ACTION_ACTADD_FS := build/action-actadd-fs
@@ -134,7 +135,7 @@ RELEASE_BUILD := build/release
 RELEASE_DISK := build/udos-release.d64
 RELEASE_FS := build/udos-release-fs
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-alink-avmrun vice-action-actc-alink-avmrun vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-alink-avmrun vice-action-actc-alink-avmrun vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-action-avmrun-runtime vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -600,6 +601,10 @@ vice-action-avmrun-flow: release
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
 		--command "AVMRUN UDOSFLOW.AVM" --run-marker "RUN AVMRUN.PRG" --done-fragment "UDOS AVM FLOW OK" --prompt-count 2 \
 		--contains "UDOS AVM FLOW OK"
+
+vice-action-avmrun-runtime: release
+	sleep 2
+	$(PYTHON) tools/run_action_avmrun_runtime_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_AVMRUN_RUNTIME_FS)
 
 vice-proof: proof
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_AUTO_PRG) --expected "UDOS VM OK"

@@ -293,6 +293,10 @@ Separate VICE smoke targets:
   - validates `AVMRUN.PRG` can run `UDOSFLOW.AVM`
   - proves the current constrained subset can execute `jump`, `call`, and `ret`
   - prints `UDOS AVM FLOW OK` and returns to the shell
+- `make vice-action-avmrun-runtime`
+  - rebuilds the current `AVMRUN.PRG`, prepares focused `RUNTC.AVM` and
+    `RUNTG.AVM` samples on a copied release workspace, and proves the narrow
+    interpreted subset can execute `push16`, `add`, `sub`, and `gt`
 - `make vice-selftest`
   - builds focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
   - writes the generated D64 artifacts under `build/udos-selftest-*.d64`
