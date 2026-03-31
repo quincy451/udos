@@ -159,20 +159,26 @@ Separate VICE smoke targets:
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a project root marked by `ACTION.PROJ`
   - validates `ACTC.PRG MAIN` launches from mounted `ACTION.DNP`
-  - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`, folded narrow decimal `PrintI` / `PrintIE` `+` / `-` expressions, current source-inferred runtime-import metadata, and explicit `payload_bytes`
+  - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`, folded narrow decimal `PrintI` / `PrintIE` `+` / `-` expression chains with inline spaces, current source-inferred runtime-import metadata, and explicit `payload_bytes`
   - verifies the generated host-side object file contents directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough for stable shell-side `TYPE OBJ/...` readback
 - `make vice-action-alink`
   - uses the release image with deterministic typed input on top of a copied Action workspace
   - seeds a project root marked by `ACTION.PROJ` plus deterministic `OBJ/*.AVO` fixtures
   - validates `ALINK.PRG MAIN` through host-side artifact creation instead of screen scraping
-  - emits a deterministic `BIN/MAIN.AVMTXT` compact final-image artifact (`entry 0`, `code $..`, `hex ...`) as the first UDOS-native linker slice, using compiler-emitted export sizes plus `body_ops` for direct byte emission
+  - emits a deterministic `BIN/MAIN.AVM` binary final-image artifact as the first UDOS-native linker slice, using compiler-emitted export sizes plus `body_ops` for direct byte emission
   - current focused proof resolves a wider unresolved external closure with sibling externals from `main`, a shared child object, and a deeper leaf, while carrying child-object integer and string literal pools in the emitted payload
-  - verifies the generated host-side text directly by packing it through `avm_pack.py --text --flags 1`, checking the exact resulting `AVM1` bytes, and proving an unused local export is stripped from the final image
+  - verifies the generated host-side binary directly by checking the exact emitted `AVM1` bytes and proving an unused local export is stripped from the final image
 - `make vice-action-alink-avmrun`
   - uses the release image with deterministic typed input on top of a copied Action workspace
-  - launches `ALINK.PRG MAIN` to generate `BIN/MAIN.AVMTXT`
-  - launches `AVMRUN.PRG BIN/MAIN.AVMTXT` against that live linker artifact
-  - proves the current compact `entry/code/hex` artifact executes by printing `HELLOTOOL7` and `42` before returning to `B:DNP/PROJ3>`
+  - launches `ALINK.PRG MAIN` to generate `BIN/MAIN.AVM`
+  - launches `AVMRUN.PRG BIN/MAIN.AVM` against that live linker artifact
+  - proves the current linked image executes by printing `HELLOWORLD`, `TOOL7`, and `12342` before returning to `B:DNP/PROJ3>`
+- `make vice-action-actc-alink-avmrun`
+  - uses the release image with deterministic typed input on top of a copied Action workspace
+  - launches `ACTC.PRG MAIN` to generate `OBJ/MAIN.AVO`
+  - launches `ALINK.PRG MAIN` to generate `BIN/MAIN.AVM`
+  - launches `AVMRUN.PRG BIN/MAIN.AVM` against that live compiler/linker artifact
+  - proves the integrated pipeline prints `HELLO`, `TOOL7`, and `12455` before returning to `B:DNP/PROJ3>`
 - `make vice-action-actchk`
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a healthy project root marked by `ACTION.PROJ`

@@ -46,8 +46,8 @@ def source_text() -> str:
         'PROC MAIN()\r'
         'PrintE("HELLO")\r'
         'W()\r'
-        'PrintI(120+4)\r'
-        'PrintIE(50-7)\r'
+        'PrintI(100 + 20 + 4)\r'
+        'PrintIE(60 - 7 + 2)\r'
         'RETURN\r'
     )
 
@@ -91,7 +91,7 @@ def verify_host_output(project_root: Path) -> None:
         "u w",
         "s HELLO",
         "i 124",
-        "i 43",
+        "i 55",
         "k 7",
         "n main",
     ]

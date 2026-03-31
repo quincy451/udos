@@ -138,7 +138,8 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     UDOS-native compiler front-end slice can emit a deterministic
     `OBJ/MAIN.AVO` object stub on the host fs tree, including extracted
     top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`,
-    folded narrow decimal `PrintI` / `PrintIE` `+` / `-` expressions,
+    folded narrow decimal `PrintI` / `PrintIE` `+` / `-` expression chains
+    with inline spaces,
     current source-inferred runtime-import metadata, and explicit
     `payload_bytes`;
     the current focused proof verifies the host-side object
@@ -148,23 +149,25 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     typed input on top of a copied Action workspace, seeds a project root
     marked by `ACTION.PROJ` plus deterministic `OBJ/*.AVO` fixtures, launches
     `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
-    deterministic `BIN/MAIN.AVMTXT` compact final-image artifact on the host
-    fs tree; the current focused proof verifies that host text by packing it
-    through `avm_pack.py --text --flags 1`, checking the exact resulting `AVM1`
-    bytes, and proving an unused local export is stripped from the final
+    deterministic `BIN/MAIN.AVM` binary final-image artifact on the host fs
+    tree; the current focused proof verifies the exact emitted `AVM1` bytes
+    directly and proves an unused local export is stripped from the final
     image. `ALINK` now uses compiler-emitted export sizes plus `body_ops` for
     direct byte emission instead of inferring them only from the payload
-    shape. The current focused proof also resolves
-    a wider unresolved external closure with sibling externals from `main`, a
-    shared child object, and a deeper leaf, while carrying child-object
-    integer and string literal pools. This slice is closer to the final
-    linker artifact, but it is still not direct shell-side binary image
-    emission
+    shape. The current focused proof also resolves a wider unresolved
+    external closure with sibling externals from `main`, a shared child
+    object, and a deeper leaf, while carrying child-object integer and string
+    literal pools into the linked binary image
   - `make vice-action-alink-avmrun` now uses the release image with
     deterministic typed input on top of a copied Action workspace, launches
-    `ALINK.PRG MAIN`, then launches `AVMRUN.PRG BIN/MAIN.AVMTXT`, and proves
-    the emitted compact `entry/code/hex` artifact executes by printing
-    `HELLOTOOL7` and `42` before returning to `B:DNP/PROJ3>`
+    `ALINK.PRG MAIN`, then launches `AVMRUN.PRG BIN/MAIN.AVM`, and proves the
+    emitted linked image executes by printing `HELLOWORLD`, `TOOL7`, and
+    `12342` before returning to `B:DNP/PROJ3>`
+  - `make vice-action-actc-alink-avmrun` now uses the release image with
+    deterministic typed input on top of a copied Action workspace, launches
+    `ACTC.PRG MAIN`, `ALINK.PRG MAIN`, then `AVMRUN.PRG BIN/MAIN.AVM`, and
+    proves the integrated compiler/linker/runner path prints `HELLO`,
+    `TOOL7`, and `12455` before returning to `B:DNP/PROJ3>`
   - `make vice-action-actchk` now uses the release image with deterministic
     typed input on top of the release workspace, seeds a healthy project root
     marked by `ACTION.PROJ`, launches `ACTCHK.PRG`, validates expected
