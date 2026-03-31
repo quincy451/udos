@@ -46,11 +46,13 @@ def ensure_catalog_entries(path: Path, entries: list[str]) -> None:
 def main_object_text() -> str:
     return (
         'AVO1\n'
-        'x main 0 19\n'
-        'b s0u0u1i0r\n'
+        'x main 0 31\n'
+        'b s0e1u0u1j0i1r\n'
         'u h\n'
         'u t\n'
         's HELLO\n'
+        's WORLD\n'
+        'i 123\n'
         'i 42\n'
         'k 7\n'
         'n main\n'
@@ -95,8 +97,42 @@ def util_object_text() -> str:
 def expected_avm_source() -> str:
     return (
         "entry 0\n"
-        "code $32\n"
-        "hex 6132004900ff451500451d00112a004931ff4920ff452d00451c0048486138004900ff1107004931ff452d0048453100484848454c4c4f00544f4f4c00\n"
+        "code $3e\n"
+        "setp16 main_str0\n"
+        "calln print\n"
+        "setp16 main_str1\n"
+        "calln printe\n"
+        "call h\n"
+        "call t\n"
+        "push16 123\n"
+        "calln printi\n"
+        "push16 42\n"
+        "calln printie\n"
+        "calln exit\n"
+        "h:\n"
+        "call u\n"
+        "call z\n"
+        "ret\n"
+        "z:\n"
+        "ret\n"
+        "t:\n"
+        "setp16 t_str0\n"
+        "calln print\n"
+        "push16 7\n"
+        "calln printie\n"
+        "call u\n"
+        "ret\n"
+        "u:\n"
+        "call v\n"
+        "ret\n"
+        "v:\n"
+        "ret\n"
+        "main_str0:\n"
+        "stringz HELLO\n"
+        "main_str1:\n"
+        "stringz WORLD\n"
+        "t_str0:\n"
+        "stringz TOOL\n"
     )
 
 

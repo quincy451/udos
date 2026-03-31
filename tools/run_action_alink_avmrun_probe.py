@@ -103,8 +103,9 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
                     "ALINK OK",
                     "RUN AVMRUN.PRG",
                     "ARGS BIN/MAIN.AVM",
-                    "HELLOTOOL7",
-                    "42",
+                    "HELLOWORLD",
+                    "TOOL7",
+                    "12342",
                     f"B:DNP/{project_name}>",
                 )
             ):
