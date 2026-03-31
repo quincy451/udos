@@ -28,8 +28,8 @@ def source_text() -> str:
         'PROC MAIN()\r'
         'PrintE("HELLO")\r'
         'W()\r'
-        'PrintI((100 + 2) * 2 - 80)\r'
-        'PrintIE((60 - 15) / 3 + 42)\r'
+        'PrintI(((100 + 2) * 2 - 80) = 124)\r'
+        'PrintIE(((60 - 15) / 3 + 42) > 57)\r'
         'RETURN\r'
     )
 
@@ -52,8 +52,8 @@ def expected_main_object_fragments() -> list[str]:
         "b e0u0j0i1r",
         "u w",
         "s HELLO",
-        "i 124",
-        "i 57",
+        "i 1",
+        "i 0",
         "k 7",
         "n main",
     ]
@@ -66,9 +66,9 @@ def expected_avm_source() -> str:
         "setp16 main_str0\n"
         "calln printe\n"
         "call w\n"
-        "push16 124\n"
+        "push16 1\n"
         "calln printi\n"
-        "push16 57\n"
+        "push16 0\n"
         "calln printie\n"
         "calln exit\n"
         "w:\n"
@@ -257,7 +257,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
                     "ARGS BIN/MAIN.AVM",
                     "HELLO",
                     "TOOL7",
-                    "12457",
+                    "10",
                     f"B:DNP/{project_name}>",
                 )
             ):
