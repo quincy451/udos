@@ -46,8 +46,8 @@ def source_text() -> str:
         'PROC MAIN()\r'
         'PrintE("HELLO")\r'
         'W()\r'
-        'PrintI(100 + 2 * 12)\r'
-        'PrintIE(60 - 15 / 3 + 2)\r'
+        'PrintI((100 + 2) * 2 - 80)\r'
+        'PrintIE((60 - 15) / 3 + 42)\r'
         'RETURN\r'
     )
 
