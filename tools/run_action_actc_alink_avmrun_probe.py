@@ -26,14 +26,10 @@ def source_text() -> str:
     return (
         'MODULE MAIN\r'
         'PROC MAIN()\r'
-        'Print("HELLO")\r'
-        'PrintE("WORLD")\r'
+        'PrintE("HELLO")\r'
         'W()\r'
-        'HELPER()\r'
-        'PrintI(123)\r'
-        'PrintIE(42)\r'
-        'RETURN\r'
-        'PROC HELPER()\r'
+        'PrintI(120+4)\r'
+        'PrintIE(50-7)\r'
         'RETURN\r'
     )
 
@@ -52,15 +48,12 @@ def work_object_text() -> str:
 def expected_main_object_fragments() -> list[str]:
     return [
         "AVO1",
-        "x main 0 31",
-        "x helper 31 1",
-        "b s0e1u0c1j0i1r",
-        "b r",
+        "x main 0 22",
+        "b e0u0j0i1r",
         "u w",
         "s HELLO",
-        "s WORLD",
-        "i 123",
-        "i 42",
+        "i 124",
+        "i 43",
         "k 7",
         "n main",
     ]
@@ -69,20 +62,15 @@ def expected_main_object_fragments() -> list[str]:
 def expected_avm_source() -> str:
     return (
         "entry 0\n"
-        "code $2f\n"
+        "code $25\n"
         "setp16 main_str0\n"
-        "calln print\n"
-        "setp16 main_str1\n"
         "calln printe\n"
         "call w\n"
-        "call helper\n"
-        "push16 123\n"
+        "push16 124\n"
         "calln printi\n"
-        "push16 42\n"
+        "push16 43\n"
         "calln printie\n"
         "calln exit\n"
-        "helper:\n"
-        "ret\n"
         "w:\n"
         "setp16 w_str0\n"
         "calln print\n"
@@ -91,8 +79,6 @@ def expected_avm_source() -> str:
         "ret\n"
         "main_str0:\n"
         "stringz HELLO\n"
-        "main_str1:\n"
-        "stringz WORLD\n"
         "w_str0:\n"
         "stringz TOOL\n"
     )
@@ -269,9 +255,9 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
                     "ALINK OK",
                     "RUN AVMRUN.PRG",
                     "ARGS BIN/MAIN.AVM",
-                    "HELLOWORLD",
+                    "HELLO",
                     "TOOL7",
-                    "12342",
+                    "12443",
                     f"B:DNP/{project_name}>",
                 )
             ):

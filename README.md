@@ -106,6 +106,7 @@ Current milestone:
     UDOS-native compiler front-end slice can emit a deterministic
     `OBJ/MAIN.AVO` object stub on the host fs tree, including extracted
     top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`,
+    folded narrow decimal `PrintI` / `PrintIE` `+` / `-` expressions,
     current source-inferred runtime-import metadata, and explicit
     `payload_bytes`;
     the focused proof keeps verification host-side because

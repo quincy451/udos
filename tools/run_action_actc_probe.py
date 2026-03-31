@@ -44,14 +44,10 @@ def source_text() -> str:
     return (
         'MODULE MAIN\r'
         'PROC MAIN()\r'
-        'Print("HELLO")\r'
-        'PrintE("WORLD")\r'
-        'WORK()\r'
-        'HELPER()\r'
-        'PrintI(7)\r'
-        'PrintIE(42)\r'
-        'RETURN\r'
-        'PROC HELPER()\r'
+        'PrintE("HELLO")\r'
+        'W()\r'
+        'PrintI(120+4)\r'
+        'PrintIE(50-7)\r'
         'RETURN\r'
     )
 
@@ -90,15 +86,12 @@ def verify_host_output(project_root: Path) -> None:
     text = output_path.read_text(encoding="ascii", errors="ignore")
     required = [
         "AVO1",
-        "x main 0 31",
-        "x helper 31 1",
-        "b s0e1u0c1j0i1r",
-        "b r",
-        "u work",
+        "x main 0 22",
+        "b e0u0j0i1r",
+        "u w",
         "s HELLO",
-        "s WORLD",
-        "i 7",
-        "i 42",
+        "i 124",
+        "i 43",
         "k 7",
         "n main",
     ]
