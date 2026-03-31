@@ -14542,8 +14542,7 @@ query_file_vice_host_exact_current_open:
     jmp query_file_vice_open_current
 query_file_vice_host_exact_current_restore_fail:
     jsr restore_path_name_shadow
-    sec
-    rts
+    jmp query_file_vice_open_current
 
 query_program_file_vice_host_current:
     ldx temp_drive

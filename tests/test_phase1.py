@@ -122,6 +122,10 @@ class UdosBuildTests(unittest.TestCase):
         subprocess.run(["make", "vice-action-alink-avmrun"], cwd=ROOT, check=True)
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actc_alink_avmrun_runs_in_vice(self) -> None:
+        subprocess.run(["make", "vice-action-actc-alink-avmrun"], cwd=ROOT, check=True)
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actchk_runs_in_vice(self) -> None:
         subprocess.run(["make", "vice-action-actchk"], cwd=ROOT, check=True)
 

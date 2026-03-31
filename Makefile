@@ -62,6 +62,7 @@ ACTION_ACTADD_BUILD := build/action-actadd
 ACTION_ACTC_BUILD := build/action-actc
 ACTION_ALINK_BUILD := build/action-alink
 ACTION_ALINK_AVMRUN_BUILD := build/action-alink-avmrun
+ACTION_ACTC_ALINK_AVMRUN_BUILD := build/action-actc-alink-avmrun
 ACTION_ACTFILE_BUILD := build/action-actfile
 ACTION_ACTSRC_BUILD := build/action-actsrc
 ACTION_ACTWORK_BUILD := build/action-actwork
@@ -79,6 +80,7 @@ ACTION_ACT2SAVE_FS := build/action-act2save-fs
 ACTION_ACTC_FS := build/action-actc-fs
 ACTION_ALINK_FS := build/action-alink-fs
 ACTION_ALINK_AVMRUN_FS := build/action-alink-avmrun-fs
+ACTION_ACTC_ALINK_AVMRUN_FS := build/action-actc-alink-avmrun-fs
 ACTION_ACTCHK_FS := build/action-actchk-fs
 ACTION_ACTMON_FS := build/action-actmon-fs
 ACTION_ACTWORK_FS := build/action-actwork-fs
@@ -132,7 +134,7 @@ RELEASE_BUILD := build/release
 RELEASE_DISK := build/udos-release.d64
 RELEASE_FS := build/udos-release-fs
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-alink-avmrun vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-alink-avmrun vice-action-actc-alink-avmrun vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -417,6 +419,16 @@ vice-action-alink-avmrun: release
 	mkdir -p $(ACTION_ALINK_AVMRUN_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_AVMRUN_FS)/
 	$(PYTHON) tools/run_action_alink_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_AVMRUN_FS) \
+		--attempts 3 --attempt-delay 4.0
+
+vice-action-actc-alink-avmrun: release
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_avmrun_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_AVMRUN_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_AVMRUN_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_AVMRUN_FS)/
+	$(PYTHON) tools/run_action_actc_alink_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_AVMRUN_FS) \
 		--attempts 3 --attempt-delay 4.0
 
 vice-action-actchk: release
