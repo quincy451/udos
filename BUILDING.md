@@ -159,7 +159,7 @@ Separate VICE smoke targets:
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a project root marked by `ACTION.PROJ`
   - validates `ACTC.PRG MAIN` launches from mounted `ACTION.DNP`
-  - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`, folded narrow decimal `PrintI` / `PrintIE` `+` / `-` expression chains with inline spaces, current source-inferred runtime-import metadata, and explicit `payload_bytes`
+  - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`, folded narrow decimal `PrintI` / `PrintIE` `+` / `-` / `*` / `/` expressions with inline spaces and simple precedence, current source-inferred runtime-import metadata, and explicit `payload_bytes`
   - verifies the generated host-side object file contents directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough for stable shell-side `TYPE OBJ/...` readback
 - `make vice-action-alink`
   - uses the release image with deterministic typed input on top of a copied Action workspace
@@ -178,7 +178,7 @@ Separate VICE smoke targets:
   - launches `ACTC.PRG MAIN` to generate `OBJ/MAIN.AVO`
   - launches `ALINK.PRG MAIN` to generate `BIN/MAIN.AVM`
   - launches `AVMRUN.PRG BIN/MAIN.AVM` against that live compiler/linker artifact
-  - proves the integrated pipeline prints `HELLO`, `TOOL7`, and `12455` before returning to `B:DNP/PROJ3>`
+  - proves the integrated pipeline prints `HELLO`, `TOOL7`, and `12457` before returning to `B:DNP/PROJ3>`
 - `make vice-action-actchk`
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a healthy project root marked by `ACTION.PROJ`

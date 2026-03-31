@@ -138,8 +138,8 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     UDOS-native compiler front-end slice can emit a deterministic
     `OBJ/MAIN.AVO` object stub on the host fs tree, including extracted
     top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`,
-    folded narrow decimal `PrintI` / `PrintIE` `+` / `-` expression chains
-    with inline spaces,
+    folded narrow decimal `PrintI` / `PrintIE` `+` / `-` / `*` / `/`
+    expressions with inline spaces and simple precedence,
     current source-inferred runtime-import metadata, and explicit
     `payload_bytes`;
     the current focused proof verifies the host-side object
@@ -167,7 +167,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     deterministic typed input on top of a copied Action workspace, launches
     `ACTC.PRG MAIN`, `ALINK.PRG MAIN`, then `AVMRUN.PRG BIN/MAIN.AVM`, and
     proves the integrated compiler/linker/runner path prints `HELLO`,
-    `TOOL7`, and `12455` before returning to `B:DNP/PROJ3>`
+    `TOOL7`, and `12457` before returning to `B:DNP/PROJ3>`
   - `make vice-action-actchk` now uses the release image with deterministic
     typed input on top of the release workspace, seeds a healthy project root
     marked by `ACTION.PROJ`, launches `ACTCHK.PRG`, validates expected
