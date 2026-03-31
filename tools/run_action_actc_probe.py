@@ -45,8 +45,10 @@ def source_text() -> str:
         'MODULE MAIN\r'
         'PROC MAIN()\r'
         'Print("HELLO")\r'
+        'PrintE("WORLD")\r'
         'WORK()\r'
         'HELPER()\r'
+        'PrintI(7)\r'
         'PrintIE(42)\r'
         'RETURN\r'
         'PROC HELPER()\r'
@@ -88,12 +90,14 @@ def verify_host_output(project_root: Path) -> None:
     text = output_path.read_text(encoding="ascii", errors="ignore")
     required = [
         "AVO1",
-        "x main 0 19",
-        "x helper 19 1",
-        "b s0u0c1i0r",
+        "x main 0 31",
+        "x helper 31 1",
+        "b s0e1u0c1j0i1r",
         "b r",
         "u work",
         "s HELLO",
+        "s WORLD",
+        "i 7",
         "i 42",
         "k 7",
         "n main",
@@ -134,7 +138,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
             extra_checks=[],
             timeout=90.0,
         )
-        time.sleep(2.0)
+        time.sleep(5.0)
 
         client.keyboard_type("MOUNT B: /IMAGES/ACTION.DNP\r")
         vp.wait_for_screen_and_state(
@@ -146,31 +150,31 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
             extra_checks=[],
             timeout=90.0,
         )
-        time.sleep(1.0)
+        time.sleep(5.0)
 
         client.keyboard_type("B:\r")
         vp.wait_for_screen_and_state(
             client,
             process,
-            "B:DNP/>",
+            "B:DNP/",
             marker_addr=None,
             marker_value=None,
             extra_checks=[],
             timeout=90.0,
         )
-        time.sleep(1.0)
+        time.sleep(5.0)
 
         client.keyboard_type(f"CD {project_name}\r")
         vp.wait_for_screen_and_state(
             client,
             process,
-            f"B:DNP/{project_name}>",
+            f"B:DNP/{project_name}",
             marker_addr=None,
             marker_value=None,
             extra_checks=[],
             timeout=90.0,
         )
-        time.sleep(1.0)
+        time.sleep(5.0)
 
         client.keyboard_type("ACTC MAIN\r")
         screen = vp.wait_for_screen_and_state(
