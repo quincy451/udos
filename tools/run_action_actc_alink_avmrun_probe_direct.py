@@ -36,17 +36,21 @@ def work_object_text() -> str:
 def expected_avm_source() -> str:
     return (
         'entry 0\n'
-        'code $2d\n'
+        'code $35\n'
         'setp16 main_str0\n'
         'calln printe\n'
         'call w\n'
-        'push16 120\n'
-        'push16 4\n'
-        'add\n'
-        'calln printi\n'
         'push16 57\n'
         'push16 57\n'
         'gt\n'
+        'push16 0\n'
+        'eq\n'
+        'calln printi\n'
+        'push16 57\n'
+        'push16 57\n'
+        'lt\n'
+        'push16 0\n'
+        'eq\n'
         'calln printie\n'
         'calln exit\n'
         'w:\n'
@@ -326,7 +330,7 @@ def run_alink_avmrun_phase(image: Path, work_root: Path, project_name: str, proj
                     'RUN AVMRUN.PRG',
                     'ARGS BIN/MAIN.AVM',
                     'TOOL7',
-                    '1240',
+                    '11',
                     f'B:DNP/{project_name}>',
                 )
             ):

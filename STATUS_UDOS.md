@@ -279,7 +279,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `make vice-action-avmrun-runtime` now rebuilds the current `AVMRUN.PRG`,
     prepares focused `RUNTC.AVM` and `RUNTG.AVM` samples on a copied release
     workspace, and proves the narrow interpreted subset can execute `push16`,
-    `add`, `sub`, and `gt`
+    `add`, `sub`, `eq`, `ne`, `lt`, and `gt`
 - the tool-side VICE tree file-mutation ABI now resolves nested tree paths for
   host-backed Action project files:
   - direct `ACTDEL SRC/...` validation now removes host-backed source files
