@@ -429,8 +429,8 @@ vice-action-actc-alink-avmrun: release
 	rm -rf $(ACTION_ACTC_ALINK_AVMRUN_FS)
 	mkdir -p $(ACTION_ACTC_ALINK_AVMRUN_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_AVMRUN_FS)/
-	$(PYTHON) tools/run_action_actc_alink_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_AVMRUN_FS) \
-		--attempts 3 --attempt-delay 4.0
+	$(PYTHON) tools/run_action_actc_alink_avmrun_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_AVMRUN_FS) \
+		--attempts 2 --attempt-delay 4.0
 
 vice-action-actchk: release
 	rm -rf $(ACTION_ACTCHK_FS)
