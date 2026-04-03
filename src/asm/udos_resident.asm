@@ -1602,15 +1602,11 @@ vice_open_write_setlfs:
     jsr OPEN_K
     jsr READST
     sta save_debug_open_status0
-    sta TOOL_QUEUE_TRACE3
-    sta WRITEBACK_TRACE_COUNT
     bne vice_open_write_from_ptr_fail_close
     ldx vice_lfn
     jsr CHKOUT_K
     jsr READST
     sta save_debug_open_status1
-    sta TOOL_QUEUE_TRACE4
-    sta WRITEBACK_TRACE_KIND
     bne vice_open_write_from_ptr_fail_close
     clc
     rts
@@ -1913,8 +1909,12 @@ build_vice_full_path_done:
 
 build_vice_write_path_from_name:
     jsr build_vice_full_path_from_path_name
+    lda #'@'
+    sta dest_fullpath_buffer
+    lda #ASCII_COLON
+    sta dest_fullpath_buffer+1
     ldx #$00
-    ldy #$00
+    ldy #$02
 build_vice_write_path_copy:
     lda source_fullpath_buffer,x
     beq build_vice_write_path_suffix
@@ -1939,7 +1939,11 @@ build_vice_write_path_suffix:
     rts
 
 build_vice_write_path_from_ptr:
-    ldx #$00
+    lda #'@'
+    sta dest_fullpath_buffer
+    lda #ASCII_COLON
+    sta dest_fullpath_buffer+1
+    ldx #$02
     ldy #$00
 build_vice_write_path_ptr_copy:
     lda (PTR),y
@@ -2124,13 +2128,11 @@ store_vice_host_shadow_from_screen_ptr:
     jmp store_vice_host_shadow_from_screen_ptr_fail
 : 
     jsr vice_close_current_file
-    jsr build_vice_delete_command_from_ptr
-    lda #VICE_LFN_CMD
-    sta vice_lfn
-    lda #VICE_SA_CMD
-    sta vice_secondary
-    jsr vice_issue_command_from_ptr
     lda #'b'
+    sta save_debug_stage_byte
+    sta TOOL_QUEUE_TRACE2
+    sta WRITEBACK_TRACE_STAGE
+    lda #'c'
     sta save_debug_stage_byte
     sta TOOL_QUEUE_TRACE2
     sta WRITEBACK_TRACE_STAGE
@@ -2138,11 +2140,11 @@ store_vice_host_shadow_from_screen_ptr:
     bcc :+
     jmp store_vice_host_shadow_from_screen_ptr_fail
 : 
-    jsr build_vice_write_path_from_ptr
     lda #'c'
     sta save_debug_stage_byte
     sta TOOL_QUEUE_TRACE2
     sta WRITEBACK_TRACE_STAGE
+    jsr build_vice_write_path_from_ptr
     ldy #$00
 :   lda (PTR),y
     sta save_debug_write_path_buffer,y
@@ -2159,15 +2161,11 @@ store_vice_host_shadow_from_screen_ptr:
     sta vice_lfn
     lda #VICE_SA_WRITE
     sta vice_secondary
-    lda temp_drive
-    sta save_debug_open_status2
-    lda vice_secondary
-    sta save_debug_open_status3
-    jsr vice_close_current_file
     lda #'d'
     sta save_debug_stage_byte
     sta TOOL_QUEUE_TRACE2
     sta WRITEBACK_TRACE_STAGE
+    jsr vice_close_current_file
     jsr vice_open_write_from_ptr
     bcc :+
     jmp store_vice_host_shadow_from_screen_ptr_fail
@@ -15458,12 +15456,12 @@ launch_stub_entry_template_end:
 
 launch_stub_return_template:
     sei
-    pha
+    tax
     lda #$F4
     sta LAUNCH_TRACE_STAGE
     lda #$C4
     sta LAUNCH_TRACE_CODE
-    pla
+    txa
     sta LAUNCH_EXIT_STATUS
     lda #PROGRAM_LAUNCH_RESULT_OK
     sta LAUNCH_RESULT_FLAG
