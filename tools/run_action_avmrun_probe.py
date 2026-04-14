@@ -8,73 +8,253 @@ from pathlib import Path
 
 import vice_prg_probe as vp
 
+WORKSPACE_CONNECT_DELAYS = vp.default_connect_delays()
+
 
 def screen_text(client: vp.BinaryMonitorClient) -> str:
-    return vp.screen_ram_to_text(client.memory_get(0x0400, 0x07E7))
+    text, _d018, _dd00 = vp.read_active_screen_text(client)
+    return text
 
 
-def wait_for_screen_fragment(client: vp.BinaryMonitorClient, fragment: str, timeout: float) -> str:
+def screen_text_for_fragment(client: vp.BinaryMonitorClient, fragment: str) -> str:
+    text, _d018, _dd00 = vp.read_screen_text_for_fragment(client, fragment)
+    return text
+
+
+def prime_workspace_drive9(client: vp.BinaryMonitorClient) -> dict[str, dict[str, int]]:
+    before = {
+        "IECDevice9": client.resource_get_int("IECDevice9"),
+        "VirtualDevice9": client.resource_get_int("VirtualDevice9"),
+        "FileSystemDevice9": client.resource_get_int("FileSystemDevice9"),
+    }
+    client.resource_set_int("IECDevice9", 1)
+    client.resource_set_int("VirtualDevice9", 1)
+    client.resource_set_int("FileSystemDevice9", 1)
+    after = {
+        "IECDevice9": client.resource_get_int("IECDevice9"),
+        "VirtualDevice9": client.resource_get_int("VirtualDevice9"),
+        "FileSystemDevice9": client.resource_get_int("FileSystemDevice9"),
+    }
+    return {"before": before, "after": after}
+
+
+def last_nonempty_line(screen: str) -> str:
+    for line in reversed(screen.splitlines()):
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return ""
+
+
+def nudge_to_prompt(
+    client: vp.BinaryMonitorClient,
+    process,
+    expected_fragment: str = "A:D64/>",
+    attempts: int = 3,
+    timeout: float = 8.0,
+) -> str:
+    last_error: vp.ViceError | None = None
+    try:
+        return vp.wait_for_screen_and_state(
+            client,
+            process,
+            expected_fragment,
+            marker_addr=None,
+            marker_value=None,
+            extra_checks=[],
+            timeout=timeout,
+        )
+    except vp.ViceError as exc:
+        last_error = exc
+
+    for _ in range(attempts):
+        client.keyboard_feed("\r")
+        try:
+            return vp.wait_for_screen_and_state(
+                client,
+                process,
+                expected_fragment,
+                marker_addr=None,
+                marker_value=None,
+                extra_checks=[],
+                timeout=timeout,
+            )
+        except vp.ViceError as exc:
+            last_error = exc
+
+    assert last_error is not None
+    raise last_error
+
+
+def maybe_retry_command_enter(
+    client: vp.BinaryMonitorClient,
+    *,
+    last_screen: str,
+    retry_echo: str | None,
+    retry_count: int,
+) -> int:
+    if retry_count >= 4 or not retry_echo or not vp.screen_contains(last_screen, retry_echo):
+        return retry_count
+    send_return(client, 5.0)
+    return retry_count + 1
+
+
+def wait_for_screen_fragment(
+    client: vp.BinaryMonitorClient,
+    fragment: str,
+    timeout: float,
+    *,
+    retry_echo: str | None = None,
+    poll_interval: float = 0.2,
+) -> str:
     deadline = time.monotonic() + timeout
     last_screen = ""
+    retry_count = 0
     while time.monotonic() < deadline:
-        last_screen = screen_text(client)
-        if fragment in last_screen:
+        last_screen = screen_text_for_fragment(client, fragment)
+        if vp.screen_contains(last_screen, fragment):
             return last_screen
-        time.sleep(0.2)
+        retry_count = maybe_retry_command_enter(
+            client,
+            last_screen=last_screen,
+            retry_echo=retry_echo,
+            retry_count=retry_count,
+        )
+        time.sleep(poll_interval)
     raise vp.ViceError(f"expected screen fragment {fragment!r} was not present in final screen:\n{last_screen}")
 
 
-def wait_for_screen_fragments(client: vp.BinaryMonitorClient, fragments: list[str], timeout: float) -> str:
+def wait_for_screen_fragments(
+    client: vp.BinaryMonitorClient,
+    fragments: list[str],
+    timeout: float,
+    *,
+    retry_echo: str | None = None,
+    poll_interval: float = 0.2,
+) -> str:
     deadline = time.monotonic() + timeout
     last_screen = ""
+    retry_count = 0
     while time.monotonic() < deadline:
         last_screen = screen_text(client)
-        if all(fragment in last_screen for fragment in fragments):
+        if not all(vp.screen_contains(last_screen, fragment) for fragment in fragments):
+            for fragment in fragments:
+                if not vp.screen_contains(last_screen, fragment):
+                    candidate = screen_text_for_fragment(client, fragment)
+                    if vp.screen_contains(candidate, fragment):
+                        last_screen = candidate
+                        break
+        if all(vp.screen_contains(last_screen, fragment) for fragment in fragments):
             return last_screen
-        time.sleep(0.2)
-    missing = [fragment for fragment in fragments if fragment not in last_screen]
+        retry_count = maybe_retry_command_enter(
+            client,
+            last_screen=last_screen,
+            retry_echo=retry_echo,
+            retry_count=retry_count,
+        )
+        time.sleep(poll_interval)
+    missing = [fragment for fragment in fragments if not vp.screen_contains(last_screen, fragment)]
     raise vp.ViceError(f"expected screen fragments {missing!r} were not present in final screen:\n{last_screen}")
 
 
-def wait_for_prompt_count(client: vp.BinaryMonitorClient, prompt: str, minimum: int, timeout: float) -> str:
+def wait_for_prompt_count(
+    client: vp.BinaryMonitorClient,
+    prompt: str,
+    minimum: int,
+    timeout: float,
+    *,
+    retry_echo: str | None = None,
+    poll_interval: float = 0.2,
+) -> str:
     deadline = time.monotonic() + timeout
     last_screen = ""
+    retry_count = 0
     while time.monotonic() < deadline:
-        last_screen = screen_text(client)
-        if last_screen.count(prompt) >= minimum:
+        last_screen = screen_text_for_fragment(client, prompt)
+        if vp.screen_count(last_screen, prompt) >= minimum:
             return last_screen
-        time.sleep(0.2)
+        retry_count = maybe_retry_command_enter(
+            client,
+            last_screen=last_screen,
+            retry_echo=retry_echo,
+            retry_count=retry_count,
+        )
+        time.sleep(poll_interval)
     raise vp.ViceError(
-        f"expected prompt {prompt!r} at least {minimum} times, got {last_screen.count(prompt)}:\n{last_screen}"
+        f"expected prompt {prompt!r} at least {minimum} times, got {vp.screen_count(last_screen, prompt)}:\n{last_screen}"
     )
 
 
 def wait_for_prompt_count_and_fragments(
-    client: vp.BinaryMonitorClient, prompt: str, minimum: int, fragments: list[str], timeout: float
+    client: vp.BinaryMonitorClient,
+    prompt: str,
+    minimum: int,
+    fragments: list[str],
+    timeout: float,
+    *,
+    retry_echo: str | None = None,
+    poll_interval: float = 0.2,
 ) -> str:
     deadline = time.monotonic() + timeout
     last_screen = ""
+    retry_count = 0
     while time.monotonic() < deadline:
-        last_screen = screen_text(client)
-        if last_screen.count(prompt) >= minimum and all(fragment in last_screen for fragment in fragments):
+        last_screen = screen_text_for_fragment(client, prompt)
+        if not all(vp.screen_contains(last_screen, fragment) for fragment in fragments):
+            for fragment in fragments:
+                if not vp.screen_contains(last_screen, fragment):
+                    candidate = screen_text_for_fragment(client, fragment)
+                    if vp.screen_contains(candidate, fragment):
+                        last_screen = candidate
+                        break
+        if vp.screen_count(last_screen, prompt) >= minimum and all(
+            vp.screen_contains(last_screen, fragment) for fragment in fragments
+        ):
             return last_screen
-        time.sleep(0.2)
-    missing = [fragment for fragment in fragments if fragment not in last_screen]
+        retry_count = maybe_retry_command_enter(
+            client,
+            last_screen=last_screen,
+            retry_echo=retry_echo,
+            retry_count=retry_count,
+        )
+        time.sleep(poll_interval)
+    missing = [fragment for fragment in fragments if not vp.screen_contains(last_screen, fragment)]
     raise vp.ViceError(
         f"expected prompt {prompt!r} at least {minimum} times and fragments {missing!r}:\n{last_screen}"
     )
 
 
-def wait_for_mount_completion(client: vp.BinaryMonitorClient, timeout: float) -> str:
+def wait_for_mount_completion(
+    client: vp.BinaryMonitorClient,
+    timeout: float,
+    *,
+    retry_echo: str | None = None,
+    poll_interval: float = 0.2,
+) -> str:
     deadline = time.monotonic() + timeout
     last_screen = ""
+    retry_count = 0
     while time.monotonic() < deadline:
         last_screen = screen_text(client)
-        if "B:ACTION DNP" in last_screen:
+        if not vp.screen_contains(last_screen, "B:ACTION DNP"):
+            candidate = screen_text_for_fragment(client, "B:ACTION DNP")
+            if vp.screen_contains(candidate, "B:ACTION DNP"):
+                last_screen = candidate
+        if vp.screen_count(last_screen, "A:D64/>") < 2:
+            candidate = screen_text_for_fragment(client, "A:D64/>")
+            if vp.screen_contains(candidate, "A:D64/>"):
+                last_screen = candidate
+        if vp.screen_contains(last_screen, "B:ACTION DNP"):
             return last_screen
-        if last_screen.count("A:D64/>") >= 2:
+        if vp.screen_count(last_screen, "A:D64/>") >= 2 and vp.screen_contains(last_nonempty_line(last_screen), "A:D64/>"):
             return last_screen
-        time.sleep(0.2)
+        retry_count = maybe_retry_command_enter(
+            client,
+            last_screen=last_screen,
+            retry_echo=retry_echo,
+            retry_count=retry_count,
+        )
+        time.sleep(poll_interval)
     raise vp.ViceError(f"mount did not complete in time:\n{last_screen}")
 
 
@@ -87,12 +267,33 @@ def wait_for_keyboard_idle(client: vp.BinaryMonitorClient, timeout: float) -> No
     raise vp.ViceError("timed out waiting for C64 keyboard buffer to drain after command")
 
 
+def clear_keyboard_buffer(client: vp.BinaryMonitorClient) -> None:
+    client.memory_set(vp.KEYBUF_DATA, bytes(10))
+    client.memory_set(vp.KEYBUF_COUNT, b"\x00")
+
+
+def send_text(client: vp.BinaryMonitorClient, text: str, timeout: float) -> None:
+    clear_keyboard_buffer(client)
+    try:
+        client.keyboard_type(text)
+        try:
+            wait_for_keyboard_idle(client, timeout)
+        except vp.ViceError:
+            # The final return can linger in the C64 key buffer even after the shell
+            # is ready to consume it; later screen waits already handle that case.
+            pass
+    except vp.ViceError:
+        clear_keyboard_buffer(client)
+        client.keyboard_feed(text)
+    time.sleep(0.1)
+
+
+def send_return(client: vp.BinaryMonitorClient, timeout: float) -> None:
+    send_text(client, "\r", timeout)
+
+
 def type_command(client: vp.BinaryMonitorClient, command: str, timeout: float) -> None:
-    client.keyboard_type(command)
-    wait_for_keyboard_idle(client, timeout)
-    time.sleep(0.2)
-    client.keyboard_type("\r")
-    wait_for_keyboard_idle(client, timeout)
+    send_text(client, command + "\r", timeout)
 
 
 def main() -> int:
@@ -109,8 +310,13 @@ def main() -> int:
     parser.add_argument("--prompt-count", type=int, default=2)
     parser.add_argument("--initial-settle", type=float, default=3.0)
     parser.add_argument("--command-settle", type=float, default=1.0)
+    parser.add_argument("--connect-delay", type=float)
+    parser.add_argument("--boot-timeout", type=float, default=60.0)
+    parser.add_argument("--boot-settle", type=float, default=0.0)
+    parser.add_argument("--poll-interval", type=float, default=0.2)
+    parser.add_argument("--shell-timeout", type=float, default=30.0)
     parser.add_argument("--attempts", type=int, default=4)
-    parser.add_argument("--attempt-delay", type=float, default=2.0)
+    parser.add_argument("--attempt-delay", type=float)
     parser.add_argument("--pre-command", action="append", default=[])
     parser.add_argument("--pre-prompt", action="append", default=[])
     parser.add_argument("--pre-fragment", action="append", default=[])
@@ -124,16 +330,18 @@ def main() -> int:
     fs_root = Path(args.fs_root).resolve()
     last_error: Exception | None = None
     last_screen = ""
+    attempt_notes: list[str] = []
+    connect_delays = (args.connect_delay,) if args.connect_delay is not None else WORKSPACE_CONNECT_DELAYS
+    attempt_delay = args.attempt_delay if args.attempt_delay is not None else vp.default_attempt_delay()
 
     for attempt in range(1, args.attempts + 1):
+        vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, attempt_delay)))
         port = vp.reserve_tcp_port()
         process = vp.launch_vice(
             image,
             port,
             extra_args=[
                 "-iecdevice9",
-                "-device9",
-                "1",
                 "-fs9",
                 str(fs_root),
                 "-fslongnames",
@@ -142,62 +350,121 @@ def main() -> int:
         client = vp.BinaryMonitorClient("127.0.0.1", port, timeout=5.0)
 
         try:
+            connect_delay = connect_delays[(attempt - 1) % len(connect_delays)]
+            if connect_delay > 0.0:
+                time.sleep(connect_delay)
             client.connect(time.monotonic() + 20.0)
             client.ping()
             client.resume()
+            if args.boot_settle > 0.0:
+                time.sleep(args.boot_settle)
 
-            wait_for_screen_fragment(client, "A:D64/>", 60.0)
+            wait_for_screen_fragment(client, "A:D64/>", args.boot_timeout, poll_interval=args.poll_interval)
             time.sleep(args.initial_settle)
-            type_command(client, f"MOUNT B: {args.mount_path}", 30.0)
+            mount_command = f"MOUNT B: {args.mount_path}"
+            type_command(client, mount_command, args.shell_timeout)
             time.sleep(1.0)
-            wait_for_mount_completion(client, 30.0)
-            type_command(client, "B:", 30.0)
-            screen = wait_for_screen_fragment(client, args.b_prompt, 30.0)
-            prompt_count = screen.count(args.b_prompt)
+            wait_for_mount_completion(
+                client,
+                args.shell_timeout,
+                retry_echo=mount_command,
+                poll_interval=args.poll_interval,
+            )
+            type_command(client, "B:", args.shell_timeout)
+            screen = wait_for_screen_fragment(
+                client,
+                args.b_prompt,
+                args.shell_timeout,
+                retry_echo="B:",
+                poll_interval=args.poll_interval,
+            )
             final_prompt = args.final_prompt or args.b_prompt
+            prompt_count = vp.screen_count(screen, final_prompt)
             time.sleep(args.command_settle)
             for index, pre_command in enumerate(args.pre_command):
-                type_command(client, pre_command, 30.0)
+                type_command(client, pre_command, args.shell_timeout)
                 pre_fragments: list[str] = []
                 if index < len(args.pre_prompt) and args.pre_prompt[index]:
                     pre_fragments.append(args.pre_prompt[index])
                 if index < len(args.pre_fragment) and args.pre_fragment[index]:
                     pre_fragments.append(args.pre_fragment[index])
                 if pre_fragments:
-                    wait_for_screen_fragments(client, pre_fragments, 30.0)
+                    screen = wait_for_screen_fragments(
+                        client,
+                        pre_fragments,
+                        args.shell_timeout,
+                        retry_echo=pre_command,
+                        poll_interval=args.poll_interval,
+                    )
+                    prompt_count = max(prompt_count, vp.screen_count(screen, final_prompt))
                 else:
                     prompt_count += 1
-                    wait_for_prompt_count(client, args.b_prompt, prompt_count, 30.0)
+                    screen = wait_for_prompt_count(
+                        client,
+                        args.b_prompt,
+                        prompt_count,
+                        args.shell_timeout,
+                        retry_echo=pre_command,
+                        poll_interval=args.poll_interval,
+                    )
+                    prompt_count = max(prompt_count, vp.screen_count(screen, final_prompt))
                 time.sleep(args.command_settle)
-            type_command(client, args.command, 30.0)
+            type_command(client, args.command, args.shell_timeout)
             time.sleep(args.command_settle)
             if args.run_marker:
-                wait_for_screen_fragment(client, args.run_marker, 30.0)
+                wait_for_screen_fragment(
+                    client,
+                    args.run_marker,
+                    args.shell_timeout,
+                    retry_echo=args.command,
+                    poll_interval=args.poll_interval,
+                )
             prompt_count += 1
             fragments: list[str] = []
             if args.done_fragment:
                 fragments.append(args.done_fragment)
-            screen = wait_for_prompt_count_and_fragments(client, final_prompt, 1, fragments, 30.0)
+            screen = wait_for_prompt_count_and_fragments(
+                client,
+                final_prompt,
+                prompt_count,
+                fragments,
+                args.shell_timeout,
+                retry_echo=args.command if not args.run_marker else None,
+                poll_interval=args.poll_interval,
+            )
             if args.post_command:
                 time.sleep(args.command_settle)
-                type_command(client, args.post_command, 30.0)
+                type_command(client, args.post_command, args.shell_timeout)
                 if args.post_done_fragment and args.post_done_fragment.endswith(">"):
-                    screen = wait_for_screen_fragment(client, args.post_done_fragment, 30.0)
+                    screen = wait_for_screen_fragment(
+                        client,
+                        args.post_done_fragment,
+                        args.shell_timeout,
+                        retry_echo=args.post_command,
+                        poll_interval=args.poll_interval,
+                    )
+                    prompt_count = max(prompt_count, vp.screen_count(screen, final_prompt))
                 else:
                     prompt_count += 1
                     post_fragments: list[str] = []
                     if args.post_done_fragment:
                         post_fragments.append(args.post_done_fragment)
                     screen = wait_for_prompt_count_and_fragments(
-                        client, final_prompt, 1, post_fragments, 30.0
+                        client,
+                        final_prompt,
+                        prompt_count,
+                        post_fragments,
+                        args.shell_timeout,
+                        retry_echo=args.post_command,
+                        poll_interval=args.poll_interval,
                     )
             for fragment in args.contains:
-                if fragment not in screen:
+                if not vp.screen_contains(screen, fragment):
                     raise vp.ViceError(
                         f"expected screen fragment {fragment!r} was not present in final screen:\n{screen}"
                     )
             for fragment in args.not_contains:
-                if fragment in screen:
+                if vp.screen_contains(screen, fragment):
                     raise vp.ViceError(
                         f"unexpected screen fragment {fragment!r} was present in final screen:\n{screen}"
                     )
@@ -209,11 +476,25 @@ def main() -> int:
                 last_screen = screen_text(client)
             except Exception:
                 last_screen = ""
+            try:
+                launch_trace = vp.format_udos_launch_trace(client)
+            except Exception:
+                launch_trace = ""
+            note_parts = [f"attempt {attempt}: {exc}"]
+            if launch_trace:
+                note_parts.append(launch_trace)
+            if last_screen:
+                note_parts.append(f"screen:\n{last_screen}")
+            attempt_notes.append("\n".join(note_parts))
             if attempt < args.attempts:
-                time.sleep(args.attempt_delay)
+                time.sleep(attempt_delay)
             else:
                 if last_screen:
                     print(last_screen)
+                if attempt_notes:
+                    print("\n\n".join(attempt_notes), file=sys.stderr)
+                if launch_trace:
+                    print(launch_trace, file=sys.stderr)
                 print(exc, file=sys.stderr)
         finally:
             try:
@@ -221,11 +502,7 @@ def main() -> int:
             except Exception:
                 pass
             client.close()
-            process.terminate()
-            try:
-                process.wait(timeout=5.0)
-            except Exception:
-                process.kill()
+            vp.terminate_process_tree(process)
 
     return 1 if last_error is not None else 0
 

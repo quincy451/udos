@@ -16,8 +16,13 @@ API_VERSION = 0x02
 STX = 0x02
 CMD_MEMORY_GET = 0x01
 CMD_MEMORY_SET = 0x02
+CMD_REGISTERS_GET = 0x31
+CMD_REGISTERS_SET = 0x32
+CMD_RESOURCE_GET = 0x51
+CMD_RESOURCE_SET = 0x52
 CMD_KEYBOARD_FEED = 0x72
 CMD_PING = 0x81
+CMD_REGISTERS_AVAILABLE = 0x83
 CMD_EXIT = 0xAA
 CMD_QUIT = 0xBB
 RESP_RESUMED = 0x63
@@ -32,6 +37,23 @@ UDOS_LAUNCH_DEBUG_BYTES = (
     ("LAUNCH_TRACE_STAGE", 0x03F2),
     ("LAUNCH_TRACE_CODE", 0x03F3),
 )
+SCREEN_BASE_CANDIDATES = (
+    0x9400,
+    0x9000,
+    0x8C00,
+    0x8800,
+    0x8400,
+    0x8000,
+    0x0800,
+    0x0400,
+)
+_SCREEN_BASE_HINT: int | None = None
+MAIN_MEMSPACE = 0x00
+MAIN_BANK_CPU = 0x0000
+MAIN_BANK_RAM = 0x0001
+MAIN_BANK_ROM = 0x0002
+MAIN_BANK_IO = 0x0003
+MAIN_BANK_CART = 0x0004
 
 
 class ViceError(RuntimeError):
@@ -45,6 +67,7 @@ class BinaryMonitorClient:
         self.timeout = timeout
         self.sock: socket.socket | None = None
         self.request_id = 1
+        self._register_info_cache: dict[int, dict[int, tuple[str, int]]] = {}
 
     def connect(self, deadline: float) -> None:
         last_error: OSError | None = None
@@ -120,6 +143,23 @@ class BinaryMonitorClient:
             return payload
         raise ViceError(f"timed out waiting for response to command 0x{command_type:02x}")
 
+    def command_expect(self, command_type: int, expected_response_type: int, body: bytes = b"") -> bytes:
+        request_id = self._send_command(command_type, body)
+        deadline = time.monotonic() + self.timeout
+        while time.monotonic() < deadline:
+            response_type, error_code, response_request_id, payload = self._read_response()
+            if response_request_id != request_id:
+                continue
+            if error_code != 0:
+                raise ViceError(f"VICE monitor command 0x{command_type:02x} failed with error 0x{error_code:02x}")
+            if response_type != expected_response_type:
+                raise ViceError(
+                    f"VICE monitor command 0x{command_type:02x} got response 0x{response_type:02x}; "
+                    f"expected 0x{expected_response_type:02x}"
+                )
+            return payload
+        raise ViceError(f"timed out waiting for response to command 0x{command_type:02x}")
+
     def ping(self) -> None:
         self.command(CMD_PING)
 
@@ -170,16 +210,158 @@ class BinaryMonitorClient:
     def keyboard_type(self, text: str) -> None:
         encoded = decode_escapes(text).encode("ascii", errors="strict")
         for byte in encoded:
-            deadline = time.monotonic() + (self.timeout * 3.0)
+            deadline = time.monotonic() + 0.3
             while time.monotonic() < deadline:
                 pending = self.memory_get(KEYBUF_COUNT, KEYBUF_COUNT)[0]
                 if pending == 0:
                     break
                 time.sleep(0.02)
             else:
-                raise ViceError("timed out waiting for C64 keyboard buffer to drain")
+                # Probe runs can leave a stale pending key count even after the
+                # emulated shell has already moved on. Clear it and continue.
+                self.memory_set(KEYBUF_COUNT, b"\x00")
             self.memory_set(KEYBUF_DATA, bytes((byte,)))
             self.memory_set(KEYBUF_COUNT, b"\x01")
+
+    def resource_get(self, name: str) -> tuple[int, bytes]:
+        encoded = name.encode("ascii", errors="strict")
+        if not encoded or len(encoded) > 0xFF:
+            raise ViceError("resource name length must be 1..255 bytes")
+        response = self.command(CMD_RESOURCE_GET, bytes((len(encoded),)) + encoded)
+        if len(response) < 2:
+            raise ViceError("resource-get response too short")
+        value_type = response[0]
+        value_len = response[1]
+        value = response[2:]
+        if value_len != len(value):
+            raise ViceError(f"resource-get length mismatch: header={value_len} actual={len(value)}")
+        return value_type, value
+
+    def resource_get_int(self, name: str) -> int:
+        value_type, value = self.resource_get(name)
+        if value_type != 1:
+            raise ViceError(f"resource '{name}' is not an integer resource")
+        if len(value) != 4:
+            raise ViceError(f"resource '{name}' returned {len(value)} bytes, expected 4")
+        return struct.unpack_from("<I", value, 0)[0]
+
+    def resource_set_int(self, name: str, value: int) -> None:
+        encoded = name.encode("ascii", errors="strict")
+        if not encoded or len(encoded) > 0xFF:
+            raise ViceError("resource name length must be 1..255 bytes")
+        if value < 0 or value > 0xFFFFFFFF:
+            raise ViceError("integer resource value must fit in uint32")
+        body = bytearray()
+        body.append(1)
+        body.append(len(encoded))
+        body.extend(encoded)
+        body.append(4)
+        body.extend(struct.pack("<I", value))
+        self.command(CMD_RESOURCE_SET, bytes(body))
+
+    def resource_get_string(self, name: str) -> str:
+        value_type, value = self.resource_get(name)
+        if value_type != 0:
+            raise ViceError(f"resource '{name}' is not a string resource")
+        return value.decode("utf-8", errors="replace")
+
+    def resource_set_string(self, name: str, value: str) -> None:
+        encoded_name = name.encode("ascii", errors="strict")
+        encoded_value = value.encode("utf-8", errors="strict")
+        if not encoded_name or len(encoded_name) > 0xFF:
+            raise ViceError("resource name length must be 1..255 bytes")
+        if not encoded_value or len(encoded_value) > 0xFF:
+            raise ViceError("string resource value length must be 1..255 bytes")
+        body = bytearray()
+        body.append(0)
+        body.append(len(encoded_name))
+        body.extend(encoded_name)
+        body.append(len(encoded_value))
+        body.extend(encoded_value)
+        self.command(CMD_RESOURCE_SET, bytes(body))
+
+    def registers_available(self, *, memspace: int = 0) -> list[dict[str, int | str]]:
+        response = self.command(CMD_REGISTERS_AVAILABLE, bytes((memspace,)))
+        if len(response) < 2:
+            raise ViceError("registers-available response too short")
+        count = struct.unpack_from("<H", response, 0)[0]
+        cursor = 2
+        registers: list[dict[str, int | str]] = []
+        register_info: dict[int, tuple[str, int]] = {}
+        for _ in range(count):
+            if cursor >= len(response):
+                raise ViceError("registers-available response truncated before item header")
+            item_size = response[cursor]
+            cursor += 1
+            if item_size < 4 or cursor + item_size > len(response):
+                raise ViceError("registers-available response has invalid item size")
+            reg_id = response[cursor]
+            reg_bits = response[cursor + 1]
+            name_len = response[cursor + 2]
+            if name_len + 3 != item_size:
+                raise ViceError("registers-available response has invalid name length")
+            name_start = cursor + 3
+            name_end = name_start + name_len
+            name = response[name_start:name_end].decode("ascii", errors="replace")
+            entry = {"id": reg_id, "bits": reg_bits, "name": name}
+            registers.append(entry)
+            register_info[reg_id] = (name, reg_bits)
+            cursor += item_size
+        if cursor != len(response):
+            raise ViceError("registers-available response has trailing bytes")
+        self._register_info_cache[memspace] = register_info
+        self.resume()
+        return registers
+
+    def registers_get(self, *, memspace: int = 0) -> dict[str, int]:
+        register_info = self._register_info_cache.get(memspace)
+        if register_info is None:
+            self.registers_available(memspace=memspace)
+            register_info = self._register_info_cache.get(memspace, {})
+        response = self.command(CMD_REGISTERS_GET, bytes((memspace,)))
+        if len(response) < 2:
+            raise ViceError("registers-get response too short")
+        count = struct.unpack_from("<H", response, 0)[0]
+        cursor = 2
+        registers: dict[str, int] = {}
+        for _ in range(count):
+            if cursor >= len(response):
+                raise ViceError("registers-get response truncated before item header")
+            item_size = response[cursor]
+            cursor += 1
+            if item_size < 3 or cursor + item_size > len(response):
+                raise ViceError("registers-get response has invalid item size")
+            reg_id = response[cursor]
+            reg_val = struct.unpack_from("<H", response, cursor + 1)[0]
+            reg_name = register_info.get(reg_id, (f"REG_{reg_id}", 16))[0]
+            registers[reg_name] = reg_val
+            cursor += item_size
+        if cursor != len(response):
+            raise ViceError("registers-get response has trailing bytes")
+        self.resume()
+        return registers
+
+    def registers_set(self, updates: dict[str, int], *, memspace: int = 0) -> None:
+        if not updates:
+            return
+        register_info = self._register_info_cache.get(memspace)
+        if register_info is None:
+            self.registers_available(memspace=memspace)
+            register_info = self._register_info_cache.get(memspace, {})
+        name_to_id = {name: reg_id for reg_id, (name, _bits) in register_info.items()}
+        body = bytearray((memspace,))
+        body.extend(struct.pack("<H", len(updates)))
+        for name, value in updates.items():
+            reg_id = name_to_id.get(name)
+            if reg_id is None:
+                raise ViceError(f"unknown register '{name}' for memspace {memspace}")
+            body.append(3)
+            body.append(reg_id)
+            body.extend(struct.pack("<H", value & 0xFFFF))
+        response = self.command_expect(CMD_REGISTERS_SET, CMD_REGISTERS_GET, bytes(body))
+        if len(response) < 2:
+            raise ViceError("registers-set response too short")
+        self.resume()
 
 
 def reserve_tcp_port() -> int:
@@ -188,18 +370,31 @@ def reserve_tcp_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def screen_code_to_ascii(code: int) -> str:
-    if code in {0x00, 0x20, 0xA0}:
+def petscii_to_ascii(code: int) -> str:
+    if code == 0x0D:
+        return "\n"
+    if code == 0x0A:
+        return "\r"
+    if code <= 0x1F:
+        return "."
+    if code in {0xA0, 0xE0}:
         return " "
-    if 1 <= code <= 26:
-        return chr(ord("A") + code - 1)
-    if 0x30 <= code <= 0x39:
+    if 0xC1 <= code <= 0xDA:
+        return chr(ord("A") + code - 0xC1)
+    if 0x41 <= code <= 0x5A:
+        return chr(ord("a") + code - 0x41)
+    if 0x20 <= code <= 0x7E:
         return chr(code)
-    if 0x21 <= code <= 0x2F or 0x3A <= code <= 0x3F:
-        return chr(code)
-    if 0x40 <= code <= 0x5A:
-        return chr(code)
-    return "?"
+    return "."
+
+
+def screen_code_to_ascii(code: int) -> str:
+    code &= 0x7F
+    if code <= 0x1F:
+        code += 0x40
+    elif 0x40 <= code <= 0x5F:
+        code += 0x20
+    return petscii_to_ascii(code)
 
 
 def screen_ram_to_text(data: bytes) -> str:
@@ -208,21 +403,110 @@ def screen_ram_to_text(data: bytes) -> str:
     return "\n".join(rows).strip()
 
 
+def normalize_screen_text(text: str) -> str:
+    return text.casefold()
+
+
+def screen_contains(screen: str, fragment: str) -> bool:
+    return normalize_screen_text(fragment) in normalize_screen_text(screen)
+
+
+def screen_count(screen: str, fragment: str) -> int:
+    return normalize_screen_text(screen).count(normalize_screen_text(fragment))
+
+
 def active_screen_base(d018: int, dd00: int) -> int:
     vic_bank = ((dd00 ^ 0x03) & 0x03) * 0x4000
     screen_offset = ((d018 >> 4) & 0x0F) * 0x0400
     return vic_bank + screen_offset
 
 
+def screen_text_score(text: str) -> int:
+    useful = sum(1 for ch in text if ch.isalnum() or ch in " :/>,.-()")
+    score = useful - (text.count("?") * 4)
+    lines = [line.rstrip() for line in text.splitlines() if line.strip()]
+    if lines:
+        unique_lines = len(set(lines))
+        if len(lines) >= 8 and unique_lines <= 2:
+            score -= 400
+    if "UDOS FOR COMMODORE 64" in text:
+        score += 200
+    return score
+
+
+def best_screen_text_from_candidates(client: BinaryMonitorClient, *bases: int) -> tuple[str, int | None]:
+    best_text = ""
+    best_base: int | None = None
+    best_score = -10_000
+    seen: set[int] = set()
+    for base in bases:
+        if base in seen:
+            continue
+        seen.add(base)
+        text = screen_ram_to_text(client.memory_get(base, base + 999, memspace=MAIN_MEMSPACE, bank=MAIN_BANK_RAM))
+        if not text:
+            continue
+        score = screen_text_score(text)
+        if score > best_score:
+            best_text = text
+            best_base = base
+            best_score = score
+    return best_text, best_base
+
+
+def screen_base_candidates(screen_base: int | None = None) -> tuple[int, ...]:
+    bases: list[int] = []
+    if screen_base is not None:
+        bases.append(screen_base)
+    if _SCREEN_BASE_HINT is not None:
+        bases.append(_SCREEN_BASE_HINT)
+    bases.extend(SCREEN_BASE_CANDIDATES)
+    return tuple(bases)
+
+
+def screen_text_containing_fragment(
+    client: BinaryMonitorClient,
+    fragment: str,
+    *bases: int,
+) -> tuple[str, int | None]:
+    seen: set[int] = set()
+    for base in bases:
+        if base in seen:
+            continue
+        seen.add(base)
+        text = screen_ram_to_text(client.memory_get(base, base + 999, memspace=MAIN_MEMSPACE, bank=MAIN_BANK_RAM))
+        if screen_contains(text, fragment):
+            return text, base
+    return "", None
+
+
 def read_active_screen_text(client: BinaryMonitorClient) -> tuple[str, int, int]:
-    d018 = client.memory_get(0xD018, 0xD018)[0]
-    dd00 = client.memory_get(0xDD00, 0xDD00)[0]
-    if d018 == 0xFF and dd00 == 0xFF:
-        # Some startup paths expose invalid VIC register reads for a while even
-        # though the default text screen at $0400 is already usable.
-        return screen_ram_to_text(client.memory_get(0x0400, 0x07E7)), d018, dd00
+    global _SCREEN_BASE_HINT
+    d018 = client.memory_get(0xD018, 0xD018, memspace=MAIN_MEMSPACE, bank=MAIN_BANK_IO)[0]
+    dd00 = client.memory_get(0xDD00, 0xDD00, memspace=MAIN_MEMSPACE, bank=MAIN_BANK_IO)[0]
     screen_base = active_screen_base(d018, dd00)
-    return screen_ram_to_text(client.memory_get(screen_base, screen_base + 999)), d018, dd00
+    active_text = screen_ram_to_text(
+        client.memory_get(screen_base, screen_base + 999, memspace=MAIN_MEMSPACE, bank=MAIN_BANK_RAM)
+    )
+    _SCREEN_BASE_HINT = screen_base
+    return active_text, d018, dd00
+
+
+def read_screen_text_for_fragment(client: BinaryMonitorClient, fragment: str) -> tuple[str, int, int]:
+    global _SCREEN_BASE_HINT
+    active_text, d018, dd00 = read_active_screen_text(client)
+    if screen_contains(active_text, fragment):
+        return active_text, d018, dd00
+    fallback_text, fallback_base = screen_text_containing_fragment(
+        client,
+        fragment,
+        *screen_base_candidates(active_screen_base(d018, dd00)),
+    )
+    if fallback_text:
+        if fallback_base is not None:
+            _SCREEN_BASE_HINT = fallback_base
+        return fallback_text, d018, dd00
+    return active_text, d018, dd00
 
 
 def read_debug_bytes(
@@ -252,21 +536,21 @@ def locate_x64sc() -> Path:
         if candidate.is_file():
             return candidate.resolve()
         raise ViceError(f"VICE_X64SC does not point to a file: {candidate}")
-    if os.name != "nt":
-        for name in ("x64", "x64sc"):
-            candidate = shutil.which(name)
-            if candidate:
-                return Path(candidate).resolve()
     windows_candidates = (
         Path(r"C:\c64\vice\GTK3VICE-3.10-win64\bin\x64sc.exe"),
         Path("/mnt/c/c64/vice/GTK3VICE-3.10-win64/bin/x64sc.exe"),
     )
+    if os.name != "nt":
+        for name in ("x64sc", "x64"):
+            candidate = shutil.which(name)
+            if candidate:
+                return prefer_known_good_linux_vice(Path(candidate).resolve())
     for candidate in windows_candidates:
         if candidate.is_file():
             return candidate.resolve()
     candidate = shutil.which("x64sc")
     if candidate:
-        return Path(candidate).resolve()
+        return prefer_known_good_linux_vice(Path(candidate).resolve())
     raise ViceError("x64sc not found on PATH")
 
 
@@ -331,6 +615,41 @@ def default_attempt_delay() -> float:
 
 
 _VICE_OPTION_STYLE_CACHE: dict[str, tuple[bool, bool, bool]] = {}
+_VICE_VERSION_CACHE: dict[str, str] = {}
+
+
+def vice_version(path: Path) -> str:
+    cache_key = str(path)
+    cached = _VICE_VERSION_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    try:
+        result = subprocess.run(
+            [str(path), "--version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=5.0,
+            check=False,
+        )
+        line = result.stdout.splitlines()[0].strip() if result.stdout else ""
+    except Exception:
+        line = ""
+    _VICE_VERSION_CACHE[cache_key] = line
+    return line
+
+
+def prefer_known_good_linux_vice(candidate: Path) -> Path:
+    if os.name == "nt":
+        return candidate
+    distro_candidate = Path("/usr/bin/x64sc")
+    if candidate == distro_candidate or not distro_candidate.is_file():
+        return candidate
+    if vice_version(candidate).startswith("x64sc (VICE 3.10)") and vice_version(distro_candidate).startswith(
+        "x64sc (VICE 3.7.1)"
+    ):
+        return distro_candidate.resolve()
+    return candidate
 
 
 def _vice_binary_contains(path: Path, needle: bytes) -> bool:
@@ -434,6 +753,8 @@ def launch_vice(
     keybuf_delay: int | None = None,
     extra_args: list[str] | None = None,
 ) -> subprocess.Popen[str]:
+    global _SCREEN_BASE_HINT
+    _SCREEN_BASE_HINT = None
     executable = locate_x64sc()
     vice_cmd = [
         str(executable),
@@ -557,23 +878,45 @@ def wait_for_screen_and_state(
     extra_checks: list[tuple[int, int]],
     timeout: float,
 ) -> str:
+    global _SCREEN_BASE_HINT
     deadline = time.monotonic() + timeout
     last_screen = ""
     saw_fragment = False
     dead_start_polls = 0
+    blank_start_polls = 0
+    startup_reconnects = 0
     while time.monotonic() < deadline:
         if process.poll() is not None:
             stdout, stderr = process.communicate()
             raise ViceError(f"x64sc exited early while waiting for screen text\nstdout:\n{stdout}\nstderr:\n{stderr}")
-        last_screen, d018, dd00 = read_active_screen_text(client)
+        last_screen, d018, dd00 = read_screen_text_for_fragment(client, fragment)
+        if not last_screen:
+            blank_start_polls += 1
+        else:
+            blank_start_polls = 0
         if not last_screen and d018 == 0xFF and dd00 == 0xFF:
             dead_start_polls += 1
-            if dead_start_polls >= 50:
-                raise ViceError("VICE remained in an uninitialized startup state after monitor attach")
+        else:
+            dead_start_polls = 0
+        if dead_start_polls >= 150 or blank_start_polls >= 150:
+            if startup_reconnects < 1:
+                startup_reconnects += 1
+                try:
+                    client.close()
+                except Exception:
+                    pass
+                time.sleep(1.0)
+                reconnect_deadline = min(deadline, time.monotonic() + 20.0)
+                client.connect(reconnect_deadline)
+                client.ping()
+                client.resume()
+                dead_start_polls = 0
+                blank_start_polls = 0
+                time.sleep(1.0)
+                continue
             time.sleep(0.2)
             continue
-        dead_start_polls = 0
-        if fragment in last_screen:
+        if screen_contains(last_screen, fragment):
             saw_fragment = True
         if saw_fragment:
             marker_ok = True
@@ -709,10 +1052,10 @@ def run_probe(args: argparse.Namespace) -> str:
             time.sleep(args.settle)
             screen = screen_ram_to_text(client.memory_get(0x0400, 0x07E7))
         for fragment in args.contains:
-            if fragment not in screen:
+            if not screen_contains(screen, fragment):
                 raise ViceError(f"expected screen fragment {fragment!r} was not present in final screen:\n{screen}")
         for fragment in args.absent:
-            if fragment in screen:
+            if screen_contains(screen, fragment):
                 raise ViceError(f"screen fragment {fragment!r} should not be present in final screen:\n{screen}")
         return screen
     finally:

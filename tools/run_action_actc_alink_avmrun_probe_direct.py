@@ -11,15 +11,20 @@ from pathlib import Path
 
 import run_action_actc_probe as rcp
 import run_action_alink_probe as rap
-import run_action_avmrun_probe as avp
 import vice_prg_probe as vp
 
 ROOT = Path(__file__).resolve().parent
 ACTION_ALINK_BUILD = ROOT.parent.parent / 'actionc64u' / 'build' / 'udos_tools' / 'ALINK.PRG'
 ACTION_AVMRUN_BUILD = ROOT.parent.parent / 'actionc64u' / 'build' / 'udos_tools' / 'AVMRUN.PRG'
 AVM_PACK = ROOT.parent.parent / 'actionc64u' / 'tools' / 'avm_pack.py'
-ACTC_CONNECT_DELAY = 32.0
-ALINK_AVMRUN_CONNECT_DELAY = 44.0
+ACTC_CONNECT_DELAY = rcp.CONNECT_DELAYS[0]
+ALINK_AVMRUN_CONNECT_DELAY = rap.CONNECT_DELAYS[0]
+AVMRUN_CONNECT_DELAY = rap.CONNECT_DELAYS[0]
+STAGE_ATTEMPTS = 3
+STAGE_ATTEMPT_DELAY = 2.0
+ACTC_PHASE_TIMEOUT = 180.0
+ALINK_PHASE_TIMEOUT = 180.0
+AVMRUN_PHASE_TIMEOUT = 180.0
 
 
 def work_object_text() -> str:
@@ -40,17 +45,17 @@ def expected_avm_source() -> str:
         'setp16 main_str0\n'
         'calln printe\n'
         'call w\n'
-        'push16 57\n'
-        'push16 57\n'
-        'gt\n'
-        'push16 0\n'
-        'eq\n'
+        'push16 50\n'
+        'push16 7\n'
+        'add\n'
+        'push16 3\n'
+        'sub\n'
         'calln printi\n'
-        'push16 57\n'
-        'push16 57\n'
-        'lt\n'
-        'push16 0\n'
-        'eq\n'
+        'push16 60\n'
+        'push16 3\n'
+        'sub\n'
+        'push16 2\n'
+        'add\n'
         'calln printie\n'
         'calln exit\n'
         'w:\n'
@@ -69,26 +74,32 @@ def expected_avm_source() -> str:
 def install_program(fs_root: Path, project_root: Path, build_path: Path, name: str) -> None:
     if not build_path.is_file():
         raise RuntimeError(f'missing built program: {build_path}')
-    root_target = fs_root / 'IMAGES' / 'ACTION.DNP' / name
+    lowercase_workspace = rcp.detect_lowercase_workspace(fs_root)
+    images_root = rcp.case_insensitive_child(fs_root, rcp.host_name('IMAGES', lowercase_workspace))
+    action_root = rcp.case_insensitive_child(images_root, rcp.host_name('ACTION.DNP', lowercase_workspace))
+    root_target = action_root / rcp.host_name(name, lowercase_workspace)
     shutil.copy2(build_path, root_target)
-    shutil.copy2(root_target, project_root / name)
+    shutil.copy2(root_target, project_root / rcp.host_name(name, lowercase_workspace))
     rap.ensure_catalog_entries(
-        fs_root / 'IMAGES' / 'ACTION.DNP' / 'UDOSDIR.TXT',
+        action_root / rcp.host_name('UDOSDIR.TXT', lowercase_workspace),
         [f'D {project_root.name.upper()}', f'F {name}'],
     )
-    rap.ensure_catalog_entries(project_root / 'UDOSDIR.TXT', [f'F {name}'])
+    rap.ensure_catalog_entries(project_root / rcp.host_name('UDOSDIR.TXT', lowercase_workspace), [f'F {name}'])
 
 
 def prepare_link_workspace(fs_root: Path, project_root: Path) -> None:
-    rap.write_ascii(project_root / 'obj' / 'w.avo', work_object_text())
-    rap.ensure_catalog_entries(project_root / 'obj' / 'UDOSDIR.TXT', ['F W.AVO'])
+    lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
+    obj_root = project_root / rcp.host_name('OBJ', lowercase_workspace)
+    rap.write_ascii(obj_root / rcp.host_name('W.AVO', lowercase_workspace), work_object_text())
+    rap.ensure_catalog_entries(obj_root / rcp.host_name('UDOSDIR.TXT', lowercase_workspace), ['F W.AVO'])
     install_program(fs_root, project_root, ACTION_ALINK_BUILD, 'ALINK.PRG')
     install_program(fs_root, project_root, ACTION_AVMRUN_BUILD, 'AVMRUN.PRG')
 
 
 def verify_host_output(project_root: Path) -> None:
     rcp.verify_host_output(project_root)
-    avm_path = project_root / 'bin' / 'main.avm'
+    lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
+    avm_path = project_root / rcp.host_name('BIN', lowercase_workspace) / rcp.host_name('MAIN.AVM', lowercase_workspace)
     if not avm_path.is_file():
         raise RuntimeError(f'expected host file {avm_path} to exist')
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -117,240 +128,155 @@ def verify_host_output(project_root: Path) -> None:
         raise RuntimeError(f'expected packed AVM bytes {expected!r}, got {packed!r}')
 
 
-def wait_for_shell_prompt(client: vp.BinaryMonitorClient, timeout: float) -> None:
-    deadline = time.monotonic() + timeout
-    last_screen = ''
-    retries = 0
-    while time.monotonic() < deadline:
-        last_screen, _d018, _dd00 = vp.read_active_screen_text(client)
-        if 'A:D64/>' in last_screen:
-            return
-        if 'UDOS FOR COMMODORE 64' in last_screen and retries < 6:
-            client.memory_set(vp.KEYBUF_COUNT, b'\x00')
-            client.memory_set(vp.KEYBUF_DATA, bytes(10))
-            try:
-                client.keyboard_type('\r')
-            except Exception:
-                client.keyboard_feed('\r')
-            retries += 1
-            time.sleep(1.0)
-            continue
-        time.sleep(0.2)
-    raise vp.ViceError(f"timed out waiting for screen text 'A:D64/>'; last screen was:\n{last_screen}")
-
-
 def run_actc_phase(image: Path, work_root: Path, project_name: str, project_root: Path) -> None:
-    port = vp.reserve_tcp_port()
-    process = vp.launch_vice(
-        image,
-        port,
-        extra_args=[
-            '-iecdevice9',
-            '-device9',
-            '1',
-            '-fs9',
-            str(work_root),
-            '-fslongnames',
-        ],
-    )
-    client = vp.BinaryMonitorClient('127.0.0.1', port, timeout=5.0)
+    cmd = [
+        sys.executable,
+        str(ROOT / 'run_action_avmrun_probe.py'),
+        '--disk',
+        str(image),
+        '--fs-root',
+        str(work_root),
+        '--command',
+        'ACTC MAIN',
+        '--pre-command',
+        f'CD {project_name}',
+        '--pre-prompt',
+        f'B:DNP/{project_name}',
+        '--final-prompt',
+        f'B:DNP/{project_name}>',
+        '--run-marker',
+        'RUN ACTC.PRG',
+        '--done-fragment',
+        '',
+        '--contains',
+        'ARGS MAIN',
+        '--not-contains',
+        'BAD LITERAL',
+        '--not-contains',
+        'BAD PROC',
+        '--not-contains',
+        'NOT IN PROJECT',
+        '--not-contains',
+        'NO FILE',
+        '--not-contains',
+        'SAVE FAIL',
+        '--attempts',
+        '1',
+        '--connect-delay',
+        str(ACTC_CONNECT_DELAY),
+    ]
     try:
-        if ACTC_CONNECT_DELAY > 0.0:
-            time.sleep(ACTC_CONNECT_DELAY)
-        client.connect(time.monotonic() + 20.0)
-        client.ping()
-        client.resume()
-
-        wait_for_shell_prompt(client, 90.0)
-        time.sleep(5.0)
-
-        mount_command = 'MOUNT B: /IMAGES/ACTION.DNP'
-        client.keyboard_feed(mount_command + '\r')
-        time.sleep(1.0)
-        avp.wait_for_mount_completion(client, 90.0, retry_echo=mount_command)
-        time.sleep(5.0)
-
-        client.keyboard_type('B:\r')
-        vp.wait_for_screen_and_state(
-            client,
-            process,
-            'B:DNP/',
-            marker_addr=None,
-            marker_value=None,
-            extra_checks=[],
-            timeout=90.0,
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=ACTC_PHASE_TIMEOUT,
         )
-        time.sleep(5.0)
+    except subprocess.TimeoutExpired as exc:
+        raise vp.ViceError(f'ACTC phase timed out after {ACTC_PHASE_TIMEOUT:.0f}s') from exc
+    if result.returncode != 0:
+        details = result.stderr.strip() or result.stdout.strip() or 'ACTC phase failed'
+        raise vp.ViceError(details)
 
-        client.keyboard_type(f'CD {project_name}\r')
-        vp.wait_for_screen_and_state(
-            client,
-            process,
-            f'B:DNP/{project_name}',
-            marker_addr=None,
-            marker_value=None,
-            extra_checks=[],
-            timeout=90.0,
-        )
-        time.sleep(5.0)
-
-        client.keyboard_type('ACTC MAIN\r')
-        deadline = time.monotonic() + 90.0
-        screen = ''
-        saw_run = False
-        retry_count = 0
-        while time.monotonic() < deadline:
-            screen, _d018, _dd00 = vp.read_active_screen_text(client)
-            if 'RUN ACTC.PRG' in screen:
-                saw_run = True
-            if 'ACTC OK' in screen:
-                return
-            if saw_run and (project_root / 'obj' / 'main.avo').is_file():
-                return
-            if any(msg in screen for msg in ('SAVE FAIL', 'BAD LITERAL', 'BAD PROC', 'NOT IN PROJECT', 'NO FILE')):
-                raise vp.ViceError(f"ACTC terminal failure ({rcp.read_actc_trace(client)}) with screen:\n{screen}")
-            retry_count = avp.maybe_retry_command_enter(
-                client,
-                last_screen=screen,
-                retry_echo='ACTC MAIN',
-                retry_count=retry_count,
-            )
-            time.sleep(0.2)
-        raise vp.ViceError(f"timed out waiting for ACTC OK ({rcp.read_actc_trace(client)}); last screen was:\n{screen}")
-    finally:
-        try:
-            client.quit_emulator()
-        finally:
-            client.close()
-        vp.terminate_process_tree(process)
+    lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
+    avo_path = project_root / rcp.host_name('OBJ', lowercase_workspace) / rcp.host_name('MAIN.AVO', lowercase_workspace)
+    if not avo_path.is_file():
+        raise vp.ViceError(f'ACTC phase completed without expected host output {avo_path}')
 
 
-def run_alink_avmrun_phase(image: Path, work_root: Path, project_name: str, project_root: Path) -> None:
-    port = vp.reserve_tcp_port()
-    process = vp.launch_vice(
-        image,
-        port,
-        extra_args=[
-            '-iecdevice9',
-            '-device9',
-            '1',
-            '-fs9',
-            str(work_root),
-            '-fslongnames',
-        ],
-    )
-    client = vp.BinaryMonitorClient('127.0.0.1', port, timeout=5.0)
+def run_alink_phase(image: Path, work_root: Path, project_name: str, project_root: Path) -> None:
+    cmd = [
+        sys.executable,
+        str(ROOT / 'run_action_avmrun_probe.py'),
+        '--disk',
+        str(image),
+        '--fs-root',
+        str(work_root),
+        '--command',
+        'ALINK MAIN',
+        '--pre-command',
+        f'CD {project_name}',
+        '--pre-prompt',
+        f'B:DNP/{project_name}',
+        '--final-prompt',
+        f'B:DNP/{project_name}>',
+        '--run-marker',
+        'RUN ALINK.PRG',
+        '--done-fragment',
+        '',
+        '--contains',
+        'ARGS MAIN',
+        '--not-contains',
+        'SAVE FAIL',
+        '--not-contains',
+        'BAD AVO',
+        '--not-contains',
+        'TOO LARGE',
+        '--attempts',
+        '1',
+        '--connect-delay',
+        str(ALINK_AVMRUN_CONNECT_DELAY),
+    ]
     try:
-        if ALINK_AVMRUN_CONNECT_DELAY > 0.0:
-            time.sleep(ALINK_AVMRUN_CONNECT_DELAY)
-        client.connect(time.monotonic() + 20.0)
-        client.ping()
-        client.resume()
-
-        vp.wait_for_screen_and_state(
-            client,
-            process,
-            'A:D64/>',
-            marker_addr=None,
-            marker_value=None,
-            extra_checks=[],
-            timeout=90.0,
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=ALINK_PHASE_TIMEOUT,
         )
-        time.sleep(5.0)
+    except subprocess.TimeoutExpired as exc:
+        raise vp.ViceError(f'ALINK phase timed out after {ALINK_PHASE_TIMEOUT:.0f}s') from exc
+    if result.returncode != 0:
+        details = result.stderr.strip() or result.stdout.strip() or 'ALINK phase failed'
+        raise vp.ViceError(details)
 
-        client.keyboard_type('MOUNT B: /IMAGES/ACTION.DNP\r')
-        vp.wait_for_screen_and_state(
-            client,
-            process,
-            'A:D64/>',
-            marker_addr=None,
-            marker_value=None,
-            extra_checks=[],
-            timeout=90.0,
+
+def run_avmrun_phase(image: Path, work_root: Path, project_name: str) -> None:
+    cmd = [
+        sys.executable,
+        str(ROOT / 'run_action_avmrun_probe.py'),
+        '--disk',
+        str(image),
+        '--fs-root',
+        str(work_root),
+        '--command',
+        'AVMRUN BIN/MAIN.AVM',
+        '--pre-command',
+        f'CD {project_name}',
+        '--pre-prompt',
+        f'B:DNP/{project_name}',
+        '--final-prompt',
+        f'B:DNP/{project_name}>',
+        '--run-marker',
+        'RUN AVMRUN.PRG',
+        '--done-fragment',
+        '5459',
+        '--contains',
+        'HELLO',
+        '--contains',
+        'TOOL7',
+        '--contains',
+        'ARGS BIN/MAIN.AVM',
+        '--attempts',
+        '1',
+        '--connect-delay',
+        str(AVMRUN_CONNECT_DELAY),
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=AVMRUN_PHASE_TIMEOUT,
         )
-        time.sleep(5.0)
-
-        client.keyboard_type('B:\r')
-        vp.wait_for_screen_and_state(
-            client,
-            process,
-            'B:DNP/',
-            marker_addr=None,
-            marker_value=None,
-            extra_checks=[],
-            timeout=90.0,
-        )
-        time.sleep(5.0)
-
-        client.keyboard_type(f'CD {project_name}\r')
-        vp.wait_for_screen_and_state(
-            client,
-            process,
-            f'B:DNP/{project_name}',
-            marker_addr=None,
-            marker_value=None,
-            extra_checks=[],
-            timeout=90.0,
-        )
-        time.sleep(5.0)
-
-        client.keyboard_type('ALINK MAIN\r')
-        deadline = time.monotonic() + 90.0
-        screen = ''
-        saw_alink_run = False
-        retry_count = 0
-        while time.monotonic() < deadline:
-            screen, _d018, _dd00 = vp.read_active_screen_text(client)
-            if 'RUN ALINK.PRG' in screen:
-                saw_alink_run = True
-            if 'ALINK OK' in screen:
-                break
-            if saw_alink_run and (project_root / 'bin' / 'main.avm').is_file():
-                break
-            if any(msg in screen for msg in ('TOO LARGE', 'SAVE FAIL', 'BAD AVO')):
-                raise vp.ViceError(f'ALINK terminal failure with screen:\n{screen}')
-            retry_count = avp.maybe_retry_command_enter(
-                client,
-                last_screen=screen,
-                retry_echo='ALINK MAIN',
-                retry_count=retry_count,
-            )
-            time.sleep(0.2)
-        else:
-            raise vp.ViceError(f'timed out waiting for ALINK OK; last screen was:\n{screen}')
-
-        client.keyboard_type('AVMRUN BIN/MAIN.AVM\r')
-        deadline = time.monotonic() + 90.0
-        retry_count = 0
-        while time.monotonic() < deadline:
-            screen, _d018, _dd00 = vp.read_active_screen_text(client)
-            if all(
-                fragment in screen
-                for fragment in (
-                    'RUN AVMRUN.PRG',
-                    'ARGS BIN/MAIN.AVM',
-                    'TOOL7',
-                    '11',
-                    f'B:DNP/{project_name}>',
-                )
-            ):
-                return
-            if any(msg in screen for msg in ('BAD AVM', 'UNSUPPORTED AVM', 'LOAD FAIL', 'NO FILE', 'TOO LARGE')):
-                raise vp.ViceError(f'AVMRUN terminal failure with screen:\n{screen}')
-            retry_count = avp.maybe_retry_command_enter(
-                client,
-                last_screen=screen,
-                retry_echo='AVMRUN BIN/MAIN.AVM',
-                retry_count=retry_count,
-            )
-            time.sleep(0.2)
-        raise vp.ViceError(f'timed out waiting for ALINK -> AVMRUN proof; last screen was:\n{screen}')
-    finally:
-        try:
-            client.quit_emulator()
-        finally:
-            client.close()
-        vp.terminate_process_tree(process)
+    except subprocess.TimeoutExpired as exc:
+        raise vp.ViceError(f'AVMRUN phase timed out after {AVMRUN_PHASE_TIMEOUT:.0f}s') from exc
+    if result.returncode != 0:
+        details = result.stderr.strip() or result.stdout.strip() or 'AVMRUN phase failed'
+        raise vp.ViceError(details)
 
 
 def run_once(image: Path, fs_root: Path, project_name: str, work_root: Path) -> None:
@@ -358,15 +284,54 @@ def run_once(image: Path, fs_root: Path, project_name: str, work_root: Path) -> 
     shutil.copytree(fs_root, work_root, copy_function=shutil.copy)
     project_root = rcp.prepare_workspace(work_root, project_name)
 
-    vp.cleanup_stale_vice(settle_seconds=4.0)
-    run_actc_phase(image, work_root, project_name, project_root)
+    last_exc: Exception | None = None
+    for attempt in range(1, STAGE_ATTEMPTS + 1):
+        try:
+            vp.cleanup_stale_vice(settle_seconds=4.0)
+            run_actc_phase(image, work_root, project_name, project_root)
+            last_exc = None
+            break
+        except vp.ViceError as exc:
+            last_exc = exc
+            if attempt == STAGE_ATTEMPTS:
+                raise
+            time.sleep(STAGE_ATTEMPT_DELAY)
+    if last_exc is not None:
+        raise last_exc
     rcp.verify_host_output(project_root)
 
     prepare_link_workspace(work_root, project_root)
 
-    vp.cleanup_stale_vice(settle_seconds=4.0)
-    run_alink_avmrun_phase(image, work_root, project_name, project_root)
+    last_exc: Exception | None = None
+    for attempt in range(1, STAGE_ATTEMPTS + 1):
+        try:
+            vp.cleanup_stale_vice(settle_seconds=4.0)
+            run_alink_phase(image, work_root, project_name, project_root)
+            last_exc = None
+            break
+        except vp.ViceError as exc:
+            last_exc = exc
+            if attempt == STAGE_ATTEMPTS:
+                raise
+            time.sleep(STAGE_ATTEMPT_DELAY)
+    if last_exc is not None:
+        raise last_exc
     verify_host_output(project_root)
+
+    last_exc = None
+    for attempt in range(1, STAGE_ATTEMPTS + 1):
+        try:
+            vp.cleanup_stale_vice(settle_seconds=4.0)
+            run_avmrun_phase(image, work_root, project_name)
+            last_exc = None
+            break
+        except vp.ViceError as exc:
+            last_exc = exc
+            if attempt == STAGE_ATTEMPTS:
+                raise
+            time.sleep(STAGE_ATTEMPT_DELAY)
+    if last_exc is not None:
+        raise last_exc
 
 
 def main() -> int:
