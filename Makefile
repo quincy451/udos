@@ -139,14 +139,18 @@ ACTC_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
 ALINK_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 ACTMON_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actmon_udos.sh
 ACTCHK_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actchk_udos.sh
+ACTDIR_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actdir_udos.sh
 ACTFILE_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actfile_udos.sh
+ACTINFO_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actinfo_udos.sh
 ACTSRC_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actsrc_udos.sh
 ACTWORK_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actwork_udos.sh
 ACTC_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTC.PRG
 ALINK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ALINK.PRG
 ACTMON_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTMON.PRG
 ACTCHK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTCHK.PRG
+ACTDIR_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTDIR.PRG
 ACTFILE_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTFILE.PRG
+ACTINFO_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTINFO.PRG
 ACTSRC_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTSRC.PRG
 ACTWORK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTWORK.PRG
 
@@ -214,7 +218,9 @@ release:
 	bash $(ALINK_UDOS_BUILD)
 	bash $(ACTMON_UDOS_BUILD)
 	bash $(ACTCHK_UDOS_BUILD)
+	bash $(ACTDIR_UDOS_BUILD)
 	bash $(ACTFILE_UDOS_BUILD)
+	bash $(ACTINFO_UDOS_BUILD)
 	bash $(ACTSRC_UDOS_BUILD)
 	bash $(ACTWORK_UDOS_BUILD)
 	$(PYTHON) tools/prepare_release_fs.py --base $(VICE_FS_ROOT) --output $(RELEASE_FS)
@@ -223,10 +229,12 @@ release:
 	-$(C1541) $(RELEASE_DISK) -delete ALINK.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTMON.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTCHK.PRG
+	-$(C1541) $(RELEASE_DISK) -delete ACTDIR.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTFILE.PRG
+	-$(C1541) $(RELEASE_DISK) -delete ACTINFO.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTSRC.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTWORK.PRG
-	$(C1541) $(RELEASE_DISK) -write $(ACTC_UDOS_PRG) ACTC.PRG -write $(ALINK_UDOS_PRG) ALINK.PRG -write $(ACTMON_UDOS_PRG) ACTMON.PRG -write $(ACTCHK_UDOS_PRG) ACTCHK.PRG -write $(ACTFILE_UDOS_PRG) ACTFILE.PRG -write $(ACTSRC_UDOS_PRG) ACTSRC.PRG -write $(ACTWORK_UDOS_PRG) ACTWORK.PRG
+	$(C1541) $(RELEASE_DISK) -write $(ACTC_UDOS_PRG) ACTC.PRG -write $(ALINK_UDOS_PRG) ALINK.PRG -write $(ACTMON_UDOS_PRG) ACTMON.PRG -write $(ACTCHK_UDOS_PRG) ACTCHK.PRG -write $(ACTDIR_UDOS_PRG) ACTDIR.PRG -write $(ACTFILE_UDOS_PRG) ACTFILE.PRG -write $(ACTINFO_UDOS_PRG) ACTINFO.PRG -write $(ACTSRC_UDOS_PRG) ACTSRC.PRG -write $(ACTWORK_UDOS_PRG) ACTWORK.PRG
 
 vice-release: release
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RELEASE_DISK) \
@@ -263,8 +271,11 @@ vice-action-actadd: release
 		--contains "MAIN.ACT" --contains "HELPER.ACT" --contains "B:DNP/PROJ3>"
 
 vice-action-actdir: release
+	bash $(ACTDIR_UDOS_BUILD)
 	$(MAKE) BUILD_DIR=$(ACTION_ACTDIR_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actdir.txt resident
 	cp $(ACTION_ACTDIR_BUILD)/udos-resident.d64 $(ACTION_ACTDIR_ARTIFACT)
+	-$(C1541) $(ACTION_ACTDIR_ARTIFACT) -delete ACTDIR.PRG
+	$(C1541) $(ACTION_ACTDIR_ARTIFACT) -write $(ACTDIR_UDOS_PRG) ACTDIR.PRG
 	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTDIR_ARTIFACT) \
 		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
@@ -515,8 +526,11 @@ vice-action-actmon: release
 		--attempts 4 --attempt-delay 2.0
 
 vice-action-actinfo: release
+	bash $(ACTINFO_UDOS_BUILD)
 	$(MAKE) BUILD_DIR=$(ACTION_ACTINFO_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actinfo.txt resident
 	cp $(ACTION_ACTINFO_BUILD)/udos-resident.d64 $(ACTION_ACTINFO_ARTIFACT)
+	-$(C1541) $(ACTION_ACTINFO_ARTIFACT) -delete ACTINFO.PRG
+	$(C1541) $(ACTION_ACTINFO_ARTIFACT) -write $(ACTINFO_UDOS_PRG) ACTINFO.PRG
 	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTINFO_ARTIFACT) \
 		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
