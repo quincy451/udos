@@ -419,23 +419,24 @@ vice-action-actnew-prg: release
 		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK" --contains "B:DNP/DEMO/SRC>"
 
 vice-action-actnew-prg-persist: release
-	rm -rf $(ACTION_ACTNEW_PRG_PERSIST_BUILD) $(ACTION_ACTNEW_PRG_PERSIST_FS)
+	rm -rf $(ACTION_ACTNEW_PRG_PERSIST_FS)
 	mkdir -p $(ACTION_ACTNEW_PRG_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTNEW_PRG_PERSIST_FS)/
 	rm -rf $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2 $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2
-	$(MAKE) BUILD_DIR=$(ACTION_ACTNEW_PRG_PERSIST_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actnew_prg_persist.txt resident
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(ACTION_ACTNEW_PRG_PERSIST_BUILD))/udos-resident.d64 \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(ACTION_ACTNEW_PRG_PERSIST_FS)) \
-		--vice-arg=-fslongnames --expected "ACTNEW OK" --contains "ACTNEW PRG DONE" \
-		--settle 8.0 --timeout 120 --attempts 4 --attempt-delay 2.0
-	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/bin
-	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/obj
-	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/src
-	test -f $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/ACTION.PROJ
-	grep -q "MAIN.ACT" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/ACTION.PROJ
-	grep -q "ACTION PROJECT READY" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/readme.txt
-	grep -q "PROC MAIN()" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2/src/main.act
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTNEW_PRG_PERSIST_FS) \
+		--command "ACTNEW PROJ2" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/>" \
+		--attempts 4 --attempt-delay 2.0 \
+		--post-command "CD PROJ2/SRC" --post-done-fragment "B:DNP/PROJ2/SRC>" \
+		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK" --contains "B:DNP/PROJ2/SRC>"
+	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/bin
+	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/obj
+	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/src
+	test -f $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/action.proj
+	grep -q "MAIN.ACT" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/action.proj
+	grep -q "ACTION PROJECT READY" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/readme.txt
+	grep -q "PROC MAIN()" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/src/main.act
 
 vice-action-actadd-persist: release
 	rm -rf $(ACTION_ACTADD_PERSIST_FS)
