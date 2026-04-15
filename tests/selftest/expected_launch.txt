@@ -1,11 +1,10 @@
-UDOS FOR COMMODORE 64
-  A:D64/> MOUNT B: /IMAGES/WORK.DNP
-B:WORK DNP
-  A:D64/> B:
-B:DNP/
-  B:DNP/> CD SRC
-B:DNP/SRC
-  B:DNP/SRC> HELLO DIR
-RUN HELLO.PRG
-ARGS DIR
-  B:DNP/SRC>
+udos for commodore 64
+  a:d64/> mount b: /images/work.dnp
+  a:d64/> b:
+b:dnp/
+  b:dnp/> cd src
+b:dnp/src
+  b:dnp/src> rettest dir
+run rettest.prg
+args dir
+  b:dnp/src>

@@ -1,11 +1,10 @@
-UDOS FOR COMMODORE 64
-  A:D64/> MOUNT B: /IMAGES/WORK.DNP
-B:WORK DNP
-  A:D64/> B:
-B:DNP/
-  B:DNP/> CD SRC
-B:DNP/SRC
-  B:DNP/SRC> ARGS ONE TWO THREE
-  B:DNP/SRC> ECHO ONE/TWO/THREE
-ONE/TWO/THREE
-  B:DNP/SRC>
+udos for commodore 64
+  a:d64/> mount b: /images/work.dnp
+  a:d64/> b:
+b:dnp/
+  b:dnp/> cd src
+b:dnp/src
+  b:dnp/src> args one two three
+  b:dnp/src> echo one/two/three
+one/two/three
+  b:dnp/src>

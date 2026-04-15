@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 from pathlib import Path
 
@@ -11,6 +12,22 @@ def ensure_manifest_entry(path: Path, entry: str) -> None:
     if entry not in lines:
         lines.append(entry)
     path.write_text("\n".join(lines) + "\n", encoding="ascii")
+
+
+def copytree_lowercase(source: Path, dest: Path) -> None:
+    dest.mkdir(parents=True, exist_ok=True)
+    for root, dirs, files in os.walk(source):
+        root_path = Path(root)
+        rel = root_path.relative_to(source)
+        if rel.parts:
+            dest_root = dest.joinpath(*[part.lower() for part in rel.parts])
+        else:
+            dest_root = dest
+        dest_root.mkdir(parents=True, exist_ok=True)
+        for dirname in dirs:
+            (dest_root / dirname.lower()).mkdir(parents=True, exist_ok=True)
+        for filename in files:
+            shutil.copy2(root_path / filename, dest_root / filename.lower())
 
 
 def main() -> int:
@@ -23,10 +40,10 @@ def main() -> int:
     output = Path(args.output)
     if output.exists():
         shutil.rmtree(output)
-    shutil.copytree(base, output)
+    copytree_lowercase(base, output)
 
-    src_dir = output / "IMAGES" / "WORK.DNP" / "SRC"
-    work_dir = output / "IMAGES" / "WORK.DNP" / "WORK"
+    src_dir = output / "images" / "work.dnp" / "src"
+    work_dir = output / "images" / "work.dnp" / "work"
     src_dir.mkdir(parents=True, exist_ok=True)
     work_dir.mkdir(parents=True, exist_ok=True)
 

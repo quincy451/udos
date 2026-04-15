@@ -1,19 +1,18 @@
-UDOS FOR COMMODORE 64
-  A:D64/> MOUNT B: /IMAGES/WORK.DNP
-B:WORK DNP
-  A:D64/> B:
-B:DNP/
-  B:DNP/> CD SRC
-B:DNP/SRC
-  B:DNP/SRC> COPY HELLO.PRG WORK/HELLO2.
-PRG
-COPIED
-  B:DNP/SRC> CD WORK
-B:DNP/WORK
-  B:DNP/WORK> DEL HELLO2.PRG
-DELETED
-  B:DNP/WORK> DIR
-B:DNP/WORK
-  B:DNP/WORK> ECHO DELETE OK
-DELETE OK
-  B:DNP/WORK>
+udos for commodore 64
+  a:d64/> mount b: /images/work.dnp
+  a:d64/> b:
+b:dnp/
+  b:dnp/> cd src
+b:dnp/src
+  b:dnp/src> copy hello.prg work/hello2.
+prg
+copied
+  b:dnp/src> cd work
+b:dnp/work
+  b:dnp/work> del hello2.prg
+deleted
+  b:dnp/work> dir
+b:dnp/work
+  b:dnp/work> echo delete ok
+delete ok
+  b:dnp/work>

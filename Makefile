@@ -721,9 +721,9 @@ $(VICE_TREE_WILD_FS): force
 
 vice-launch: resident $(VICE_LAUNCH_FS)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
-		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(VICE_LAUNCH_FS) \
+	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(RESIDENT_DISK)) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(BUILD_DIR)) \
+		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(VICE_LAUNCH_FS)) \
 		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 2.5 \
 		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
 		--feed-step "B:\r" \
@@ -735,9 +735,9 @@ vice-launch: resident $(VICE_LAUNCH_FS)
 
 vice-clobber: resident $(VICE_LAUNCH_FS)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
-		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(VICE_LAUNCH_FS) \
+	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(RESIDENT_DISK)) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(BUILD_DIR)) \
+		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(VICE_LAUNCH_FS)) \
 		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 2.5 \
 		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
 		--feed-step "B:\r" \
@@ -919,87 +919,132 @@ $(SELFTEST_BATCH_FS): force
 $(SELFTEST_STOP_FS): force
 	$(PYTHON) tools/prepare_selftest_fs.py --base $(VICE_FS_ROOT) --output $@
 
-$(SELFTEST_LAUNCH_FS): force
+$(SELFTEST_LAUNCH_FS): force $(RETURN_TEST_PRG)
 	$(PYTHON) tools/prepare_selftest_fs.py --base $(VICE_FS_ROOT) --output $@
+	grep -v 'RETTEST.PRG' $@/IMAGES/WORK.DNP/SRC/UDOSDIR.TXT > $@/IMAGES/WORK.DNP/SRC/UDOSDIR.BASE
+	cp $(RETURN_TEST_PRG) $@/IMAGES/WORK.DNP/SRC/RETTEST.PRG
+	{ \
+		printf 'F RETTEST.PRG\n'; \
+		cat $@/IMAGES/WORK.DNP/SRC/UDOSDIR.BASE; \
+	} > $@/IMAGES/WORK.DNP/SRC/UDOSDIR.TXT
+	rm -f $@/IMAGES/WORK.DNP/SRC/UDOSDIR.BASE
 
 vice-selftest-read: $(SELFTEST_READ_FS)
-	$(MAKE) BUILD_DIR=$(SELFTEST_READ_BUILD) AUTOEXEC_SRC=$(SELFTEST_ROOT)/autoexec_read.txt resident
+	$(MAKE) BUILD_DIR=$(SELFTEST_READ_BUILD) RESIDENT_DEFINES="-D UDOS_INCLUDE_AUTOEXEC=0" resident
 	cp $(SELFTEST_READ_BUILD)/udos-resident.d64 $(SELFTEST_READ_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(SELFTEST_READ_ARTIFACT) \
-		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(SELFTEST_READ_BUILD) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(SELFTEST_READ_FS) \
-		--vice-arg=-fslongnames --expected "READ OK" --settle 2.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_READ_ACTUAL)
+	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(SELFTEST_READ_ARTIFACT)) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(SELFTEST_READ_BUILD)) \
+		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(SELFTEST_READ_FS)) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 2.0 \
+		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
+		--feed-step "B:\r" \
+		--feed-step "DIR\r" \
+		--feed-step "CD SRC\r" \
+		--feed-step "TYPE BOOT.ASM\r" \
+		--feed-step "ECHO READ OK\r" \
+		--expected "READ OK" --settle 2.0 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_READ_ACTUAL)
 	diff -u $(SELFTEST_READ_EXPECTED) $(SELFTEST_READ_ACTUAL)
 
 vice-selftest-copy: $(SELFTEST_COPY_FS)
-	$(MAKE) BUILD_DIR=$(SELFTEST_COPY_BUILD) AUTOEXEC_SRC=$(SELFTEST_ROOT)/autoexec_copy.txt resident
+	$(MAKE) BUILD_DIR=$(SELFTEST_COPY_BUILD) RESIDENT_DEFINES="-D UDOS_INCLUDE_AUTOEXEC=0" resident
 	cp $(SELFTEST_COPY_BUILD)/udos-resident.d64 $(SELFTEST_COPY_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(SELFTEST_COPY_ARTIFACT) \
-		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(SELFTEST_COPY_BUILD) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(SELFTEST_COPY_FS) \
-		--vice-arg=-fslongnames --expected "COPY OK" --settle 2.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_COPY_ACTUAL)
+	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(SELFTEST_COPY_ARTIFACT)) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(SELFTEST_COPY_BUILD)) \
+		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(SELFTEST_COPY_FS)) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 2.0 \
+		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
+		--feed-step "B:\r" \
+		--feed-step "CD SRC\r" \
+		--feed-step "COPY HELLO.PRG WORK/HELLO2.PRG\r" \
+		--feed-step "ECHO COPY OK\r" \
+		--expected "COPY OK" --settle 2.0 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_COPY_ACTUAL)
 	diff -u $(SELFTEST_COPY_EXPECTED) $(SELFTEST_COPY_ACTUAL)
 
 vice-selftest-rename: $(SELFTEST_RENAME_FS)
-	$(MAKE) BUILD_DIR=$(SELFTEST_RENAME_BUILD) AUTOEXEC_SRC=$(SELFTEST_ROOT)/autoexec_rename.txt resident
+	$(MAKE) BUILD_DIR=$(SELFTEST_RENAME_BUILD) RESIDENT_DEFINES="-D UDOS_INCLUDE_AUTOEXEC=0" resident
 	cp $(SELFTEST_RENAME_BUILD)/udos-resident.d64 $(SELFTEST_RENAME_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(SELFTEST_RENAME_ARTIFACT) \
-		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(SELFTEST_RENAME_BUILD) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(SELFTEST_RENAME_FS) \
-		--vice-arg=-fslongnames --expected "RENAME OK" --settle 2.0 --timeout 120 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_RENAME_ACTUAL)
+	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(SELFTEST_RENAME_ARTIFACT)) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(SELFTEST_RENAME_BUILD)) \
+		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(SELFTEST_RENAME_FS)) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 2.0 \
+		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
+		--feed-step "B:\r" \
+		--feed-step "CD SRC\r" \
+		--feed-step "COPY HELLO.PRG WORK/HELLO2.PRG\r" \
+		--feed-step "CD WORK\r" \
+		--feed-step "REN HELLO2.PRG HELLO3.PRG\r" \
+		--feed-step "ECHO RENAME OK\r" \
+		--expected "RENAME OK" --settle 2.0 --timeout 120 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_RENAME_ACTUAL)
 	diff -u $(SELFTEST_RENAME_EXPECTED) $(SELFTEST_RENAME_ACTUAL)
 
 vice-selftest-delete: $(SELFTEST_DELETE_FS)
-	$(MAKE) BUILD_DIR=$(SELFTEST_DELETE_BUILD) AUTOEXEC_SRC=$(SELFTEST_ROOT)/autoexec_delete.txt resident
+	$(MAKE) BUILD_DIR=$(SELFTEST_DELETE_BUILD) RESIDENT_DEFINES="-D UDOS_INCLUDE_AUTOEXEC=0" resident
 	cp $(SELFTEST_DELETE_BUILD)/udos-resident.d64 $(SELFTEST_DELETE_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(SELFTEST_DELETE_ARTIFACT) \
-		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(SELFTEST_DELETE_BUILD) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(SELFTEST_DELETE_FS) \
-		--vice-arg=-fslongnames --expected "DELETE OK" --settle 2.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_DELETE_ACTUAL)
+	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(SELFTEST_DELETE_ARTIFACT)) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(SELFTEST_DELETE_BUILD)) \
+		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(SELFTEST_DELETE_FS)) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 2.0 \
+		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
+		--feed-step "B:\r" \
+		--feed-step "CD SRC\r" \
+		--feed-step "COPY HELLO.PRG WORK/HELLO2.PRG\r" \
+		--feed-step "CD WORK\r" \
+		--feed-step "DEL HELLO2.PRG\r" \
+		--feed-step "DIR\r" \
+		--feed-step "ECHO DELETE OK\r" \
+		--expected "DELETE OK" --settle 2.0 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_DELETE_ACTUAL)
 	diff -u $(SELFTEST_DELETE_EXPECTED) $(SELFTEST_DELETE_ACTUAL)
 
 vice-selftest-dir: $(SELFTEST_DIR_FS)
-	$(MAKE) BUILD_DIR=$(SELFTEST_DIR_BUILD) AUTOEXEC_SRC=$(SELFTEST_ROOT)/autoexec_dir.txt resident
+	$(MAKE) BUILD_DIR=$(SELFTEST_DIR_BUILD) RESIDENT_DEFINES="-D UDOS_INCLUDE_AUTOEXEC=0" resident
 	cp $(SELFTEST_DIR_BUILD)/udos-resident.d64 $(SELFTEST_DIR_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(SELFTEST_DIR_ARTIFACT) \
-		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(SELFTEST_DIR_BUILD) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(SELFTEST_DIR_FS) \
-		--vice-arg=-fslongnames --expected "DIR OK" --settle 2.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_DIR_ACTUAL)
+	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(SELFTEST_DIR_ARTIFACT)) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(SELFTEST_DIR_BUILD)) \
+		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(SELFTEST_DIR_FS)) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 2.0 \
+		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
+		--feed-step "B:\r" \
+		--feed-step "MD NEW\r" \
+		--feed-step "CD NEW\r" \
+		--feed-step "CD /\r" \
+		--feed-step "RD NEW\r" \
+		--feed-step "ECHO DIR OK\r" \
+		--expected "DIR OK" --settle 2.0 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_DIR_ACTUAL)
 	diff -u $(SELFTEST_DIR_EXPECTED) $(SELFTEST_DIR_ACTUAL)
 
 vice-selftest-batch: $(SELFTEST_BATCH_FS)
 	$(MAKE) BUILD_DIR=$(SELFTEST_BATCH_BUILD) AUTOEXEC_SRC=$(SELFTEST_ROOT)/autoexec_batch.txt resident
 	cp $(SELFTEST_BATCH_BUILD)/udos-resident.d64 $(SELFTEST_BATCH_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(SELFTEST_BATCH_ARTIFACT) \
-		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(SELFTEST_BATCH_BUILD) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(SELFTEST_BATCH_FS) \
-		--vice-arg=-fslongnames --expected "ONE/TWO/THREE" --settle 2.0 --timeout 120 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_BATCH_ACTUAL)
+	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(SELFTEST_BATCH_ARTIFACT)) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(SELFTEST_BATCH_BUILD)) \
+		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(SELFTEST_BATCH_FS)) \
+		--vice-arg=-fslongnames --expected "ONE/TWO/THREE" --settle 2.0 --timeout 120 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_BATCH_ACTUAL)
 	diff -u $(SELFTEST_BATCH_EXPECTED) $(SELFTEST_BATCH_ACTUAL)
 
 vice-selftest-stop: $(SELFTEST_STOP_FS)
 	$(MAKE) BUILD_DIR=$(SELFTEST_STOP_BUILD) AUTOEXEC_SRC=$(SELFTEST_ROOT)/autoexec_stop.txt resident
 	cp $(SELFTEST_STOP_BUILD)/udos-resident.d64 $(SELFTEST_STOP_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(SELFTEST_STOP_ARTIFACT) \
-		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(SELFTEST_STOP_BUILD) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(SELFTEST_STOP_FS) \
-		--vice-arg=-fslongnames --expected "NO SUCH FILE" --settle 2.0 --timeout 120 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_STOP_ACTUAL)
+	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(SELFTEST_STOP_ARTIFACT)) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(SELFTEST_STOP_BUILD)) \
+		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(SELFTEST_STOP_FS)) \
+		--vice-arg=-fslongnames --expected "NO SUCH FILE" --settle 2.0 --timeout 120 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_STOP_ACTUAL)
 	diff -u $(SELFTEST_STOP_EXPECTED) $(SELFTEST_STOP_ACTUAL)
 
 vice-selftest-launch: $(SELFTEST_LAUNCH_FS)
 	$(MAKE) BUILD_DIR=$(SELFTEST_LAUNCH_BUILD) AUTOEXEC_SRC=$(SELFTEST_ROOT)/autoexec_launch.txt resident
 	cp $(SELFTEST_LAUNCH_BUILD)/udos-resident.d64 $(SELFTEST_LAUNCH_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(SELFTEST_LAUNCH_ARTIFACT) \
-		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(SELFTEST_LAUNCH_BUILD) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(SELFTEST_LAUNCH_FS) \
-		--vice-arg=-fslongnames --expected "ARGS DIR" --settle 2.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_LAUNCH_ACTUAL)
+	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(SELFTEST_LAUNCH_ARTIFACT)) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(SELFTEST_LAUNCH_BUILD)) \
+		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(SELFTEST_LAUNCH_FS)) \
+		--vice-arg=-fslongnames --expected "ARGS DIR" --settle 2.0 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_LAUNCH_ACTUAL)
 	diff -u $(SELFTEST_LAUNCH_EXPECTED) $(SELFTEST_LAUNCH_ACTUAL)
 
 vice-selftest:

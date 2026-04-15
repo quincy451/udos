@@ -1,16 +1,15 @@
-UDOS FOR COMMODORE 64
-  A:D64/> MOUNT B: /IMAGES/WORK.DNP
-B:WORK DNP
-  A:D64/> B:
-B:DNP/
-  B:DNP/> MD NEW
-CREATED
-  B:DNP/> CD NEW
-B:DNP/NEW
-  B:DNP/NEW> CD /
-B:DNP/
-  B:DNP/> RD NEW
-REMOVED
-  B:DNP/> ECHO DIR OK
-DIR OK
-  B:DNP/>
+udos for commodore 64
+  a:d64/> mount b: /images/work.dnp
+  a:d64/> b:
+b:dnp/
+  b:dnp/> md new
+created
+  b:dnp/> cd new
+b:dnp/new
+  b:dnp/new> cd /
+b:dnp/
+  b:dnp/> rd new
+removed
+  b:dnp/> echo dir ok
+dir ok
+  b:dnp/>

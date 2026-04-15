@@ -1,13 +1,12 @@
-UDOS FOR COMMODORE 64
-  A:D64/> MOUNT B: /IMAGES/WORK.DNP
-B:WORK DNP
-  A:D64/> B:
-B:DNP/
-  B:DNP/> CD SRC
-B:DNP/SRC
-  B:DNP/SRC> STOP
-  B:DNP/SRC> ECHO BEFORE
-BEFORE
-  B:DNP/SRC> TYPE NOFILE.TXT
-NO SUCH FILE
-  B:DNP/SRC>
+udos for commodore 64
+  a:d64/> mount b: /images/work.dnp
+  a:d64/> b:
+b:dnp/
+  b:dnp/> cd src
+b:dnp/src
+  b:dnp/src> stop
+  b:dnp/src> echo before
+before
+  b:dnp/src> type nofile.txt
+no such file
+  b:dnp/src>

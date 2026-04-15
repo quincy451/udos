@@ -1,14 +1,13 @@
-UDOS FOR COMMODORE 64
-  A:D64/> MOUNT B: /IMAGES/WORK.DNP
-B:WORK DNP
-  A:D64/> B:
-B:DNP/
-  B:DNP/> DIR
-B:DNP/ BIN/ SRC/ WORK/
-  B:DNP/> CD SRC
-B:DNP/SRC
-  B:DNP/SRC> TYPE BOOT.ASM
-; BOOT.ASM VICE BACKEND SOURCEJ
-  B:DNP/SRC> ECHO READ OK
-READ OK
-  B:DNP/SRC>
+udos for commodore 64
+  a:d64/> mount b: /images/work.dnp
+  a:d64/> b:
+b:dnp/
+  b:dnp/> dir
+b:dnp/ bin/ src/ work/
+  b:dnp/> cd src
+b:dnp/src
+  b:dnp/src> type boot.asm
+; boot.asm vice backend sourcej
+  b:dnp/src> echo read ok
+read ok
+  b:dnp/src>
