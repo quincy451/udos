@@ -137,8 +137,10 @@ RELEASE_FS := build/udos-release-fs
 ACTIONC64U_DIR := /mnt/c/test/action/actionc64u
 ACTC_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
 ALINK_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+ACTMON_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actmon_udos.sh
 ACTC_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTC.PRG
 ALINK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ALINK.PRG
+ACTMON_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTMON.PRG
 
 .PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-alink-avmrun vice-action-actc-alink-avmrun vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-action-avmrun-runtime vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
@@ -202,11 +204,13 @@ release:
 	$(MAKE) BUILD_DIR=$(RELEASE_BUILD) RESIDENT_DEFINES="-D UDOS_INCLUDE_AUTOEXEC=0" resident
 	bash $(ACTC_UDOS_BUILD)
 	bash $(ALINK_UDOS_BUILD)
+	bash $(ACTMON_UDOS_BUILD)
 	$(PYTHON) tools/prepare_release_fs.py --base $(VICE_FS_ROOT) --output $(RELEASE_FS)
 	cp $(RELEASE_BUILD)/udos-resident.d64 $(RELEASE_DISK)
 	-$(C1541) $(RELEASE_DISK) -delete ACTC.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ALINK.PRG
-	$(C1541) $(RELEASE_DISK) -write $(ACTC_UDOS_PRG) ACTC.PRG -write $(ALINK_UDOS_PRG) ALINK.PRG
+	-$(C1541) $(RELEASE_DISK) -delete ACTMON.PRG
+	$(C1541) $(RELEASE_DISK) -write $(ACTC_UDOS_PRG) ACTC.PRG -write $(ALINK_UDOS_PRG) ALINK.PRG -write $(ACTMON_UDOS_PRG) ACTMON.PRG
 
 vice-release: release
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RELEASE_DISK) \

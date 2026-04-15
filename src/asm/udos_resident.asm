@@ -2330,25 +2330,6 @@ program_target_is_simple_name_no:
     sec
     rts
 
-program_target_is_release_tool:
-    lda #<release_tool_name_actc
-    sta PTR
-    lda #>release_tool_name_actc
-    sta PTR+1
-    jsr compare_ptr_to_path_name_strict
-    bcc program_target_is_release_tool_yes
-    lda #<release_tool_name_alink
-    sta PTR
-    lda #>release_tool_name_alink
-    sta PTR+1
-    jsr compare_ptr_to_path_name_strict
-    bcc program_target_is_release_tool_yes
-    sec
-    rts
-program_target_is_release_tool_yes:
-    clc
-    rts
-
 query_program_file_vice_search:
     lda temp_dir_id
     pha
@@ -2458,16 +2439,22 @@ prepare_external_program_launch:
     jmp prepare_external_program_launch_fail
 :
     jsr copy_program_target_to_path_name_buffer
-    jsr program_target_is_release_tool
+    jsr program_target_is_simple_name
     bcs prepare_external_program_launch_check_tree
+    lda temp_drive
+    pha
+    lda temp_dir_id
+    pha
     lda #DRIVE_A
-    sta LAUNCH_DRIVE_SNAPSHOT
+    sta temp_drive
     lda #DIR_ID_ROOT
-    sta LAUNCH_DIR_SNAPSHOT
-    lda #PROGRAM_LAUNCH_VICE_HOST
-    sta program_launch_mode
-    clc
-    rts
+    sta temp_dir_id
+    jsr prepare_external_program_launch_try_here
+    bcc prepare_external_program_launch_found_a
+    pla
+    sta temp_dir_id
+    pla
+    sta temp_drive
 prepare_external_program_launch_check_tree:
     ldx temp_drive
     lda mount_flag_table,x
@@ -2501,6 +2488,17 @@ prepare_external_program_launch_found:
     sta LAUNCH_DIR_SNAPSHOT
     pla
     sta temp_dir_id
+    lda #PROGRAM_LAUNCH_VICE_HOST
+    sta program_launch_mode
+    clc
+    rts
+prepare_external_program_launch_found_a:
+    pla
+    pla
+    lda temp_drive
+    sta LAUNCH_DRIVE_SNAPSHOT
+    lda temp_dir_id
+    sta LAUNCH_DIR_SNAPSHOT
     lda #PROGRAM_LAUNCH_VICE_HOST
     sta program_launch_mode
     clc
@@ -16039,8 +16037,19 @@ tool_abi_dir_begin_current:
     tay
     lda dir_state_table,y
     sta temp_dir_id
+    lda mount_flag_table,y
+    cmp #MOUNT_FLAG_TREE
+    bne tool_abi_dir_begin_current_enum
+    lda #$00
+    sta enum_index
+    jsr fill_vice_dir_cache_current
+    bcc tool_abi_dir_begin_current_done
+    jsr select_enum_table
+    jmp tool_abi_dir_begin_current_done
+tool_abi_dir_begin_current_enum:
     ldy #$00
     jsr fs_enum_begin_current
+tool_abi_dir_begin_current_done:
     ldx saved_rp_x
     lda enum_count
     sta 0,x
@@ -18373,7 +18382,3 @@ resp_run_prefix:
     .byte "RUN ", 0
 resp_args_prefix:
     .byte "ARGS ", 0
-release_tool_name_actc:
-    .byte 1, 3, 20, 3, ASCII_DOT, 16, 18, 7, 0
-release_tool_name_alink:
-    .byte 1, 12, 9, 14, 11, ASCII_DOT, 16, 18, 7, 0
