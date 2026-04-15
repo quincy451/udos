@@ -314,15 +314,11 @@ vice-action-actadd: release
 	grep -q "ENDPROC" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 
 vice-action-actdir: release
-	bash $(ACTDIR_UDOS_BUILD)
-	$(MAKE) BUILD_DIR=$(ACTION_ACTDIR_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actdir.txt resident
-	cp $(ACTION_ACTDIR_BUILD)/udos-resident.d64 $(ACTION_ACTDIR_ARTIFACT)
-	-$(C1541) $(ACTION_ACTDIR_ARTIFACT) -delete ACTDIR.PRG
-	$(C1541) $(ACTION_ACTDIR_ARTIFACT) -write $(ACTDIR_UDOS_PRG) ACTDIR.PRG
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTDIR_ARTIFACT) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
-		--vice-arg=-fslongnames --expected "B:DNP/>" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--command "ACTDIR" --run-marker "RUN ACTDIR.PRG" --done-fragment "" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/>" \
+		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTDIR.PRG" --contains "BIN/" --contains "DOC/" --contains "LIB/" --contains "SRC/"
 
 vice-action-actsrc: release
@@ -337,15 +333,12 @@ vice-action-actsrc: release
 	printf 'ACTION PROJECT\rMAIN.ACT\rHELPER.ACT\r' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
-	bash $(ACTSRC_UDOS_BUILD)
-	$(MAKE) BUILD_DIR=$(ACTION_ACTSRC_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actsrc.txt resident
-	cp $(ACTION_ACTSRC_BUILD)/udos-resident.d64 $(ACTION_ACTSRC_ARTIFACT)
-	-$(C1541) $(ACTION_ACTSRC_ARTIFACT) -delete ACTSRC.PRG
-	$(C1541) $(ACTION_ACTSRC_ARTIFACT) -write $(ACTSRC_UDOS_PRG) ACTSRC.PRG
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTSRC_ARTIFACT) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(ACTION_ACTSRC_FS) \
-		--vice-arg=-fslongnames --expected "ACTSRC OK" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTSRC_FS) \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--command "ACTSRC.PRG" --run-marker "RUN ACTSRC.PRG" --done-fragment "" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
+		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTSRC.PRG" --contains "MAIN.ACT" --contains "HELPER.ACT" --contains "B:DNP/PROJ3>"
 
 vice-action-actfile: release
@@ -360,15 +353,12 @@ vice-action-actfile: release
 	printf 'ACTION PROJECT\rMAIN.ACT\rHELPER.ACT\r' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
-	bash $(ACTFILE_UDOS_BUILD)
-	$(MAKE) BUILD_DIR=$(ACTION_ACTFILE_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actfile.txt resident
-	cp $(ACTION_ACTFILE_BUILD)/udos-resident.d64 $(ACTION_ACTFILE_ARTIFACT)
-	-$(C1541) $(ACTION_ACTFILE_ARTIFACT) -delete ACTFILE.PRG
-	$(C1541) $(ACTION_ACTFILE_ARTIFACT) -write $(ACTFILE_UDOS_PRG) ACTFILE.PRG
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTFILE_ARTIFACT) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(ACTION_ACTFILE_FS) \
-		--vice-arg=-fslongnames --expected "ACTFILE OK" --settle 8.0 --timeout 120 --attempts 4 --attempt-delay 2.0 \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTFILE_FS) \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--command "ACTFILE MAIN" --run-marker "RUN ACTFILE.PRG" --done-fragment "" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
+		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTFILE.PRG" --contains "PROC MAIN()" --contains "ENDPROC" --contains "B:DNP/PROJ3>"
 
 vice-action-actwork: release
@@ -387,15 +377,12 @@ vice-action-actwork: release
 	printf '' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/obj/UDOSDIR.TXT
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
-	bash $(ACTWORK_UDOS_BUILD)
-	$(MAKE) BUILD_DIR=$(ACTION_ACTWORK_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actwork.txt resident
-	cp $(ACTION_ACTWORK_BUILD)/udos-resident.d64 $(ACTION_ACTWORK_ARTIFACT)
-	-$(C1541) $(ACTION_ACTWORK_ARTIFACT) -delete ACTWORK.PRG
-	$(C1541) $(ACTION_ACTWORK_ARTIFACT) -write $(ACTWORK_UDOS_PRG) ACTWORK.PRG
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTWORK_ARTIFACT) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(ACTION_ACTWORK_FS) \
-		--vice-arg=-fslongnames --expected "ACTWORK OK" --settle 8.0 --timeout 120 --attempts 4 --attempt-delay 2.0 \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTWORK_FS) \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--command "ACTWORK" --run-marker "RUN ACTWORK.PRG" --done-fragment "" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
+		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTWORK.PRG" --contains "PROJECT YES" --contains "SRC YES" --contains "BIN YES" \
 		--contains "OBJ YES" --contains "MODULES 2" --contains "B:DNP/PROJ3>"
 
@@ -574,15 +561,11 @@ vice-action-actmon: release
 		--attempts 4 --attempt-delay 2.0
 
 vice-action-actinfo: release
-	bash $(ACTINFO_UDOS_BUILD)
-	$(MAKE) BUILD_DIR=$(ACTION_ACTINFO_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actinfo.txt resident
-	cp $(ACTION_ACTINFO_BUILD)/udos-resident.d64 $(ACTION_ACTINFO_ARTIFACT)
-	-$(C1541) $(ACTION_ACTINFO_ARTIFACT) -delete ACTINFO.PRG
-	$(C1541) $(ACTION_ACTINFO_ARTIFACT) -write $(ACTINFO_UDOS_PRG) ACTINFO.PRG
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTINFO_ARTIFACT) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
-		--vice-arg=-fslongnames --expected "B:DNP/>" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--command "ACTINFO ONE TWO" --run-marker "RUN ACTINFO.PRG" --done-fragment "ACTINFO DONE" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/>" \
+		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTINFO.PRG" --contains "ACTINFO ABI 1" --contains "ARGS ONE TWO" --contains "ACTINFO DONE"
 
 vice-action-actflow: release
