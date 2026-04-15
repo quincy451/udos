@@ -287,7 +287,7 @@ vice-action-workspace: release
 		--contains "ACTION WORKSPACE OK"
 
 vice-action-actadd: release
-	rm -rf $(ACTION_ACTADD_BUILD) $(ACTION_ACTADD_FS)
+	rm -rf $(ACTION_ACTADD_FS)
 	mkdir -p $(ACTION_ACTADD_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTADD_FS)/
 	rm -rf $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/proj3
@@ -297,14 +297,21 @@ vice-action-actadd: release
 	printf 'ACTION PROJECT READY\n' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
 	printf 'ACTION PROJECT\rMAIN.ACT\r' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
-	$(MAKE) BUILD_DIR=$(ACTION_ACTADD_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actadd.txt resident
-	cp $(ACTION_ACTADD_BUILD)/udos-resident.d64 $(ACTION_ACTADD_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTADD_ARTIFACT) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(ACTION_ACTADD_FS) \
-		--vice-arg=-fslongnames --expected "ACTADD DONE" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
-		--contains "RUN ACTADD.PRG" --contains "ACTADD OK" --contains "PROC HELPER()" --contains "ENDPROC" \
-		--contains "MAIN.ACT" --contains "HELPER.ACT" --contains "B:DNP/PROJ3>"
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTADD_FS) \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--command "ACTADD HELPER" --run-marker "RUN ACTADD.PRG" --done-fragment "ACTADD OK" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
+		--prompt-count 2 --attempts 4 --attempt-delay 2.0 \
+		--contains "RUN ACTADD.PRG" --contains "ACTADD OK" --contains "B:DNP/PROJ3>"
+	test -d $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/bin
+	test -d $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/obj
+	test -d $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src
+	test -f $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	grep -q "MAIN.ACT" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	grep -q "HELPER.ACT" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	grep -q "PROC HELPER()" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	grep -q "ENDPROC" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 
 vice-action-actdir: release
 	bash $(ACTDIR_UDOS_BUILD)
@@ -443,8 +450,12 @@ vice-action-actadd-persist: release
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	printf 'PROC OLDHELPER()\rENDPROC\r' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 	sleep 2
-	$(PYTHON) tools/run_action_actadd_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTADD_PERSIST_FS) \
-		--project PROJ3 --module HELPER --expect exists --attempts 4 --attempt-delay 2.0
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTADD_PERSIST_FS) \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--command "ACTADD HELPER" --run-marker "RUN ACTADD.PRG" --done-fragment "EXISTS" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
+		--prompt-count 2 --attempts 4 --attempt-delay 2.0 \
+		--contains "RUN ACTADD.PRG" --contains "EXISTS" --contains "B:DNP/PROJ3>"
 	test -d $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/bin
 	test -d $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/obj
 	test -d $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src
