@@ -138,9 +138,17 @@ ACTIONC64U_DIR := /mnt/c/test/action/actionc64u
 ACTC_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
 ALINK_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 ACTMON_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actmon_udos.sh
+ACTCHK_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actchk_udos.sh
+ACTFILE_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actfile_udos.sh
+ACTSRC_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actsrc_udos.sh
+ACTWORK_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actwork_udos.sh
 ACTC_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTC.PRG
 ALINK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ALINK.PRG
 ACTMON_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTMON.PRG
+ACTCHK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTCHK.PRG
+ACTFILE_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTFILE.PRG
+ACTSRC_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTSRC.PRG
+ACTWORK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTWORK.PRG
 
 .PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-alink-avmrun vice-action-actc-alink-avmrun vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-action-avmrun-runtime vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
@@ -205,12 +213,20 @@ release:
 	bash $(ACTC_UDOS_BUILD)
 	bash $(ALINK_UDOS_BUILD)
 	bash $(ACTMON_UDOS_BUILD)
+	bash $(ACTCHK_UDOS_BUILD)
+	bash $(ACTFILE_UDOS_BUILD)
+	bash $(ACTSRC_UDOS_BUILD)
+	bash $(ACTWORK_UDOS_BUILD)
 	$(PYTHON) tools/prepare_release_fs.py --base $(VICE_FS_ROOT) --output $(RELEASE_FS)
 	cp $(RELEASE_BUILD)/udos-resident.d64 $(RELEASE_DISK)
 	-$(C1541) $(RELEASE_DISK) -delete ACTC.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ALINK.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTMON.PRG
-	$(C1541) $(RELEASE_DISK) -write $(ACTC_UDOS_PRG) ACTC.PRG -write $(ALINK_UDOS_PRG) ALINK.PRG -write $(ACTMON_UDOS_PRG) ACTMON.PRG
+	-$(C1541) $(RELEASE_DISK) -delete ACTCHK.PRG
+	-$(C1541) $(RELEASE_DISK) -delete ACTFILE.PRG
+	-$(C1541) $(RELEASE_DISK) -delete ACTSRC.PRG
+	-$(C1541) $(RELEASE_DISK) -delete ACTWORK.PRG
+	$(C1541) $(RELEASE_DISK) -write $(ACTC_UDOS_PRG) ACTC.PRG -write $(ALINK_UDOS_PRG) ALINK.PRG -write $(ACTMON_UDOS_PRG) ACTMON.PRG -write $(ACTCHK_UDOS_PRG) ACTCHK.PRG -write $(ACTFILE_UDOS_PRG) ACTFILE.PRG -write $(ACTSRC_UDOS_PRG) ACTSRC.PRG -write $(ACTWORK_UDOS_PRG) ACTWORK.PRG
 
 vice-release: release
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RELEASE_DISK) \
@@ -267,8 +283,11 @@ vice-action-actsrc: release
 	printf 'ACTION PROJECT\rMAIN.ACT\rHELPER.ACT\r' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	bash $(ACTSRC_UDOS_BUILD)
 	$(MAKE) BUILD_DIR=$(ACTION_ACTSRC_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actsrc.txt resident
 	cp $(ACTION_ACTSRC_BUILD)/udos-resident.d64 $(ACTION_ACTSRC_ARTIFACT)
+	-$(C1541) $(ACTION_ACTSRC_ARTIFACT) -delete ACTSRC.PRG
+	$(C1541) $(ACTION_ACTSRC_ARTIFACT) -write $(ACTSRC_UDOS_PRG) ACTSRC.PRG
 	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTSRC_ARTIFACT) \
 		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(ACTION_ACTSRC_FS) \
@@ -287,8 +306,11 @@ vice-action-actfile: release
 	printf 'ACTION PROJECT\rMAIN.ACT\rHELPER.ACT\r' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	bash $(ACTFILE_UDOS_BUILD)
 	$(MAKE) BUILD_DIR=$(ACTION_ACTFILE_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actfile.txt resident
 	cp $(ACTION_ACTFILE_BUILD)/udos-resident.d64 $(ACTION_ACTFILE_ARTIFACT)
+	-$(C1541) $(ACTION_ACTFILE_ARTIFACT) -delete ACTFILE.PRG
+	$(C1541) $(ACTION_ACTFILE_ARTIFACT) -write $(ACTFILE_UDOS_PRG) ACTFILE.PRG
 	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTFILE_ARTIFACT) \
 		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(ACTION_ACTFILE_FS) \
@@ -311,8 +333,11 @@ vice-action-actwork: release
 	printf '' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/obj/UDOSDIR.TXT
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	bash $(ACTWORK_UDOS_BUILD)
 	$(MAKE) BUILD_DIR=$(ACTION_ACTWORK_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_actwork.txt resident
 	cp $(ACTION_ACTWORK_BUILD)/udos-resident.d64 $(ACTION_ACTWORK_ARTIFACT)
+	-$(C1541) $(ACTION_ACTWORK_ARTIFACT) -delete ACTWORK.PRG
+	$(C1541) $(ACTION_ACTWORK_ARTIFACT) -write $(ACTWORK_UDOS_PRG) ACTWORK.PRG
 	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_ACTWORK_ARTIFACT) \
 		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(ACTION_ACTWORK_FS) \
