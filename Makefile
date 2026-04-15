@@ -277,14 +277,14 @@ vice-release: release
 		--expected "A:D64/>" --settle 1.0 --absent "AUTOEXEC OK"
 
 vice-action-workspace: release
-	$(MAKE) BUILD_DIR=$(ACTION_WORKSPACE_BUILD) AUTOEXEC_SRC=$(ACTIONTEST_ROOT)/autoexec_workspace.txt resident
-	cp $(ACTION_WORKSPACE_BUILD)/udos-resident.d64 $(ACTION_WORKSPACE_ARTIFACT)
 	sleep 2
-	$(PYTHON) tools/vice_prg_probe.py --disk $(ACTION_WORKSPACE_ARTIFACT) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(RELEASE_FS) \
-		--vice-arg=-fslongnames --expected "B:ACTION DNP" --settle 8.0 --timeout 120 --attempts 2 --attempt-delay 2.0 \
-		--contains "ACTIONC64U FOR UDOS" --contains "BIN/ DOC/ LIB/ SRC/" --contains "ACTINFO.PRG" --contains "README.TXT" \
-		--contains "ACTION WORKSPACE OK"
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--command "DIR" --run-marker "" --done-fragment "" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/>" \
+		--attempts 4 --attempt-delay 2.0 \
+		--post-command "TYPE README.TXT" --post-done-fragment "ACTIONC64U FOR UDOS" \
+		--contains "BIN/ DOC/ LIB/ SRC/" --contains "README.TXT" \
+		--contains "ACTIONC64U FOR UDOS"
 
 vice-action-actadd: release
 	rm -rf $(ACTION_ACTADD_FS)
