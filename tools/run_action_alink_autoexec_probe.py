@@ -39,9 +39,7 @@ def main() -> int:
             port,
             extra_args=[
                 "-iecdevice9",
-                "-device9",
-                "1",
-                "-fs9",
+            "-fs9",
                 str(fs_root),
                 "-fslongnames",
             ],

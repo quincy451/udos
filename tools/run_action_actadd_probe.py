@@ -48,10 +48,7 @@ def wait_keyboard_idle(client: vp.BinaryMonitorClient, timeout: float) -> None:
 
 def type_command(client: vp.BinaryMonitorClient, command: str, timeout: float) -> None:
     wait_keyboard_idle(client, timeout)
-    client.keyboard_type(command)
-    wait_keyboard_idle(client, timeout)
-    time.sleep(0.2)
-    client.keyboard_type("\r")
+    client.keyboard_type(command + "\r")
     wait_keyboard_idle(client, timeout)
 
 
@@ -97,6 +94,8 @@ def main() -> int:
             "ACTADD OK",
             f"PROC {module_name}()",
             "ENDPROC",
+            "MAIN.ACT",
+            f"{module_name}.ACT",
             project_prompt,
         ]
     else:
@@ -116,9 +115,7 @@ def main() -> int:
             port,
             extra_args=[
                 "-iecdevice9",
-                "-device9",
-                "1",
-                "-fs9",
+            "-fs9",
                 str(fs_root),
                 "-fslongnames",
             ],
@@ -146,6 +143,13 @@ def main() -> int:
                     args.timeout,
                 )
                 type_command(client, f"TYPE SRC/{args.module}.ACT", args.timeout)
+                wait_for_screen_fragments(
+                    client,
+                    process,
+                    [f"PROC {module_name}()", "ENDPROC", project_prompt],
+                    args.timeout,
+                )
+                type_command(client, "TYPE ACTION.PROJ", args.timeout)
             screen = wait_for_screen_fragments(client, process, expected_fragments, args.timeout)
             print(screen)
             return 0

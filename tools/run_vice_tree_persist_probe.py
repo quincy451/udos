@@ -84,10 +84,7 @@ def wait_for_fragments(client: vp.BinaryMonitorClient, fragments: list[str], tim
 
 def type_command(client: vp.BinaryMonitorClient, command: str, timeout: float) -> None:
     clear_keyboard_buffer(client)
-    client.keyboard_type(command)
-    wait_for_keyboard_idle(client, timeout)
-    time.sleep(0.2)
-    client.keyboard_type("\r")
+    client.keyboard_type(command + "\r")
     wait_for_keyboard_idle(client, timeout)
 
 
@@ -131,8 +128,6 @@ def main() -> int:
             port,
             extra_args=[
                 "-iecdevice9",
-                "-device9",
-                "1",
                 "-fs9",
                 str(fs_root),
                 "-fslongnames",
