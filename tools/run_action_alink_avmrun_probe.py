@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -29,101 +30,68 @@ def install_avmrun(fs_root: Path, project_root: Path) -> None:
     rap.ensure_catalog_entries(project_root / "UDOSDIR.TXT", ["F AVMRUN.PRG"])
 
 
-def run_once(image: Path, work_root: Path, project_name: str, connect_delay: float) -> None:
-    port = vp.reserve_tcp_port()
-    process = vp.launch_vice(
-        image,
-        port,
-        extra_args=[
-            "-iecdevice9",
-            "-device9",
-            "1",
-            "-fs9",
-            str(work_root),
-            "-fslongnames",
-        ],
-    )
-    client = vp.BinaryMonitorClient("127.0.0.1", port, timeout=5.0)
+def resolve_output_command(project_root: Path) -> tuple[str, str]:
+    lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
+    bin_dir = project_root / rap.host_name("BIN", lowercase_workspace)
+    actual_avm = rap.case_insensitive_child(bin_dir, "MAIN.AVM")
+    if not actual_avm.is_file():
+        raise vp.ViceError(f"expected linked AVM output under {bin_dir}")
+    rap.ensure_catalog_entries(bin_dir / rap.host_name("UDOSDIR.TXT", lowercase_workspace), [f"F {actual_avm.name}"])
+    return f"{bin_dir.name}/{actual_avm.name}", actual_avm.name
+
+
+def run_avmrun_once(image: Path, work_root: Path, project_name: str, connect_delay: float, avm_relpath: str, avm_name: str) -> None:
+    cmd = [
+        sys.executable,
+        str(ROOT / "run_action_avmrun_probe.py"),
+        "--disk",
+        str(image),
+        "--fs-root",
+        str(work_root),
+        "--command",
+        f"AVMRUN {avm_relpath}",
+        "--pre-command",
+        f"CD {project_name}",
+        "--pre-prompt",
+        f"B:DNP/{project_name}",
+        "--final-prompt",
+        f"B:DNP/{project_name}>",
+        "--run-marker",
+        "RUN AVMRUN.PRG",
+        "--done-fragment",
+        "12342",
+        "--contains",
+        f"ARGS {avm_relpath.upper()}",
+        "--contains",
+        "HELLOWORLD",
+        "--contains",
+        "TOOL7",
+        "--contains",
+        "12342",
+        "--attempts",
+        "1",
+        "--connect-delay",
+        str(connect_delay),
+    ]
     try:
-        if connect_delay > 0.0:
-            time.sleep(connect_delay)
-        client.connect(time.monotonic() + 20.0)
-        client.ping()
-        client.resume()
-
-        vp.wait_for_screen_and_state(
-            client,
-            process,
-            "A:D64/>",
-            marker_addr=None,
-            marker_value=None,
-            extra_checks=[],
-            timeout=90.0,
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=180.0,
         )
-        time.sleep(5.0)
-
-        for cmd, expect in [
-            ("MOUNT B: /IMAGES/ACTION.DNP\r", "A:D64/>"),
-            ("B:\r", "B:DNP/"),
-            (f"CD {project_name}\r", f"B:DNP/{project_name}"),
-        ]:
-            client.keyboard_type(cmd)
-            vp.wait_for_screen_and_state(
-                client,
-                process,
-                expect,
-                marker_addr=None,
-                marker_value=None,
-                extra_checks=[],
-                timeout=90.0,
-            )
-            time.sleep(5.0)
-
-        client.keyboard_type("ALINK MAIN\r")
-        deadline = time.monotonic() + 90.0
-        screen = ""
-        while time.monotonic() < deadline:
-            screen, _d018, _dd00 = vp.read_active_screen_text(client)
-            if "ALINK OK" in screen:
-                break
-            if any(msg in screen for msg in ("TOO LARGE", "SAVE FAIL", "BAD AVO")):
-                raise vp.ViceError(f"ALINK terminal failure with screen:\n{screen}")
-            time.sleep(0.2)
-        else:
-            raise vp.ViceError(f"timed out waiting for ALINK OK; last screen was:\n{screen}")
-
-        client.keyboard_type("AVMRUN BIN/MAIN.AVM\r")
-        deadline = time.monotonic() + 90.0
-        while time.monotonic() < deadline:
-            screen, _d018, _dd00 = vp.read_active_screen_text(client)
-            if all(
-                fragment in screen
-                for fragment in (
-                    "RUN ALINK.PRG",
-                    "ALINK OK",
-                    "RUN AVMRUN.PRG",
-                    "ARGS BIN/MAIN.AVM",
-                    "HELLOWORLD",
-                    "TOOL7",
-                    "12342",
-                    f"B:DNP/{project_name}>",
-                )
-            ):
-                return
-            if any(msg in screen for msg in ("BAD AVM", "UNSUPPORTED AVM", "LOAD FAIL", "NO FILE", "TOO LARGE")):
-                raise vp.ViceError(f"AVMRUN terminal failure with screen:\n{screen}")
-            time.sleep(0.2)
-        raise vp.ViceError(f"timed out waiting for ALINK -> AVMRUN proof; last screen was:\n{screen}")
-    finally:
-        try:
-            client.quit_emulator()
-        finally:
-            client.close()
-        vp.terminate_process_tree(process)
+    except subprocess.TimeoutExpired as exc:
+        raise vp.ViceError("AVMRUN phase timed out after 180s") from exc
+    if result.returncode != 0:
+        details = result.stderr.strip() or result.stdout.strip() or "AVMRUN phase failed"
+        if avm_name.upper() != avm_name:
+            details = details.replace(avm_relpath.upper(), avm_relpath)
+        raise vp.ViceError(details)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run the ALINK -> AVMRUN proof through the direct typed release-image path")
+    parser = argparse.ArgumentParser(description="Run the ALINK -> AVMRUN proof through the proven staged release-image flow")
     parser.add_argument("--disk", required=True)
     parser.add_argument("--fs-root", required=True)
     parser.add_argument("--project", default="PROJ3")
@@ -144,8 +112,10 @@ def main() -> int:
             project_root = rap.prepare_workspace(work_root, project_name)
             install_avmrun(work_root, project_root)
             vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, args.attempt_delay)))
-            run_once(image, work_root, project_name, connect_delay)
+            rap.run_once(image, work_root, project_name, connect_delay)
             rap.verify_host_output(project_root)
+            avm_relpath, avm_name = resolve_output_command(project_root)
+            run_avmrun_once(image, work_root, project_name, connect_delay, avm_relpath, avm_name)
             return 0
         except vp.ViceError as exc:
             if attempt == args.attempts:

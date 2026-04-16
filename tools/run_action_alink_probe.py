@@ -9,7 +9,6 @@ import time
 import tempfile
 from pathlib import Path
 
-import run_action_avmrun_probe as avp
 import vice_prg_probe as vp
 
 
@@ -383,101 +382,55 @@ def verify_host_output(project_root: Path) -> None:
 
 
 def run_once(image: Path, work_root: Path, project_name: str, connect_delay: float) -> None:
-    port = vp.reserve_tcp_port()
-    process = vp.launch_vice(
-        image,
-        port,
-        extra_args=[
-            "-iecdevice9",
-            "-fs9",
-            str(work_root),
-            "-fslongnames",
-        ],
-    )
-    client = vp.BinaryMonitorClient("127.0.0.1", port, timeout=5.0)
+    cmd = [
+        sys.executable,
+        str(ROOT / "run_action_avmrun_probe.py"),
+        "--disk",
+        str(image),
+        "--fs-root",
+        str(work_root),
+        "--command",
+        "ALINK MAIN",
+        "--pre-command",
+        f"CD {project_name}",
+        "--pre-prompt",
+        f"B:DNP/{project_name}",
+        "--final-prompt",
+        f"B:DNP/{project_name}>",
+        "--run-marker",
+        "RUN ALINK.PRG",
+        "--done-fragment",
+        "",
+        "--contains",
+        "ARGS MAIN",
+        "--not-contains",
+        "SAVE FAIL",
+        "--not-contains",
+        "BAD AVO",
+        "--not-contains",
+        "TOO LARGE",
+        "--not-contains",
+        "LOAD FAIL",
+        "--not-contains",
+        "NO OBJECT",
+        "--attempts",
+        "1",
+        "--connect-delay",
+        str(connect_delay),
+    ]
     try:
-        if connect_delay > 0.0:
-            time.sleep(connect_delay)
-        client.connect(time.monotonic() + 20.0)
-        client.ping()
-        client.resume()
-
-        avp.nudge_to_prompt(client, process, "A:D64/>", attempts=max(1, int(90.0 // 8)), timeout=8.0)
-        print({"phase": "prompt_ready"}, flush=True)
-        time.sleep(5.0)
-
-        mount_command = "MOUNT B: /IMAGES/ACTION.DNP"
-        print({"phase": "mount_send_start", "command": mount_command}, flush=True)
-        client.keyboard_feed(mount_command + "\r")
-        print({"phase": "mount_send_done"}, flush=True)
-        time.sleep(1.0)
-        print({"phase": "mount_wait_start"}, flush=True)
-        try:
-            avp.wait_for_mount_completion(client, 90.0, retry_echo=mount_command)
-        except vp.ViceError:
-            print({"phase": "mount_retry_send_start", "command": mount_command}, flush=True)
-            avp.type_command(client, mount_command, 5.0)
-            print({"phase": "mount_retry_send_done"}, flush=True)
-            avp.wait_for_mount_completion(client, 90.0, retry_echo=mount_command)
-        print({"phase": "mounted"}, flush=True)
-        time.sleep(5.0)
-
-        print({"phase": "drive_b_send_start"}, flush=True)
-        avp.type_command(client, "B:", 5.0)
-        print({"phase": "drive_b_send_done"}, flush=True)
-        avp.wait_for_screen_fragment(client, "B:DNP/", 90.0, retry_echo="B:")
-        print({"phase": "drive_b"}, flush=True)
-        time.sleep(5.0)
-
-        cd_command = f"CD {project_name}"
-        print({"phase": "cd_send_start", "command": cd_command}, flush=True)
-        avp.type_command(client, cd_command, 5.0)
-        print({"phase": "cd_send_done"}, flush=True)
-        avp.wait_for_screen_fragment(client, f"B:DNP/{project_name}", 90.0, retry_echo=cd_command)
-        print({"phase": "in_project", "project": project_name}, flush=True)
-        time.sleep(5.0)
-
-        print({"phase": "alink_send_start"}, flush=True)
-        avp.type_command(client, "ALINK MAIN", 5.0)
-        print({"phase": "alink_send_done"}, flush=True)
-        deadline = time.monotonic() + 90.0
-        screen = ""
-        retry_count = 0
-        while time.monotonic() < deadline:
-            screen, _d018, _dd00 = vp.read_active_screen_text(client)
-            if vp.screen_contains(screen, f"B:DNP/{project_name}>"):
-                break
-            if (
-                vp.screen_contains(screen, "TOO LARGE")
-                or vp.screen_contains(screen, "SAVE FAIL")
-                or vp.screen_contains(screen, "BAD AVO")
-                or vp.screen_contains(screen, "LOAD FAIL")
-                or vp.screen_contains(screen, "NO OBJECT")
-            ):
-                debug = collect_debug(client)
-                raise vp.ViceError(
-                    f"ALINK terminal failure with screen:\n{screen}\nALINK debug: {debug}"
-                )
-            retry_count = avp.maybe_retry_command_enter(
-                client,
-                last_screen=screen,
-                retry_echo="ALINK MAIN",
-                retry_count=retry_count,
-            )
-            time.sleep(0.2)
-        else:
-            debug = collect_debug(client)
-            raise vp.ViceError(f"timed out waiting for final ALINK screen; last screen was:\n{screen}\nALINK debug: {debug}")
-
-        for fragment in ("RUN ALINK.PRG", "ARGS MAIN", f"B:DNP/{project_name}>"):
-            if not vp.screen_contains(screen, fragment):
-                raise vp.ViceError(f"expected screen fragment {fragment!r} was not present in final screen:\n{screen}")
-    finally:
-        try:
-            client.quit_emulator()
-        finally:
-            client.close()
-        vp.terminate_process_tree(process)
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=180.0,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise vp.ViceError("ALINK phase timed out after 180s") from exc
+    if result.returncode != 0:
+        details = result.stderr.strip() or result.stdout.strip() or "ALINK phase failed"
+        raise vp.ViceError(details)
 
 
 def main() -> int:
