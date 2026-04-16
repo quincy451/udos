@@ -1939,11 +1939,7 @@ build_vice_write_path_from_name:
     jmp build_vice_write_path_from_ptr
 
 build_vice_write_path_from_ptr:
-    lda #'@'
-    sta dest_fullpath_buffer
-    lda #ASCII_COLON
-    sta dest_fullpath_buffer+1
-    ldx #$02
+    ldx #$00
     ldy #$00
 build_vice_write_path_ptr_copy:
     lda (PTR),y
@@ -7936,6 +7932,7 @@ svc_apply_tool_writeback_file_save_have_content:
     sta SCREEN_PTR+1
     jsr store_vice_host_current_from_screen_ptr
     jsr store_vice_manifest_host_current
+    jsr clear_vice_tree_slot
     jmp svc_apply_tool_writeback_pop
 svc_apply_tool_writeback_file_delete:
     lda tool_writeback_buffer+TOOL_WRITEBACK_DRIVE_OFFSET
@@ -14410,8 +14407,7 @@ query_file_vice_host_exact_current_open:
     jmp query_file_vice_open_current
 query_file_vice_host_exact_current_restore_fail:
     jsr restore_path_name_shadow
-    sec
-    rts
+    jmp query_file_vice_open_current
 
 query_program_file_vice_host_current:
     ldx temp_drive
@@ -15570,15 +15566,16 @@ vice_issue_command_setlfs:
     jsr OPEN_K
     jsr READST
     bne vice_issue_command_from_ptr_fail_close
-    lda vice_lfn
-    jsr CLOSE_K
-    jsr READST
-    bne vice_issue_command_from_ptr_fail
+    ldx vice_lfn
+    jsr CHKIN_K
+    jsr CHRIN
+    cmp #'0'
+    bne vice_issue_command_from_ptr_fail_close
+    jsr vice_close_current_file
     clc
     rts
 vice_issue_command_from_ptr_fail_close:
-    lda vice_lfn
-    jsr CLOSE_K
+    jsr vice_close_current_file
 vice_issue_command_from_ptr_fail:
     sec
     rts
@@ -16379,11 +16376,7 @@ tool_abi_file_save_direct_fail_close:
     rts
 
 tool_abi_build_write_path_from_ptr_safe:
-    lda #'@'
-    sta dest_fullpath_buffer
-    lda #ASCII_COLON
-    sta dest_fullpath_buffer+1
-    ldx #$02
+    ldx #$00
     ldy #$00
 tool_abi_build_write_path_ptr_copy_safe:
     lda (PTR),y
@@ -16536,7 +16529,7 @@ tool_abi_dir_remove_fail:
     rts
 
 tool_abi_file_delete_sc0:
-    stx saved_rp_x
+    stx tool_abi_saved_x
     lda 0,x
     sta TOOL_ABI_FILE_NAME_LO
     lda 1,x
@@ -16550,17 +16543,39 @@ tool_abi_file_delete_sc0:
     ldy temp_drive
     lda mount_flag_table,y
     cmp #MOUNT_FLAG_TREE
-    bne tool_abi_file_delete_fail
+    beq :+
+    jmp tool_abi_file_delete_fail
+:
     jsr vice_probe_available
-    bcs tool_abi_file_delete_fail
+    bcc :+
+    jmp tool_abi_file_delete_fail
+:
     lda TOOL_ABI_FILE_NAME_LO
     sta PTR
     lda TOOL_ABI_FILE_NAME_HI
     sta PTR+1
     jsr tool_abi_copy_name_to_arg_buffer
+    ldy PROGRAM_DRIVE_SNAPSHOT
+    lda current_drive
+    pha
+    lda dir_state_table,y
+    pha
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta current_drive
+    lda PROGRAM_DIR_SNAPSHOT
+    sta dir_state_table,y
     jsr resolve_file_target
+    tax
+    ldy PROGRAM_DRIVE_SNAPSHOT
+    pla
+    sta dir_state_table,y
+    pla
+    sta current_drive
+    txa
     cmp #PATH_STATUS_OK
-    bne tool_abi_file_delete_fail
+    beq :+
+    jmp tool_abi_file_delete_fail
+:
     jsr vice_tree_find_current_slot
     bcs tool_abi_file_delete_host
     cmp #VICE_TREE_SLOT_TOMBSTONE
@@ -16589,17 +16604,17 @@ tool_abi_file_delete_host:
     sta vice_tree_state_temp
     jsr stash_tool_file_delete_writeback
 tool_abi_file_delete_ok:
-    ldx saved_rp_x
+    ldx tool_abi_saved_x
     lda #TOOL_FILE_STATUS_OK
     sta 2,x
     rts
 tool_abi_file_delete_nofile:
-    ldx saved_rp_x
+    ldx tool_abi_saved_x
     lda #TOOL_FILE_STATUS_NOFILE
     sta 2,x
     rts
 tool_abi_file_delete_fail:
-    ldx saved_rp_x
+    ldx tool_abi_saved_x
     rts
 
 tool_abi_file_rename_sc0:
@@ -16776,15 +16791,35 @@ tool_abi_file_copy_sc0:
     ldy temp_drive
     lda mount_flag_table,y
     cmp #MOUNT_FLAG_TREE
-    bne tool_abi_file_copy_fail
+    beq :+
+    jmp tool_abi_file_copy_fail
+:
     jsr vice_probe_available
-    bcs tool_abi_file_copy_fail
+    bcc :+
+    jmp tool_abi_file_copy_fail
+:
     lda TOOL_ABI_FILE_NAME_LO
     sta PTR
     lda TOOL_ABI_FILE_NAME_HI
     sta PTR+1
     jsr tool_abi_copy_name_to_arg_buffer
+    ldy PROGRAM_DRIVE_SNAPSHOT
+    lda current_drive
+    pha
+    lda dir_state_table,y
+    pha
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta current_drive
+    lda PROGRAM_DIR_SNAPSHOT
+    sta dir_state_table,y
     jsr resolve_file_target
+    tax
+    ldy PROGRAM_DRIVE_SNAPSHOT
+    pla
+    sta dir_state_table,y
+    pla
+    sta current_drive
+    txa
     cmp #PATH_STATUS_OK
     beq :+
     jmp tool_abi_file_copy_nofile
@@ -16795,7 +16830,9 @@ tool_abi_file_copy_sc0:
     sta source_dir_id
     jsr copy_path_name_to_source_buffer
     jsr query_file_response_vice_current
-    bcs tool_abi_file_copy_nofile
+    bcc :+
+    jmp tool_abi_file_copy_nofile
+:
     lda dest_drive
     sta temp_drive
     lda dest_dir_id
@@ -16805,7 +16842,23 @@ tool_abi_file_copy_sc0:
     lda TOOL_ABI_FILE_DEST_HI
     sta PTR+1
     jsr tool_abi_copy_name_to_arg_buffer
+    ldy PROGRAM_DRIVE_SNAPSHOT
+    lda current_drive
+    pha
+    lda dir_state_table,y
+    pha
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta current_drive
+    lda PROGRAM_DIR_SNAPSHOT
+    sta dir_state_table,y
     jsr resolve_copy_dest
+    tax
+    ldy PROGRAM_DRIVE_SNAPSHOT
+    pla
+    sta dir_state_table,y
+    pla
+    sta current_drive
+    txa
     cmp #PATH_STATUS_OK
     beq :+
     jmp tool_abi_file_copy_fail
@@ -16819,6 +16872,10 @@ tool_abi_file_copy_sc0:
     jsr vice_tree_find_current_slot
     bcs tool_abi_file_copy_fail
     sta vice_tree_state_temp
+    lda TOOL_ABI_FILE_DEST_LO
+    sta TOOL_ABI_FILE_NAME_LO
+    lda TOOL_ABI_FILE_DEST_HI
+    sta TOOL_ABI_FILE_NAME_HI
     jsr stash_tool_file_save_writeback
     ldx saved_rp_x
     lda #TOOL_FILE_STATUS_OK
@@ -17530,6 +17587,8 @@ launch_load_cache_lo:
 launch_load_cache_hi:
     .byte 0
 saved_rp_x:
+    .byte 0
+tool_abi_saved_x:
     .byte 0
 script_index:
     .byte 0
