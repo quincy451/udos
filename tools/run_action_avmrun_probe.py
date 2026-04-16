@@ -9,6 +9,10 @@ from pathlib import Path
 import vice_prg_probe as vp
 
 WORKSPACE_CONNECT_DELAYS = vp.default_connect_delays()
+PATH_DEBUG_ADDRS = {
+    "TOOL_ABI_CURRENT_PATH": 0xCD00,
+    "TOOL_ABI_OPEN_PATH": 0xCD40,
+}
 
 
 def screen_text(client: vp.BinaryMonitorClient) -> str:
@@ -296,6 +300,24 @@ def type_command(client: vp.BinaryMonitorClient, command: str, timeout: float) -
     send_text(client, command + "\r", timeout)
 
 
+def read_c_string(client: vp.BinaryMonitorClient, addr: int, max_len: int = 128) -> str:
+    data = client.memory_get(addr, addr + max_len - 1)
+    end = data.find(b"\x00")
+    if end >= 0:
+        data = data[:end]
+    return data.decode("ascii", errors="replace")
+
+
+def read_screen_string(client: vp.BinaryMonitorClient, addr: int, max_len: int = 64) -> str:
+    data = client.memory_get(addr, addr + max_len - 1)
+    chars: list[str] = []
+    for byte in data:
+        if byte == 0:
+            break
+        chars.append(vp.screen_code_to_ascii(byte))
+    return "".join(chars)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run a focused Action workspace command probe in VICE")
     parser.add_argument("--disk", required=True)
@@ -308,6 +330,7 @@ def main() -> int:
     parser.add_argument("--run-marker", default="RUN AVMRUN.PRG")
     parser.add_argument("--done-fragment", default="UDOS AVM OK")
     parser.add_argument("--prompt-count", type=int, default=2)
+    parser.add_argument("--skip-command-prompt", action="store_true")
     parser.add_argument("--initial-settle", type=float, default=3.0)
     parser.add_argument("--command-settle", type=float, default=1.0)
     parser.add_argument("--connect-delay", type=float)
@@ -324,10 +347,15 @@ def main() -> int:
     parser.add_argument("--post-done-fragment")
     parser.add_argument("--contains", action="append", default=[])
     parser.add_argument("--not-contains", action="append", default=[])
+    parser.add_argument("--labels")
     args = parser.parse_args()
+
+    if args.skip_command_prompt and args.post_command:
+        parser.error("--skip-command-prompt cannot be used with --post-command")
 
     image = Path(args.disk).resolve()
     fs_root = Path(args.fs_root).resolve()
+    labels = vp.load_ld65_labels(Path(args.labels).resolve()) if args.labels else None
     last_error: Exception | None = None
     last_screen = ""
     attempt_notes: list[str] = []
@@ -419,19 +447,23 @@ def main() -> int:
                     retry_echo=args.command,
                     poll_interval=args.poll_interval,
                 )
-            prompt_count += 1
-            fragments: list[str] = []
-            if args.done_fragment:
-                fragments.append(args.done_fragment)
-            screen = wait_for_prompt_count_and_fragments(
-                client,
-                final_prompt,
-                prompt_count,
-                fragments,
-                args.shell_timeout,
-                retry_echo=args.command if not args.run_marker else None,
-                poll_interval=args.poll_interval,
-            )
+            if args.skip_command_prompt:
+                time.sleep(args.shell_timeout)
+                screen = screen_text(client)
+            else:
+                prompt_count += 1
+                fragments: list[str] = []
+                if args.done_fragment:
+                    fragments.append(args.done_fragment)
+                screen = wait_for_prompt_count_and_fragments(
+                    client,
+                    final_prompt,
+                    prompt_count,
+                    fragments,
+                    args.shell_timeout,
+                    retry_echo=args.command if not args.run_marker else None,
+                    poll_interval=args.poll_interval,
+                )
             if args.post_command:
                 time.sleep(args.command_settle)
                 type_command(client, args.post_command, args.shell_timeout)
@@ -480,9 +512,40 @@ def main() -> int:
                 launch_trace = vp.format_udos_launch_trace(client)
             except Exception:
                 launch_trace = ""
+            path_trace = ""
+            if labels:
+                path_parts: list[str] = []
+                for label_name in ("TOOL_ABI_OPEN_PATH", "dest_fullpath_buffer", "TOOL_ABI_CURRENT_PATH"):
+                    addr = labels.get(label_name) or labels.get(f".{label_name}") or PATH_DEBUG_ADDRS.get(label_name)
+                    if addr is None:
+                        continue
+                    try:
+                        value = read_c_string(client, addr)
+                    except Exception:
+                        continue
+                    path_parts.append(f"{label_name}={value!r}")
+                for label_name in ("temp_drive", "temp_dir_id", "source_drive", "source_dir_id", "dest_drive", "dest_dir_id"):
+                    addr = labels.get(label_name) or labels.get(f".{label_name}")
+                    if addr is None:
+                        continue
+                    try:
+                        value = client.memory_get(addr, addr)[0]
+                    except Exception:
+                        continue
+                    path_parts.append(f"{label_name}=0x{value:02X}")
+                path_name_addr = labels.get("path_name_buffer") or labels.get(".path_name_buffer")
+                if path_name_addr is not None:
+                    try:
+                        value = read_screen_string(client, path_name_addr)
+                    except Exception:
+                        value = ""
+                    path_parts.append(f"path_name_buffer={value!r}")
+                path_trace = " ".join(path_parts)
             note_parts = [f"attempt {attempt}: {exc}"]
             if launch_trace:
                 note_parts.append(launch_trace)
+            if path_trace:
+                note_parts.append(path_trace)
             if last_screen:
                 note_parts.append(f"screen:\n{last_screen}")
             attempt_notes.append("\n".join(note_parts))
@@ -495,6 +558,8 @@ def main() -> int:
                     print("\n\n".join(attempt_notes), file=sys.stderr)
                 if launch_trace:
                     print(launch_trace, file=sys.stderr)
+                if path_trace:
+                    print(path_trace, file=sys.stderr)
                 print(exc, file=sys.stderr)
         finally:
             try:

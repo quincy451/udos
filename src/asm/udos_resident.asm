@@ -2012,7 +2012,7 @@ build_vice_mkdir_command_done:
     rts
 
 build_vice_rmdir_command_from_path_name:
-    jsr tool_abi_build_full_target_path
+    jsr build_vice_full_path_from_path_name
     lda #'R'
     sta uci_cmd_buffer
     lda #'D'
@@ -15440,8 +15440,6 @@ vice_name_length_fail:
 vice_open_read_from_ptr:
     lda #$10
     sta save_debug_open_status0
-    lda #$00
-    sta TOOL_QUEUE_TRACE3
     lda PTR
     sta save_debug_open_status2
     lda PTR+1
@@ -15477,8 +15475,6 @@ vice_open_read_setlfs:
     ldx vice_lfn
     jsr CHKIN_K
     bcs vice_open_read_from_ptr_fail_close_chkin
-    lda #$03
-    sta TOOL_QUEUE_TRACE3
     jsr READST
     sta save_debug_open_status1
     bne vice_open_read_from_ptr_fail_close_chkin
@@ -15487,12 +15483,8 @@ vice_open_read_setlfs:
     clc
     rts
 vice_open_read_from_ptr_fail_close_open:
-    lda #$01
-    sta TOOL_QUEUE_TRACE3
     bne vice_open_read_from_ptr_fail_close
 vice_open_read_from_ptr_fail_close_chkin:
-    lda #$02
-    sta TOOL_QUEUE_TRACE3
 vice_open_read_from_ptr_fail_close:
     php
     jsr vice_close_current_file
@@ -16201,25 +16193,15 @@ tool_abi_file_save_sc0:
     sta vice_tree_content_src_lo
     lda SCREEN_PTR+1
     sta vice_tree_content_src_hi
-    lda #'N'
-    sta WRITEBACK_TRACE_COUNT
     jsr tool_abi_build_open_path
     bcc :+
     jmp tool_abi_file_save_fail_tree
 : 
-    lda #'B'
-    sta WRITEBACK_TRACE_COUNT
     jsr tool_abi_file_save_direct_safe
     bcs :+
     jmp tool_abi_file_save_ok
 :   jmp tool_abi_file_save_fail_tree
 tool_abi_file_save_tree_path:
-    lda file_index
-    sta RETURN_QUEUE_TRACE1
-    lda temp_dir_id
-    sta RETURN_QUEUE_TRACE2
-    lda temp_drive
-    sta RETURN_QUEUE_TRACE3
     jsr store_vice_tree_live_current_from_screen_ptr
     bcc :+
     jmp tool_abi_file_save_fail_tree
@@ -16238,8 +16220,6 @@ tool_abi_file_save_fail:
     rts
 tool_abi_file_save_fail_resolve:
     lda #$E1
-    sta TOOL_QUEUE_TRACE2
-    sta WRITEBACK_TRACE_STAGE
     lda #$FA
     sta LAUNCH_TRACE_STAGE
     lda #$E1
@@ -16248,8 +16228,6 @@ tool_abi_file_save_fail_resolve:
     bne tool_abi_file_save_fail
 tool_abi_file_save_fail_mount:
     lda #$E2
-    sta TOOL_QUEUE_TRACE2
-    sta WRITEBACK_TRACE_STAGE
     lda #$FA
     sta LAUNCH_TRACE_STAGE
     lda #$E2
@@ -16258,8 +16236,6 @@ tool_abi_file_save_fail_mount:
     bne tool_abi_file_save_fail
 tool_abi_file_save_fail_probe:
     lda #$E3
-    sta TOOL_QUEUE_TRACE2
-    sta WRITEBACK_TRACE_STAGE
     lda #$FA
     sta LAUNCH_TRACE_STAGE
     lda #$E3
@@ -16268,8 +16244,6 @@ tool_abi_file_save_fail_probe:
     bne tool_abi_file_save_fail
 tool_abi_file_save_fail_host:
     lda #$E4
-    sta TOOL_QUEUE_TRACE2
-    sta WRITEBACK_TRACE_STAGE
     lda #$FA
     sta LAUNCH_TRACE_STAGE
     lda #$E4
@@ -16278,8 +16252,6 @@ tool_abi_file_save_fail_host:
     bne tool_abi_file_save_fail
 tool_abi_file_save_fail_tree:
     lda #$E5
-    sta TOOL_QUEUE_TRACE2
-    sta WRITEBACK_TRACE_STAGE
     lda #$FA
     sta LAUNCH_TRACE_STAGE
     lda #$E5
@@ -16288,8 +16260,6 @@ tool_abi_file_save_fail_tree:
     bne tool_abi_file_save_fail
 
 tool_abi_file_save_direct_safe:
-    lda #'Q'
-    sta WRITEBACK_TRACE_COUNT
     jsr tool_abi_build_write_path_from_ptr_safe
     pha
     lda #VICE_LFN_FILE
@@ -16315,22 +16285,12 @@ tool_abi_file_save_direct_setlfs:
     jsr OPEN_K
     jsr READST
     sta save_debug_open_status0
-    pha
-    lda #'O'
-    sta WRITEBACK_TRACE_COUNT
-    pla
     bne tool_abi_file_save_direct_fail_close
     ldx vice_lfn
     jsr CHKOUT_K
     jsr READST
     sta save_debug_open_status1
-    pha
-    lda #'K'
-    sta WRITEBACK_TRACE_COUNT
-    pla
     bne tool_abi_file_save_direct_fail_close
-    lda #'R'
-    sta WRITEBACK_TRACE_COUNT
     lda vice_tree_content_src_lo
     sta SCREEN_PTR
     lda vice_tree_content_src_hi
@@ -16361,14 +16321,10 @@ tool_abi_file_save_direct_write_loop:
     sta TOOL_ABI_FILE_REMAIN_HI
     jmp tool_abi_file_save_direct_write_loop
 tool_abi_file_save_direct_done:
-    lda #'T'
-    sta WRITEBACK_TRACE_COUNT
     jsr tool_abi_close_current_file
     clc
     rts
 tool_abi_file_save_direct_fail_close:
-    lda #'F'
-    sta WRITEBACK_TRACE_COUNT
     php
     jsr tool_abi_close_current_file
     plp
@@ -16438,12 +16394,6 @@ tool_abi_dir_make_sc0:
     bcs tool_abi_dir_make_fail
     lda #TOOL_WRITEBACK_KIND_DIR_MAKE
     jsr stash_tool_dir_writeback
-    lda tool_writeback_count
-    sta TOOL_QUEUE_TRACE0
-    lda tool_writeback_count
-    sta TOOL_QUEUE_TRACE1
-    lda tool_writeback_buffer+TOOL_WRITEBACK_KIND_OFFSET
-    sta TOOL_QUEUE_TRACE4
     ldx saved_rp_x
     lda #TOOL_DIR_STATUS_OK
     sta 2,x
@@ -16458,12 +16408,25 @@ tool_abi_dir_make_exists:
 
 tool_abi_dir_remove_sc0:
     stx saved_rp_x
+    lda #'D'
+    sta WRITEBACK_TRACE_STAGE
+    lda #$00
+    sta WRITEBACK_TRACE_COUNT
     lda 0,x
     sta TOOL_ABI_FILE_NAME_LO
     lda 1,x
     sta TOOL_ABI_FILE_NAME_HI
     lda #TOOL_DIR_STATUS_FAIL
     sta 2,x
+    ldy PROGRAM_DRIVE_SNAPSHOT
+    lda current_drive
+    sta tool_abi_saved_current_drive
+    lda dir_state_table,y
+    sta tool_abi_saved_current_dir_state
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta current_drive
+    lda PROGRAM_DIR_SNAPSHOT
+    sta dir_state_table,y
     lda PROGRAM_DRIVE_SNAPSHOT
     sta source_drive
     sta temp_drive
@@ -16473,57 +16436,75 @@ tool_abi_dir_remove_sc0:
     ldy temp_drive
     lda mount_flag_table,y
     cmp #MOUNT_FLAG_TREE
-    bne tool_abi_dir_remove_fail
+    beq :+
+    jmp tool_abi_dir_remove_fail_restore
+:
     jsr vice_probe_available
-    bcs tool_abi_dir_remove_fail
+    bcc :+
+    jmp tool_abi_dir_remove_fail_restore
+:
     lda TOOL_ABI_FILE_NAME_LO
     sta PTR
     lda TOOL_ABI_FILE_NAME_HI
     sta PTR+1
     jsr copy_ptr_name_to_path_buffer
     jsr lookup_dir_target_current_vice
-    bcs tool_abi_dir_remove_nofile
+    bcc :+
+    jmp tool_abi_dir_remove_nofile_restore
+:
     sta dest_dir_id
-    lda source_drive
-    cmp current_drive
-    bne tool_abi_dir_remove_not_busy
-    tay
-    lda dir_state_table,y
-    cmp dest_dir_id
+    lda dest_dir_id
+    cmp PROGRAM_DIR_SNAPSHOT
     bne tool_abi_dir_remove_not_busy
     ldx saved_rp_x
     lda #TOOL_DIR_STATUS_BUSY
     sta 2,x
-    rts
+    jmp tool_abi_dir_remove_restore
 tool_abi_dir_remove_not_busy:
     lda dest_dir_id
     sta temp_dir_id
-    jsr fill_vice_manifest_dir_cache_current
-    bcs tool_abi_dir_remove_fail
+    jsr fill_vice_dir_cache_current
+    bcs tool_abi_dir_remove_fail_restore
     lda enum_count
     beq tool_abi_dir_remove_empty
     ldx saved_rp_x
     lda #TOOL_DIR_STATUS_NOT_EMPTY
     sta 2,x
-    rts
+    jmp tool_abi_dir_remove_restore
 tool_abi_dir_remove_empty:
-    lda source_drive
+    lda PROGRAM_DRIVE_SNAPSHOT
     sta temp_drive
-    lda source_dir_id
+    lda PROGRAM_DIR_SNAPSHOT
     sta temp_dir_id
+    jsr select_backend_path_cache
+    lda PTR
+    sta SCREEN_PTR
+    lda PTR+1
+    sta SCREEN_PTR+1
+    jsr fill_backend_path_vice
     jsr store_vice_dir_tombstone_current
-    bcs tool_abi_dir_remove_fail
+    bcs tool_abi_dir_remove_fail_restore
     lda #TOOL_WRITEBACK_KIND_DIR_REMOVE
     jsr stash_tool_dir_writeback
     ldx saved_rp_x
     lda #TOOL_DIR_STATUS_OK
     sta 2,x
-    rts
-tool_abi_dir_remove_nofile:
+    jmp tool_abi_dir_remove_restore
+tool_abi_dir_remove_nofile_restore:
     ldx saved_rp_x
     lda #TOOL_DIR_STATUS_NOFILE
     sta 2,x
+tool_abi_dir_remove_restore:
+    ldy PROGRAM_DRIVE_SNAPSHOT
+    lda tool_abi_saved_current_dir_state
+    sta dir_state_table,y
+    lda tool_abi_saved_current_drive
+    sta current_drive
+    ldx saved_rp_x
     rts
+tool_abi_dir_remove_fail_restore:
+    ldx saved_rp_x
+    jmp tool_abi_dir_remove_restore
 tool_abi_dir_remove_fail:
     ldx saved_rp_x
     rts
@@ -17589,6 +17570,10 @@ launch_load_cache_hi:
 saved_rp_x:
     .byte 0
 tool_abi_saved_x:
+    .byte 0
+tool_abi_saved_current_drive:
+    .byte 0
+tool_abi_saved_current_dir_state:
     .byte 0
 script_index:
     .byte 0

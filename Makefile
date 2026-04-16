@@ -90,6 +90,7 @@ ACTION_ACTNEW_PRG_PERSIST_FS := build/actnew-prg-persist-fs
 ACTION_ACTMKDIR_PERSIST_FS := build/action-actmkdir-persist-fs
 ACTION_ACTMOVE_PERSIST_FS := build/action-actmove-persist-fs
 ACTION_ACTRMDIR_PERSIST_FS := build/action-actrmdir-persist-fs
+ACTION_COPY_ROOT_FS := build/action-copy-root-fs
 ACTION_WORKSPACE_ARTIFACT := build/udos-action-workspace.d64
 ACTION_ACTDIR_ARTIFACT := build/udos-action-actdir.d64
 ACTION_ACTADD_ARTIFACT := build/udos-action-actadd.d64
@@ -172,7 +173,7 @@ ACTWRITE_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTWRITE.PRG
 AVMINFO_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/AVMINFO.PRG
 ACTWORK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTWORK.PRG
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-alink-avmrun vice-action-actc-alink-avmrun vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-action-avmrun-runtime vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-alink-avmrun vice-action-actc-alink-avmrun vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-copy-root vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-action-avmrun-runtime vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
 
@@ -581,11 +582,28 @@ vice-action-actcopy: release
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
 		--pre-command "ACTWRITE OUT.TXT" \
-		--command "ACTCOPY OUT.TXT COPY.TXT" --run-marker "RUN ACTCOPY.PRG" --done-fragment "" --prompt-count 2 \
-		--attempts 1 \
+		--command "ACTCOPY OUT.TXT COPY.TXT" --run-marker "RUN ACTCOPY.PRG" --done-fragment "" --prompt-count 1 \
+		--attempts 3 --attempt-delay 2.0 \
 		--post-command "TYPE COPY.TXT" --post-done-fragment "ACTION WRITE OK" \
 		--contains "RUN ACTCOPY.PRG" \
 		--contains "ACTION WRITE OK"
+	grep -Fq 'ACTION WRITE OK' $(RELEASE_FS)/IMAGES/ACTION.DNP/COPY.TXT
+
+vice-action-copy-root: release
+	rm -rf $(ACTION_COPY_ROOT_FS)
+	mkdir -p $(ACTION_COPY_ROOT_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_COPY_ROOT_FS)/
+	printf 'ACTION WRITE OK\n' > $(ACTION_COPY_ROOT_FS)/IMAGES/ACTION.DNP/OUT.TXT
+	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(RELEASE_DISK)) \
+		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(ACTION_COPY_ROOT_FS)) \
+		--vice-arg=-fslongnames \
+		--feed-after "A:D64/>" --feed-step-settle 2.0 \
+		--feed-step "MOUNT B: /IMAGES/ACTION.DNP\r" \
+		--feed-step "B:\r" \
+		--feed-step "COPY OUT.TXT COPY2.TXT\r" \
+		--feed-step "TYPE COPY2.TXT\r" \
+		--expected "ACTION WRITE OK" --settle 2.0 --connect-delay 10.0 --timeout 25 --attempts 3 --attempt-delay 2.0
+	grep -Fq 'ACTION WRITE OK' $(ACTION_COPY_ROOT_FS)/IMAGES/ACTION.DNP/COPY2.TXT
 
 vice-action-actdel: release
 	sleep 2
@@ -606,57 +624,68 @@ vice-action-actmkdir: release
 		--contains "ACTMKDIR OK" \
 		--contains "B:DNP/OBJ>"
 
-vice-action-actmkdir-persist: resident release
+vice-action-actmkdir-persist: release
 	rm -rf $(ACTION_ACTMKDIR_PERSIST_FS)
 	mkdir -p $(ACTION_ACTMKDIR_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMKDIR_PERSIST_FS)/
-	$(PYTHON) tools/run_vice_tree_persist_probe.py --disk $(RESIDENT_DISK) --fs-root $(ACTION_ACTMKDIR_PERSIST_FS) \
-		--command "ACTMKDIR OBJ" \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMKDIR_PERSIST_FS) \
+		--command "ACTMKDIR OBJ" --run-marker "RUN ACTMKDIR.PRG" --done-fragment "ACTMKDIR OK" --prompt-count 2 \
 		--contains "RUN ACTMKDIR.PRG" \
 		--contains "ACTMKDIR OK"
 	test -d $(ACTION_ACTMKDIR_PERSIST_FS)/IMAGES/ACTION.DNP/OBJ
 
-vice-action-actmove: resident release
+vice-action-actmove: release
 	rm -rf $(ACTION_ACTMOVE_PERSIST_FS)
 	mkdir -p $(ACTION_ACTMOVE_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMOVE_PERSIST_FS)/
-	printf 'ACTION WRITE OK' > $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/OUT.TXT
-	$(PYTHON) tools/run_vice_tree_persist_probe.py --disk $(RESIDENT_DISK) --fs-root $(ACTION_ACTMOVE_PERSIST_FS) \
-		--command "ACTMOVE OUT.TXT NEXT.TXT" \
-		--contains "RUN ACTMOVE.PRG" \
-		--expect-file-text "IMAGES/ACTION.DNP/NEXT.TXT=ACTION WRITE OK"
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMOVE_PERSIST_FS) \
+		--pre-command "ACTWRITE OUT.TXT" --pre-prompt "B:DNP/>" --pre-fragment "ACTWRITE OK" \
+		--command "ACTMOVE OUT.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --skip-command-prompt \
+		--attempts 3 --attempt-delay 2.0 --shell-timeout 20 \
+		--contains "RUN ACTMOVE.PRG"
+	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/NEXT.TXT
+	test ! -e $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/OUT.TXT
 
-vice-action-actmove-persist: resident release
+vice-action-actmove-persist: release
 	rm -rf $(ACTION_ACTMOVE_PERSIST_FS)
 	mkdir -p $(ACTION_ACTMOVE_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMOVE_PERSIST_FS)/
-	printf 'ACTION WRITE OK' > $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/OUT.TXT
-	$(PYTHON) tools/run_vice_tree_persist_probe.py --disk $(RESIDENT_DISK) --fs-root $(ACTION_ACTMOVE_PERSIST_FS) \
-		--command "ACTMOVE OUT.TXT NEXT.TXT" \
-		--contains "RUN ACTMOVE.PRG" \
-		--expect-file-text "IMAGES/ACTION.DNP/NEXT.TXT=ACTION WRITE OK" \
-		--absent-file "IMAGES/ACTION.DNP/OUT.TXT"
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMOVE_PERSIST_FS) \
+		--pre-command "ACTWRITE OUT.TXT" --pre-prompt "B:DNP/>" --pre-fragment "ACTWRITE OK" \
+		--command "ACTMOVE OUT.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --skip-command-prompt \
+		--attempts 3 --attempt-delay 2.0 --shell-timeout 20 \
+		--contains "RUN ACTMOVE.PRG"
+	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/NEXT.TXT
+	test ! -e $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/OUT.TXT
+	test ! -e $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/out.txt
 
 vice-action-actrmdir: release
-	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
-		--pre-command "MD OBJ" \
-		--command "ACTRMDIR OBJ" --run-marker "RUN ACTRMDIR.PRG" --done-fragment "ACTRMDIR OK" --prompt-count 2 \
-		--post-command "CD OBJ" --post-done-fragment "NO SUCH DIR" \
-		--contains "RUN ACTRMDIR.PRG" \
-		--contains "ACTRMDIR OK" \
-		--contains "NO SUCH DIR"
-
-vice-action-actrmdir-persist: resident release
 	rm -rf $(ACTION_ACTRMDIR_PERSIST_FS)
 	mkdir -p $(ACTION_ACTRMDIR_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTRMDIR_PERSIST_FS)/
-	mkdir -p $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/OBJ
-	$(PYTHON) tools/run_vice_tree_persist_probe.py --disk $(RESIDENT_DISK) --fs-root $(ACTION_ACTRMDIR_PERSIST_FS) \
-		--command "ACTRMDIR OBJ" \
+	rm -rf $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/TMPRMDIR $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/tmprmdir
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTRMDIR_PERSIST_FS) \
+		--pre-command "MD TMPRMDIR" --pre-prompt "B:DNP/>" --pre-fragment "CREATED" \
+		--command "ACTRMDIR TMPRMDIR" --run-marker "RUN ACTRMDIR.PRG" --done-fragment "ACTRMDIR OK" --prompt-count 2 \
+		--post-command "CD TMPRMDIR" --post-done-fragment "NO SUCH DIR" \
+		--contains "RUN ACTRMDIR.PRG" \
+		--contains "ACTRMDIR OK" \
+		--contains "NO SUCH DIR"
+	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/TMPRMDIR
+	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/tmprmdir
+
+vice-action-actrmdir-persist: release
+	rm -rf $(ACTION_ACTRMDIR_PERSIST_FS)
+	mkdir -p $(ACTION_ACTRMDIR_PERSIST_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTRMDIR_PERSIST_FS)/
+	rm -rf $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/TMPRMDIR $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/tmprmdir
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTRMDIR_PERSIST_FS) \
+		--pre-command "MD TMPRMDIR" --pre-prompt "B:DNP/>" --pre-fragment "CREATED" \
+		--command "ACTRMDIR TMPRMDIR" --run-marker "RUN ACTRMDIR.PRG" --done-fragment "ACTRMDIR OK" --prompt-count 2 \
 		--contains "RUN ACTRMDIR.PRG" \
 		--contains "ACTRMDIR OK"
-	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/OBJ
+	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/TMPRMDIR
+	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/tmprmdir
 
 vice-action-actwrite: release
 	sleep 2
