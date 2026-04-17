@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import tempfile
 from pathlib import Path
 
 import run_action_actmon_probe as actmon
@@ -20,7 +19,7 @@ def main() -> int:
 
     image = Path(args.disk).resolve()
     source_fs_root = Path(args.fs_root).resolve()
-    fs_root = Path(tempfile.gettempdir()) / f"{source_fs_root.name}-actmon-check"
+    fs_root = source_fs_root.parent / f"{source_fs_root.name}-actmon-check"
     project_name = args.project.upper()
 
     actmon.cleanup_stale_vice()
@@ -30,8 +29,8 @@ def main() -> int:
         ("HELPER", actmon.default_stub_body("HELPER")),
     ]
 
-    baseline_root = Path(tempfile.gettempdir()) / f"{source_fs_root.name}-actmon-check-baseline"
-    actmon.copytree_lowercase(source_fs_root, baseline_root)
+    baseline_root = source_fs_root.parent / f"{source_fs_root.name}-actmon-check-baseline"
+    actmon.copytree_workspace(source_fs_root, baseline_root)
 
     try:
         screen, _project_root = actmon.run_phase(

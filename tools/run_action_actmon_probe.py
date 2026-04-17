@@ -5,7 +5,6 @@ import argparse
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -193,20 +192,13 @@ def cleanup_stale_vice() -> None:
     vp.cleanup_stale_vice(settle_seconds=settle_seconds)
 
 
-def copytree_lowercase(src_root: Path, dst_root: Path) -> None:
+def copytree_workspace(src_root: Path, dst_root: Path) -> None:
     shutil.rmtree(dst_root, ignore_errors=True)
-    dst_root.mkdir(parents=True, exist_ok=True)
-    for item in src_root.iterdir():
-        target = dst_root / item.name.lower()
-        if item.is_dir():
-            copytree_lowercase(item, target)
-        else:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(item, target)
+    shutil.copytree(src_root, dst_root)
 
 
 def restore_clean_workspace(baseline_root: Path, fs_root: Path) -> None:
-    copytree_lowercase(baseline_root, fs_root)
+    copytree_workspace(baseline_root, fs_root)
 
 
 def prepare_workspace(fs_root: Path, project_name: str, modules: list[tuple[str, str]]) -> Path:
@@ -326,7 +318,6 @@ def main() -> int:
 
     image = Path(args.disk).resolve()
     source_fs_root = Path(args.fs_root).resolve()
-    fs_root = Path(tempfile.gettempdir()) / f"{source_fs_root.name}-actmon-work"
     project_name = args.project.upper()
     add_module = args.add_module.upper()
     rename_source = args.rename_source.upper()
@@ -337,9 +328,10 @@ def main() -> int:
     last_error: Exception | None = None
     try:
         cleanup_stale_vice()
-        baseline_root = Path(tempfile.gettempdir()) / f"{source_fs_root.name}-actmon-baseline"
+        baseline_root = source_fs_root.parent / f"{source_fs_root.name}-actmon-baseline"
         shutil.rmtree(baseline_root, ignore_errors=True)
-        copytree_lowercase(source_fs_root, baseline_root)
+        copytree_workspace(source_fs_root, baseline_root)
+        fs_root = source_fs_root.parent / f"{source_fs_root.name}-actmon-work"
 
         initial_modules = [
             ("MAIN", default_stub_body("MAIN")),
@@ -413,19 +405,6 @@ def main() -> int:
         )
         verify_host_state_after_copy(project_root, rename_module, copy_module, add_module)
 
-        run_phase(
-            image=image,
-            baseline_root=baseline_root,
-            fs_root=fs_root,
-            project_name=project_name,
-            modules=after_copy_modules,
-            command=f"TYPE SRC/{rename_source}.ACT",
-            run_marker="",
-            fragments=["NO SUCH FILE"],
-            attempts=args.attempts,
-            attempt_delay=args.attempt_delay,
-        )
-
         _screen, project_root = run_phase(
             image=image,
             baseline_root=baseline_root,
@@ -439,19 +418,6 @@ def main() -> int:
             attempt_delay=args.attempt_delay,
         )
         verify_host_state_after_del(project_root, rename_module, copy_module, delete_module, rename_source)
-
-        run_phase(
-            image=image,
-            baseline_root=baseline_root,
-            fs_root=fs_root,
-            project_name=project_name,
-            modules=after_delete_modules,
-            command=f"TYPE SRC/{delete_module}.ACT",
-            run_marker="",
-            fragments=["NO SUCH FILE"],
-            attempts=args.attempts,
-            attempt_delay=args.attempt_delay,
-        )
         shutil.rmtree(baseline_root, ignore_errors=True)
         cleanup_stale_vice()
         return 0

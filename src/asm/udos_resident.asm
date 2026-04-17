@@ -2168,7 +2168,7 @@ build_vice_dir_open_path_from_path_name_suffix:
 read_file_response_vice:
     jsr build_vice_open_path_from_name
     jsr truncate_vice_open_path_after_name
-    lda #VICE_LFN_FILE
+    lda #VICE_LFN_TOOL
     sta vice_lfn
     lda #$00
     sta vice_secondary
@@ -2229,7 +2229,7 @@ query_file_response_vice_current_fail:
 
 query_program_file_vice:
     jsr build_vice_program_open_path_from_name
-    lda #VICE_LFN_FILE
+    lda #VICE_LFN_TOOL
     sta vice_lfn
     lda #$00
     sta vice_secondary
@@ -8976,6 +8976,19 @@ rename_file_vice_load_source:
     sec
     rts
 rename_file_vice_dest_host:
+    jsr save_path_name_shadow
+    jsr fill_vice_manifest_dir_cache_host_current
+    bcs rename_file_vice_dest_host_fallback
+    jsr find_hw_dir_cache_matching_path_name_strict
+    php
+    jsr restore_path_name_shadow
+    plp
+    bcs rename_file_vice_store
+    lda #RENAME_STATUS_EXISTS
+    sec
+    rts
+rename_file_vice_dest_host_fallback:
+    jsr restore_path_name_shadow
     jsr query_file_vice_host_exact_current
     bcs rename_file_vice_store
     lda #RENAME_STATUS_EXISTS
@@ -11291,8 +11304,11 @@ match_path_len4:
 match_path_component_vice:
     jsr copy_component_token_to_path_name
     bcs match_path_fail
+    lda temp_dir_id
+    bne match_path_component_vice_skip_root_fixed
     jsr match_fixed_root_path_name
     bcc match_path_component_vice_ok
+match_path_component_vice_skip_root_fixed:
     jsr lookup_dynamic_dir_current_from_path_name
     bcc match_path_component_vice_ok
     jsr fill_vice_dir_cache_current
@@ -16211,8 +16227,8 @@ tool_abi_file_save_fail_tree:
 
 tool_abi_file_save_direct_safe:
     jsr tool_abi_build_write_path_from_ptr_safe
-    pha
-    lda #VICE_LFN_FILE
+    sta vice_name_index
+    lda #VICE_LFN_TOOL
     sta vice_lfn
     lda #VICE_SA_WRITE
     sta vice_secondary
@@ -16228,7 +16244,19 @@ tool_abi_file_save_direct_safe:
 tool_abi_file_save_direct_setlfs:
     ldy vice_secondary
     jsr SETLFS
-    pla
+    lda vice_name_index
+    ldx PTR
+    ldy PTR+1
+    jsr SETNAM
+    jsr OPEN_K
+    jsr READST
+    sta save_debug_open_status0
+    beq :+
+    lda save_debug_open_status0
+    cmp #$12
+    bne tool_abi_file_save_direct_fail_close
+    jsr tool_abi_close_current_file
+    lda vice_name_index
     ldx PTR
     ldy PTR+1
     jsr SETNAM
@@ -16236,6 +16264,7 @@ tool_abi_file_save_direct_setlfs:
     jsr READST
     sta save_debug_open_status0
     bne tool_abi_file_save_direct_fail_close
+:
     ldx vice_lfn
     jsr CHKOUT_K
     jsr READST
@@ -16283,6 +16312,12 @@ tool_abi_file_save_direct_fail_close:
 
 tool_abi_build_write_path_from_ptr_safe:
     ldx #$00
+    lda #'@'
+    sta dest_fullpath_buffer,x
+    inx
+    lda #ASCII_COLON
+    sta dest_fullpath_buffer,x
+    inx
     ldy #$00
 tool_abi_build_write_path_ptr_copy_safe:
     lda (PTR),y
