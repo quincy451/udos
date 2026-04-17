@@ -87,6 +87,7 @@ ACTION_ACTMON_FS := build/action-actmon-fs
 ACTION_ACTWORK_FS := build/action-actwork-fs
 ACTION_ACTADD_PERSIST_FS := build/actadd-persist-fs
 ACTION_ACTNEW_PRG_PERSIST_FS := build/actnew-prg-persist-fs
+ACTION_ACTFLOW_FS := build/action-actflow-fs
 ACTION_ACTMKDIR_PERSIST_FS := build/action-actmkdir-persist-fs
 ACTION_ACTMOVE_PERSIST_FS := build/action-actmove-persist-fs
 ACTION_ACTRMDIR_PERSIST_FS := build/action-actrmdir-persist-fs
@@ -574,13 +575,40 @@ vice-action-actinfo: release
 		--contains "RUN ACTINFO.PRG" --contains "ACTINFO ABI 1" --contains "ARGS ONE TWO" --contains "ACTINFO DONE"
 
 vice-action-actflow: release
+	rm -rf $(ACTION_ACTFLOW_FS)
+	mkdir -p $(ACTION_ACTFLOW_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTFLOW_FS)/
+	rm -f $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/OUT.TXT $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/COPY.TXT $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/NEXT.TXT
 	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
-		--command "ACTFLOW.BAT" --run-marker "" --done-fragment "ACTFLOW OK" --prompt-count 2 \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTFLOW_FS) \
+		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" --prompt-count 2 \
+		--attempts 4 --attempt-delay 2.0 \
+		--contains "RUN ACTWRITE.PRG" \
+		--contains "ACTWRITE OK"
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTFLOW_FS) \
+		--command "ACTCOPY OUT.TXT COPY.TXT" --run-marker "RUN ACTCOPY.PRG" --done-fragment "" --prompt-count 1 \
+		--attempts 4 --attempt-delay 2.0 \
+		--post-command "TYPE COPY.TXT" --post-done-fragment "ACTION WRITE OK" \
+		--contains "RUN ACTCOPY.PRG" \
+		--contains "ACTION WRITE OK"
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTFLOW_FS) \
+		--command "ACTMOVE COPY.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --done-fragment "" --skip-command-prompt \
+		--attempts 4 --attempt-delay 2.0 --shell-timeout 20 \
+		--contains "RUN ACTMOVE.PRG"
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTFLOW_FS) \
+		--command "ACTDEL NEXT.TXT" --run-marker "RUN ACTDEL.PRG" --done-fragment "ACTDEL OK" --prompt-count 2 \
 		--attempts 4 --attempt-delay 2.0 \
 		--post-command "TYPE NEXT.TXT" --post-done-fragment "NO SUCH FILE" \
-		--contains "ACTFLOW OK" \
+		--contains "RUN ACTDEL.PRG" \
+		--contains "ACTDEL OK" \
 		--contains "NO SUCH FILE"
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTFLOW_FS) \
+		--command "ECHO ACTFLOW OK" --run-marker "" --done-fragment "ACTFLOW OK" --prompt-count 2 \
+		--attempts 4 --attempt-delay 2.0 \
+		--contains "ACTFLOW OK"
+	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/OUT.TXT
+	test ! -e $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/COPY.TXT
+	test ! -e $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/NEXT.TXT
 
 vice-action-actcopy: release
 	sleep 2
