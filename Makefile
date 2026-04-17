@@ -139,6 +139,7 @@ RELEASE_FS := build/udos-release-fs
 ACTIONC64U_DIR := /mnt/c/test/action/actionc64u
 ACTC_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
 ACTADD_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actadd_udos.sh
+ACT2SAVE_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_act2save_udos.sh
 ALINK_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 ACTMON_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actmon_udos.sh
 ACTCHK_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actchk_udos.sh
@@ -158,6 +159,7 @@ AVMINFO_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_avminfo_udos.sh
 ACTWORK_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actwork_udos.sh
 ACTC_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTC.PRG
 ACTADD_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTADD.PRG
+ACT2SAVE_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACT2SAVE.PRG
 ALINK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ALINK.PRG
 ACTMON_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTMON.PRG
 ACTCHK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTCHK.PRG
@@ -238,6 +240,7 @@ release:
 	$(MAKE) BUILD_DIR=$(RELEASE_BUILD) RESIDENT_DEFINES="-D UDOS_INCLUDE_AUTOEXEC=0" resident
 	bash $(ACTC_UDOS_BUILD)
 	bash $(ACTADD_UDOS_BUILD)
+	bash $(ACT2SAVE_UDOS_BUILD)
 	bash $(ALINK_UDOS_BUILD)
 	bash $(ACTMON_UDOS_BUILD)
 	bash $(ACTCHK_UDOS_BUILD)
@@ -259,6 +262,7 @@ release:
 	cp $(RELEASE_BUILD)/udos-resident.d64 $(RELEASE_DISK)
 	-$(C1541) $(RELEASE_DISK) -delete ACTC.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTADD.PRG
+	-$(C1541) $(RELEASE_DISK) -delete ACT2SAVE.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ALINK.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTMON.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTCHK.PRG
@@ -276,7 +280,7 @@ release:
 	-$(C1541) $(RELEASE_DISK) -delete AVMRUN.PRG
 	-$(C1541) $(RELEASE_DISK) -delete AVMINFO.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTWORK.PRG
-	$(C1541) $(RELEASE_DISK) -write $(ACTC_UDOS_PRG) ACTC.PRG -write $(ACTADD_UDOS_PRG) ACTADD.PRG -write $(ALINK_UDOS_PRG) ALINK.PRG -write $(ACTMON_UDOS_PRG) ACTMON.PRG -write $(ACTCHK_UDOS_PRG) ACTCHK.PRG -write $(ACTCOPY_UDOS_PRG) ACTCOPY.PRG -write $(ACTDEL_UDOS_PRG) ACTDEL.PRG -write $(ACTDIR_UDOS_PRG) ACTDIR.PRG -write $(ACTFILE_UDOS_PRG) ACTFILE.PRG -write $(ACTINFO_UDOS_PRG) ACTINFO.PRG -write $(ACTMKDIR_UDOS_PRG) ACTMKDIR.PRG -write $(ACTMOVE_UDOS_PRG) ACTMOVE.PRG -write $(ACTNEW_UDOS_PRG) ACTNEW.PRG -write $(ACTRMDIR_UDOS_PRG) ACTRMDIR.PRG -write $(ACTSRC_UDOS_PRG) ACTSRC.PRG -write $(ACTWRITE_UDOS_PRG) ACTWRITE.PRG -write $(AVMRUN_UDOS_PRG) AVMRUN.PRG -write $(AVMINFO_UDOS_PRG) AVMINFO.PRG -write $(ACTWORK_UDOS_PRG) ACTWORK.PRG
+	$(C1541) $(RELEASE_DISK) -write $(ACTC_UDOS_PRG) ACTC.PRG -write $(ACTADD_UDOS_PRG) ACTADD.PRG -write $(ACT2SAVE_UDOS_PRG) ACT2SAVE.PRG -write $(ALINK_UDOS_PRG) ALINK.PRG -write $(ACTMON_UDOS_PRG) ACTMON.PRG -write $(ACTCHK_UDOS_PRG) ACTCHK.PRG -write $(ACTCOPY_UDOS_PRG) ACTCOPY.PRG -write $(ACTDEL_UDOS_PRG) ACTDEL.PRG -write $(ACTDIR_UDOS_PRG) ACTDIR.PRG -write $(ACTFILE_UDOS_PRG) ACTFILE.PRG -write $(ACTINFO_UDOS_PRG) ACTINFO.PRG -write $(ACTMKDIR_UDOS_PRG) ACTMKDIR.PRG -write $(ACTMOVE_UDOS_PRG) ACTMOVE.PRG -write $(ACTNEW_UDOS_PRG) ACTNEW.PRG -write $(ACTRMDIR_UDOS_PRG) ACTRMDIR.PRG -write $(ACTSRC_UDOS_PRG) ACTSRC.PRG -write $(ACTWRITE_UDOS_PRG) ACTWRITE.PRG -write $(AVMRUN_UDOS_PRG) AVMRUN.PRG -write $(AVMINFO_UDOS_PRG) AVMINFO.PRG -write $(ACTWORK_UDOS_PRG) ACTWORK.PRG
 
 vice-release: release
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RELEASE_DISK) \
@@ -463,30 +467,9 @@ vice-action-actadd-persist: release
 	grep -q "ENDPROC" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 
 vice-action-act2save: release
-	rm -rf $(ACTION_ACT2SAVE_FS)
-	mkdir -p $(ACTION_ACT2SAVE_FS)
-	cp -a $(RELEASE_FS)/. $(ACTION_ACT2SAVE_FS)/
-	rm -rf $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/proj3
-	mkdir -p $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/src \
-		$(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/bin \
-		$(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/obj
-	printf 'ACTION PROJECT READY\n' > $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
-	printf 'ACTION PROJECT\rMAIN.ACT\rHELPER.ACT\r' > $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
-	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
-	printf 'PROC OLDHELPER()\rENDPROC\r' > $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACT2SAVE_FS) \
-		--command "ACT2SAVE HELPER" --run-marker "RUN ACT2SAVE.PRG" --done-fragment "ACT2SAVE OK" \
-		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
-		--attempts 4 --attempt-delay 2.0 \
-		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
-		--post-command "TYPE SRC/HELPER.ACT" --post-done-fragment "ENDPROC" \
-		--contains "RUN ACT2SAVE.PRG" --contains "UPDATED" --contains "ACT2SAVE OK" \
-		--contains "PROC HELPER()" --contains "B:DNP/PROJ3>"
-	grep -q "PROC HELPER()" $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
-	! grep -q "PROC OLDHELPER()" $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
-	grep -q "ENDPROC" $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
-	grep -q "HELPER.ACT" $(ACTION_ACT2SAVE_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	$(PYTHON) tools/run_action_act2save_seeded_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--attempts 4 --attempt-delay 2.0
 
 vice-action-actc: release
 	rm -rf $(ACTION_ACTC_FS)
