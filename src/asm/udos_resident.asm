@@ -1973,6 +1973,7 @@ build_vice_delete_command_done:
     rts
 
 build_vice_mkdir_command_from_path_name:
+    jsr build_vice_full_path_from_path_name
     lda #'M'
     sta uci_cmd_buffer
     lda #'D'
@@ -1982,15 +1983,9 @@ build_vice_mkdir_command_from_path_name:
     ldx #$00
     ldy #$03
 build_vice_mkdir_command_copy:
-    lda path_name_buffer,x
+    lda source_fullpath_buffer,x
+    sta uci_cmd_buffer,y
     beq build_vice_mkdir_command_done
-    jsr screen_code_to_ascii
-    cmp #'A'
-    bcc :+
-    cmp #'['
-    bcs :+
-    ora #$20
-:   sta uci_cmd_buffer,y
     inx
     iny
     bne build_vice_mkdir_command_copy

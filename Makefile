@@ -407,8 +407,8 @@ vice-action-actnew-prg: release
 		--command "ACTNEW DEMO" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" \
 		--b-prompt "B:DNP/>" --final-prompt "B:DNP/>" \
 		--attempts 4 --attempt-delay 2.0 \
-		--post-command "CD DEMO/SRC" --post-done-fragment "B:DNP/DEMO/SRC>" \
-		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK" --contains "B:DNP/DEMO/SRC>"
+		--post-command "CD DEMO/SRC" --post-done-fragment "b:dnp/src>" \
+		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK" --contains "b:dnp/src>"
 
 vice-action-actnew-prg-persist: release
 	rm -rf $(ACTION_ACTNEW_PRG_PERSIST_FS)
@@ -420,8 +420,8 @@ vice-action-actnew-prg-persist: release
 		--command "ACTNEW PROJ2" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" \
 		--b-prompt "B:DNP/>" --final-prompt "B:DNP/>" \
 		--attempts 4 --attempt-delay 2.0 \
-		--post-command "CD PROJ2/SRC" --post-done-fragment "B:DNP/PROJ2/SRC>" \
-		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK" --contains "B:DNP/PROJ2/SRC>"
+		--post-command "CD PROJ2/SRC" --post-done-fragment "b:dnp/src>" \
+		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK" --contains "b:dnp/src>"
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/bin
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/obj
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/src
