@@ -8,7 +8,7 @@ from pathlib import Path
 
 import vice_prg_probe as vp
 
-WORKSPACE_CONNECT_DELAYS = vp.default_connect_delays()
+WORKSPACE_CONNECT_DELAYS = (10.0,) + tuple(delay for delay in vp.default_connect_delays() if delay != 10.0)
 PATH_DEBUG_ADDRS = {
     "TOOL_ABI_CURRENT_PATH": 0xCD00,
     "TOOL_ABI_OPEN_PATH": 0xCD40,
@@ -392,12 +392,22 @@ def main() -> int:
             mount_command = f"MOUNT B: {args.mount_path}"
             type_command(client, mount_command, args.shell_timeout)
             time.sleep(1.0)
-            wait_for_mount_completion(
-                client,
-                args.shell_timeout,
-                retry_echo=mount_command,
-                poll_interval=args.poll_interval,
-            )
+            try:
+                wait_for_mount_completion(
+                    client,
+                    args.shell_timeout,
+                    retry_echo=mount_command,
+                    poll_interval=args.poll_interval,
+                )
+            except vp.ViceError:
+                type_command(client, mount_command, args.shell_timeout)
+                time.sleep(1.0)
+                wait_for_mount_completion(
+                    client,
+                    args.shell_timeout,
+                    retry_echo=mount_command,
+                    poll_interval=args.poll_interval,
+                )
             type_command(client, "B:", args.shell_timeout)
             screen = wait_for_screen_fragment(
                 client,
@@ -448,8 +458,20 @@ def main() -> int:
                     poll_interval=args.poll_interval,
                 )
             if args.skip_command_prompt:
-                time.sleep(args.shell_timeout)
-                screen = screen_text(client)
+                fragments: list[str] = []
+                if args.done_fragment:
+                    fragments.append(args.done_fragment)
+                if fragments:
+                    screen = wait_for_screen_fragments(
+                        client,
+                        fragments,
+                        args.shell_timeout,
+                        retry_echo=args.command if not args.run_marker else None,
+                        poll_interval=args.poll_interval,
+                    )
+                else:
+                    time.sleep(args.shell_timeout)
+                    screen = screen_text(client)
             else:
                 prompt_count += 1
                 fragments: list[str] = []
@@ -515,7 +537,7 @@ def main() -> int:
             path_trace = ""
             if labels:
                 path_parts: list[str] = []
-                for label_name in ("TOOL_ABI_OPEN_PATH", "dest_fullpath_buffer", "TOOL_ABI_CURRENT_PATH"):
+                for label_name in ("TOOL_ABI_OPEN_PATH", "dest_fullpath_buffer", "source_fullpath_buffer", "TOOL_ABI_CURRENT_PATH"):
                     addr = labels.get(label_name) or labels.get(f".{label_name}") or PATH_DEBUG_ADDRS.get(label_name)
                     if addr is None:
                         continue
@@ -540,6 +562,49 @@ def main() -> int:
                     except Exception:
                         value = ""
                     path_parts.append(f"path_name_buffer={value!r}")
+                arg_buffer_addr = labels.get("arg_buffer") or labels.get(".arg_buffer")
+                if arg_buffer_addr is not None:
+                    try:
+                        value = read_screen_string(client, arg_buffer_addr)
+                    except Exception:
+                        value = ""
+                    path_parts.append(f"arg_buffer={value!r}")
+                arg_length_addr = labels.get("arg_length") or labels.get(".arg_length")
+                if arg_length_addr is not None:
+                    try:
+                        value = client.memory_get(arg_length_addr, arg_length_addr)[0]
+                    except Exception:
+                        value = 0
+                    path_parts.append(f"arg_length=0x{value:02X}")
+                uci_cmd_addr = labels.get("uci_cmd_buffer") or labels.get(".uci_cmd_buffer")
+                if uci_cmd_addr is not None:
+                    try:
+                        value = read_c_string(client, uci_cmd_addr)
+                    except Exception:
+                        value = ""
+                    path_parts.append(f"uci_cmd_buffer={value!r}")
+                vice_dir_state_addr = labels.get("vice_dir_state_b") or labels.get(".vice_dir_state_b")
+                vice_dir_parent_addr = labels.get("vice_dir_parent_b") or labels.get(".vice_dir_parent_b")
+                vice_dir_names_addr = labels.get("vice_dir_names_b") or labels.get(".vice_dir_names_b")
+                if (
+                    vice_dir_state_addr is not None
+                    and vice_dir_parent_addr is not None
+                    and vice_dir_names_addr is not None
+                ):
+                    for index in range(6):
+                        try:
+                            state = client.memory_get(
+                                vice_dir_state_addr + index, vice_dir_state_addr + index
+                            )[0]
+                            parent = client.memory_get(
+                                vice_dir_parent_addr + index, vice_dir_parent_addr + index
+                            )[0]
+                            name = read_c_string(client, vice_dir_names_addr + (index * 21))
+                        except Exception:
+                            continue
+                        path_parts.append(
+                            f"vice_dir_b[{index}]=state:0x{state:02X},parent:0x{parent:02X},name:{name!r}"
+                        )
                 path_trace = " ".join(path_parts)
             note_parts = [f"attempt {attempt}: {exc}"]
             if launch_trace:

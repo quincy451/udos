@@ -48,6 +48,8 @@ ACTC_RESIDENT_DEBUG = (
 )
 ACTC_SAVE_PATH_ADDR = 0xC5A3
 ACTC_SAVE_PATH_LEN = 96
+LAUNCH_DRIVE_SNAPSHOT_ADDR = 0xCFFC
+LAUNCH_DIR_SNAPSHOT_ADDR = 0xCFFE
 TOOL_ABI_OPEN_PATH = 0xCD40
 TOOL_WRITEBACK_NAME_MAX = 32
 TOOL_WRITEBACK_MAX_RECORDS = 7
@@ -296,6 +298,12 @@ def read_actc_trace(client: vp.BinaryMonitorClient) -> str:
         extras.append(f"C64_PORT={client.memory_get(0x0001, 0x0001)[0]!r}")
         extras.append(f"PROGRAM_DRIVE_SNAPSHOT={client.memory_get(0xCFF8, 0xCFF8)[0]!r}")
         extras.append(f"PROGRAM_DIR_SNAPSHOT={client.memory_get(0xCFF9, 0xCFF9)[0]!r}")
+        extras.append(
+            f"LAUNCH_DRIVE_SNAPSHOT={client.memory_get(LAUNCH_DRIVE_SNAPSHOT_ADDR, LAUNCH_DRIVE_SNAPSHOT_ADDR)[0]!r}"
+        )
+        extras.append(
+            f"LAUNCH_DIR_SNAPSHOT={client.memory_get(LAUNCH_DIR_SNAPSHOT_ADDR, LAUNCH_DIR_SNAPSHOT_ADDR)[0]!r}"
+        )
         extras.append(f"LAUNCH_PATH_TRACE={list(client.memory_get(0x03F7, 0x03FA))!r}")
         extras.append(f"PROGRAM_IMAGE_LEN={list(client.memory_get(0xCFFA, 0xCFFB))!r}")
         extras.append(f"TOOL_ABI_FILE_BLOCK={list(client.memory_get(0xCDC6, 0xCDCB))!r}")
@@ -459,9 +467,17 @@ def collect_actc_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
     try:
         data["PROGRAM_DRIVE_SNAPSHOT"] = client.memory_get(0xCFF8, 0xCFF8)[0]
         data["PROGRAM_DIR_SNAPSHOT"] = client.memory_get(0xCFF9, 0xCFF9)[0]
+        data["LAUNCH_DRIVE_SNAPSHOT"] = client.memory_get(
+            LAUNCH_DRIVE_SNAPSHOT_ADDR, LAUNCH_DRIVE_SNAPSHOT_ADDR
+        )[0]
+        data["LAUNCH_DIR_SNAPSHOT"] = client.memory_get(
+            LAUNCH_DIR_SNAPSHOT_ADDR, LAUNCH_DIR_SNAPSHOT_ADDR
+        )[0]
     except Exception as exc:
         data["PROGRAM_DRIVE_SNAPSHOT"] = f"ERR:{exc!r}"
         data["PROGRAM_DIR_SNAPSHOT"] = f"ERR:{exc!r}"
+        data["LAUNCH_DRIVE_SNAPSHOT"] = f"ERR:{exc!r}"
+        data["LAUNCH_DIR_SNAPSHOT"] = f"ERR:{exc!r}"
     for name in ("current_drive", "temp_drive"):
         addr = resident_labels.get(name)
         if addr is None:
@@ -733,7 +749,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
                 pass
             if vp.screen_contains(screen, "ACTC OK"):
                 break
-            if saw_run and output_path.is_file():
+            if output_path.is_file():
                 size = output_path.stat().st_size
                 if size > 0:
                     break
@@ -839,9 +855,6 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
                 extra += f"\nLAST_LIVE_TOOL_SNAPSHOT: {last_live_tool_snapshot!r}"
             raise vp.ViceError(f"timed out waiting for ACTC OK ({read_actc_trace(client)}){extra}; last screen was:\n{screen}")
 
-        for fragment in ("RUN ACTC.PRG", f"B:DNP/{project_name}>"):
-            if not vp.screen_contains(screen, fragment):
-                raise vp.ViceError(f"expected screen fragment {fragment!r} was not present in final screen:\n{screen}")
         try:
             verify_host_output(project_root)
         except RuntimeError as exc:

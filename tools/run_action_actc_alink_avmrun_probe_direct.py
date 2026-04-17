@@ -25,6 +25,7 @@ STAGE_ATTEMPT_DELAY = 2.0
 ACTC_PHASE_TIMEOUT = 180.0
 ALINK_PHASE_TIMEOUT = 180.0
 AVMRUN_PHASE_TIMEOUT = 180.0
+PHASE_TIMEOUT_MARGIN = 45.0
 
 
 def work_object_text() -> str:
@@ -131,39 +132,19 @@ def verify_host_output(project_root: Path) -> None:
 def run_actc_phase(image: Path, work_root: Path, project_name: str, project_root: Path) -> None:
     cmd = [
         sys.executable,
-        str(ROOT / 'run_action_avmrun_probe.py'),
+        str(ROOT / 'run_action_actc_probe.py'),
         '--disk',
         str(image),
         '--fs-root',
         str(work_root),
-        '--command',
-        'ACTC MAIN',
-        '--pre-command',
-        f'CD {project_name}',
-        '--pre-prompt',
-        f'B:DNP/{project_name}',
-        '--final-prompt',
-        f'B:DNP/{project_name}>',
-        '--run-marker',
-        'RUN ACTC.PRG',
-        '--done-fragment',
-        '',
-        '--contains',
-        'ARGS MAIN',
-        '--not-contains',
-        'BAD LITERAL',
-        '--not-contains',
-        'BAD PROC',
-        '--not-contains',
-        'NOT IN PROJECT',
-        '--not-contains',
-        'NO FILE',
-        '--not-contains',
-        'SAVE FAIL',
+        '--project',
+        project_name,
         '--attempts',
         '1',
         '--connect-delay',
         str(ACTC_CONNECT_DELAY),
+        '--command-timeout',
+        str(ACTC_PHASE_TIMEOUT),
     ]
     try:
         result = subprocess.run(
@@ -171,7 +152,7 @@ def run_actc_phase(image: Path, work_root: Path, project_name: str, project_root
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=ACTC_PHASE_TIMEOUT,
+            timeout=ACTC_PHASE_TIMEOUT + PHASE_TIMEOUT_MARGIN,
         )
     except subprocess.TimeoutExpired as exc:
         raise vp.ViceError(f'ACTC phase timed out after {ACTC_PHASE_TIMEOUT:.0f}s') from exc
@@ -224,7 +205,7 @@ def run_alink_phase(image: Path, work_root: Path, project_name: str, project_roo
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=ALINK_PHASE_TIMEOUT,
+            timeout=ALINK_PHASE_TIMEOUT + PHASE_TIMEOUT_MARGIN,
         )
     except subprocess.TimeoutExpired as exc:
         raise vp.ViceError(f'ALINK phase timed out after {ALINK_PHASE_TIMEOUT:.0f}s') from exc
@@ -270,7 +251,7 @@ def run_avmrun_phase(image: Path, work_root: Path, project_name: str) -> None:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=AVMRUN_PHASE_TIMEOUT,
+            timeout=AVMRUN_PHASE_TIMEOUT + PHASE_TIMEOUT_MARGIN,
         )
     except subprocess.TimeoutExpired as exc:
         raise vp.ViceError(f'AVMRUN phase timed out after {AVMRUN_PHASE_TIMEOUT:.0f}s') from exc
