@@ -2202,13 +2202,6 @@ read_file_response_vice_current:
     clc
     rts
 read_file_response_vice_current_host:
-    ldx temp_drive
-    lda mount_flag_table,x
-    cmp #MOUNT_FLAG_TREE
-    bne read_file_response_vice_current_open
-    jsr query_file_vice_host_exact_current
-    bcs read_file_response_vice_current_fail
-read_file_response_vice_current_open:
     jmp read_file_response_vice
 read_file_response_vice_current_fail:
     sec
@@ -16845,7 +16838,7 @@ tool_abi_file_copy_sc0:
     cmp #PATH_STATUS_OK
     beq :+
     jmp tool_abi_file_copy_nofile
-:
+: 
     lda temp_drive
     sta source_drive
     lda temp_dir_id
@@ -16854,7 +16847,7 @@ tool_abi_file_copy_sc0:
     jsr query_file_response_vice_current
     bcc :+
     jmp tool_abi_file_copy_nofile
-:
+: 
     lda dest_drive
     sta temp_drive
     lda dest_dir_id
@@ -16884,7 +16877,7 @@ tool_abi_file_copy_sc0:
     cmp #PATH_STATUS_OK
     beq :+
     jmp tool_abi_file_copy_fail
-:
+: 
     lda temp_drive
     sta dest_drive
     lda temp_dir_id

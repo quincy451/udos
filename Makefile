@@ -95,6 +95,7 @@ ACTION_ACTMKDIR_PERSIST_FS := build/action-actmkdir-persist-fs
 ACTION_ACTMOVE_PERSIST_FS := build/action-actmove-persist-fs
 ACTION_ACTRMDIR_PERSIST_FS := build/action-actrmdir-persist-fs
 ACTION_COPY_ROOT_FS := build/action-copy-root-fs
+ACTION_ACTCOPY_FS := build/action-actcopy-fs
 ACTION_WORKSPACE_ARTIFACT := build/udos-action-workspace.d64
 ACTION_ACTDIR_ARTIFACT := build/udos-action-actdir.d64
 ACTION_ACTADD_ARTIFACT := build/udos-action-actadd.d64
@@ -609,14 +610,20 @@ vice-action-actflow: release
 
 vice-action-actcopy: release
 	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
-		--pre-command "ACTWRITE OUT.TXT" \
-		--command "ACTCOPY OUT.TXT COPY.TXT" --run-marker "RUN ACTCOPY.PRG" --done-fragment "" --prompt-count 1 \
+	rm -rf $(ACTION_ACTCOPY_FS)
+	mkdir -p $(ACTION_ACTCOPY_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTCOPY_FS)/
+	rm -f $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/COPY.TXT
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTCOPY_FS) \
+		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" --prompt-count 2 \
 		--attempts 3 --attempt-delay 2.0 \
-		--post-command "TYPE COPY.TXT" --post-done-fragment "ACTION WRITE OK" \
-		--contains "RUN ACTCOPY.PRG" \
-		--contains "ACTION WRITE OK"
-	grep -Fq 'ACTION WRITE OK' $(RELEASE_FS)/IMAGES/ACTION.DNP/COPY.TXT
+		--contains "RUN ACTWRITE.PRG" \
+		--contains "ACTWRITE OK"
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTCOPY_FS) \
+		--command "ACTCOPY OUT.TXT COPY.TXT" --run-marker "RUN ACTCOPY.PRG" --done-fragment "" --skip-command-prompt \
+		--attempts 3 --attempt-delay 2.0 --shell-timeout 20 \
+		--contains "RUN ACTCOPY.PRG"
+	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/COPY.TXT
 
 vice-action-copy-root: release
 	rm -rf $(ACTION_COPY_ROOT_FS)
