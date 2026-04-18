@@ -4,10 +4,10 @@ udos for commodore 64
 b:dnp/
   b:dnp/> cd src
 b:dnp/src
-  b:dnp/src> copy hello.prg work/hello2.
-prg
+  b:dnp/src> copy hello.prg /work/hello2
+.prg
 copied
-  b:dnp/src> cd work
+  b:dnp/src> cd /work
 b:dnp/work
   b:dnp/work> del hello2.prg
 deleted

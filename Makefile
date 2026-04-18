@@ -1034,7 +1034,7 @@ vice-selftest-copy: $(SELFTEST_COPY_FS)
 		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
 		--feed-step "B:\r" \
 		--feed-step "CD SRC\r" \
-		--feed-step "COPY HELLO.PRG WORK/HELLO2.PRG\r" \
+		--feed-step "COPY HELLO.PRG /WORK/HELLO2.PRG\r" \
 		--feed-step "ECHO COPY OK\r" \
 		--expected "COPY OK" --settle 2.0 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_COPY_ACTUAL)
 	diff -u $(SELFTEST_COPY_EXPECTED) $(SELFTEST_COPY_ACTUAL)
@@ -1050,8 +1050,8 @@ vice-selftest-rename: $(SELFTEST_RENAME_FS)
 		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
 		--feed-step "B:\r" \
 		--feed-step "CD SRC\r" \
-		--feed-step "COPY HELLO.PRG WORK/HELLO2.PRG\r" \
-		--feed-step "CD WORK\r" \
+		--feed-step "COPY HELLO.PRG /WORK/HELLO2.PRG\r" \
+		--feed-step "CD /WORK\r" \
 		--feed-step "REN HELLO2.PRG HELLO3.PRG\r" \
 		--feed-step "ECHO RENAME OK\r" \
 		--expected "RENAME OK" --settle 2.0 --timeout 120 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_RENAME_ACTUAL)
@@ -1068,8 +1068,8 @@ vice-selftest-delete: $(SELFTEST_DELETE_FS)
 		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
 		--feed-step "B:\r" \
 		--feed-step "CD SRC\r" \
-		--feed-step "COPY HELLO.PRG WORK/HELLO2.PRG\r" \
-		--feed-step "CD WORK\r" \
+		--feed-step "COPY HELLO.PRG /WORK/HELLO2.PRG\r" \
+		--feed-step "CD /WORK\r" \
 		--feed-step "DEL HELLO2.PRG\r" \
 		--feed-step "DIR\r" \
 		--feed-step "ECHO DELETE OK\r" \

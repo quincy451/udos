@@ -4,8 +4,8 @@ udos for commodore 64
 b:dnp/
   b:dnp/> cd src
 b:dnp/src
-  b:dnp/src> copy hello.prg work/hello2.
-prg
+  b:dnp/src> copy hello.prg /work/hello2
+.prg
 copied
   b:dnp/src> echo copy ok
 copy ok
