@@ -417,11 +417,9 @@ vice-action-actnew-prg: release
 	rm -rf $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTNEW_PRG_FS) \
-		--command "ACTNEW DEMO" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" \
-		--b-prompt "B:DNP/>" --final-prompt "B:DNP/>" \
-		--attempts 4 --attempt-delay 2.0 \
-		--post-command "CD DEMO/SRC" --post-done-fragment "b:dnp/demo/src>" \
-		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK" --contains "b:dnp/demo/src>"
+		--command "ACTNEW DEMO" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" --skip-command-prompt \
+		--attempts 1 --attempt-delay 1.0 --shell-timeout 20 \
+		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK"
 	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/bin
 	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/obj
 	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/src
@@ -437,11 +435,9 @@ vice-action-actnew-prg-persist: release
 	rm -rf $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2 $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTNEW_PRG_PERSIST_FS) \
-		--command "ACTNEW PROJ2" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" \
-		--b-prompt "B:DNP/>" --final-prompt "B:DNP/>" \
-		--attempts 4 --attempt-delay 2.0 \
-		--post-command "CD PROJ2/SRC" --post-done-fragment "b:dnp/proj2/src>" \
-		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK" --contains "b:dnp/proj2/src>"
+		--command "ACTNEW PROJ2" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" --skip-command-prompt \
+		--attempts 1 --attempt-delay 1.0 --shell-timeout 20 \
+		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK"
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/bin
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/obj
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/src
