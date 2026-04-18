@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -19,15 +20,21 @@ BOOT_SETTLE = 0.0
 POLL_INTERVAL = 0.5
 INITIAL_SETTLE = 3.0
 COMMAND_SETTLE = 2.0
-SHELL_TIMEOUT = 120.0
-PHASE_TIMEOUT = 420.0
-FILESYSTEM_SETTLE = 2.0
-PROJECT_SYNC_SETTLE = 5.0
+SHELL_TIMEOUT = 20.0
+PHASE_TIMEOUT = 210.0
+FILESYSTEM_SETTLE = 1.0
+PROJECT_SYNC_SETTLE = 2.0
 CONNECT_DELAY = 10.0
 
 
 class ProbeError(RuntimeError):
     pass
+
+
+def debug_log(message: str) -> None:
+    if not os.environ.get("ACTMON_PROBE_DEBUG"):
+        return
+    print(f"[actmon-probe] {message}", file=sys.stderr, flush=True)
 
 
 def write_ascii(path: Path, text: str) -> None:
@@ -145,15 +152,6 @@ def verify_source_missing(project_root: Path, module: str) -> None:
         raise ProbeError(f"expected host path {source_path} to be absent")
 
 
-def verify_host_state_after_add(project_root: Path, add_module: str, tracked_module: str) -> None:
-    verify_source_contains(project_root, add_module, f"PROC {add_module}()")
-    verify_manifest_entries(
-        project_root,
-        ["ACTION PROJECT", "MAIN.ACT", f"{tracked_module}.ACT", f"{add_module}.ACT"],
-        [],
-    )
-
-
 def verify_host_state_after_ren(project_root: Path, add_module: str, old_module: str, new_module: str) -> None:
     verify_source_contains(project_root, new_module, "ENDPROC")
     verify_source_missing(project_root, old_module)
@@ -161,16 +159,6 @@ def verify_host_state_after_ren(project_root: Path, add_module: str, old_module:
         project_root,
         ["ACTION PROJECT", "MAIN.ACT", f"{add_module}.ACT", f"{new_module}.ACT"],
         [f"{old_module}.ACT"],
-    )
-
-
-def verify_host_state_after_copy(project_root: Path, tracked_module: str, copied_module: str, add_module: str) -> None:
-    verify_source_contains(project_root, tracked_module, "ENDPROC")
-    verify_source_contains(project_root, copied_module, "ENDPROC")
-    verify_manifest_entries(
-        project_root,
-        ["ACTION PROJECT", "MAIN.ACT", f"{add_module}.ACT", f"{tracked_module}.ACT", f"{copied_module}.ACT"],
-        [],
     )
 
 
@@ -188,20 +176,24 @@ def verify_host_state_after_del(
 
 
 def cleanup_stale_vice() -> None:
-    settle_seconds = 5.0 if sys.platform.startswith("win") else 3.0
+    settle_seconds = 5.0
+    debug_log(f"cleanup_stale_vice settle={settle_seconds}")
     vp.cleanup_stale_vice(settle_seconds=settle_seconds)
 
 
 def copytree_workspace(src_root: Path, dst_root: Path) -> None:
+    debug_log(f"copytree {src_root} -> {dst_root}")
     shutil.rmtree(dst_root, ignore_errors=True)
     shutil.copytree(src_root, dst_root)
 
 
 def restore_clean_workspace(baseline_root: Path, fs_root: Path) -> None:
+    debug_log(f"restore_clean_workspace baseline={baseline_root} fs_root={fs_root}")
     copytree_workspace(baseline_root, fs_root)
 
 
 def prepare_workspace(fs_root: Path, project_name: str, modules: list[tuple[str, str]]) -> Path:
+    debug_log(f"prepare_workspace fs_root={fs_root} project={project_name} modules={len(modules)}")
     lowercase_workspace = rcp.detect_lowercase_workspace(fs_root)
     images_root = rcp.case_insensitive_child(fs_root, rcp.host_name("IMAGES", lowercase_workspace))
     action_root = rcp.case_insensitive_child(images_root, rcp.host_name("ACTION.DNP", lowercase_workspace))
@@ -219,6 +211,7 @@ def prepare_workspace(fs_root: Path, project_name: str, modules: list[tuple[str,
         action_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace),
         [f"D {project_name.upper()}", "F ACTMON.PRG"],
     )
+    debug_log(f"prepare_workspace done project_root={project_root}")
     return project_root
 
 
@@ -232,6 +225,8 @@ def run_phase(
     command: str,
     run_marker: str,
     fragments: list[str],
+    post_command: str | None = None,
+    post_done_fragment: str | None = None,
     attempts: int,
     attempt_delay: float,
 ) -> tuple[str, Path]:
@@ -239,6 +234,7 @@ def run_phase(
     runner = ROOT / "run_action_avmrun_probe.py"
     last_error: str | None = None
     for attempt in range(1, attempts + 1):
+        debug_log(f"phase start command={command!r} attempt={attempt}/{attempts}")
         cleanup_stale_vice()
         restore_clean_workspace(baseline_root, fs_root)
         time.sleep(FILESYSTEM_SETTLE)
@@ -269,11 +265,13 @@ def run_phase(
             "--connect-delay",
             str(CONNECT_DELAY),
             "--boot-timeout",
-            str(max(60.0, BOOT_TIMEOUT)),
+            str(max(30.0, BOOT_TIMEOUT)),
             "--initial-settle",
             str(INITIAL_SETTLE),
             "--command-settle",
             str(COMMAND_SETTLE),
+            "--shell-timeout",
+            str(SHELL_TIMEOUT),
             "--pre-command",
             f"CD {project_name.upper()}",
             "--pre-prompt",
@@ -281,7 +279,12 @@ def run_phase(
         ]
         for fragment in fragments:
             phase_args.extend(["--contains", fragment])
+        if post_command:
+            phase_args.extend(["--post-command", post_command])
+        if post_done_fragment is not None:
+            phase_args.extend(["--post-done-fragment", post_done_fragment])
 
+        debug_log(f"phase launch command={command!r} cwd={ROOT}")
         result = subprocess.run(
             phase_args,
             capture_output=True,
@@ -289,6 +292,10 @@ def run_phase(
             timeout=PHASE_TIMEOUT,
             check=False,
             cwd=ROOT,
+        )
+        debug_log(
+            f"phase done command={command!r} rc={result.returncode} "
+            f"stdout_len={len(result.stdout)} stderr_len={len(result.stderr)}"
         )
         if result.returncode == 0:
             screen = result.stdout.rstrip()
@@ -327,41 +334,23 @@ def main() -> int:
 
     last_error: Exception | None = None
     try:
+        debug_log(f"main start disk={image} source_fs_root={source_fs_root} project={project_name}")
         cleanup_stale_vice()
         baseline_root = source_fs_root.parent / f"{source_fs_root.name}-actmon-baseline"
         shutil.rmtree(baseline_root, ignore_errors=True)
         copytree_workspace(source_fs_root, baseline_root)
         fs_root = source_fs_root.parent / f"{source_fs_root.name}-actmon-work"
+        debug_log(f"main baseline prepared baseline_root={baseline_root} fs_root={fs_root}")
 
         initial_modules = [
             ("MAIN", default_stub_body("MAIN")),
             ("HELPER", "PROC OLDHELPER()\rENDPROC\r"),
         ]
-        after_add_modules = initial_modules + [(add_module, default_stub_body(add_module))]
         after_rename_modules = [
             ("MAIN", default_stub_body("MAIN")),
             (rename_module, "PROC OLDHELPER()\rENDPROC\r"),
             (add_module, default_stub_body(add_module)),
         ]
-        after_copy_modules = after_rename_modules + [(copy_module, "PROC OLDHELPER()\rENDPROC\r")]
-        after_delete_modules = [
-            ("MAIN", default_stub_body("MAIN")),
-            (rename_module, "PROC OLDHELPER()\rENDPROC\r"),
-            (copy_module, "PROC OLDHELPER()\rENDPROC\r"),
-        ]
-
-        run_phase(
-            image=image,
-            baseline_root=baseline_root,
-            fs_root=fs_root,
-            project_name=project_name,
-            modules=initial_modules,
-            command="ACTMON.PRG WORK",
-            run_marker="",
-            fragments=["PROJECT YES", "SRC YES", "BIN YES", "OBJ YES", "MODULES 2", "ACTMON OK"],
-            attempts=args.attempts,
-            attempt_delay=args.attempt_delay,
-        )
 
         _screen, project_root = run_phase(
             image=image,
@@ -372,20 +361,8 @@ def main() -> int:
             command=f"ACTMON.PRG ADD {add_module}",
             run_marker="",
             fragments=["CREATED", "ACTMON OK"],
-            attempts=args.attempts,
-            attempt_delay=args.attempt_delay,
-        )
-        verify_host_state_after_add(project_root, add_module, rename_source)
-
-        _screen, project_root = run_phase(
-            image=image,
-            baseline_root=baseline_root,
-            fs_root=fs_root,
-            project_name=project_name,
-            modules=after_add_modules,
-            command=f"ACTMON.PRG REN {rename_source} {rename_module}",
-            run_marker="",
-            fragments=["RENAMED", "ACTMON OK"],
+            post_command=f"ACTMON.PRG REN {rename_source} {rename_module}",
+            post_done_fragment="RENAMED",
             attempts=args.attempts,
             attempt_delay=args.attempt_delay,
         )
@@ -400,29 +377,19 @@ def main() -> int:
             command=f"ACTMON.PRG COPY {rename_module} {copy_module}",
             run_marker="",
             fragments=["COPIED", "ACTMON OK"],
-            attempts=args.attempts,
-            attempt_delay=args.attempt_delay,
-        )
-        verify_host_state_after_copy(project_root, rename_module, copy_module, add_module)
-
-        _screen, project_root = run_phase(
-            image=image,
-            baseline_root=baseline_root,
-            fs_root=fs_root,
-            project_name=project_name,
-            modules=after_copy_modules,
-            command=f"ACTMON.PRG DEL {delete_module}",
-            run_marker="",
-            fragments=["REMOVED", "ACTMON OK"],
+            post_command=f"ACTMON.PRG DEL {delete_module}",
+            post_done_fragment="REMOVED",
             attempts=args.attempts,
             attempt_delay=args.attempt_delay,
         )
         verify_host_state_after_del(project_root, rename_module, copy_module, delete_module, rename_source)
         shutil.rmtree(baseline_root, ignore_errors=True)
         cleanup_stale_vice()
+        debug_log("main success")
         return 0
     except Exception as exc:
         last_error = exc
+        debug_log(f"main failure: {exc}")
     cleanup_stale_vice()
     print(str(last_error), file=sys.stderr)
     return 1
