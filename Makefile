@@ -823,11 +823,12 @@ vice-copy: resident $(VICE_TREE_COPY_FS)
 		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
 		--feed-step "B:\r" \
 		--feed-step "CD SRC\r" \
-		--feed-step "COPY *.* WORK\r" \
-		--feed-step "CD WORK\r" \
-		--feed-step "DIR\r" \
+		--feed-step "COPY *.* /WORK\r" \
+		--feed-step "CD /WORK\r" \
 		--timeout 120 --attempts 2 --attempt-delay 2.0 \
-		--expected "BOOT.ASM" --contains "COPIED"
+		--expected "B:DNP/WORK>" --contains "COPIED"
+	test -f $(VICE_TREE_COPY_FS)/IMAGES/WORK.DNP/WORK/BOOT.ASM
+	test -f $(VICE_TREE_COPY_FS)/IMAGES/WORK.DNP/WORK/HELLO.PRG
 
 vice-drive: resident
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
@@ -852,6 +853,7 @@ vice-real-read: resident $(VICE_TREE_FS)
 		--check-byte 0xCFF0=0x01 --check-byte 0xCFEC=0x01 --check-byte 0xCFEE=0x02 --check-byte 0xCFF2=0x04
 
 vice-real-tree-write: resident $(VICE_TREE_FS)
+	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
 		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(VICE_TREE_FS) \
@@ -859,11 +861,12 @@ vice-real-tree-write: resident $(VICE_TREE_FS)
 		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
 		--feed-step "B:\r" \
 		--feed-step "CD SRC\r" \
-		--feed-step "COPY BOOT.ASM WORK/BOOT2.ASM\r" \
-		--feed-step "CD WORK\r" \
+		--feed-step "COPY BOOT.ASM /WORK/BOOT2.ASM\r" \
+		--feed-step "CD /WORK\r" \
 		--feed-step "REN BOOT2.ASM BOOT3.PRG\r" \
 		--feed-step "DEL BOOT3.PRG\r" \
 		--feed-step "TYPE BOOT3.PRG\r" \
+		--connect-delay 10 --timeout 120 --attempts 2 --attempt-delay 2.0 \
 		--expected "NO SUCH FILE" --contains "COPIED" --contains "RENAMED" --contains "DELETED"
 
 vice-real-tree-rename: resident $(VICE_TREE_FS)
@@ -890,11 +893,12 @@ vice-real-tree-wild-copy: resident $(VICE_TREE_WILD_FS)
 		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
 		--feed-step "B:\r" \
 		--feed-step "CD SRC\r" \
-		--feed-step "COPY *.* WORK\r" \
-		--feed-step "CD WORK\r" \
-		--feed-step "DIR\r" \
+		--feed-step "COPY *.* /WORK\r" \
+		--feed-step "CD /WORK\r" \
 		--timeout 120 --attempts 2 --attempt-delay 2.0 \
-		--expected "B:DNP/WORK" --contains "BOOT.ASM" --contains "COPIED"
+		--expected "B:DNP/WORK>" --contains "COPIED"
+	test -f $(VICE_TREE_WILD_FS)/IMAGES/WORK.DNP/WORK/BOOT.ASM
+	test -f $(VICE_TREE_WILD_FS)/IMAGES/WORK.DNP/WORK/HELLO.PRG
 
 vice-real-tree-wild-delete: resident $(VICE_TREE_WILD_FS)
 	sleep 2
@@ -908,7 +912,8 @@ vice-real-tree-wild-delete: resident $(VICE_TREE_WILD_FS)
 		--feed-step "DEL *.PRG\r" \
 		--feed-step "DIR\r" \
 		--timeout 120 --attempts 2 --attempt-delay 2.0 \
-		--expected "DELETED" --contains "B:DNP/SRC" --contains "BOOT.ASM"
+		--expected "B:DNP/SRC" --absent "HELLO.PRG"
+	test ! -f $(VICE_TREE_WILD_FS)/IMAGES/WORK.DNP/SRC/HELLO.PRG
 
 vice-real-tree-wild: vice-real-tree-wild-copy vice-real-tree-wild-delete
 
@@ -947,6 +952,7 @@ vice-batch-args: resident $(VICE_TREE_FS)
 		--feed-step "B:\r" \
 		--feed-step "CD SRC\r" \
 		--feed-step "ARGS ONE TWO THREE\r" \
+		--connect-delay 10 --timeout 120 --attempts 2 --attempt-delay 2.0 \
 		--expected "ONE/TWO/THREE" --contains "ECHO ONE/TWO/THREE"
 
 vice-batch-stop: resident $(VICE_TREE_FS)
@@ -958,6 +964,7 @@ vice-batch-stop: resident $(VICE_TREE_FS)
 		--feed-step "B:\r" \
 		--feed-step "CD SRC\r" \
 		--feed-step "STOP\r" \
+		--connect-delay 10 --timeout 120 --attempts 2 --attempt-delay 2.0 \
 		--expected "NO SUCH FILE" --contains "BEFORE" --absent "AFTER"
 
 vice-autoexec: resident

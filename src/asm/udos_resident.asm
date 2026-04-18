@@ -5718,6 +5718,14 @@ ren_source_ready:
     sta 1,x
     rts
 ren_source_hw:
+    lda temp_dir_id
+    cmp #DIR_ID_WORK
+    bne ren_source_hw_probe
+    ldx temp_drive
+    lda work_count_table,x
+    beq ren_source_hw_probe
+    jmp ren_source_lookup
+ren_source_hw_probe:
     jsr uci_probe
     bcc ren_source_hw_uci
     jsr vice_probe_available
@@ -5949,6 +5957,14 @@ del_source_ready:
     lda wildcard_mode
     bne del_source_wild
 del_source_exact:
+    lda temp_dir_id
+    cmp #DIR_ID_WORK
+    bne del_source_exact_probe
+    ldx temp_drive
+    lda work_count_table,x
+    beq del_source_exact_probe
+    jmp del_source_lookup
+del_source_exact_probe:
     jsr uci_probe
     bcc del_source_exact_hw
     jsr vice_probe_available
@@ -5956,7 +5972,9 @@ del_source_exact:
     jmp del_source_lookup
 del_source_exact_hw:
     jsr delete_file_hw
-    bcc del_build_deleted
+    bcs :+
+    jmp del_build_deleted
+:
     ldx saved_rp_x
     lda #<resp_delete_failed
     sta 0,x
@@ -5965,7 +5983,9 @@ del_source_exact_hw:
     rts
 del_source_exact_vice:
     jsr delete_file_vice
-    bcc del_build_deleted
+    bcs :+
+    jmp del_build_deleted
+:
     ldx saved_rp_x
     lda #<resp_delete_failed
     sta 0,x
@@ -5974,6 +5994,14 @@ del_source_exact_vice:
     rts
 del_source_wild:
     jsr copy_path_name_to_source_buffer
+    lda temp_dir_id
+    cmp #DIR_ID_WORK
+    bne del_source_wild_probe
+    ldx temp_drive
+    lda work_count_table,x
+    beq del_source_wild_probe
+    jmp del_source_wild_lookup
+del_source_wild_probe:
     jsr uci_probe
     bcc del_source_wild_hw
     jsr vice_probe_available
@@ -5981,7 +6009,9 @@ del_source_wild:
     jmp del_source_wild_lookup
 del_source_wild_hw:
     jsr delete_matching_files_hw
-    bcc del_build_deleted
+    bcs :+
+    jmp del_build_deleted
+:
     lda wildcard_match_count
     beq del_build_bad_file
     ldx saved_rp_x
@@ -5992,7 +6022,9 @@ del_source_wild_hw:
     rts
 del_source_wild_vice:
     jsr delete_matching_files_vice
-    bcc del_build_deleted
+    bcs :+
+    jmp del_build_deleted
+:
     lda wildcard_match_count
     beq del_build_bad_file
     ldx saved_rp_x
@@ -8606,8 +8638,6 @@ type_build_hw:
     bcs type_build_lookup
     jsr read_file_response_vice_current
     bcc type_build_found
-    lda #'F'
-    sta TOOL_QUEUE_TRACE0
     ldx saved_rp_x
     lda #<resp_bad_file
     sta 0,x
@@ -8785,8 +8815,6 @@ copy_file_vice_need_source:
     lda source_dir_id
     sta temp_dir_id
     jsr copy_source_name_to_path_buffer
-    lda #$A1
-    sta save_debug_open_status0
     jsr read_file_response_vice_current
     bcs copy_file_vice_fail
     jsr copy_ptr_to_program_image_buffer
@@ -8799,8 +8827,6 @@ copy_file_vice_need_source:
     lda dest_dir_id
     sta temp_dir_id
     jsr copy_copy_dst_to_path_buffer
-    lda #$A3
-    sta save_debug_open_status0
     jsr store_vice_host_current_from_screen_ptr
     bcs copy_file_vice_fail
     lda #<program_image_buffer
@@ -14369,7 +14395,8 @@ query_file_vice_host_exact_current_open:
     jmp query_file_vice_open_current
 query_file_vice_host_exact_current_restore_fail:
     jsr restore_path_name_shadow
-    jmp query_file_vice_open_current
+    sec
+    rts
 
 query_program_file_vice_host_current:
     ldx temp_drive
@@ -16194,35 +16221,30 @@ tool_abi_file_save_fail_resolve:
     sta LAUNCH_TRACE_STAGE
     lda #$E1
     sta LAUNCH_TRACE_CODE
-    sta RETURN_QUEUE_TRACE0
     bne tool_abi_file_save_fail
 tool_abi_file_save_fail_mount:
     lda #$FA
     sta LAUNCH_TRACE_STAGE
     lda #$E2
     sta LAUNCH_TRACE_CODE
-    sta RETURN_QUEUE_TRACE0
     bne tool_abi_file_save_fail
 tool_abi_file_save_fail_probe:
     lda #$FA
     sta LAUNCH_TRACE_STAGE
     lda #$E3
     sta LAUNCH_TRACE_CODE
-    sta RETURN_QUEUE_TRACE0
     bne tool_abi_file_save_fail
 tool_abi_file_save_fail_host:
     lda #$FA
     sta LAUNCH_TRACE_STAGE
     lda #$E4
     sta LAUNCH_TRACE_CODE
-    sta RETURN_QUEUE_TRACE0
     bne tool_abi_file_save_fail
 tool_abi_file_save_fail_tree:
     lda #$FA
     sta LAUNCH_TRACE_STAGE
     lda #$E5
     sta LAUNCH_TRACE_CODE
-    sta RETURN_QUEUE_TRACE0
     bne tool_abi_file_save_fail
 
 tool_abi_file_save_direct_safe:
