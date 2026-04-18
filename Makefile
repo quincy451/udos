@@ -400,15 +400,7 @@ vice-action-actwork: release
 		--contains "RUN ACTWORK.PRG" --contains "PROJECT YES" --contains "SRC YES" --contains "BIN YES" \
 		--contains "OBJ YES" --contains "MODULES 2" --contains "B:DNP/PROJ3>"
 
-vice-action-actnew: release
-	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
-		--command "ACTNEW.BAT DEMO" --run-marker "" --done-fragment "ACTNEW OK" \
-		--b-prompt "B:DNP/>" --final-prompt "B:DNP/DEMO>" \
-		--attempts 4 --attempt-delay 2.0 \
-		--post-command "DIR" --post-done-fragment "README.TXT" \
-		--contains "ACTNEW OK" --contains "BIN/" --contains "OBJ/" --contains "SRC/" \
-		--contains "README.TXT"
+vice-action-actnew: vice-action-actnew-prg
 
 vice-action-actnew-prg: release
 	rm -rf $(ACTION_ACTNEW_PRG_FS)
