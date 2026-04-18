@@ -86,8 +86,11 @@ ACTION_ACTCHK_FS := build/action-actchk-fs
 ACTION_ACTMON_FS := build/action-actmon-fs
 ACTION_ACTWORK_FS := build/action-actwork-fs
 ACTION_ACTADD_PERSIST_FS := build/actadd-persist-fs
+ACTION_ACTNEW_PRG_FS := build/action-actnew-prg-fs
 ACTION_ACTNEW_PRG_PERSIST_FS := build/actnew-prg-persist-fs
 ACTION_ACTFLOW_FS := build/action-actflow-fs
+ACTION_ACTDEL_FS := build/action-actdel-fs
+ACTION_ACTMKDIR_FS := build/action-actmkdir-fs
 ACTION_ACTMKDIR_PERSIST_FS := build/action-actmkdir-persist-fs
 ACTION_ACTMOVE_PERSIST_FS := build/action-actmove-persist-fs
 ACTION_ACTRMDIR_PERSIST_FS := build/action-actrmdir-persist-fs
@@ -407,13 +410,24 @@ vice-action-actnew: release
 		--contains "README.TXT"
 
 vice-action-actnew-prg: release
+	rm -rf $(ACTION_ACTNEW_PRG_FS)
+	mkdir -p $(ACTION_ACTNEW_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTNEW_PRG_FS)/
+	rm -rf $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo
 	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTNEW_PRG_FS) \
 		--command "ACTNEW DEMO" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" \
 		--b-prompt "B:DNP/>" --final-prompt "B:DNP/>" \
 		--attempts 4 --attempt-delay 2.0 \
-		--post-command "CD DEMO/SRC" --post-done-fragment "b:dnp/src>" \
-		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK" --contains "b:dnp/src>"
+		--post-command "CD DEMO/SRC" --post-done-fragment "b:dnp/demo/src>" \
+		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK" --contains "b:dnp/demo/src>"
+	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/bin
+	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/obj
+	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/src
+	test -f $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/action.proj
+	grep -q "MAIN.ACT" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/action.proj
+	grep -q "ACTION PROJECT READY" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/readme.txt
+	grep -q "PROC MAIN()" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/src/main.act
 
 vice-action-actnew-prg-persist: release
 	rm -rf $(ACTION_ACTNEW_PRG_PERSIST_FS)
@@ -425,8 +439,8 @@ vice-action-actnew-prg-persist: release
 		--command "ACTNEW PROJ2" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" \
 		--b-prompt "B:DNP/>" --final-prompt "B:DNP/>" \
 		--attempts 4 --attempt-delay 2.0 \
-		--post-command "CD PROJ2/SRC" --post-done-fragment "b:dnp/src>" \
-		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK" --contains "b:dnp/src>"
+		--post-command "CD PROJ2/SRC" --post-done-fragment "b:dnp/proj2/src>" \
+		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK" --contains "b:dnp/proj2/src>"
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/bin
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/obj
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/src
@@ -621,28 +635,37 @@ vice-action-copy-root: release
 	grep -Fq 'ACTION WRITE OK' $(ACTION_COPY_ROOT_FS)/IMAGES/ACTION.DNP/COPY2.TXT
 
 vice-action-actdel: release
+	rm -rf $(ACTION_ACTDEL_FS)
+	mkdir -p $(ACTION_ACTDEL_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTDEL_FS)/
+	rm -f $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/OUT.TXT
 	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTDEL_FS) \
 		--pre-command "ACTWRITE OUT.TXT" \
 		--command "ACTDEL OUT.TXT" --run-marker "RUN ACTDEL.PRG" --done-fragment "ACTDEL OK" --prompt-count 2 \
-		--post-command "TYPE OUT.TXT" --post-done-fragment "NO SUCH FILE" \
 		--contains "RUN ACTDEL.PRG" \
-		--contains "ACTDEL OK" \
-		--contains "NO SUCH FILE"
+		--contains "ACTDEL OK"
+	test ! -e $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/OUT.TXT
 
 vice-action-actmkdir: release
+	rm -rf $(ACTION_ACTMKDIR_FS)
+	mkdir -p $(ACTION_ACTMKDIR_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTMKDIR_FS)/
+	rm -rf $(ACTION_ACTMKDIR_FS)/IMAGES/ACTION.DNP/OBJ $(ACTION_ACTMKDIR_FS)/IMAGES/ACTION.DNP/obj
 	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMKDIR_FS) \
 		--command "ACTMKDIR OBJ" --run-marker "RUN ACTMKDIR.PRG" --done-fragment "ACTMKDIR OK" --prompt-count 2 \
 		--post-command "CD OBJ" --post-done-fragment "B:DNP/OBJ>" \
 		--contains "RUN ACTMKDIR.PRG" \
 		--contains "ACTMKDIR OK" \
 		--contains "B:DNP/OBJ>"
+	test -d $(ACTION_ACTMKDIR_FS)/IMAGES/ACTION.DNP/obj
 
 vice-action-actmkdir-persist: release
 	rm -rf $(ACTION_ACTMKDIR_PERSIST_FS)
 	mkdir -p $(ACTION_ACTMKDIR_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMKDIR_PERSIST_FS)/
+	rm -rf $(ACTION_ACTMKDIR_PERSIST_FS)/IMAGES/ACTION.DNP/OBJ $(ACTION_ACTMKDIR_PERSIST_FS)/IMAGES/ACTION.DNP/obj
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMKDIR_PERSIST_FS) \
 		--command "ACTMKDIR OBJ" --run-marker "RUN ACTMKDIR.PRG" --done-fragment "ACTMKDIR OK" --prompt-count 2 \
 		--contains "RUN ACTMKDIR.PRG" \
@@ -655,7 +678,7 @@ vice-action-actmove: release
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMOVE_PERSIST_FS)/
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMOVE_PERSIST_FS) \
 		--pre-command "ACTWRITE OUT.TXT" --pre-prompt "B:DNP/>" --pre-fragment "ACTWRITE OK" \
-		--command "ACTMOVE OUT.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --skip-command-prompt \
+		--command "ACTMOVE OUT.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --done-fragment "" --skip-command-prompt \
 		--attempts 3 --attempt-delay 2.0 --shell-timeout 20 \
 		--contains "RUN ACTMOVE.PRG"
 	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/NEXT.TXT
@@ -667,7 +690,7 @@ vice-action-actmove-persist: release
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMOVE_PERSIST_FS)/
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMOVE_PERSIST_FS) \
 		--pre-command "ACTWRITE OUT.TXT" --pre-prompt "B:DNP/>" --pre-fragment "ACTWRITE OK" \
-		--command "ACTMOVE OUT.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --skip-command-prompt \
+		--command "ACTMOVE OUT.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --done-fragment "" --skip-command-prompt \
 		--attempts 3 --attempt-delay 2.0 --shell-timeout 20 \
 		--contains "RUN ACTMOVE.PRG"
 	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/NEXT.TXT
