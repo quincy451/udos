@@ -92,6 +92,7 @@ ACTION_ACTFLOW_FS := build/action-actflow-fs
 ACTION_ACTDEL_FS := build/action-actdel-fs
 ACTION_ACTMKDIR_FS := build/action-actmkdir-fs
 ACTION_ACTMKDIR_PERSIST_FS := build/action-actmkdir-persist-fs
+ACTION_ACTMOVE_FS := build/action-actmove-fs
 ACTION_ACTMOVE_PERSIST_FS := build/action-actmove-persist-fs
 ACTION_ACTRMDIR_PERSIST_FS := build/action-actrmdir-persist-fs
 ACTION_COPY_ROOT_FS := build/action-copy-root-fs
@@ -671,16 +672,20 @@ vice-action-actmkdir-persist: $(RELEASE_DEPS)
 	test -d $(ACTION_ACTMKDIR_PERSIST_FS)/IMAGES/ACTION.DNP/obj
 
 vice-action-actmove: $(RELEASE_DEPS)
-	rm -rf $(ACTION_ACTMOVE_PERSIST_FS)
-	mkdir -p $(ACTION_ACTMOVE_PERSIST_FS)
-	cp -a $(RELEASE_FS)/. $(ACTION_ACTMOVE_PERSIST_FS)/
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMOVE_PERSIST_FS) \
-		--pre-command "ACTWRITE OUT.TXT" --pre-prompt "B:DNP/>" --pre-fragment "ACTWRITE OK" \
+	rm -rf $(ACTION_ACTMOVE_FS)
+	mkdir -p $(ACTION_ACTMOVE_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTMOVE_FS)/
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMOVE_FS) \
+		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" --skip-command-prompt \
+		--attempts 3 --attempt-delay 2.0 \
+		--contains "RUN ACTWRITE.PRG" \
+		--contains "ACTWRITE OK"
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMOVE_FS) \
 		--command "ACTMOVE OUT.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --done-fragment "" --skip-command-prompt \
 		--connect-delay 10.0 --attempts 4 --attempt-delay 3.0 --shell-timeout 30 \
 		--contains "RUN ACTMOVE.PRG"
-	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/NEXT.TXT
-	test ! -e $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/OUT.TXT
+	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/NEXT.TXT
+	test ! -e $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/OUT.TXT
 
 vice-action-actmove-persist: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTMOVE_PERSIST_FS)
