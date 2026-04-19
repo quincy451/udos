@@ -8629,8 +8629,11 @@ type_build_hw:
     bcc type_build_uci
     jsr vice_probe_available
     bcs type_build_lookup
+    jsr query_file_vice_host_exact_current
+    bcs :+
     jsr read_file_response_vice_current
     bcc type_build_found
+:
     ldx saved_rp_x
     lda #<resp_bad_file
     sta 0,x

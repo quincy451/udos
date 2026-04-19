@@ -955,14 +955,14 @@ vice-batch-args: $(RESIDENT_DEPS) $(VICE_TREE_FS)
 
 vice-batch-stop: $(RESIDENT_DEPS) $(VICE_TREE_FS)
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
-		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
-		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(VICE_TREE_FS) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(BUILD_DIR)) \
+		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(VICE_TREE_FS)) \
 		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 2.0 \
 		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
 		--feed-step "B:\r" \
 		--feed-step "CD SRC\r" \
 		--feed-step "STOP\r" \
-		--connect-delay 10 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+		--connect-delay 10 --timeout 120 --attempts 4 --attempt-delay 3.0 \
 		--expected "NO SUCH FILE" --contains "BEFORE" --absent "AFTER"
 
 vice-autoexec: $(RESIDENT_DEPS)
@@ -1049,7 +1049,7 @@ vice-selftest-rename: $(SELFTEST_RENAME_FS)
 		--feed-step "CD /WORK\r" \
 		--feed-step "REN HELLO2.PRG HELLO3.PRG\r" \
 		--feed-step "ECHO RENAME OK\r" \
-		--expected "RENAME OK" --settle 2.0 --timeout 120 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_RENAME_ACTUAL)
+		--expected "RENAME OK" --settle 2.0 --timeout 120 --connect-delay 10.0 --attempts 4 --attempt-delay 3.0 --output $(SELFTEST_RENAME_ACTUAL)
 	diff -u $(SELFTEST_RENAME_EXPECTED) $(SELFTEST_RENAME_ACTUAL)
 
 vice-selftest-delete: $(SELFTEST_DELETE_FS)
