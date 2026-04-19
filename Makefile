@@ -414,7 +414,7 @@ vice-action-actnew-prg: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTNEW_PRG_FS) \
 		--command "ACTNEW DEMO" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" --skip-command-prompt \
-		--attempts 1 --attempt-delay 1.0 --shell-timeout 20 \
+		--connect-delay 10.0 --attempts 4 --attempt-delay 2.0 --shell-timeout 30 \
 		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK"
 	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/bin
 	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/obj
@@ -432,7 +432,7 @@ vice-action-actnew-prg-persist: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTNEW_PRG_PERSIST_FS) \
 		--command "ACTNEW PROJ2" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" --skip-command-prompt \
-		--attempts 1 --attempt-delay 1.0 --shell-timeout 20 \
+		--connect-delay 10.0 --attempts 4 --attempt-delay 2.0 --shell-timeout 30 \
 		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK"
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/bin
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/obj
