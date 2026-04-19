@@ -8630,10 +8630,13 @@ type_build_hw:
     jsr vice_probe_available
     bcs type_build_lookup
     jsr query_file_vice_host_exact_current
-    bcs :+
+    bcc type_build_hw_read
+    jsr query_file_vice_open_current
+    bcs type_build_hw_fail
+type_build_hw_read:
     jsr read_file_response_vice_current
     bcc type_build_found
-:
+type_build_hw_fail:
     ldx saved_rp_x
     lda #<resp_bad_file
     sta 0,x

@@ -74,6 +74,7 @@ ACTION_AVMINFO_BUILD := build/action-avminfo
 ACTION_AVMRUN_BUILD := build/action-avmrun
 ACTION_AVMRUN_FLOW_BUILD := build/action-avmrun-flow
 ACTION_AVMRUN_RUNTIME_FS := build/action-avmrun-runtime-fs
+ACTION_WORKSPACE_FS := build/action-workspace-fs
 ACTION_ACTSRC_FS := build/action-actsrc-fs
 ACTION_ACTFILE_FS := build/action-actfile-fs
 ACTION_ACTADD_FS := build/action-actadd-fs
@@ -297,13 +298,15 @@ vice-release: $(RELEASE_DEPS)
 		--expected "A:D64/>" --settle 1.0 --absent "AUTOEXEC OK"
 
 vice-action-workspace: $(RELEASE_DEPS)
+	rm -rf $(ACTION_WORKSPACE_FS)
+	mkdir -p $(ACTION_WORKSPACE_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_WORKSPACE_FS)/
 	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
-		--command "DIR" --run-marker "" --done-fragment "" \
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_WORKSPACE_FS) \
+		--pre-command "DIR" --pre-prompt "B:DNP/>" --pre-fragment "BIN/ DOC/ LIB/ SRC/" \
+		--command "TYPE README.TXT" --run-marker "" --done-fragment "ACTIONC64U FOR UDOS" --skip-command-prompt \
 		--b-prompt "B:DNP/>" --final-prompt "B:DNP/>" \
 		--attempts 4 --attempt-delay 2.0 \
-		--post-command "TYPE README.TXT" --post-done-fragment "ACTIONC64U FOR UDOS" \
-		--contains "BIN/ DOC/ LIB/ SRC/" --contains "README.TXT" \
 		--contains "ACTIONC64U FOR UDOS"
 
 vice-action-actadd: $(RELEASE_DEPS)
