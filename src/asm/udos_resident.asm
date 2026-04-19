@@ -8630,10 +8630,7 @@ type_build_hw:
     jsr vice_probe_available
     bcs type_build_lookup
     jsr query_file_vice_host_exact_current
-    bcc type_build_hw_read
-    jsr query_file_vice_open_current
     bcs type_build_hw_fail
-type_build_hw_read:
     jsr read_file_response_vice_current
     bcc type_build_found
 type_build_hw_fail:
@@ -14327,13 +14324,19 @@ query_file_vice_open_current:
     jsr truncate_vice_open_path_after_name
     lda #VICE_LFN_FILE
     sta vice_lfn
-    lda #$00
+    lda #VICE_SA_READ
     sta vice_secondary
     jsr vice_open_read_from_ptr
     bcs query_file_vice_open_current_fail
+    jsr CHRIN
+    jsr READST
+    and #$02
+    bne query_file_vice_open_current_nofile
     jsr vice_close_current_file
     clc
     rts
+query_file_vice_open_current_nofile:
+    jsr vice_close_current_file
 query_file_vice_open_current_fail:
     sec
     rts
