@@ -182,6 +182,10 @@ AVMRUN_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/AVMRUN.PRG
 AVMINFO_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/AVMINFO.PRG
 ACTWORK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTWORK.PRG
 
+PROOF_DEPS ?= proof
+RESIDENT_DEPS ?= resident
+RELEASE_DEPS ?= release
+
 .PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-alink-avmrun vice-action-actc-alink-avmrun vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-copy-root vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-action-avmrun-runtime vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
 
 all: proof resident
@@ -286,11 +290,11 @@ release:
 	-$(C1541) $(RELEASE_DISK) -delete ACTWORK.PRG
 	$(C1541) $(RELEASE_DISK) -write $(ACTC_UDOS_PRG) ACTC.PRG -write $(ACTADD_UDOS_PRG) ACTADD.PRG -write $(ACT2SAVE_UDOS_PRG) ACT2SAVE.PRG -write $(ALINK_UDOS_PRG) ALINK.PRG -write $(ACTMON_UDOS_PRG) ACTMON.PRG -write $(ACTCHK_UDOS_PRG) ACTCHK.PRG -write $(ACTCOPY_UDOS_PRG) ACTCOPY.PRG -write $(ACTDEL_UDOS_PRG) ACTDEL.PRG -write $(ACTDIR_UDOS_PRG) ACTDIR.PRG -write $(ACTFILE_UDOS_PRG) ACTFILE.PRG -write $(ACTINFO_UDOS_PRG) ACTINFO.PRG -write $(ACTMKDIR_UDOS_PRG) ACTMKDIR.PRG -write $(ACTMOVE_UDOS_PRG) ACTMOVE.PRG -write $(ACTNEW_UDOS_PRG) ACTNEW.PRG -write $(ACTRMDIR_UDOS_PRG) ACTRMDIR.PRG -write $(ACTSRC_UDOS_PRG) ACTSRC.PRG -write $(ACTWRITE_UDOS_PRG) ACTWRITE.PRG -write $(AVMRUN_UDOS_PRG) AVMRUN.PRG -write $(AVMINFO_UDOS_PRG) AVMINFO.PRG -write $(ACTWORK_UDOS_PRG) ACTWORK.PRG
 
-vice-release: release
+vice-release: $(RELEASE_DEPS)
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RELEASE_DISK) \
 		--expected "A:D64/>" --settle 1.0 --absent "AUTOEXEC OK"
 
-vice-action-workspace: release
+vice-action-workspace: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
 		--command "DIR" --run-marker "" --done-fragment "" \
@@ -300,7 +304,7 @@ vice-action-workspace: release
 		--contains "BIN/ DOC/ LIB/ SRC/" --contains "README.TXT" \
 		--contains "ACTIONC64U FOR UDOS"
 
-vice-action-actadd: release
+vice-action-actadd: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTADD_FS)
 	mkdir -p $(ACTION_ACTADD_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTADD_FS)/
@@ -327,7 +331,7 @@ vice-action-actadd: release
 	grep -q "PROC HELPER()" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 	grep -q "ENDPROC" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 
-vice-action-actdir: release
+vice-action-actdir: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
 		--command "ACTDIR" --run-marker "RUN ACTDIR.PRG" --done-fragment "" \
@@ -335,7 +339,7 @@ vice-action-actdir: release
 		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTDIR.PRG" --contains "BIN/" --contains "DOC/" --contains "LIB/" --contains "SRC/"
 
-vice-action-actsrc: release
+vice-action-actsrc: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTSRC_FS)
 	mkdir -p $(ACTION_ACTSRC_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTSRC_FS)/
@@ -355,7 +359,7 @@ vice-action-actsrc: release
 		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTSRC.PRG" --contains "MAIN.ACT" --contains "HELPER.ACT" --contains "B:DNP/PROJ3>"
 
-vice-action-actfile: release
+vice-action-actfile: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTFILE_FS)
 	mkdir -p $(ACTION_ACTFILE_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTFILE_FS)/
@@ -375,7 +379,7 @@ vice-action-actfile: release
 		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTFILE.PRG" --contains "PROC MAIN()" --contains "ENDPROC" --contains "B:DNP/PROJ3>"
 
-vice-action-actwork: release
+vice-action-actwork: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTWORK_FS)
 	mkdir -p $(ACTION_ACTWORK_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTWORK_FS)/
@@ -402,7 +406,7 @@ vice-action-actwork: release
 
 vice-action-actnew: vice-action-actnew-prg
 
-vice-action-actnew-prg: release
+vice-action-actnew-prg: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTNEW_PRG_FS)
 	mkdir -p $(ACTION_ACTNEW_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTNEW_PRG_FS)/
@@ -420,7 +424,7 @@ vice-action-actnew-prg: release
 	grep -q "ACTION PROJECT READY" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/readme.txt
 	grep -q "PROC MAIN()" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/src/main.act
 
-vice-action-actnew-prg-persist: release
+vice-action-actnew-prg-persist: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTNEW_PRG_PERSIST_FS)
 	mkdir -p $(ACTION_ACTNEW_PRG_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTNEW_PRG_PERSIST_FS)/
@@ -438,7 +442,7 @@ vice-action-actnew-prg-persist: release
 	grep -q "ACTION PROJECT READY" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/readme.txt
 	grep -q "PROC MAIN()" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/src/main.act
 
-vice-action-actadd-persist: release
+vice-action-actadd-persist: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTADD_PERSIST_FS)
 	mkdir -p $(ACTION_ACTADD_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTADD_PERSIST_FS)/
@@ -469,12 +473,12 @@ vice-action-actadd-persist: release
 	! grep -q "PROC HELPER()" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 	grep -q "ENDPROC" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 
-vice-action-act2save: release
+vice-action-act2save: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_act2save_seeded_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
 		--attempts 4 --attempt-delay 2.0
 
-vice-action-actc: release
+vice-action-actc: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTC_FS)
 	mkdir -p $(ACTION_ACTC_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_FS)/
@@ -482,7 +486,7 @@ vice-action-actc: release
 	$(PYTHON) tools/run_action_actc_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_FS) \
 		--attempts 3 --attempt-delay 4.0
 
-vice-action-alink: release
+vice-action-alink: $(RELEASE_DEPS)
 	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_FS)
 	mkdir -p $(ACTION_ALINK_FS)
@@ -490,7 +494,7 @@ vice-action-alink: release
 	$(PYTHON) tools/run_action_alink_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_FS) \
 		--attempts 3 --attempt-delay 4.0
 
-vice-action-alink-avmrun: release
+vice-action-alink-avmrun: $(RELEASE_DEPS)
 	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
 	bash /mnt/c/test/action/actionc64u/tools/build_avmrun_udos.sh
 	rm -rf $(ACTION_ALINK_AVMRUN_FS)
@@ -499,7 +503,7 @@ vice-action-alink-avmrun: release
 	$(PYTHON) tools/run_action_alink_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_AVMRUN_FS) \
 		--attempts 3 --attempt-delay 4.0
 
-vice-action-actc-alink-avmrun: release
+vice-action-actc-alink-avmrun: $(RELEASE_DEPS)
 	bash /mnt/c/test/action/actionc64u/tools/build_actc_udos.sh
 	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
 	bash /mnt/c/test/action/actionc64u/tools/build_avmrun_udos.sh
@@ -509,7 +513,7 @@ vice-action-actc-alink-avmrun: release
 	$(PYTHON) tools/run_action_actc_alink_avmrun_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_AVMRUN_FS) \
 		--attempts 2 --attempt-delay 4.0
 
-vice-action-actchk: release
+vice-action-actchk: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTCHK_FS)
 	mkdir -p $(ACTION_ACTCHK_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTCHK_FS)/
@@ -536,7 +540,7 @@ vice-action-actchk: release
 		--contains "BIN YES" --contains "OBJ YES" --contains "MODULES 2" \
 		--contains "MISSING 0" --contains "ACTCHK OK"
 
-vice-action-actmon-check: release
+vice-action-actmon-check: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTMON_FS)
 	mkdir -p $(ACTION_ACTMON_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMON_FS)/
@@ -544,7 +548,7 @@ vice-action-actmon-check: release
 	$(PYTHON) tools/run_action_actmon_check_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMON_FS) \
 		--attempts 6 --attempt-delay 2.0
 
-vice-action-actmon: release
+vice-action-actmon: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTMON_FS)
 	mkdir -p $(ACTION_ACTMON_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMON_FS)/
@@ -552,7 +556,7 @@ vice-action-actmon: release
 	$(PYTHON) tools/run_action_actmon_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMON_FS) \
 		--attempts 4 --attempt-delay 2.0
 
-vice-action-actinfo: release
+vice-action-actinfo: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
 		--command "ACTINFO ONE TWO" --run-marker "RUN ACTINFO.PRG" --done-fragment "ACTINFO DONE" \
@@ -560,7 +564,7 @@ vice-action-actinfo: release
 		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTINFO.PRG" --contains "ACTINFO ABI 1" --contains "ARGS ONE TWO" --contains "ACTINFO DONE"
 
-vice-action-actflow: release
+vice-action-actflow: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTFLOW_FS)
 	mkdir -p $(ACTION_ACTFLOW_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTFLOW_FS)/
@@ -596,7 +600,7 @@ vice-action-actflow: release
 	test ! -e $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/COPY.TXT
 	test ! -e $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/NEXT.TXT
 
-vice-action-actcopy: release
+vice-action-actcopy: $(RELEASE_DEPS)
 	sleep 2
 	rm -rf $(ACTION_ACTCOPY_FS)
 	mkdir -p $(ACTION_ACTCOPY_FS)
@@ -613,7 +617,7 @@ vice-action-actcopy: release
 		--contains "RUN ACTCOPY.PRG"
 	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/COPY.TXT
 
-vice-action-copy-root: release
+vice-action-copy-root: $(RELEASE_DEPS)
 	rm -rf $(ACTION_COPY_ROOT_FS)
 	mkdir -p $(ACTION_COPY_ROOT_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_COPY_ROOT_FS)/
@@ -629,7 +633,7 @@ vice-action-copy-root: release
 		--expected "ACTION WRITE OK" --settle 2.0 --connect-delay 10.0 --timeout 25 --attempts 3 --attempt-delay 2.0
 	grep -Fq 'ACTION WRITE OK' $(ACTION_COPY_ROOT_FS)/IMAGES/ACTION.DNP/COPY2.TXT
 
-vice-action-actdel: release
+vice-action-actdel: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTDEL_FS)
 	mkdir -p $(ACTION_ACTDEL_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTDEL_FS)/
@@ -642,32 +646,31 @@ vice-action-actdel: release
 		--contains "ACTDEL OK"
 	test ! -e $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/OUT.TXT
 
-vice-action-actmkdir: release
+vice-action-actmkdir: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTMKDIR_FS)
 	mkdir -p $(ACTION_ACTMKDIR_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMKDIR_FS)/
 	rm -rf $(ACTION_ACTMKDIR_FS)/IMAGES/ACTION.DNP/OBJ $(ACTION_ACTMKDIR_FS)/IMAGES/ACTION.DNP/obj
-	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMKDIR_FS) \
-		--command "ACTMKDIR OBJ" --run-marker "RUN ACTMKDIR.PRG" --done-fragment "ACTMKDIR OK" --prompt-count 2 \
-		--post-command "CD OBJ" --post-done-fragment "B:DNP/OBJ>" \
+		--command "ACTMKDIR OBJ" --run-marker "RUN ACTMKDIR.PRG" --done-fragment "ACTMKDIR OK" \
+		--skip-command-prompt --connect-delay 10.0 --attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTMKDIR.PRG" \
-		--contains "ACTMKDIR OK" \
-		--contains "B:DNP/OBJ>"
+		--contains "ACTMKDIR OK"
 	test -d $(ACTION_ACTMKDIR_FS)/IMAGES/ACTION.DNP/obj
 
-vice-action-actmkdir-persist: release
+vice-action-actmkdir-persist: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTMKDIR_PERSIST_FS)
 	mkdir -p $(ACTION_ACTMKDIR_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMKDIR_PERSIST_FS)/
 	rm -rf $(ACTION_ACTMKDIR_PERSIST_FS)/IMAGES/ACTION.DNP/OBJ $(ACTION_ACTMKDIR_PERSIST_FS)/IMAGES/ACTION.DNP/obj
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMKDIR_PERSIST_FS) \
-		--command "ACTMKDIR OBJ" --run-marker "RUN ACTMKDIR.PRG" --done-fragment "ACTMKDIR OK" --prompt-count 2 \
+		--command "ACTMKDIR OBJ" --run-marker "RUN ACTMKDIR.PRG" --done-fragment "ACTMKDIR OK" \
+		--skip-command-prompt --connect-delay 10.0 --attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTMKDIR.PRG" \
 		--contains "ACTMKDIR OK"
-	test -d $(ACTION_ACTMKDIR_PERSIST_FS)/IMAGES/ACTION.DNP/OBJ
+	test -d $(ACTION_ACTMKDIR_PERSIST_FS)/IMAGES/ACTION.DNP/obj
 
-vice-action-actmove: release
+vice-action-actmove: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTMOVE_PERSIST_FS)
 	mkdir -p $(ACTION_ACTMOVE_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMOVE_PERSIST_FS)/
@@ -679,7 +682,7 @@ vice-action-actmove: release
 	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/NEXT.TXT
 	test ! -e $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/OUT.TXT
 
-vice-action-actmove-persist: release
+vice-action-actmove-persist: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTMOVE_PERSIST_FS)
 	mkdir -p $(ACTION_ACTMOVE_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMOVE_PERSIST_FS)/
@@ -692,7 +695,7 @@ vice-action-actmove-persist: release
 	test ! -e $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/OUT.TXT
 	test ! -e $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/out.txt
 
-vice-action-actrmdir: release
+vice-action-actrmdir: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTRMDIR_PERSIST_FS)
 	mkdir -p $(ACTION_ACTRMDIR_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTRMDIR_PERSIST_FS)/
@@ -707,7 +710,7 @@ vice-action-actrmdir: release
 	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/TMPRMDIR
 	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/tmprmdir
 
-vice-action-actrmdir-persist: release
+vice-action-actrmdir-persist: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTRMDIR_PERSIST_FS)
 	mkdir -p $(ACTION_ACTRMDIR_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTRMDIR_PERSIST_FS)/
@@ -720,7 +723,7 @@ vice-action-actrmdir-persist: release
 	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/TMPRMDIR
 	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/tmprmdir
 
-vice-action-actwrite: release
+vice-action-actwrite: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
 		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" --prompt-count 2 \
@@ -729,33 +732,33 @@ vice-action-actwrite: release
 		--contains "ACTWRITE OK" \
 		--contains "ACTION WRITE OK"
 
-vice-action-avminfo: release
+vice-action-avminfo: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
 		--command "AVMINFO HELLO.AVM" --run-marker "RUN AVMINFO.PRG" --done-fragment "AVM OK" --prompt-count 2 \
 		--contains "RUN AVMINFO.PRG" \
 		--contains "AVM OK"
 
-vice-action-avmrun: release
+vice-action-avmrun: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
 		--command "AVMRUN UDOSHELLO.AVM" --run-marker "RUN AVMRUN.PRG" --done-fragment "UDOS AVM OK" --prompt-count 2 \
 		--contains "UDOS AVM OK"
 
-vice-action-avmrun-flow: release
+vice-action-avmrun-flow: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
 		--command "AVMRUN UDOSFLOW.AVM" --run-marker "RUN AVMRUN.PRG" --done-fragment "UDOS AVM FLOW OK" --prompt-count 2 \
 		--contains "UDOS AVM FLOW OK"
 
-vice-action-avmrun-runtime: release
+vice-action-avmrun-runtime: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_runtime_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_AVMRUN_RUNTIME_FS)
 
-vice-proof: proof
+vice-proof: $(PROOF_DEPS)
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_AUTO_PRG) --expected "UDOS VM OK"
 
-vice-resident: resident
+vice-resident: $(RESIDENT_DEPS)
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--expected "A:D64/>" --settle 1.0 --contains "AUTOEXEC OK"
 
@@ -781,7 +784,7 @@ $(VICE_TREE_COPY_FS): force
 $(VICE_TREE_WILD_FS): force
 	$(PYTHON) tools/prepare_selftest_fs.py --base $(VICE_FS_ROOT) --output $(VICE_TREE_WILD_FS)
 
-vice-launch: resident $(VICE_LAUNCH_FS)
+vice-launch: $(RESIDENT_DEPS) $(VICE_LAUNCH_FS)
 	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(RESIDENT_DISK)) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(BUILD_DIR)) \
@@ -795,7 +798,7 @@ vice-launch: resident $(VICE_LAUNCH_FS)
 		--expected "B:DNP/SRC>" --contains "RUN RETTEST.PRG" --contains "ARGS DIR" \
 		--check-byte 0xCFF6=0x02 --check-byte 0xCFF7=0x42
 
-vice-clobber: resident $(VICE_LAUNCH_FS)
+vice-clobber: $(RESIDENT_DEPS) $(VICE_LAUNCH_FS)
 	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(RESIDENT_DISK)) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(BUILD_DIR)) \
@@ -809,7 +812,7 @@ vice-clobber: resident $(VICE_LAUNCH_FS)
 		--expected "B:DNP/SRC>" --contains "RUN CLOBBER.PRG" --contains "ARGS DIR" \
 		--check-byte 0xCFF6=0x02 --check-byte 0xCFF7=0x24
 
-vice-copy: resident $(VICE_TREE_COPY_FS)
+vice-copy: $(RESIDENT_DEPS) $(VICE_TREE_COPY_FS)
 	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
@@ -825,13 +828,13 @@ vice-copy: resident $(VICE_TREE_COPY_FS)
 	test -f $(VICE_TREE_COPY_FS)/IMAGES/WORK.DNP/WORK/BOOT.ASM
 	test -f $(VICE_TREE_COPY_FS)/IMAGES/WORK.DNP/WORK/HELLO.PRG
 
-vice-drive: resident
+vice-drive: $(RESIDENT_DEPS)
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
 		--feed-after "A:D64/>" --feed-text "C:\rD:\r" \
 		--expected "DRIVE NOT PRESENT" --contains "DRIVE NOT PRESENT"
 
-vice-real-read: resident $(VICE_TREE_FS)
+vice-real-read: $(RESIDENT_DEPS) $(VICE_TREE_FS)
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
 		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(VICE_TREE_FS) \
@@ -847,7 +850,7 @@ vice-real-read: resident $(VICE_TREE_FS)
 		--contains "BOOT.ASM" \
 		--check-byte 0xCFF0=0x01 --check-byte 0xCFEC=0x01 --check-byte 0xCFEE=0x02 --check-byte 0xCFF2=0x04
 
-vice-real-tree-write: resident $(VICE_TREE_FS)
+vice-real-tree-write: $(RESIDENT_DEPS) $(VICE_TREE_FS)
 	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
@@ -864,7 +867,7 @@ vice-real-tree-write: resident $(VICE_TREE_FS)
 		--connect-delay 10 --timeout 120 --attempts 2 --attempt-delay 2.0 \
 		--expected "NO SUCH FILE" --contains "COPIED" --contains "RENAMED" --contains "DELETED"
 
-vice-real-tree-rename: resident $(VICE_TREE_FS)
+vice-real-tree-rename: $(RESIDENT_DEPS) $(VICE_TREE_FS)
 	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
@@ -879,7 +882,7 @@ vice-real-tree-rename: resident $(VICE_TREE_FS)
 		--timeout 120 --attempts 2 --attempt-delay 2.0 \
 		--expected "NO SUCH FILE" --contains "RENAMED" --contains "HELLO PROGRAM IMAGE"
 
-vice-real-tree-wild-copy: resident $(VICE_TREE_WILD_FS)
+vice-real-tree-wild-copy: $(RESIDENT_DEPS) $(VICE_TREE_WILD_FS)
 	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
@@ -895,7 +898,7 @@ vice-real-tree-wild-copy: resident $(VICE_TREE_WILD_FS)
 	test -f $(VICE_TREE_WILD_FS)/IMAGES/WORK.DNP/WORK/BOOT.ASM
 	test -f $(VICE_TREE_WILD_FS)/IMAGES/WORK.DNP/WORK/HELLO.PRG
 
-vice-real-tree-wild-delete: resident $(VICE_TREE_WILD_FS)
+vice-real-tree-wild-delete: $(RESIDENT_DEPS) $(VICE_TREE_WILD_FS)
 	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
@@ -912,7 +915,7 @@ vice-real-tree-wild-delete: resident $(VICE_TREE_WILD_FS)
 
 vice-real-tree-wild: vice-real-tree-wild-copy vice-real-tree-wild-delete
 
-vice-real-tree-dir: resident $(VICE_TREE_FS)
+vice-real-tree-dir: $(RESIDENT_DEPS) $(VICE_TREE_FS)
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
 		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(VICE_TREE_FS) \
@@ -926,7 +929,7 @@ vice-real-tree-dir: resident $(VICE_TREE_FS)
 		--feed-step "CD NEW\r" \
 		--expected "NO SUCH DIR" --contains "CREATED" --contains "B:DNP/NEW" --contains "REMOVED"
 
-vice-real-tree-rmdir: resident $(VICE_TREE_FS)
+vice-real-tree-rmdir: $(RESIDENT_DEPS) $(VICE_TREE_FS)
 	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
@@ -938,7 +941,7 @@ vice-real-tree-rmdir: resident $(VICE_TREE_FS)
 		--timeout 120 --attempts 2 --attempt-delay 2.0 \
 		--expected "DIR NOT EMPTY"
 
-vice-batch-args: resident $(VICE_TREE_FS)
+vice-batch-args: $(RESIDENT_DEPS) $(VICE_TREE_FS)
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
 		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(VICE_TREE_FS) \
@@ -950,7 +953,7 @@ vice-batch-args: resident $(VICE_TREE_FS)
 		--connect-delay 10 --timeout 120 --attempts 2 --attempt-delay 2.0 \
 		--expected "ONE/TWO/THREE" --contains "ECHO ONE/TWO/THREE"
 
-vice-batch-stop: resident $(VICE_TREE_FS)
+vice-batch-stop: $(RESIDENT_DEPS) $(VICE_TREE_FS)
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
 		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(VICE_TREE_FS) \
@@ -962,7 +965,7 @@ vice-batch-stop: resident $(VICE_TREE_FS)
 		--connect-delay 10 --timeout 120 --attempts 2 --attempt-delay 2.0 \
 		--expected "NO SUCH FILE" --contains "BEFORE" --absent "AFTER"
 
-vice-autoexec: resident
+vice-autoexec: $(RESIDENT_DEPS)
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
 		--expected "A:D64/>" --settle 1.0 --contains "ECHO AUTOEXEC OK" --contains "AUTOEXEC OK"

@@ -23,211 +23,223 @@ def load_ld65_labels(path: Path) -> dict[str, int]:
 
 
 class UdosBuildTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        if not HAS_VICE:
+            return
+        subprocess.run(["make", "proof", "resident", "release"], cwd=ROOT, check=True)
+
+    def run_make(self, target: str) -> None:
+        cmd = ["make"]
+        if target.startswith("vice-"):
+            cmd.extend(["PROOF_DEPS=", "RESIDENT_DEPS=", "RELEASE_DEPS="])
+        cmd.append(target)
+        subprocess.run(cmd, cwd=ROOT, check=True)
+
     def test_proof_builds(self) -> None:
-        subprocess.run(["make", "proof"], cwd=ROOT, check=True)
+        self.run_make("proof")
         self.assertTrue((ROOT / "build" / "udos-proof.prg").is_file())
         self.assertTrue((ROOT / "build" / "udos-proof.d64").is_file())
 
     def test_resident_builds(self) -> None:
-        subprocess.run(["make", "resident"], cwd=ROOT, check=True)
+        self.run_make("resident")
         self.assertTrue((ROOT / "build" / "udos-resident.prg").is_file())
         self.assertTrue((ROOT / "build" / "udos-resident.d64").is_file())
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_proof_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-proof"], cwd=ROOT, check=True)
+        self.run_make("vice-proof")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_resident_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-resident"], cwd=ROOT, check=True)
+        self.run_make("vice-resident")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_implicit_launch_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-launch"], cwd=ROOT, check=True)
+        self.run_make("vice-launch")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_wildcard_copy_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-copy"], cwd=ROOT, check=True)
+        self.run_make("vice-copy")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_reserved_drive_tokens_run_in_vice(self) -> None:
-        subprocess.run(["make", "vice-drive"], cwd=ROOT, check=True)
+        self.run_make("vice-drive")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_real_tree_reads_run_in_vice(self) -> None:
-        subprocess.run(["make", "vice-real-read"], cwd=ROOT, check=True)
+        self.run_make("vice-real-read")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_real_tree_write_lifecycle_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-real-tree-write"], cwd=ROOT, check=True)
+        self.run_make("vice-real-tree-write")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_real_tree_host_rename_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-real-tree-rename"], cwd=ROOT, check=True)
+        self.run_make("vice-real-tree-rename")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_real_tree_wildcards_run_in_vice(self) -> None:
-        subprocess.run(["make", "vice-real-tree-wild"], cwd=ROOT, check=True)
+        self.run_make("vice-real-tree-wild")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_real_tree_directory_create_remove_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-real-tree-dir"], cwd=ROOT, check=True)
+        self.run_make("vice-real-tree-dir")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_real_tree_rmdir_rejects_nonempty_dirs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-real-tree-rmdir"], cwd=ROOT, check=True)
+        self.run_make("vice-real-tree-rmdir")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_batch_argument_expansion_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-batch-args"], cwd=ROOT, check=True)
+        self.run_make("vice-batch-args")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_batch_stop_on_error_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-batch-stop"], cwd=ROOT, check=True)
+        self.run_make("vice-batch-stop")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_autoexec_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-autoexec"], cwd=ROOT, check=True)
+        self.run_make("vice-autoexec")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_autoexec_selftest_images_run_in_vice(self) -> None:
-        subprocess.run(["make", "vice-selftest"], cwd=ROOT, check=True)
+        self.run_make("vice-selftest")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_workspace_bridge_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-workspace"], cwd=ROOT, check=True)
+        self.run_make("vice-action-workspace")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actadd_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actadd"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actadd")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actadd_persists_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actadd-persist"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actadd-persist")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_act2save_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-act2save"], cwd=ROOT, check=True)
+        self.run_make("vice-action-act2save")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actc_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actc"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actc")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_alink_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-alink"], cwd=ROOT, check=True)
+        self.run_make("vice-action-alink")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_alink_avmrun_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-alink-avmrun"], cwd=ROOT, check=True)
+        self.run_make("vice-action-alink-avmrun")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actc_alink_avmrun_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actc-alink-avmrun"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actc-alink-avmrun")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actchk_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actchk"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actchk")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actmon_check_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actmon-check"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actmon-check")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actmon_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actmon"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actmon")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actdir_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actdir"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actdir")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actsrc_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actsrc"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actsrc")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actfile_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actfile"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actfile")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actwork_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actwork"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actwork")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actflow_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actflow"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actflow")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actinfo_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actinfo"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actinfo")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actnew_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actnew"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actnew")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actnew_prg_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actnew-prg"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actnew-prg")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actnew_prg_persists_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actnew-prg-persist"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actnew-prg-persist")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actcopy_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actcopy"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actcopy")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actdel_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actdel"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actdel")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actmkdir_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actmkdir"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actmkdir")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actmkdir_persists_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actmkdir-persist"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actmkdir-persist")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actmove_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actmove"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actmove")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actmove_persists_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actmove-persist"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actmove-persist")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actrmdir_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actrmdir"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actrmdir")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actrmdir_persists_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actrmdir-persist"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actrmdir-persist")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actwrite_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-actwrite"], cwd=ROOT, check=True)
+        self.run_make("vice-action-actwrite")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_avminfo_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-avminfo"], cwd=ROOT, check=True)
+        self.run_make("vice-action-avminfo")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_avmrun_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-avmrun"], cwd=ROOT, check=True)
+        self.run_make("vice-action-avmrun")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_avmrun_flow_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-avmrun-flow"], cwd=ROOT, check=True)
+        self.run_make("vice-action-avmrun-flow")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_avmrun_runtime_runs_in_vice(self) -> None:
-        subprocess.run(["make", "vice-action-avmrun-runtime"], cwd=ROOT, check=True)
+        self.run_make("vice-action-avmrun-runtime")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_mem_reports_linked_usage_in_vice(self) -> None:
-        subprocess.run(["make", "resident"], cwd=ROOT, check=True)
         labels = load_ld65_labels(ROOT / "build" / "udos-resident.labels")
         used = 0
         free = 0xFFFF
