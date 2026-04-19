@@ -85,6 +85,7 @@ ACTION_ACTC_ALINK_AVMRUN_FS := build/action-actc-alink-avmrun-fs
 ACTION_ACTCHK_FS := build/action-actchk-fs
 ACTION_ACTMON_FS := build/action-actmon-fs
 ACTION_ACTWORK_FS := build/action-actwork-fs
+ACTION_ACTWRITE_FS := build/action-actwrite-fs
 ACTION_ACTADD_PERSIST_FS := build/actadd-persist-fs
 ACTION_ACTNEW_PRG_FS := build/action-actnew-prg-fs
 ACTION_ACTNEW_PRG_PERSIST_FS := build/actnew-prg-persist-fs
@@ -729,13 +730,16 @@ vice-action-actrmdir-persist: $(RELEASE_DEPS)
 	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/tmprmdir
 
 vice-action-actwrite: $(RELEASE_DEPS)
-	sleep 2
-	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
-		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" --prompt-count 2 \
-		--post-command "TYPE OUT.TXT" --post-done-fragment "ACTION WRITE OK" \
+	rm -rf $(ACTION_ACTWRITE_FS)
+	mkdir -p $(ACTION_ACTWRITE_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTWRITE_FS)/
+	rm -f $(ACTION_ACTWRITE_FS)/IMAGES/ACTION.DNP/OUT.TXT
+	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTWRITE_FS) \
+		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" --skip-command-prompt \
+		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTWRITE.PRG" \
-		--contains "ACTWRITE OK" \
-		--contains "ACTION WRITE OK"
+		--contains "ACTWRITE OK"
+	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTWRITE_FS)/IMAGES/ACTION.DNP/OUT.TXT
 
 vice-action-avminfo: $(RELEASE_DEPS)
 	sleep 2
