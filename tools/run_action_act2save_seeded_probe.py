@@ -432,6 +432,7 @@ def main() -> int:
     parser.add_argument("--attempt-delay", type=float, default=2.0)
     parser.add_argument("--connect-delay", type=float)
     parser.add_argument("--screen-only-success", action="store_true")
+    parser.add_argument("--verbose-success", action="store_true")
     args = parser.parse_args()
 
     image = Path(args.disk).resolve()
@@ -466,7 +467,17 @@ def main() -> int:
                     f"expected output bytes {list(EXPECTED_BYTES)!r}, got {list(output_bytes)!r}; DEBUG: {json.dumps(debug, indent=2)}"
                 )
             print(screen)
-            print(json.dumps(debug, indent=2))
+            print(
+                json.dumps(
+                    {
+                        "status": "ACT2SAVE OK",
+                        "output_path": debug.get("OUTPUT_PATH"),
+                        "output_len": len(output_bytes),
+                    }
+                )
+            )
+            if args.verbose_success:
+                print(json.dumps(debug, indent=2))
             return 0
         except Exception as exc:
             last_error = exc
