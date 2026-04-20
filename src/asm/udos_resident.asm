@@ -2170,7 +2170,7 @@ read_file_response_vice:
     jsr truncate_vice_open_path_after_name
     lda #VICE_LFN_TOOL
     sta vice_lfn
-    lda #$00
+    lda #VICE_SA_READ
     sta vice_secondary
     jsr vice_open_read_from_ptr
     bcs read_file_response_vice_fail
@@ -2183,6 +2183,7 @@ read_file_response_vice:
     php
     jsr vice_close_current_file
     plp
+    bcs read_file_response_vice_fail
     lda #<response_buffer
     sta PTR
     lda #>response_buffer
@@ -8629,8 +8630,6 @@ type_build_hw:
     bcc type_build_uci
     jsr vice_probe_available
     bcs type_build_lookup
-    jsr query_file_vice_host_exact_current
-    bcs type_build_hw_fail
     jsr read_file_response_vice_current
     bcc type_build_found
 type_build_hw_fail:
@@ -14324,19 +14323,13 @@ query_file_vice_open_current:
     jsr truncate_vice_open_path_after_name
     lda #VICE_LFN_FILE
     sta vice_lfn
-    lda #VICE_SA_READ
+    lda #$00
     sta vice_secondary
     jsr vice_open_read_from_ptr
     bcs query_file_vice_open_current_fail
-    jsr CHRIN
-    jsr READST
-    and #$02
-    bne query_file_vice_open_current_nofile
     jsr vice_close_current_file
     clc
     rts
-query_file_vice_open_current_nofile:
-    jsr vice_close_current_file
 query_file_vice_open_current_fail:
     sec
     rts
@@ -15638,6 +15631,10 @@ vice_read_open_file_into_ptr_len_loop:
     iny
     sty vice_read_length
     jsr READST
+    pha
+    and #$02
+    bne vice_read_open_file_into_ptr_len_fail
+    pla
     and #$40
     bne vice_read_open_file_into_ptr_len_done
     cpy vice_read_limit
@@ -15646,6 +15643,10 @@ vice_read_open_file_into_ptr_len_done:
     lda #$00
     sta (PTR),y
     clc
+    rts
+vice_read_open_file_into_ptr_len_fail:
+    pla
+    sec
     rts
 
 vice_read_open_file_into_ptr_len_binary:
