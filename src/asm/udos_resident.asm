@@ -3460,6 +3460,7 @@ build_vice_manifest_emit_name:
     cpx #$FE
     bcs build_vice_manifest_buffer_done
     lda (PTR),y
+    jsr screen_code_to_ascii
     sta flat_dir_sector_buffer,x
     inc saved_response_y
     iny
@@ -15423,6 +15424,31 @@ vice_name_length_fail:
     sec
     rts
 
+vice_clear_channels_status:
+    jsr CLRCHN
+vice_clear_status:
+    lda #$00
+    sta $90
+    rts
+
+vice_readst_no_eoi:
+    jsr READST
+    and #$BF
+    rts
+
+vice_setlfs_current:
+    lda vice_lfn
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq vice_setlfs_current_drive_a
+    ldx #IEC_ID_B
+    bne vice_setlfs_current_apply
+vice_setlfs_current_drive_a:
+    ldx #IEC_ID_A
+vice_setlfs_current_apply:
+    ldy vice_secondary
+    jmp SETLFS
+
 vice_open_read_from_ptr:
     lda #$10
     sta save_debug_open_status0
@@ -15433,20 +15459,8 @@ vice_open_read_from_ptr:
     jsr vice_name_length_from_ptr
     bcs vice_open_read_from_ptr_fail_name
     pha
-    jsr CLRCHN
-    lda #$00
-    sta $90
-    lda vice_lfn
-    ldx temp_drive
-    cpx #DRIVE_A
-    beq :+
-    ldx #IEC_ID_B
-    bne vice_open_read_setlfs
-:
-    ldx #IEC_ID_A
-vice_open_read_setlfs:
-    ldy vice_secondary
-    jsr SETLFS
+    jsr vice_clear_channels_status
+    jsr vice_setlfs_current
     pla
     ldx save_debug_open_status2
     ldy save_debug_open_status3
@@ -15456,8 +15470,7 @@ vice_open_read_setlfs:
     jsr READST
     sta save_debug_open_status1
     bne vice_open_read_from_ptr_fail_close_open
-    lda #$00
-    sta $90
+    jsr vice_clear_status
     ldx vice_lfn
     jsr CHKIN_K
     bcs vice_open_read_from_ptr_fail_close_chkin
@@ -15488,27 +15501,19 @@ vice_open_write_from_ptr:
     jsr vice_name_length_from_ptr
     bcs vice_open_write_from_ptr_fail
     pha
-    lda vice_lfn
-    ldx temp_drive
-    cpx #DRIVE_A
-    beq :+
-    ldx #IEC_ID_B
-    bne vice_open_write_setlfs
-:
-    ldx #IEC_ID_A
-vice_open_write_setlfs:
-    ldy vice_secondary
-    jsr SETLFS
+    jsr vice_clear_channels_status
+    jsr vice_setlfs_current
     pla
     ldx PTR
     ldy PTR+1
     jsr SETNAM
     jsr OPEN_K
-    jsr READST
+    jsr vice_readst_no_eoi
     bne vice_open_write_from_ptr_fail_close
+    jsr vice_clear_status
     ldx vice_lfn
     jsr CHKOUT_K
-    jsr READST
+    jsr vice_readst_no_eoi
     sta save_debug_open_status1
     bne vice_open_write_from_ptr_fail_close
     clc
@@ -15525,17 +15530,7 @@ vice_issue_command_from_ptr:
     jsr vice_name_length_from_ptr
     bcs vice_issue_command_from_ptr_fail
     pha
-    lda vice_lfn
-    ldx temp_drive
-    cpx #DRIVE_A
-    beq :+
-    ldx #IEC_ID_B
-    bne vice_issue_command_setlfs
-:
-    ldx #IEC_ID_A
-vice_issue_command_setlfs:
-    ldy vice_secondary
-    jsr SETLFS
+    jsr vice_setlfs_current
     pla
     ldx PTR
     ldy PTR+1
@@ -15563,7 +15558,7 @@ vice_write_screen_ptr_to_current_file_loop:
     lda (SCREEN_PTR),y
     beq vice_write_screen_ptr_to_current_file_done
     jsr CHROUT
-    jsr READST
+    jsr vice_readst_no_eoi
     bne vice_write_screen_ptr_to_current_file_fail_close
     iny
     cpy #PROGRAM_IMAGE_MAX
@@ -15591,7 +15586,7 @@ vice_write_screen_ptr_len_to_current_file_loop:
     ldy #$00
     lda (SCREEN_PTR),y
     jsr CHROUT
-    jsr READST
+    jsr vice_readst_no_eoi
     bne vice_write_screen_ptr_len_to_current_file_fail_close
     inc SCREEN_PTR
     bne :+
@@ -16260,17 +16255,7 @@ tool_abi_file_save_direct_safe:
     lda #VICE_SA_WRITE
     sta vice_secondary
     jsr tool_abi_close_current_file
-    lda vice_lfn
-    ldx temp_drive
-    cpx #DRIVE_A
-    beq :+
-    ldx #IEC_ID_B
-    bne tool_abi_file_save_direct_setlfs
-:
-    ldx #IEC_ID_A
-tool_abi_file_save_direct_setlfs:
-    ldy vice_secondary
-    jsr SETLFS
+    jsr vice_setlfs_current
     lda vice_name_index
     ldx PTR
     ldy PTR+1
