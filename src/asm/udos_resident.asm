@@ -16882,13 +16882,14 @@ tool_abi_file_copy_sc0:
     jsr copy_file_vice
     bcs tool_abi_file_copy_fail
     jsr vice_tree_find_current_slot
-    bcs tool_abi_file_copy_fail
+    bcs tool_abi_file_copy_ok
     sta vice_tree_state_temp
     lda TOOL_ABI_FILE_DEST_LO
     sta TOOL_ABI_FILE_NAME_LO
     lda TOOL_ABI_FILE_DEST_HI
     sta TOOL_ABI_FILE_NAME_HI
     jsr stash_tool_file_save_writeback
+tool_abi_file_copy_ok:
     ldx saved_rp_x
     lda #TOOL_FILE_STATUS_OK
     sta 4,x
