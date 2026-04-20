@@ -50,7 +50,7 @@ def main() -> int:
     (src_dir / "RESULT.TXT").write_text("UDOS SELFTEST RESULT\n", encoding="ascii")
     ensure_manifest_entry(src_dir / "UDOSDIR.TXT", "F RESULT.TXT")
     (work_dir / "UDOSDIR.TXT").write_text("", encoding="ascii")
-    for stale in ("SUCCESS.TXT", "FAIL.TXT", "BOOT2.PRG", "BOOT3.PRG"):
+    for stale in ("SUCCESS.TXT", "FAIL.TXT", "BOOT2.PRG", "BOOT3.PRG", "HELLO2.PRG", "HELLO3.PRG"):
         candidate = work_dir / stale
         if candidate.exists():
             candidate.unlink()

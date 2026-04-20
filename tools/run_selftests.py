@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SELFTEST_ATTEMPTS = os.environ.get("SELFTEST_ATTEMPTS", "2")
+SELFTEST_ATTEMPTS = os.environ.get("SELFTEST_ATTEMPTS", "4")
 
 CASES = ["read", "copy", "rename", "delete", "dir"]
 

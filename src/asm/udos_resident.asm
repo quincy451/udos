@@ -2696,6 +2696,7 @@ fill_vice_dir_cache_current_flat:
     php
     jsr vice_close_current_file
     plp
+    bcs fill_vice_dir_cache_current_fail
     jsr select_hw_dir_tables
     lda #$00
     sta enum_count
@@ -2774,6 +2775,7 @@ fill_vice_manifest_dir_cache_host_current:
     php
     jsr vice_close_current_file
     plp
+    bcs fill_vice_manifest_dir_cache_host_current_fail
     jsr select_hw_dir_tables
     lda #$00
     sta enum_count
