@@ -135,8 +135,16 @@ class UdosBuildTests(unittest.TestCase):
         self.run_make("vice-action-alink-avmrun")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
-    def test_action_actc_alink_avmrun_runs_in_vice(self) -> None:
-        self.run_make("vice-action-actc-alink-avmrun")
+    def test_action_actc_alink_launch_printmath_runs_in_vice(self) -> None:
+        self.run_make("vice-action-actc-alink-launch-printmath")
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actc_alink_launch_runs_in_vice(self) -> None:
+        self.run_make("vice-action-actc-alink-launch")
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_actc_alink_launch_nested_else_chain_runs_in_vice(self) -> None:
+        self.run_make("vice-action-actc-alink-launch-nested-else-chain")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actchk_runs_in_vice(self) -> None:
@@ -237,6 +245,10 @@ class UdosBuildTests(unittest.TestCase):
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_avmrun_runtime_runs_in_vice(self) -> None:
         self.run_make("vice-action-avmrun-runtime")
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_action_avmrun_stdprint_fast_runs_in_vice(self) -> None:
+        self.run_make("vice-action-avmrun-stdprint-fast")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_mem_reports_linked_usage_in_vice(self) -> None:

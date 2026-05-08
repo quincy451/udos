@@ -1,0 +1,626 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import run_action_alink_probe as rap
+import run_action_avmrun_probe as avp
+import vice_prg_probe as vp
+
+
+ROOT = Path(__file__).resolve().parent
+ACTION_ROOT = ROOT.parent.parent / "actionc64u"
+ACTION_ALINK_BUILD = ROOT.parent.parent / "actionc64u" / "build" / "udos_tools" / "ALINK.PRG"
+ACTION_ACTC_HARNESS_BUILD = ROOT.parent.parent / "actionc64u" / "build" / "udos_tools" / "ACTC_HARNESS.PRG"
+TOOL_ABI_HARNESS = ACTION_ROOT / "build" / "udos_tools" / "tool_abi_harness"
+UDOS_SERVICES_INC = ACTION_ROOT / "build" / "udos_tools" / "udos_services.inc"
+ACTION_ALINK_LABELS = ACTION_ROOT / "build" / "udos_tools" / "alink.current.labels"
+ACTION_ACTC_HARNESS_LABELS = ACTION_ROOT / "build" / "udos_tools" / "actc_harness.current.labels"
+CONNECT_DELAYS = rap.CONNECT_DELAYS
+
+DIRECT_PRG_LOAD_ADDR = 0x1000
+DIRECT_PRG_STUB_SIZE = 32
+INITIAL_SETTLE = 3.0
+ALINK_PHASE_TIMEOUT = 60.0
+PRG_PHASE_TIMEOUT = 8.0
+DIRECT_PRG_EXIT_MARKER_ADDR = 0x03D0
+DIRECT_PRG_EXIT_MARKER_VALUE = 0xA5
+
+DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
+    "single_call": {
+        "source": "MODULE MAIN\rPROC A()\rRETURN\rPROC MAIN()\rA()\rRETURN\r",
+        "expected_tail": bytes((0x48, 0x45, 0x20, 0x10, 0x49, 0x18, 0x10)),
+    },
+    "fanout": {
+        "source": "MODULE MAIN\rPROC A()\rRETURN\rPROC B()\rA()\rRETURN\rPROC MAIN()\rA()\rB()\rRETURN\r",
+        "expected_tail": bytes((0x48, 0x45, 0x20, 0x10, 0x48, 0x45, 0x20, 0x10, 0x45, 0x21, 0x10, 0x49, 0x18, 0x10)),
+    },
+    "word_store": {
+        "seed_object": "AVO1\nx main 0 7\nb p0S0r\ni 7\nv x 0\n",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A907A2008D22108E23108DD1038ED203A9A58DD003A90085028503A2024C0FCF00000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x07,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "word_load_store": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=7\rY=X\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A907A2008D2E108E2F10AD2E10AE2F108D30108E31108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x07,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "word_load_store_seeded": {
+        "seed_object": "AVO1\nx main 0 13\nb p0S0L0S1r\ni 7\nv x 0\nv y 0\nk 0\nn main\n",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A907A2008D2E108E2F10AD2E10AE2F108D30108E31108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x07,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "printmath": {
+        "source": (
+            "MODULE MAIN\r"
+            "PROC MAIN()\r"
+            'PrintE("HELLO")\r'
+            "W()\r"
+            "PrintI(50 + 7 - 3)\r"
+            "PrintIE(60 - 3 + 2)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "W.OBJ": (
+                "AVO1\n"
+                "x w 0 13\n"
+                "b s0i0r\n"
+                "s TOOL\n"
+                "i 7\n"
+                "n w\n"
+            ),
+        },
+        "expected_tail": bytes.fromhex("2003cf2006cf60000000000000000048454c4c4f00544f4f4c00"),
+        "screen_fragments": ["hello", "tool7", "5459"],
+    },
+    "if_eq": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=7\rIF X=7 THEN\rY=1\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A907A2008D49108E4A10AD4910AE4A108D47108E4810A907A200EC4810D005CD4710F0034C3110A901A2008D4B108E4C108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x01,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "if_lt": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=1\rY=2\rIF X<Y THEN\rY=3\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008D65108E6610A902A2008D67108E6810AD6510AE66108D63108E6410AD6710AE6810EC6410900DD007CD63109006F004A901D002A900A200C900D0034C4D10A903A2008D67108E68108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x03,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "if_gt": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=2\rY=1\rIF X>Y THEN\rY=3\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A902A2008D65108E6610A901A2008D67108E6810AD6510AE66108D63108E6410AD6710AE6810EC64109007D00DCD63109002F004A901D002A900A200C900D0034C4D10A903A2008D67108E68108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x03,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "if_ge": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=2\rY=1\rIF X>=Y THEN\rY=3\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A902A2008D75108E7610A901A2008D77108E7810AD7510AE76108D73108E7410AD7710AE7810EC7410900DD007CD73109006F004A901D002A900A2008D73108E7410A900A200EC7410D005CD7310F0034C5D10A903A2008D77108E78108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x03,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "if_ne": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=2\rY=1\rIF X<>Y THEN\rY=3\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A902A2008D61108E6210A901A2008D63108E6410AD6110AE62108D5F108E6010AD6310AE6410EC6010D005CD5F10F004A901D002A900A200C900D0034C4910A903A2008D63108E64108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x03,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "if_le": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=1\rY=1\rIF X<=Y THEN\rY=3\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008D75108E7610A901A2008D77108E7810AD7510AE76108D73108E7410AD7710AE7810EC74109007D00DCD73109002F004A901D002A900A2008D73108E7410A900A200EC7410D005CD7310F0034C5D10A903A2008D77108E78108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x03,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "if_else": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=7\rIF X=8 THEN\rY=1\rELSE\rY=2\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A907A2008D56108E5710AD5610AE57108D54108E5510A908A200EC5510D005CD5410F0034C3410A901A2008D58108E59104C3E10A902A2008D58108E59108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x02,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "nested_if": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rCARD Z\rPROC MAIN()\rX=1\rY=2\rIF X<Y THEN\rIF Y>1 THEN\rZ=3\rFI\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008D92108E9310A902A2008D94108E9510AD9210AE93108D90108E9110AD9410AE9510EC9110900DD007CD90109006F004A901D002A900A200C900D0034C7A10AD9410AE95108D90108E9110A901A200EC91109007D00DCD90109002F004A901D002A900A200C900D0034C7A10A903A2008D96108E97108DD1038ED203A9A58DD003A90085028503A2024C0FCF0000000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x03,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "nested_else": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rCARD Z\rPROC MAIN()\rX=1\rY=2\rIF X<Y THEN\rIF Y>2 THEN\rZ=3\rELSE\rZ=4\rFI\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008D9F108EA010A902A2008DA1108EA210AD9F10AEA0108D9D108E9E10ADA110AEA210EC9E10900DD007CD9D109006F004A901D002A900A200C900D0034C8710ADA110AEA2108D9D108E9E10A902A200EC9E109007D00DCD9D109002F004A901D002A900A200C900D0034C7D10A903A2008DA3108EA4104C8710A904A2008DA3108EA4108DD1038ED203A9A58DD003A90085028503A2024C0FCF0000000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x04,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "nested_do_until_eq": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=0\rY=0\rDO\rX=1\rDO\rY=2\rUNTIL Y=2\rOD\rUNTIL X=1\rOD\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A900A2008D7A108E7B10A900A2008D7C108E7D10A901A2008D7A108E7B10A902A2008D7C108E7D10AD7C10AE7D108D78108E7910A902A200EC7910D005CD7810F0034C1E10AD7A10AE7B108D78108E7910A901A200EC7910D005CD7810F0034C14108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x01,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "do_if_until_eq": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=0\rY=0\rDO\rX=1\rIF X=1 THEN\rY=2\rFI\rUNTIL Y=2\rOD\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A900A2008D7A108E7B10A900A2008D7C108E7D10A901A2008D7A108E7B10AD7A10AE7B108D78108E7910A901A200EC7910D005CD7810F0034C4510A902A2008D7C108E7D10AD7C10AE7D108D78108E7910A902A200EC7910D005CD7810F0034C14108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x02,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "do_if_else_until_eq": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=0\rY=0\rDO\rX=1\rIF X=2 THEN\rY=3\rELSE\rY=4\rFI\rUNTIL Y=4\rOD\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A900A2008D87108E8810A900A2008D89108E8A10A901A2008D87108E8810AD8710AE88108D85108E8610A902A200EC8610D005CD8510F0034C4810A903A2008D89108E8A104C5210A904A2008D89108E8A10AD8910AE8A108D85108E8610A904A200EC8610D005CD8510F0034C14108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x04,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "if_do_until_eq": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=1\rY=0\rIF X=1 THEN\rDO\rY=2\rUNTIL Y=2\rOD\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008D70108E7110A900A2008D72108E7310AD7010AE71108D6E008E6F00A901A200EC6F00D005CD6E00F0034C5810A902A2008D72108E7310AD7210AE73108D6E008E6F00A902A200EC6F00D005CD6E00F0034C31108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x02,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "if_else_do_until_eq": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=1\rY=0\rIF X=2 THEN\rDO\rY=3\rUNTIL Y=3\rOD\rELSE\rDO\rY=4\rUNTIL Y=4\rOD\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008D9A108E9B10A900A2008D9C108E9D10AD9A10AE9B108D98108E9910A902A200EC9910D005CD9810F0034C5B10A903A2008D9C108E9D10AD9C10AE9D108D98108E9910A903A200EC9910D005CD9810F0034C31104C8210A904A2008D9C108E9D10AD9C10AE9D108D98108E9910A904A200EC9910D005CD9810F0034C5B108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x04,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "if_local_call_do_until_eq": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC A()\rDO\rY=2\rUNTIL Y=2\rOD\rRETURN\rPROC MAIN()\rX=1\rY=0\rIF X=1 THEN\rA()\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008D74108E7510A900A2008D76108E7710AD7410AE75108D72008E7300A901A200EC7300D005CD7200F0034C3410204A108DD1038ED203A9A58DD003A90085028503A2024C0FCFA902A2008D76108E7710AD7610AE77108D4A008E4B00A902A200EC4B00D005CD4A00F0034C001060000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x02,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "if_else_local_call_do_until_eq": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC A()\rDO\rY=4\rUNTIL Y=4\rOD\rRETURN\rPROC MAIN()\rX=1\rY=0\rIF X=2 THEN\rY=3\rELSE\rA()\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008D81108E8210A900A2008D83108E8410AD8110AE82108D7F008E8000A902A200EC8000D005CD7F00F0034C3E10A903A2008D83108E84104C41102057108DD1038ED203A9A58DD003A90085028503A2024C0FCFA904A2008D83108E8410AD8310AE84108D57008E5800A904A200EC5800D005CD5700F0034C001060000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x04,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "nested_if_local_call": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC A()\rY=5\rRETURN\rPROC MAIN()\rX=1\rY=0\rIF X=1 THEN\rIF Y=0 THEN\rA()\rFI\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008D74108E7510A900A2008D76108E7710AD7410AE75108D72008E7300A901A200EC7300D005CD7200F0034C5110AD7610AE77108D72008E7300A900A200EC7300D005CD7200F0034C51102067108DD1038ED203A9A58DD003A90085028503A2024C0FCFA905A2008D76108E771060000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x05,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "nested_else_local_call": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC A()\rY=6\rRETURN\rPROC MAIN()\rX=1\rY=0\rIF X=1 THEN\rIF Y=1 THEN\rY=3\rELSE\rA()\rFI\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008D81108E8210A900A2008D83108E8410AD8110AE82108D7F008E8000A901A200EC8000D005CD7F00F0034C5E10AD8310AE84108D7F008E8000A901A200EC8000D005CD7F00F0034C5B10A903A2008D83108E84104C5E102074108DD1038ED203A9A58DD003A90085028503A2024C0FCFA906A2008D83108E841060000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x06,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "nested_do_local_call": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC A()\rY=7\rRETURN\rPROC MAIN()\rX=0\rY=0\rDO\rX=1\rDO\rA()\rUNTIL Y=7\rOD\rUNTIL X=1\rOD\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A900A2008D7E108E7F10A900A2008D80108E8110A901A2008D7E108E7F10207110AD8010AE81108D71008E7200A907A200EC7200D005CD7100F0034C1E10AD7E10AE7F108D71008E7200A901A200EC7200D005CD7100F0034C14108DD1038ED203A9A58DD003A90085028503A2024C0FCFA907A2008D80108E811060000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x01,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "nested_do_if_else_local_call": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC A()\rY=8\rRETURN\rPROC MAIN()\rX=0\rY=0\rDO\rX=1\rDO\rIF X=2 THEN\rY=3\rELSE\rA()\rFI\rUNTIL Y=8\rOD\rUNTIL X=1\rOD\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A900A2008DA8108EA910A900A2008DAA108EAB10A901A2008DA8108EA910ADA810AEA9108DA6008EA700A902A200ECA700D005CDA600F0034C4810A903A2008DAA108EAB104C4B10209B10ADAA10AEAB108D9B008E9C00A908A200EC9C00D005CD9B00F0034C1E10ADA810AEA9108D9B008E9C00A901A200EC9C00D005CD9B00F0034C14108DD1038ED203A9A58DD003A90085028503A2024C0FCFA908A2008DAA108EAB1060000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x01,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "if_local_call_nested_do_if_else": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC A()\rDO\rIF Y=1 THEN\rY=3\rELSE\rY=9\rFI\rUNTIL Y=9\rOD\rRETURN\rPROC MAIN()\rX=1\rY=0\rIF X=1 THEN\rA()\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008D9E108E9F10A900A2008DA0108EA110AD9E10AE9F108D9C008E9D00A901A200EC9D00D005CD9C00F0034C3410204A108DD1038ED203A9A58DD003A90085028503A2024C0FCFADA010AEA1108D4A008E4B00A901A200EC4B00D005CD4A00F0034C7410A903A2008DA0108EA1104C7E10A909A2008DA0108EA110ADA010AEA1108D4A008E4B00A909A200EC4B00D005CD4A00F0034C4A1060000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x09,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "if_else_local_call_nested_do_if_else": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC A()\rDO\rIF Y=1 THEN\rY=3\rELSE\rY=10\rFI\rUNTIL Y=10\rOD\rRETURN\rPROC MAIN()\rX=1\rY=0\rIF X=2 THEN\rY=4\rELSE\rA()\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008DAB108EAC10A900A2008DAD108EAE10ADAB10AEAC108DA9008EAA00A902A200ECAA00D005CDA900F0034C3E10A904A2008DAD108EAE104C41102057108DD1038ED203A9A58DD003A90085028503A2024C0FCFADAD10AEAE108D57008E5800A901A200EC5800D005CD5700F0034C8110A903A2008DAD108EAE104C8B10A90AA2008DAD108EAE10ADAD10AEAE108D57008E5800A90AA200EC5800D005CD5700F0034C571060000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x0A,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "nested_else_local_call_nested_do_if_else": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC A()\rDO\rIF Y=1 THEN\rY=3\rELSE\rY=11\rFI\rUNTIL Y=11\rOD\rRETURN\rPROC MAIN()\rX=1\rY=0\rIF X=1 THEN\rIF Y=1 THEN\rY=4\rELSE\rA()\rFI\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008DC8108EC910A900A2008DCA108ECB10ADC810AEC9108DC6008EC700A901A200ECC700D005CDC600F0034C5E10ADCA10AECB108D00008E0100A901A200EC0100D005CD0000F0034C5B10A904A2008DCA108ECB104C5E102074108DD1038ED203A9A58DD003A90085028503A2024C0FCFADCA10AECB108D74008E7500A901A200EC7500D005CD7400F0034C9E10A903A2008DCA108ECB104CA810A90BA2008DCA108ECB10ADCA10AECB108D74008E7500A90BA200EC7500D005CD7400F0034C741060000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x0B,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "if_else_local_call_chain_nested_do_if_else": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC B()\rDO\rIF Y=1 THEN\rY=3\rELSE\rY=12\rFI\rUNTIL Y=12\rOD\rRETURN\rPROC A()\rB()\rRETURN\rPROC MAIN()\rX=1\rY=0\rIF X=2 THEN\rY=4\rELSE\rA()\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008DAF108EB010A900A2008DB1108EB210ADAF10AEB0108DAD008EAE00A902A200ECAE00D005CDAD00F0034C3E10A904A2008DB1108EB2104C411020A9108DD1038ED203A9A58DD003A90085028503A2024C0FCFADB110AEB2108DA9008EAA00A901A200ECAA00D005CDA900F0034C8110A903A2008DB1108EB2104C8B10A90CA2008DB1108EB210ADB110AEB2108D57008E5800A90CA200EC5800D005CD5700F0034C57106020571060000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x0C,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "nested_else_local_call_chain_nested_do_if_else": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC B()\rDO\rIF Y=1 THEN\rY=3\rELSE\rY=13\rFI\rUNTIL Y=13\rOD\rRETURN\rPROC A()\rB()\rRETURN\rPROC MAIN()\rX=1\rY=0\rIF X=1 THEN\rIF Y=1 THEN\rY=4\rELSE\rA()\rFI\rFI\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008DCC108ECD10A900A2008DCE108ECF10ADCC10AECD108DCA008ECB00A901A200ECCB00D005CDCA00F0034C5E10ADCE10AECF108D00008E0100A901A200EC0100D005CD0000F0034C5B10A904A2008DCE108ECF104C5E1020C6108DD1038ED203A9A58DD003A90085028503A2024C0FCFADCE10AECF108DC6008EC700A901A200ECC700D005CDC600F0034C9E10A903A2008DCE108ECF104CA810A90DA2008DCE108ECF10ADCE10AECF108D74008E7500A90DA200EC7500D005CD7400F0034C74106020741060000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x0D,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "do_until_eq": {
+        "source": "MODULE MAIN\rCARD X\rPROC MAIN()\rX=0\rDO\rX=1\rUNTIL X=1\rOD\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A900A2008D49108E4A10A901A2008D49108E4A10AD4910AE4A108D47108E4810A901A200EC4810D005CD4710F0034C0A108DD1038ED203A9A58DD003A90085028503A2024C0FCF00000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x01,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+    "do_until_lt": {
+        "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=1\rY=2\rDO\rX=1\rUNTIL X<Y\rOD\rRETURN\r",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A901A2008D65108E6610A902A2008D67108E6810A901A2008D65108E6610AD6510AE66108D63108E6410AD6710AE6810EC6410900DD007CD63109006F004A901D002A900A200C900D0034C14108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x01,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+    },
+}
+
+
+def direct_prg_case(shape: str) -> dict[str, object]:
+    return DIRECT_PRG_CASES[shape]
+
+
+def install_program(fs_root: Path, project_root: Path, build_path: Path, name: str) -> None:
+    if not build_path.is_file():
+        raise RuntimeError(f"missing built program: {build_path}")
+    lowercase_workspace = rap.detect_lowercase_workspace(fs_root)
+    images_root = rap.case_insensitive_child(fs_root, rap.host_name("IMAGES", lowercase_workspace))
+    action_root = rap.case_insensitive_child(images_root, rap.host_name("ACTION.DNP", lowercase_workspace))
+    root_target = action_root / rap.host_name(name, lowercase_workspace)
+    shutil.copy2(build_path, root_target)
+    shutil.copy2(root_target, project_root / rap.host_name(name, lowercase_workspace))
+    rap.ensure_catalog_entries(
+        action_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace),
+        [f"D {project_root.name.upper()}", f"F {name}"],
+    )
+    rap.ensure_catalog_entries(project_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace), [f"F {name}"])
+
+
+def prepare_workspace(fs_root: Path, project_name: str, shape: str) -> tuple[Path, str]:
+    case = direct_prg_case(shape)
+    lowercase_workspace = rap.detect_lowercase_workspace(fs_root)
+    images_root = rap.case_insensitive_child(fs_root, rap.host_name("IMAGES", lowercase_workspace))
+    action_root = rap.case_insensitive_child(images_root, rap.host_name("ACTION.DNP", lowercase_workspace))
+    project_root = action_root / rap.host_name(project_name.upper(), lowercase_workspace)
+    lower_project_root = project_root.parent / project_root.name.lower()
+    shutil.rmtree(project_root, ignore_errors=True)
+    shutil.rmtree(lower_project_root, ignore_errors=True)
+
+    src_root = project_root / rap.host_name("SRC", lowercase_workspace)
+    bin_root = project_root / rap.host_name("BIN", lowercase_workspace)
+    obj_root = project_root / rap.host_name("OBJ", lowercase_workspace)
+    src_root.mkdir(parents=True, exist_ok=True)
+    bin_root.mkdir(exist_ok=True)
+    obj_root.mkdir(exist_ok=True)
+
+    rap.write_ascii(project_root / rap.host_name("README.TXT", lowercase_workspace), "ACTION PROJECT READY\n")
+    rap.write_ascii(project_root / rap.host_name("ACTION.PROJ", lowercase_workspace), "ACTION PROJECT\rMAIN.ACT\r")
+    rap.write_ascii(
+        project_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace),
+        "D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n",
+    )
+    rap.write_ascii(bin_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace), "")
+    if "source" in case:
+        rap.write_ascii(src_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace), "F MAIN.ACT\n")
+        rap.write_ascii(src_root / rap.host_name("MAIN.ACT", lowercase_workspace), str(case["source"]))
+    else:
+        rap.write_ascii(src_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace), "")
+    if "seed_object" in case:
+        rap.write_ascii(obj_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace), "F MAIN.OBJ\n")
+        rap.write_ascii(obj_root / rap.host_name("MAIN.OBJ", lowercase_workspace), str(case["seed_object"]))
+    else:
+        rap.write_ascii(obj_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace), "")
+
+    install_program(fs_root, project_root, ACTION_ALINK_BUILD, "ALINK.PRG")
+    mount_path = f"/{images_root.name}/{action_root.name}"
+    return project_root, mount_path
+
+
+def verify_host_output(project_root: Path, shape: str) -> Path:
+    case = direct_prg_case(shape)
+    lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
+    prg_path = project_root / rap.host_name("BIN", lowercase_workspace) / rap.host_name("MAIN.PRG", lowercase_workspace)
+    if not prg_path.is_file():
+        raise RuntimeError(f"expected direct PRG {prg_path} to exist")
+    prg_bytes = prg_path.read_bytes()
+    expected_tail = bytes(case["expected_tail"])
+    min_payload_prefix = DIRECT_PRG_STUB_SIZE if bool(case.get("has_stub", True)) else 0
+    if len(prg_bytes) < 2 + min_payload_prefix + len(expected_tail):
+        raise RuntimeError(f"direct PRG too small: {len(prg_bytes)} bytes")
+    load_addr = prg_bytes[0] | (prg_bytes[1] << 8)
+    if load_addr != DIRECT_PRG_LOAD_ADDR:
+        raise RuntimeError(f"unexpected direct PRG load address: 0x{load_addr:04X}")
+    if prg_bytes[-len(expected_tail):] != expected_tail:
+        got = prg_bytes[-len(expected_tail):].hex()
+        raise RuntimeError(f"unexpected direct PRG payload tail for {shape}: {got}")
+    return prg_path
+
+
+def run_harness(prg: Path, labels: Path, project_root: Path) -> dict[str, object]:
+    result = subprocess.run(
+        [
+            str(TOOL_ABI_HARNESS),
+            "--prg",
+            str(prg),
+            "--workspace",
+            str(project_root),
+            "--cmdline",
+            "MAIN",
+            "--services-inc",
+            str(UDOS_SERVICES_INC),
+            "--labels",
+            str(labels),
+            "--max-steps",
+            "12000000",
+        ],
+        cwd=ACTION_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=120,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stdout + result.stderr)
+    summary = json.loads(result.stdout)
+    if int(summary.get("exit_status", 1)) != 0:
+        raise RuntimeError(result.stdout + result.stderr)
+    return summary
+
+
+def run_prg_phase(
+    image: Path,
+    work_root: Path,
+    project_name: str,
+    mount_path: str,
+    connect_delay: float,
+    prg_path: Path,
+    shape: str,
+) -> dict[str, object]:
+    case = direct_prg_case(shape)
+    port = vp.reserve_tcp_port()
+    process = vp.launch_vice(
+        image,
+        port,
+        extra_args=[
+            "-iecdevice9",
+            "-fs9",
+            str(work_root),
+            "-fslongnames",
+        ],
+    )
+    client = vp.BinaryMonitorClient("127.0.0.1", port, timeout=5.0)
+    project_prompt = f"B:DNP/{project_name}>"
+    bin_prompt = f"B:DNP/{project_name}/BIN>"
+    try:
+        print({"stage": "connect", "port": port}, flush=True)
+        client.connect(time.monotonic() + connect_delay)
+        client.ping()
+        client.resume()
+
+        print({"stage": "mount", "mount_path": mount_path}, flush=True)
+        avp.wait_for_screen_fragments(client, ["A:D64/>"], ALINK_PHASE_TIMEOUT)
+        time.sleep(INITIAL_SETTLE)
+        avp.type_command(client, f"MOUNT B: {mount_path}", ALINK_PHASE_TIMEOUT)
+        avp.wait_for_mount_completion(client, ALINK_PHASE_TIMEOUT)
+        avp.type_command(client, "B:", ALINK_PHASE_TIMEOUT)
+        avp.wait_for_screen_fragments(client, ["B:DNP/>"], ALINK_PHASE_TIMEOUT)
+        avp.type_command(client, f"CD {project_name}", ALINK_PHASE_TIMEOUT)
+        avp.wait_for_screen_fragments(client, [project_prompt], ALINK_PHASE_TIMEOUT)
+
+        print(
+            {
+                "stage": "launch_prg",
+                "prg_path": str(prg_path),
+                "marker_addr": f"0x{DIRECT_PRG_EXIT_MARKER_ADDR:04X}",
+                "marker_value": f"0x{DIRECT_PRG_EXIT_MARKER_VALUE:02X}",
+            },
+            flush=True,
+        )
+        avp.type_command(client, "CD BIN", PRG_PHASE_TIMEOUT)
+        avp.wait_for_screen_fragments(client, [bin_prompt], PRG_PHASE_TIMEOUT)
+        avp.type_command(client, "MAIN.PRG", PRG_PHASE_TIMEOUT)
+        deadline = time.monotonic() + PRG_PHASE_TIMEOUT
+        last_screen = ""
+        last_marker = 0
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise vp.ViceError("x64sc exited while waiting for direct PRG marker")
+            last_screen = avp.screen_text(client)
+            last_marker = client.memory_get(DIRECT_PRG_EXIT_MARKER_ADDR, DIRECT_PRG_EXIT_MARKER_ADDR)[0]
+            if last_marker == DIRECT_PRG_EXIT_MARKER_VALUE:
+                result = {
+                    "prg_path": str(prg_path),
+                    "marker": last_marker,
+                    "screen": last_screen,
+                }
+                if "store_check_addr" in case:
+                    store_addr = int(case["store_check_addr"])
+                    store_value = client.memory_get(store_addr, store_addr)[0]
+                    expected_value = int(case["store_check_value"])
+                    if store_value != expected_value:
+                        raise vp.ViceError(
+                            f"direct PRG store check failed at 0x{store_addr:04X}: "
+                            f"got 0x{store_value:02X}, expected 0x{expected_value:02X}\n"
+                            f"screen:\n{last_screen}"
+                        )
+                    result["store_addr"] = store_addr
+                    result["store_value"] = store_value
+                if "store_check_hi_addr" in case:
+                    store_addr = int(case["store_check_hi_addr"])
+                    store_value = client.memory_get(store_addr, store_addr)[0]
+                    expected_value = int(case["store_check_hi_value"])
+                    if store_value != expected_value:
+                        raise vp.ViceError(
+                            f"direct PRG store check failed at 0x{store_addr:04X}: "
+                            f"got 0x{store_value:02X}, expected 0x{expected_value:02X}\n"
+                            f"screen:\n{last_screen}"
+                        )
+                    result["store_hi_addr"] = store_addr
+                    result["store_hi_value"] = store_value
+                screen_fragments = case.get("screen_fragments", [])
+                if isinstance(screen_fragments, list):
+                    for fragment in screen_fragments:
+                        if isinstance(fragment, str) and fragment and fragment not in last_screen:
+                            raise vp.ViceError(
+                                f"expected screen fragment {fragment!r} was not present after direct PRG launch\n"
+                                f"screen:\n{last_screen}"
+                            )
+                return result
+            time.sleep(0.01)
+        raise vp.ViceError(
+            f"direct PRG exit marker not observed: got 0x{last_marker:02X}, expected 0x{DIRECT_PRG_EXIT_MARKER_VALUE:02X}\\n"
+            f"screen:\n{last_screen}"
+        )
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
+        vp.terminate_process_tree(process)
+
+
+def run_once(image: Path, work_root: Path, project_name: str, connect_delay: float, shape: str) -> dict[str, object]:
+    case = direct_prg_case(shape)
+    project_root, mount_path = prepare_workspace(work_root, project_name, shape)
+
+    if "source" in case:
+        print({"stage": "actc_harness"}, flush=True)
+        run_harness(ACTION_ACTC_HARNESS_BUILD, ACTION_ACTC_HARNESS_LABELS, project_root)
+    else:
+        print({"stage": "seed_object"}, flush=True)
+    print({"stage": "alink_harness"}, flush=True)
+    run_harness(ACTION_ALINK_BUILD, ACTION_ALINK_LABELS, project_root)
+    time.sleep(0.5)
+    prg_path = verify_host_output(project_root, shape)
+    return run_prg_phase(
+        image,
+        work_root,
+        project_name,
+        mount_path,
+        connect_delay,
+        prg_path,
+        shape,
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="VICE proof for ALINK direct helper-free PRG emission")
+    parser.add_argument("--disk", required=True)
+    parser.add_argument("--fs-root", required=True)
+    parser.add_argument("--project", default="PROJ3")
+    parser.add_argument("--shape", choices=sorted(DIRECT_PRG_CASES), default="word_store")
+    parser.add_argument("--attempts", type=int, default=3)
+    parser.add_argument("--attempt-delay", type=float, default=4.0)
+    args = parser.parse_args()
+
+    image = Path(args.disk).resolve()
+    fs_root = Path(args.fs_root).resolve()
+    project_name = args.project.upper()
+    work_root = fs_root.parent / f"{fs_root.name}-alink-prg-{args.shape}"
+
+    last_error: Exception | None = None
+    for attempt in range(1, args.attempts + 1):
+        connect_delay = CONNECT_DELAYS[(attempt - 1) % len(CONNECT_DELAYS)]
+        print({"attempt": attempt, "attempts": args.attempts, "connect_delay": connect_delay, "shape": args.shape}, flush=True)
+        try:
+            shutil.rmtree(work_root, ignore_errors=True)
+            shutil.copytree(fs_root, work_root)
+            vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, args.attempt_delay)))
+            result = run_once(image, work_root, project_name, connect_delay, args.shape)
+            print(result, flush=True)
+            return 0
+        except Exception as exc:
+            last_error = exc
+            if attempt == args.attempts:
+                print(exc, file=sys.stderr)
+                return 1
+            time.sleep(args.attempt_delay)
+    if last_error is not None:
+        print(last_error, file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

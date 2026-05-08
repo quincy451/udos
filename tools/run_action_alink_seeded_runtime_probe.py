@@ -67,9 +67,9 @@ def prepare_workspace(fs_root: Path, project_name: str) -> Path:
     rap.write_ascii(project_root / "src" / "UDOSDIR.TXT", "F MAIN.ACT\n")
     rap.write_ascii(project_root / "bin" / "UDOSDIR.TXT", "")
     obj_dir = project_root / "obj"
-    rap.write_ascii(obj_dir / "UDOSDIR.TXT", "F MAIN.AVO\nF W.AVO\n")
-    rap.write_ascii(obj_dir / "main.avo", seeded_main_object_text())
-    rap.write_ascii(obj_dir / "w.avo", seeded_work_object_text())
+    rap.write_ascii(obj_dir / "UDOSDIR.TXT", "F MAIN.OBJ\nF W.OBJ\n")
+    rap.write_ascii(obj_dir / "main.obj", seeded_main_object_text())
+    rap.write_ascii(obj_dir / "w.obj", seeded_work_object_text())
 
     if rap.ACTION_ALINK_BUILD.is_file():
         root_target = fs_root / "IMAGES" / "ACTION.DNP" / "ALINK.PRG"
@@ -114,13 +114,15 @@ def load_selected_alink_labels() -> dict[str, int]:
         "content_ptr",
         "const_ptr",
         "target_path",
-        "binary_target_path",
         "content_buffer",
         "source_buffer",
         "module_name",
         "saved_module_name",
+        "pending_name_buffer",
         "debug_phase",
         "debug_phase_zp",
+        "output_chunk_len",
+        "output_chunk_buffer",
     }
     out: dict[str, int] = {}
     labels_path = ALINK_CURRENT_LABELS if ALINK_CURRENT_LABELS.is_file() else ALINK_DIAG_LABELS
@@ -181,6 +183,14 @@ def load_selected_resident_labels() -> dict[str, int]:
         "vice_dir_names_b",
         "vice_dir_parent_b",
         "vice_dir_state_b",
+        "reu_init",
+        "tool_abi_open_program_read_path",
+        "tool_abi_seed_program_mount_snapshot",
+        "tool_abi_fixed_template",
+        "tool_abi_file_stage_reu_sc0",
+        "tool_abi_file_write_chunk_sc0",
+        "tool_abi_file_write_chunk_current",
+        "vice_open_read_from_ptr",
     }
     out: dict[str, int] = {}
     if not RESIDENT_LABELS.is_file():
@@ -501,6 +511,10 @@ def collect_registers(client: vp.BinaryMonitorClient) -> dict[str, int]:
 def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
     debug_addrs = [
         (0x03D0, "POSTLOAD_MARKER"),
+        (0x03E0, "REU_C64_LO"),
+        (0x03E1, "REU_C64_HI"),
+        (0x03E2, "REU_REU_LO"),
+        (0x03E3, "REU_REU_HI"),
         (0x03E8, "RETURN0"),
         (0x03E9, "RETURN1"),
         (0x03EA, "RETURN2"),
@@ -512,6 +526,17 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         (0x03F4, "WRITEBACK_STAGE"),
         (0x03F5, "WRITEBACK_COUNT"),
         (0x03F6, "WRITEBACK_KIND"),
+        (0x03F7, "PATH0"),
+        (0x03F8, "PATH1"),
+        (0x03F9, "PATH2"),
+        (0x03FA, "PATH3"),
+        (0xCFE3, "REU_RTS_LO_SNAPSHOT"),
+        (0xCFE4, "REU_RTS_HI_SNAPSHOT"),
+        (0xCFE5, "REU_ENTRY_RTS_LO_SNAPSHOT"),
+        (0xCFE6, "REU_ENTRY_RTS_HI_SNAPSHOT"),
+        (0xCFE7, "REU_ENTRY_SP_SNAPSHOT"),
+        (0xCFE9, "REU_RTS_SP_SNAPSHOT"),
+        (0xCFEF, "DIRECT_HOSTLOAD_STAGE_SNAPSHOT"),
         (0xC59E, "LOAD_STAGE"),
         (0xC59F, "OPEN0"),
         (0xC5A0, "OPEN1"),
@@ -544,10 +569,8 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
                     data["ALINK_FILE_DEST_HEAD"] = list(client.memory_get(dest_addr, dest_addr + 31))
                 except Exception as exc:  # pragma: no cover - debug only
                     data["ALINK_FILE_DEST_HEAD"] = f"ERR:{exc!r}"
-            elif name in {"target_path", "binary_target_path"}:
+            elif name == "target_path":
                 data[key] = read_cstr(client, addr, 40)
-                if name == "binary_target_path":
-                    data["ALINK_BINARY_TARGET_RAW"] = list(client.memory_get(addr, addr + 31))
             elif name in {"content_buffer", "source_buffer"}:
                 data[key] = list(client.memory_get(addr, addr + 15))
                 if name == "content_buffer":
@@ -562,14 +585,17 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
                             data["ALINK_OUTPUT_BYTES"] = list(
                                 client.memory_get(addr, addr + total_len - 1)
                             )
-            elif name in {"module_name", "saved_module_name"}:
+            elif name in {"module_name", "saved_module_name", "pending_name_buffer"}:
                 data[key] = read_cstr(client, addr, 25)
+            elif name == "output_chunk_buffer":
+                data[key] = list(client.memory_get(addr, addr + 31))
             elif name in {"src_ptr", "scan_ptr", "content_ptr", "const_ptr"}:
                 data[key] = list(client.memory_get(addr, addr + 1))
             else:
                 data[key] = client.memory_get(addr, addr)[0]
         except Exception as exc:  # pragma: no cover - debug only
             data[key] = f"ERR:{exc!r}"
+    resident_labels = load_selected_resident_labels()
     try:
         marker = data.get("POSTLOAD_MARKER")
         if marker in (0xA1, 0xA2):
@@ -637,12 +663,18 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         data["CURRENT_PATH"] = read_cstr(client, 0xCD00, 64)
         data["OPEN_PATH"] = read_cstr(client, 0xCD40, 96)
         data["SAVE_PATH"] = read_cstr(client, 0xC5A3, 96)
+        stage_addr = resident_labels.get("save_debug_stage_byte")
+        if stage_addr is not None:
+            data["RESIDENT_STAGE_BYTE"] = client.memory_get(stage_addr, stage_addr)[0]
         data["UCI_CMD_BUFFER"] = read_cstr(client, 0xC423, 96)
         data["PROGRAM_DRIVE_SNAPSHOT"] = client.memory_get(0xCFF8, 0xCFF8)[0]
         data["PROGRAM_DIR_SNAPSHOT"] = client.memory_get(0xCFF9, 0xCFF9)[0]
         data["CURRENT_DRIVE_SNAPSHOT"] = client.memory_get(0xCFEC, 0xCFEC)[0]
         data["CURRENT_FLAGS_SNAPSHOT"] = client.memory_get(0xCFEE, 0xCFEE)[0]
         data["MOUNT_SNAPSHOT"] = client.memory_get(0xCFF2, 0xCFF2)[0]
+        data["SERVICE_STAGE_SNAPSHOT"] = client.memory_get(0xCFF1, 0xCFF1)[0]
+        data["SERVICE_STAGE_SP_SNAPSHOT"] = client.memory_get(0xCFF3, 0xCFF3)[0]
+        data["SERVICE_STAGE_X_SNAPSHOT"] = client.memory_get(0xCFF5, 0xCFF5)[0]
         data["CURRENT_DRIVE_STATE"] = client.memory_get(0x9580, 0x9580)[0]
         data["MOUNT_FLAGS"] = list(client.memory_get(0x9614, 0x9615))
         data["DIR_STATES"] = list(client.memory_get(0x9616, 0x9617))
@@ -669,12 +701,16 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         data["CURRENT_PATH"] = f"ERR:{exc!r}"
         data["OPEN_PATH"] = f"ERR:{exc!r}"
         data["SAVE_PATH"] = f"ERR:{exc!r}"
+        data["RESIDENT_STAGE_BYTE"] = f"ERR:{exc!r}"
         data["UCI_CMD_BUFFER"] = f"ERR:{exc!r}"
         data["PROGRAM_DRIVE_SNAPSHOT"] = f"ERR:{exc!r}"
         data["PROGRAM_DIR_SNAPSHOT"] = f"ERR:{exc!r}"
         data["CURRENT_DRIVE_SNAPSHOT"] = f"ERR:{exc!r}"
         data["CURRENT_FLAGS_SNAPSHOT"] = f"ERR:{exc!r}"
         data["MOUNT_SNAPSHOT"] = f"ERR:{exc!r}"
+        data["SERVICE_STAGE_SNAPSHOT"] = f"ERR:{exc!r}"
+        data["SERVICE_STAGE_SP_SNAPSHOT"] = f"ERR:{exc!r}"
+        data["SERVICE_STAGE_X_SNAPSHOT"] = f"ERR:{exc!r}"
         data["CURRENT_DRIVE_STATE"] = f"ERR:{exc!r}"
         data["MOUNT_FLAGS"] = f"ERR:{exc!r}"
         data["DIR_STATES"] = f"ERR:{exc!r}"
@@ -684,7 +720,50 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         data["RES_SAVE_ENTRY_STAGE"] = f"ERR:{exc!r}"
         data["RES_SAVE_RESOLVE_STAGE"] = f"ERR:{exc!r}"
         data["SAVE_CALL_BLOCK"] = f"ERR:{exc!r}"
-    resident_labels = load_selected_resident_labels()
+    try:
+        file_name_ptr_bytes = client.memory_get(0xCDC6, 0xCDC7)
+        file_name_ptr = file_name_ptr_bytes[0] | (file_name_ptr_bytes[1] << 8)
+        data["TOOL_ABI_FILE_NAME_TEXT"] = read_cstr(client, file_name_ptr, 96)
+    except Exception as exc:  # pragma: no cover - debug only
+        data["TOOL_ABI_FILE_NAME_TEXT"] = f"ERR:{exc!r}"
+    reu_init_addr = resident_labels.get("reu_init")
+    if reu_init_addr is not None:
+        try:
+            data["REU_INIT_BYTES"] = list(client.memory_get(reu_init_addr, reu_init_addr + 31))
+        except Exception as exc:  # pragma: no cover - debug only
+            data["REU_INIT_BYTES"] = f"ERR:{exc!r}"
+    tool_abi_file_stage_reu_addr = resident_labels.get("tool_abi_file_stage_reu_sc0")
+    if tool_abi_file_stage_reu_addr is not None:
+        try:
+            data["TOOL_ABI_FILE_STAGE_REU_BYTES"] = list(
+                client.memory_get(tool_abi_file_stage_reu_addr, tool_abi_file_stage_reu_addr + 31)
+            )
+        except Exception as exc:  # pragma: no cover - debug only
+            data["TOOL_ABI_FILE_STAGE_REU_BYTES"] = f"ERR:{exc!r}"
+    open_path_addr = resident_labels.get("tool_abi_open_program_read_path")
+    if open_path_addr is not None:
+        try:
+            data["TOOL_ABI_OPEN_PROGRAM_READ_PATH_BYTES"] = list(
+                client.memory_get(open_path_addr, open_path_addr + 31)
+            )
+        except Exception as exc:  # pragma: no cover - debug only
+            data["TOOL_ABI_OPEN_PROGRAM_READ_PATH_BYTES"] = f"ERR:{exc!r}"
+    seed_mount_addr = resident_labels.get("tool_abi_seed_program_mount_snapshot")
+    if seed_mount_addr is not None:
+        try:
+            data["TOOL_ABI_SEED_PROGRAM_MOUNT_BYTES"] = list(
+                client.memory_get(seed_mount_addr, seed_mount_addr + 15)
+            )
+        except Exception as exc:  # pragma: no cover - debug only
+            data["TOOL_ABI_SEED_PROGRAM_MOUNT_BYTES"] = f"ERR:{exc!r}"
+    vice_open_addr = resident_labels.get("vice_open_read_from_ptr")
+    if vice_open_addr is not None:
+        try:
+            data["VICE_OPEN_READ_FROM_PTR_BYTES"] = list(
+                client.memory_get(vice_open_addr, vice_open_addr + 31)
+            )
+        except Exception as exc:  # pragma: no cover - debug only
+            data["VICE_OPEN_READ_FROM_PTR_BYTES"] = f"ERR:{exc!r}"
     for name in ("source_fullpath_buffer", "dest_fullpath_buffer", "path_name_buffer", "arg_buffer"):
         addr = resident_labels.get(name)
         if addr is None:
@@ -701,6 +780,117 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
                 data[f"REG_{name.upper()}"] = regs[name]
     except Exception as exc:  # pragma: no cover - debug only
         data["REG_ERR"] = f"ERR:{exc!r}"
+    try:
+        data["MEM_0900"] = list(client.memory_get(0x0900, 0x091F))
+        data["MEM_0801"] = list(client.memory_get(0x0801, 0x0810))
+    except Exception as exc:  # pragma: no cover - debug only
+        data["MEM_0900"] = f"ERR:{exc!r}"
+        data["MEM_0801"] = f"ERR:{exc!r}"
+    launch_load_cache_lo_addr = resident_labels.get("launch_load_cache_lo")
+    launch_load_cache_hi_addr = resident_labels.get("launch_load_cache_hi")
+    if launch_load_cache_lo_addr is not None and launch_load_cache_hi_addr is not None:
+        try:
+            launch_load_cache = list(client.memory_get(launch_load_cache_lo_addr, launch_load_cache_hi_addr))
+            data["LAUNCH_LOAD_CACHE"] = launch_load_cache
+            if len(launch_load_cache) == 2:
+                load_addr = launch_load_cache[0] | (launch_load_cache[1] << 8)
+                data["PROGRAM_RAM_HEAD"] = list(client.memory_get(load_addr, load_addr + 31))
+        except Exception as exc:  # pragma: no cover - debug only
+            data["LAUNCH_LOAD_CACHE"] = f"ERR:{exc!r}"
+            data["PROGRAM_RAM_HEAD"] = f"ERR:{exc!r}"
+    program_image_buffer_addr = resident_labels.get("program_image_buffer")
+    if program_image_buffer_addr is not None:
+        try:
+            data["PROGRAM_IMAGE_BUFFER_HEAD"] = list(client.memory_get(program_image_buffer_addr, program_image_buffer_addr + 31))
+        except Exception as exc:  # pragma: no cover - debug only
+            data["PROGRAM_IMAGE_BUFFER_HEAD"] = f"ERR:{exc!r}"
+    program_image_len_lo_addr = resident_labels.get("program_image_len_lo")
+    program_image_len_hi_addr = resident_labels.get("program_image_len_hi")
+    if program_image_len_lo_addr is not None and program_image_len_hi_addr is not None:
+        try:
+            data["PROGRAM_IMAGE_LEN_STATE"] = list(client.memory_get(program_image_len_lo_addr, program_image_len_hi_addr))
+        except Exception as exc:  # pragma: no cover - debug only
+            data["PROGRAM_IMAGE_LEN_STATE"] = f"ERR:{exc!r}"
+    try:
+        data["PROGRAM_IMAGE_LEN_SNAPSHOT"] = list(client.memory_get(0xCFFA, 0xCFFB))
+    except Exception as exc:  # pragma: no cover - debug only
+        data["PROGRAM_IMAGE_LEN_SNAPSHOT"] = f"ERR:{exc!r}"
+    try:
+        data["UDOS_SERVICE_BLOCK_CF00"] = list(client.memory_get(0xCF00, 0xCF3F))
+        data["UDOS_SERVICE_FILE_LOAD_CF12"] = list(client.memory_get(0xCF12, 0xCF1A))
+        data["UDOS_SERVICE_FILE_STAGE_REU_CF36"] = list(client.memory_get(0xCF36, 0xCF3E))
+    except Exception as exc:  # pragma: no cover - debug only
+        data["UDOS_SERVICE_BLOCK_CF00"] = f"ERR:{exc!r}"
+        data["UDOS_SERVICE_FILE_LOAD_CF12"] = f"ERR:{exc!r}"
+        data["UDOS_SERVICE_FILE_STAGE_REU_CF36"] = f"ERR:{exc!r}"
+    try:
+        data["ALINK_LOADED_OBJECT_STATUS"] = client.memory_get(0xCF9E, 0xCF9E)[0]
+    except Exception as exc:  # pragma: no cover - debug only
+        data["ALINK_LOADED_OBJECT_STATUS"] = f"ERR:{exc!r}"
+    try:
+        data["ALINK_LOADED_OBJECT_PHASE"] = client.memory_get(0xCF9F, 0xCF9F)[0]
+    except Exception as exc:  # pragma: no cover - debug only
+        data["ALINK_LOADED_OBJECT_PHASE"] = f"ERR:{exc!r}"
+    try:
+        data["ALINK_SOURCE_LOAD_PHASE"] = client.memory_get(0xCF9C, 0xCF9C)[0]
+    except Exception as exc:  # pragma: no cover - debug only
+        data["ALINK_SOURCE_LOAD_PHASE"] = f"ERR:{exc!r}"
+    try:
+        data["ALINK_SOURCE_LOAD_STATUS"] = client.memory_get(0xCF9D, 0xCF9D)[0]
+    except Exception as exc:  # pragma: no cover - debug only
+        data["ALINK_SOURCE_LOAD_STATUS"] = f"ERR:{exc!r}"
+    try:
+        data["ALINK_PENDING_LOAD_BRANCH"] = client.memory_get(0xCF9B, 0xCF9B)[0]
+    except Exception as exc:  # pragma: no cover - debug only
+        data["ALINK_PENDING_LOAD_BRANCH"] = f"ERR:{exc!r}"
+    try:
+        data["ALINK_PENDING_LOAD_SOURCE_HEAD"] = list(client.memory_get(0xCF90, 0xCF93))
+    except Exception as exc:  # pragma: no cover - debug only
+        data["ALINK_PENDING_LOAD_SOURCE_HEAD"] = f"ERR:{exc!r}"
+    try:
+        data["ALINK_WRITE_CHUNK_RAW"] = list(client.memory_get(0xCF44, 0xCF4F))
+    except Exception as exc:  # pragma: no cover - debug only
+        data["ALINK_WRITE_CHUNK_RAW"] = f"ERR:{exc!r}"
+    try:
+        data["ALINK_OUTPUT_PHASE_RAW"] = client.memory_get(0xCF50, 0xCF50)[0]
+    except Exception as exc:  # pragma: no cover - debug only
+        data["ALINK_OUTPUT_PHASE_RAW"] = f"ERR:{exc!r}"
+    try:
+        data["ALINK_SOURCE_RETURN_RAW"] = list(client.memory_get(0xCF40, 0xCF43))
+    except Exception as exc:  # pragma: no cover - debug only
+        data["ALINK_SOURCE_RETURN_RAW"] = f"ERR:{exc!r}"
+    try:
+        data["ALINK_PENDING_COPY_RAW"] = list(client.memory_get(0xCF60, 0xCF65))
+    except Exception as exc:  # pragma: no cover - debug only
+        data["ALINK_PENDING_COPY_RAW"] = f"ERR:{exc!r}"
+    try:
+        loaded_source = list(client.memory_get(0xCFA0, 0xCFAF))
+        data["ALINK_LOADED_SOURCE_RAW"] = loaded_source
+        data["ALINK_LOADED_SOURCE_TEXT"] = bytes(v for v in loaded_source if v != 0).decode("ascii", errors="replace")
+    except Exception as exc:  # pragma: no cover - debug only
+        data["ALINK_LOADED_SOURCE_RAW"] = f"ERR:{exc!r}"
+        data["ALINK_LOADED_SOURCE_TEXT"] = f"ERR:{exc!r}"
+    try:
+        loaded_target = list(client.memory_get(0xCFB0, 0xCFBF))
+        data["ALINK_LOADED_TARGET_RAW"] = loaded_target
+        data["ALINK_LOADED_TARGET_TEXT"] = bytes(v for v in loaded_target if v != 0).decode("ascii", errors="replace")
+    except Exception as exc:  # pragma: no cover - debug only
+        data["ALINK_LOADED_TARGET_RAW"] = f"ERR:{exc!r}"
+        data["ALINK_LOADED_TARGET_TEXT"] = f"ERR:{exc!r}"
+    try:
+        bad_avo_source = list(client.memory_get(0xCFD0, 0xCFDF))
+        data["BAD_AVO_SOURCE_RAW"] = bad_avo_source
+        data["BAD_AVO_SOURCE_TEXT"] = bytes(v for v in bad_avo_source if v != 0).decode("ascii", errors="replace")
+    except Exception as exc:  # pragma: no cover - debug only
+        data["BAD_AVO_SOURCE_RAW"] = f"ERR:{exc!r}"
+        data["BAD_AVO_SOURCE_TEXT"] = f"ERR:{exc!r}"
+    try:
+        bad_avo_target = list(client.memory_get(0xCFC0, 0xCFCF))
+        data["BAD_AVO_TARGET_RAW"] = bad_avo_target
+        data["BAD_AVO_TARGET_TEXT"] = bytes(v for v in bad_avo_target if v != 0).decode("ascii", errors="replace")
+    except Exception as exc:  # pragma: no cover - debug only
+        data["BAD_AVO_TARGET_RAW"] = f"ERR:{exc!r}"
+        data["BAD_AVO_TARGET_TEXT"] = f"ERR:{exc!r}"
     return data
 
 
@@ -717,19 +907,24 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         ],
     )
     client = vp.BinaryMonitorClient("127.0.0.1", port, timeout=5.0)
+    alink_labels = load_selected_alink_labels()
+    debug_phase_zp_addr = alink_labels.get("debug_phase_zp")
     try:
         if connect_delay > 0.0:
             time.sleep(connect_delay)
         client.connect(time.monotonic() + 20.0)
         client.ping()
         client.resume()
-        avp.nudge_to_prompt(client, process, "A:D64/>", attempts=max(1, int(PROMPT_TIMEOUT // 8)), timeout=8.0)
-        time.sleep(SETTLE_SECONDS)
+        avp.nudge_to_prompt(client, process, "A:D64/>", attempts=3, timeout=8.0)
+        avp.wait_for_active_prompt(client, "A:D64/>", 60.0, poll_interval=0.2)
+        time.sleep(5.0)
+        avp.send_return(client, SEND_TIMEOUT)
+        avp.wait_for_active_prompt(client, "A:D64/>", 15.0, poll_interval=0.2)
+        time.sleep(1.0)
 
         mount_command = "MOUNT B: /IMAGES/ACTION.DNP"
-        client.keyboard_feed(mount_command + "\r")
-        time.sleep(1.0)
-        avp.wait_for_mount_completion(client, PROMPT_TIMEOUT, retry_echo=mount_command)
+        avp.type_command(client, mount_command, 30.0)
+        avp.wait_for_mount_completion(client, 30.0, retry_echo=mount_command, poll_interval=0.2)
 
         avp.type_command(client, "B:", SEND_TIMEOUT)
         avp.wait_for_screen_fragment(client, "B:DNP/", PROMPT_TIMEOUT, retry_echo="B:")
@@ -767,6 +962,9 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         stage_c_snapshot: dict[str, object] | None = None
         stage_d_snapshot: dict[str, object] | None = None
         live_tool_snapshot: dict[str, object] | None = None
+        last_live_trace: int | None = None
+        last_live_phase_zp: int | None = None
+        last_output_phase: int | None = None
         while time.monotonic() < deadline:
             if stage_b_snapshot is None or stage_c_snapshot is None or stage_d_snapshot is None:
                 try:
@@ -782,25 +980,32 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
                             stage_d_snapshot = collect_stage_b_snapshot(client)
                 except Exception:
                     pass
-            if live_tool_snapshot is None:
-                try:
-                    if client.memory_get(0x03FC, 0x03FC)[0] != 0:
-                        live_tool_snapshot = collect_debug(client)
-                except Exception:
-                    pass
+            try:
+                live_trace = client.memory_get(0x03FC, 0x03FC)[0]
+                live_phase_zp = None
+                live_output_phase = client.memory_get(0xCF50, 0xCF50)[0]
+                if debug_phase_zp_addr is not None:
+                    live_phase_zp = client.memory_get(debug_phase_zp_addr, debug_phase_zp_addr)[0]
+                if (
+                    (live_trace != 0 and live_trace != last_live_trace)
+                    or (
+                        live_phase_zp is not None
+                        and live_phase_zp != 0
+                        and live_phase_zp != last_live_phase_zp
+                    )
+                    or (
+                        live_output_phase != 0
+                        and live_output_phase != last_output_phase
+                    )
+                ):
+                    live_tool_snapshot = collect_debug(client)
+                    last_live_trace = live_trace
+                    last_live_phase_zp = live_phase_zp
+                    last_output_phase = live_output_phase
+            except Exception:
+                pass
             screen, _d018, _dd00 = vp.read_active_screen_text(client)
             if vp.screen_contains(screen, "ALINK OK"):
-                debug = collect_debug(client)
-                if live_tool_snapshot is not None:
-                    debug["LIVE_TOOL_SNAPSHOT"] = live_tool_snapshot
-                if stage_b_snapshot is not None:
-                    debug["STAGE_B_SNAPSHOT"] = stage_b_snapshot
-                if stage_c_snapshot is not None:
-                    debug["STAGE_C_SNAPSHOT"] = stage_c_snapshot
-                if stage_d_snapshot is not None:
-                    debug["STAGE_D_SNAPSHOT"] = stage_d_snapshot
-                return screen, debug
-            if vp.screen_contains(screen, f"B:DNP/{project_name}>"):
                 debug = collect_debug(client)
                 if live_tool_snapshot is not None:
                     debug["LIVE_TOOL_SNAPSHOT"] = live_tool_snapshot
@@ -830,6 +1035,17 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
                 raise vp.ViceError(
                     f"ALINK terminal failure with screen:\n{screen}\nDEBUG: {json.dumps(debug, indent=2)}"
                 )
+            if vp.screen_contains(avp.last_nonempty_line(screen), f"B:DNP/{project_name}>"):
+                debug = collect_debug(client)
+                if live_tool_snapshot is not None:
+                    debug["LIVE_TOOL_SNAPSHOT"] = live_tool_snapshot
+                if stage_b_snapshot is not None:
+                    debug["STAGE_B_SNAPSHOT"] = stage_b_snapshot
+                if stage_c_snapshot is not None:
+                    debug["STAGE_C_SNAPSHOT"] = stage_c_snapshot
+                if stage_d_snapshot is not None:
+                    debug["STAGE_D_SNAPSHOT"] = stage_d_snapshot
+                return screen, debug
             time.sleep(0.2)
         debug = collect_debug(client)
         if live_tool_snapshot is not None:
@@ -883,10 +1099,15 @@ def main() -> int:
             project_root = prepare_workspace(work_root, project_name)
             vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, args.attempt_delay)))
             screen, debug = run_once(image, work_root, project_name, connect_delay)
-            output_path = project_root / "bin" / "main.avm"
+            output_path = project_root / "bin" / "main.prg"
             if not output_path.is_file():
                 raise vp.ViceError(
                     f"expected host file {output_path} to exist after ALINK returned\n"
+                    f"SCREEN:\n{screen}\nDEBUG: {json.dumps(debug, indent=2)}"
+                )
+            if output_path.stat().st_size <= 2:
+                raise vp.ViceError(
+                    f"expected direct PRG {output_path} to contain payload bytes after ALINK returned\n"
                     f"SCREEN:\n{screen}\nDEBUG: {json.dumps(debug, indent=2)}"
                 )
             print(json.dumps({"screen_tail": screen[-400:], "debug": debug, "output": str(output_path)}, indent=2))

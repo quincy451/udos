@@ -29,6 +29,7 @@
 .export svc_program_get_image_ptr
 .export svc_program_get_image_len
 .export svc_program_exit
+.export svc_vm_acheron_enter
 .export svc_mark_ready
 .export svc_idle
 .import acheron
@@ -38,17 +39,38 @@
 SCREEN = $0400
 COLOR = $D800
 CURSOR = $CFE0
+REU_REMAIN_HI_SNAPSHOT = $CFE2
+REU_RTS_LO_SNAPSHOT = $CFE3
+REU_RTS_HI_SNAPSHOT = $CFE4
+REU_ENTRY_RTS_LO_SNAPSHOT = $CFE5
+REU_ENTRY_RTS_HI_SNAPSHOT = $CFE6
+REU_ENTRY_SP_SNAPSHOT = $CFE7
 SCREEN_PTR = $F9
 PTR = $FB
+LAUNCH_STAGE_REQ = $F0
+LAUNCH_STAGE_REQ_NAME_LO = LAUNCH_STAGE_REQ + 0
+LAUNCH_STAGE_REQ_NAME_HI = LAUNCH_STAGE_REQ + 1
+LAUNCH_STAGE_REQ_REU_LO = LAUNCH_STAGE_REQ + 2
+LAUNCH_STAGE_REQ_REU_HI = LAUNCH_STAGE_REQ + 3
+LAUNCH_STAGE_REQ_BANK = LAUNCH_STAGE_REQ + 4
+LAUNCH_STAGE_REQ_STATUS = LAUNCH_STAGE_REQ + 5
+LAUNCH_STAGE_REQ_LEN_LO = LAUNCH_STAGE_REQ + 6
+LAUNCH_STAGE_REQ_LEN_HI = LAUNCH_STAGE_REQ + 7
+LAUNCH_STAGE_REQ_LEN_B2 = LAUNCH_STAGE_REQ + 8
 BACKEND_A_PATH_LEN_SNAPSHOT = $CFE4
 BACKEND_B_PATH_LEN_SNAPSHOT = $CFE5
 BIND_A_SNAPSHOT = $CFE8
+REU_RTS_SP_SNAPSHOT = $CFE9
 BIND_B_SNAPSHOT = $CFEA
 CURRENT_DRIVE_SNAPSHOT = $CFEC
 CURRENT_FLAGS_SNAPSHOT = $CFEE
+DIRECT_HOSTLOAD_STAGE_SNAPSHOT = $CFEF
 TRANSPORT_SNAPSHOT = $CFF0
+SERVICE_STAGE_SNAPSHOT = $CFF1
 MOUNT_SNAPSHOT = $CFF2
+SERVICE_STAGE_SP_SNAPSHOT = $CFF3
 ABI_SNAPSHOT = $CFF4
+SERVICE_STAGE_X_SNAPSHOT = $CFF5
 PROGRAM_STATE_SNAPSHOT = $CFF6
 PROGRAM_EXIT_SNAPSHOT = $CFF7
 PROGRAM_DRIVE_SNAPSHOT = $CFF8
@@ -60,7 +82,7 @@ LAUNCH_DIR_SNAPSHOT = $CFFE
 STAGE_SNAPSHOT = $CFFD
 READY_MARKER = $CFFF
 READY_VALUE = $52
-ABI_VERSION = 1
+ABI_VERSION = 4
 RESIDENT_CODE_START = $1810
 HIRAM_START = $C000
 HIRAM_PAGES = $10
@@ -80,9 +102,17 @@ TOOL_SVC_DIR_REMOVE_SC0 = TOOL_ABI_BASE + 33
 TOOL_SVC_FILE_DELETE_SC0 = TOOL_ABI_BASE + 36
 TOOL_SVC_FILE_RENAME_SC0 = TOOL_ABI_BASE + 39
 TOOL_SVC_FILE_COPY_SC0 = TOOL_ABI_BASE + 42
+TOOL_SVC_FILE_WRITE_BEGIN_SC0 = TOOL_ABI_BASE + 45
+TOOL_SVC_FILE_WRITE_CHUNK_SC0 = TOOL_ABI_BASE + 48
+TOOL_SVC_FILE_WRITE_CLOSE_SC0 = TOOL_ABI_BASE + 51
+TOOL_SVC_FILE_STAGE_REU_SC0 = TOOL_ABI_BASE + 54
+TOOL_SVC_REU_READ_SC0 = TOOL_ABI_BASE + 57
+TOOL_SVC_REU_WRITE_SC0 = TOOL_ABI_BASE + 60
+TOOL_SVC_VM_ACHERON_ENTER = TOOL_ABI_BASE + 63
 TOOL_ABI_CMDLINE_LEN = $CF70
 TOOL_ABI_CMDLINE_BUF = $CF80
 TOOL_ABI_CURRENT_PATH = $CD00
+TOOL_ABI_LAUNCH_PATH = $CD20
 TOOL_ABI_OPEN_PATH = $CD40
 save_debug_write_path_buffer = TOOL_ABI_OPEN_PATH
 TOOL_ABI_OPEN_LFN = $CDC0
@@ -123,6 +153,7 @@ REU_IRQMASK = $DF09
 REU_CONTROL = $DF0A
 REU_TRIGGER = $FF00
 C64_PORT_IO_ON = $05
+C64_PORT_CHAREN_ON = $04
 REU_CMD_COPY_C64_TO_REU = $EC
 REU_CMD_COPY_REU_TO_C64 = $ED
 TRANSPORT_MODE_UNAVAILABLE = 0
@@ -162,6 +193,7 @@ SCRIPT_LINE_STRIDE = MAX_LINE_LEN + 1
 ASCII_COLON = $3A
 ASCII_SLASH = $2F
 ASCII_SPACE = $20
+ASCII_BANG = $21
 ASCII_COMMA = $2C
 ASCII_DOT = $2E
 ASCII_ASTERISK = $2A
@@ -336,6 +368,19 @@ RETURN_QUEUE_TRACE0 = $03E8
 RETURN_QUEUE_TRACE1 = $03E9
 RETURN_QUEUE_TRACE2 = $03EA
 RETURN_QUEUE_TRACE3 = $03EB
+REU_COPY_TRACE0 = $03E0
+REU_COPY_TRACE1 = $03E1
+REU_COPY_TRACE2 = $03E2
+REU_COPY_TRACE3 = $03E3
+REU_STAGE_C64_LO = REU_COPY_TRACE0
+REU_STAGE_C64_HI = REU_COPY_TRACE1
+REU_STAGE_REU_LO = REU_COPY_TRACE2
+REU_STAGE_REU_HI = REU_COPY_TRACE3
+REU_STAGE_BANK = RETURN_QUEUE_TRACE0
+REU_STAGE_CHUNK = RETURN_QUEUE_TRACE1
+REU_STAGE_CMD = RETURN_QUEUE_TRACE2
+REU_STAGE_EXIT = RETURN_QUEUE_TRACE3
+REU_STAGE_PORT = WRITEBACK_TRACE_COUNT
 TOOL_WRITEBACK_STAGING_BASE = TOOL_ABI_OPEN_PATH
 TOOL_WRITEBACK_NAME_MAX = 32
 TOOL_WRITEBACK_MAX_RECORDS = 7
@@ -356,15 +401,17 @@ TOOL_WRITEBACK_SECOND_STATE_OFFSET = TOOL_WRITEBACK_SECOND_SLOT_OFFSET + 1
 TOOL_WRITEBACK_SECOND_NAME_OFFSET = TOOL_WRITEBACK_SECOND_STATE_OFFSET + 1
 TOOL_WRITEBACK_RECORD_SIZE = TOOL_WRITEBACK_SECOND_NAME_OFFSET + TOOL_WRITEBACK_NAME_MAX
 TOOL_WRITEBACK_SIZE = TOOL_WRITEBACK_MAX_RECORDS * TOOL_WRITEBACK_RECORD_SIZE
-TOOL_WRITEBACK_COUNT_RAM = TOOL_WRITEBACK_STAGING_BASE + TOOL_WRITEBACK_SIZE
-TOOL_WRITEBACK_DIRMAP_BASE = TOOL_WRITEBACK_COUNT_RAM + 1
 LAUNCH_STUB_ADDR = $CC00
 LAUNCH_RETURN_ADDR = $033C
 LAUNCH_RESTORE_ADDR = $CE10
+LAUNCH_STUB_BANK = $F5
+LAUNCH_STUB_CHUNK = $F6
 LAUNCH_STUB_LOAD_LO_PTR_PATCH = LAUNCH_STUB_ADDR + (launch_stub_load_lo_ptr_operand - launch_stub_entry_template)
 LAUNCH_STUB_LOAD_HI_PTR_PATCH = LAUNCH_STUB_ADDR + (launch_stub_load_hi_ptr_operand - launch_stub_entry_template)
 LAUNCH_STUB_LOAD_LO_CUR_PATCH = LAUNCH_STUB_ADDR + (launch_stub_load_lo_cur_operand - launch_stub_entry_template)
 LAUNCH_STUB_LOAD_HI_CUR_PATCH = LAUNCH_STUB_ADDR + (launch_stub_load_hi_cur_operand - launch_stub_entry_template)
+LAUNCH_STUB_REU_LO_PATCH = LAUNCH_STUB_ADDR + (launch_stub_reu_lo_operand - launch_stub_entry_template)
+LAUNCH_STUB_REU_HI_PATCH = LAUNCH_STUB_ADDR + (launch_stub_reu_hi_operand - launch_stub_entry_template)
 LAUNCH_STUB_LEN_LO_PATCH = LAUNCH_STUB_ADDR + (launch_stub_len_lo_operand - launch_stub_entry_template)
 LAUNCH_STUB_LEN_HI_PATCH = LAUNCH_STUB_ADDR + (launch_stub_len_hi_operand - launch_stub_entry_template)
 REU_LAUNCH_MAIN_BASE = REU_VICE_TREE_TOTAL
@@ -453,7 +500,6 @@ resident_halt:
 resident_main:
     mgrow 1
     calln svc_console_reset
-    calln svc_install_launch_stub
     calln svc_install_tool_abi
     calln svc_get_abi_version
     stma ABI_SNAPSHOT
@@ -585,6 +631,10 @@ shell_done:
 
 program_return_resume:
     mgrow 1
+    setp8 $A4
+    stma LAUNCH_TRACE_STAGE
+    setp8 $01
+    stma LAUNCH_TRACE_CODE
     setp8 $21
     stma STAGE_SNAPSHOT
     calln svc_apply_tool_writeback
@@ -653,7 +703,7 @@ vice_probe_available:
     sta PTR+1
     lda #VICE_LFN_PROBE
     sta vice_lfn
-    jsr vice_open_read_from_ptr
+    jsr vice_open_read_from_ptr_preserved
     bcs vice_probe_available_fail
     jsr vice_close_current_file
     pla
@@ -1264,7 +1314,7 @@ copy_screen_ptr_string_to_current_ptr_ascii_loop:
     cmp #'['
     bcs :+
     ora #$20
-:   
+:
     sta (PTR),y
     iny
     cpy #HW_DIR_NAME_MAX
@@ -1614,6 +1664,14 @@ build_vice_open_path_from_name:
     sta PTR
     lda SCREEN_PTR+1
     sta PTR+1
+    jmp build_vice_open_path_from_prefix_ptr
+
+build_vice_open_path_from_launch_path:
+    lda #<TOOL_ABI_LAUNCH_PATH
+    sta PTR
+    lda #>TOOL_ABI_LAUNCH_PATH
+    sta PTR+1
+build_vice_open_path_from_prefix_ptr:
     ldy #$00
 build_vice_open_path_prefix:
     lda (PTR),y
@@ -1671,6 +1729,8 @@ truncate_vice_open_path_after_name:
 
 build_vice_program_open_path_from_name:
     jsr build_vice_open_path_from_name
+build_vice_program_open_path_mark_prg:
+    clc
     lda vice_path_len
     adc vice_name_index
     tay
@@ -1678,6 +1738,29 @@ build_vice_program_open_path_from_name:
     iny
     lda #'P'
     sta source_fullpath_buffer,y
+    rts
+
+build_vice_program_open_path_from_launch_path:
+    jsr build_vice_open_path_from_launch_path
+    jmp build_vice_program_open_path_mark_prg
+
+build_launch_bang_name_from_path_name_buffer:
+    ldy #$00
+    lda #ASCII_BANG
+    sta dest_fullpath_buffer,y
+    iny
+    ldx #$00
+build_launch_bang_name_from_path_name_buffer_loop:
+    lda path_name_buffer,x
+    sta dest_fullpath_buffer,y
+    beq build_launch_bang_name_from_path_name_buffer_done
+    inx
+    iny
+    cpy #FULL_PATH_BUF_LEN-1
+    bcc build_launch_bang_name_from_path_name_buffer_loop
+    lda #$00
+    sta dest_fullpath_buffer+FULL_PATH_BUF_LEN-1
+build_launch_bang_name_from_path_name_buffer_done:
     rts
 
 build_name_from_path_name_buffer:
@@ -1691,7 +1774,7 @@ build_name_from_path_name_buffer_loop:
     bcs :+
     clc
     adc #$C0
-:   
+:
     sta source_fullpath_buffer,x
     inx
     cpx #FULL_PATH_BUF_LEN-1
@@ -1757,7 +1840,7 @@ build_vice_full_path_from_path_name_name_loop:
     cmp #'['
     bcs :+
     ora #$20
-:   
+:
     sta source_fullpath_buffer,y
     iny
     inx
@@ -1901,7 +1984,7 @@ build_vice_full_path_name_loop:
     bcs :+
     clc
     adc #$40
-: 
+:
     sta source_fullpath_buffer,y
     iny
     inc PTR
@@ -2172,7 +2255,7 @@ read_file_response_vice:
     sta vice_lfn
     lda #VICE_SA_READ
     sta vice_secondary
-    jsr vice_open_read_from_ptr
+    jsr vice_open_read_from_ptr_preserved
     bcs read_file_response_vice_fail
     lda #<response_buffer
     sta PTR
@@ -2225,14 +2308,24 @@ query_program_file_vice:
     jsr build_vice_program_open_path_from_name
     lda #VICE_LFN_TOOL
     sta vice_lfn
-    lda #$00
+    lda #VICE_SA_READ
     sta vice_secondary
-    jsr vice_open_read_from_ptr
+    jsr vice_open_read_from_ptr_preserved
     bcs query_program_file_vice_missing
+    ldx #$02
+query_program_file_vice_probe_loop:
+    jsr CHRIN
+    jsr READST
+    and #$42
+    bne query_program_file_vice_missing_close
+    dex
+    bne query_program_file_vice_probe_loop
     jsr vice_close_current_file
     lda #RUN_STATUS_OK
     clc
     rts
+query_program_file_vice_missing_close:
+    jsr vice_close_current_file
 query_program_file_vice_missing:
     lda #RUN_STATUS_NOFILE
     sec
@@ -2251,7 +2344,7 @@ query_program_file_vice_current_host:
     lda mount_flag_table,x
     cmp #MOUNT_FLAG_TREE
     bne query_program_file_vice_current_open
-    jsr query_file_vice_host_exact_current
+    jsr query_program_file_vice_host_current
     bcc query_program_file_vice_current_found
     jmp query_program_file_vice_current_missing
 query_program_file_vice_current_open:
@@ -2293,15 +2386,8 @@ query_program_file_vice_search:
     bcs query_program_file_vice_search_restore
     pla
     pha
-    beq query_program_file_vice_search_try_bin
+    beq query_program_file_vice_search_restore
     lda #DIR_ID_ROOT
-    sta temp_dir_id
-    jsr query_program_file_vice_current
-    bcc query_program_file_vice_search_found
-    cmp #RUN_STATUS_NOFILE
-    bne query_program_file_vice_search_restore
-query_program_file_vice_search_try_bin:
-    lda #DIR_ID_BIN
     sta temp_dir_id
     jsr query_program_file_vice_current
     bcc query_program_file_vice_search_found
@@ -2321,7 +2407,7 @@ load_program_image_vice:
     sta vice_lfn
     lda #VICE_SA_READ
     sta vice_secondary
-    jsr vice_open_read_from_ptr
+    jsr vice_open_read_from_ptr_preserved
     bcs load_program_image_vice_fail
     lda #<program_image_buffer
     sta PTR
@@ -2377,7 +2463,7 @@ load_program_image_vice_current_ok:
     rts
 
 prepare_external_program_launch:
-    jsr reu_init
+    jsr reu_init_preserved
     lda reu_present
     bne :+
     jmp prepare_external_program_launch_fail
@@ -2391,24 +2477,6 @@ prepare_external_program_launch:
     jmp prepare_external_program_launch_fail
 :
     jsr copy_program_target_to_path_name_buffer
-    jsr program_target_is_simple_name
-    bcs prepare_external_program_launch_check_tree
-    jsr program_target_prefers_release_a_root
-    bcs prepare_external_program_launch_check_tree
-    lda temp_drive
-    pha
-    lda temp_dir_id
-    pha
-    lda #DRIVE_A
-    sta temp_drive
-    lda #DIR_ID_ROOT
-    sta temp_dir_id
-    jsr prepare_external_program_launch_try_here
-    bcc prepare_external_program_launch_found_a
-    pla
-    sta temp_dir_id
-    pla
-    sta temp_drive
 prepare_external_program_launch_check_tree:
     ldx temp_drive
     lda mount_flag_table,x
@@ -2425,15 +2493,11 @@ prepare_external_program_launch_search_host:
     bcs prepare_external_program_launch_fail_restore
     pla
     pha
-    beq prepare_external_program_launch_try_bin
+    beq prepare_external_program_launch_fail_restore
     lda #DIR_ID_ROOT
     sta temp_dir_id
     jsr prepare_external_program_launch_try_here
     bcc prepare_external_program_launch_found
-prepare_external_program_launch_try_bin:
-    lda #DIR_ID_BIN
-    sta temp_dir_id
-    jsr prepare_external_program_launch_try_here
     bcs prepare_external_program_launch_fail_restore
 prepare_external_program_launch_found:
     lda temp_drive
@@ -2442,17 +2506,6 @@ prepare_external_program_launch_found:
     sta LAUNCH_DIR_SNAPSHOT
     pla
     sta temp_dir_id
-    lda #PROGRAM_LAUNCH_VICE_HOST
-    sta program_launch_mode
-    clc
-    rts
-prepare_external_program_launch_found_a:
-    pla
-    pla
-    lda temp_drive
-    sta LAUNCH_DRIVE_SNAPSHOT
-    lda temp_dir_id
-    sta LAUNCH_DIR_SNAPSHOT
     lda #PROGRAM_LAUNCH_VICE_HOST
     sta program_launch_mode
     clc
@@ -2471,95 +2524,73 @@ prepare_external_program_launch_try_here:
     lda mount_flag_table,x
     cmp #MOUNT_FLAG_TREE
     bne prepare_external_program_launch_try_here_any
-    jsr query_file_vice_host_exact_current
+    jsr query_program_file_vice_host_current
     rts
 prepare_external_program_launch_try_here_any:
     jsr query_program_file_vice_current
 prepare_external_program_launch_try_here_fail:
     rts
 
-program_target_prefers_release_a_root:
-    lda path_name_buffer+0
-    cmp #$01
-    bne program_target_prefers_release_a_root_no
-    lda path_name_buffer+1
-    cmp #CMD_C
-    beq program_target_prefers_release_a_root_act
-    cmp #CMD_V
-    beq program_target_prefers_release_a_root_avm
-    cmp #CMD_L
-    bne program_target_prefers_release_a_root_no
-    lda path_name_buffer+2
-    cmp #CMD_I
-    bne program_target_prefers_release_a_root_no
-    lda path_name_buffer+3
-    cmp #CMD_N
-    bne program_target_prefers_release_a_root_no
-    lda path_name_buffer+4
-    cmp #CMD_K
-    bne program_target_prefers_release_a_root_no
-    jmp program_target_prefers_release_a_root_yes
-program_target_prefers_release_a_root_act:
-    lda path_name_buffer+2
-    cmp #CMD_T
-    beq program_target_prefers_release_a_root_yes
-    bne program_target_prefers_release_a_root_no
-program_target_prefers_release_a_root_avm:
-    lda path_name_buffer+2
-    cmp #CMD_M
-    beq program_target_prefers_release_a_root_yes
-program_target_prefers_release_a_root_no:
-    sec
-    rts
-program_target_prefers_release_a_root_yes:
+load_external_program_vice_current_direct:
+    jsr stage_launch_program_to_reu_vice_current_host
+    bcc load_external_program_vice_current_direct_finish
+    bcs load_external_program_vice_current_direct_fail
+load_external_program_vice_current_direct_finish:
+    jsr svc_install_launch_stub
+    lda TOOL_ABI_FILE_DEST_LO
+    sta LAUNCH_STUB_LOAD_LO_PTR_PATCH
+    sta LAUNCH_STUB_LOAD_LO_CUR_PATCH
+    lda TOOL_ABI_FILE_DEST_HI
+    sta LAUNCH_STUB_LOAD_HI_PTR_PATCH
+    sta LAUNCH_STUB_LOAD_HI_CUR_PATCH
+    lda launch_load_source_lo
+    sta LAUNCH_STUB_REU_LO_PATCH
+    lda launch_load_source_hi
+    sta LAUNCH_STUB_REU_HI_PATCH
+    lda program_image_len_lo
+    sta LAUNCH_STUB_LEN_LO_PATCH
+    lda program_image_len_hi
+    sta LAUNCH_STUB_LEN_HI_PATCH
+    lda #<LAUNCH_STUB_ADDR
+    sta launch_load_cache_lo
+    lda #>LAUNCH_STUB_ADDR
+    sta launch_load_cache_hi
     clc
     rts
+load_external_program_vice_current_direct_fail:
+    jsr CLRCHN
+    lda #RUN_STATUS_LOAD_FAILED
+    sta program_status
+    sec
+    rts
 
-load_external_program_vice_current_direct:
-    lda LAUNCH_DRIVE_SNAPSHOT
-    sta temp_drive
-    lda LAUNCH_DIR_SNAPSHOT
-    sta temp_dir_id
-    lda LAUNCH_DRIVE_SNAPSHOT
-    bne load_external_program_vice_current_direct_host
-    jmp load_external_program_vice_current_direct_hw
-load_external_program_vice_current_direct_host:
-    jsr build_vice_program_open_path_from_name
-    lda #VICE_LFN_TOOL
-    sta vice_lfn
-    lda #VICE_SA_READ
-    sta vice_secondary
-    jsr vice_open_read_from_ptr
-    bcc load_external_program_vice_current_direct_stream_open
-    jmp load_external_program_vice_current_direct_fail
-load_external_program_vice_current_direct_hw:
-    jsr build_name_from_path_name_buffer
-    lda #VICE_LFN_TOOL
-    sta vice_lfn
-    lda #VICE_SA_READ
-    sta vice_secondary
-    jsr vice_open_read_from_ptr
-    bcc load_external_program_vice_current_direct_stream_open
-    jmp load_external_program_vice_current_direct_fail
-load_external_program_vice_current_direct_stream_open:
-    jsr CHRIN
-    sta TOOL_ABI_FILE_DEST_LO
-    jsr READST
-    and #$42
-    bne load_external_program_vice_current_direct_host_header_fail
-    jsr CHRIN
-    sta TOOL_ABI_FILE_DEST_HI
-    jsr READST
-    and #$42
-    bne load_external_program_vice_current_direct_host_header_fail
+stage_launch_program_to_reu_vice_current_host:
+    jsr build_launch_bang_name_from_path_name_buffer
+    lda #<dest_fullpath_buffer
+    sta TOOL_ABI_FILE_NAME_LO
+    lda #>dest_fullpath_buffer
+    sta TOOL_ABI_FILE_NAME_HI
+    jsr reu_init_preserved
+    lda reu_present
+    bne :+
+    jmp stage_launch_program_to_reu_vice_current_host_fail
+:
+    jsr tool_abi_open_program_read_path_preserved
+    bcc :+
+    jmp stage_launch_program_to_reu_vice_current_host_fail
+:
     lda #<REU_LAUNCH_PROGRAM_BASE
     sta launch_reu_reu_lo
     lda #>REU_LAUNCH_PROGRAM_BASE
     sta launch_reu_reu_hi
     lda #$00
+    sta reu_slot_bank
+    lda #REU_CMD_COPY_C64_TO_REU
+    sta reu_command_temp
+    lda #$00
     sta program_image_len_lo
     sta program_image_len_hi
-load_external_program_vice_current_direct_host_loop:
+stage_launch_program_to_reu_vice_current_host_loop:
     lda #<program_image_buffer
     sta PTR
     lda #>program_image_buffer
@@ -2568,7 +2599,6 @@ load_external_program_vice_current_direct_host_loop:
     jsr vice_read_open_file_into_ptr_len_binary
     php
     lda vice_read_length
-    beq load_external_program_vice_current_direct_host_chunk_done
     sta launch_reu_remaining_lo
     lda #$00
     sta launch_reu_remaining_hi
@@ -2576,8 +2606,7 @@ load_external_program_vice_current_direct_host_loop:
     sta launch_reu_c64_lo
     lda #>program_image_buffer
     sta launch_reu_c64_hi
-    jsr spill_udos_chunk_loop
-    bcs load_external_program_vice_current_direct_host_stream_fail
+    jsr reu_transfer_chunk_loop_preserved
     clc
     lda program_image_len_lo
     adc vice_read_length
@@ -2585,27 +2614,32 @@ load_external_program_vice_current_direct_host_loop:
     bcc :+
     inc program_image_len_hi
 :
-load_external_program_vice_current_direct_host_chunk_done:
     plp
-    bcc load_external_program_vice_current_direct_host_loop
-    jsr vice_close_current_file
+    bcc stage_launch_program_to_reu_vice_current_host_loop
+    jsr tool_abi_close_current_file
+    lda program_image_len_hi
+    bne stage_launch_program_to_reu_vice_current_host_len_ok
     lda program_image_len_lo
-    ora program_image_len_hi
-    beq load_external_program_vice_current_direct_fail
-    jmp load_external_program_vice_current_direct_finish
-load_external_program_vice_current_direct_host_header_fail:
-    jsr vice_close_current_file
-    jmp load_external_program_vice_current_direct_fail
-load_external_program_vice_current_direct_host_stream_fail:
-    plp
-    jsr vice_close_current_file
-    jmp load_external_program_vice_current_direct_fail
-load_external_program_vice_current_direct_loaded_len_ready:
-    lda program_image_len_lo
-    ora program_image_len_hi
-    bne :+
-    jmp load_external_program_vice_current_direct_fail
-:
+    cmp #$02
+    bcc stage_launch_program_to_reu_vice_current_host_fail
+stage_launch_program_to_reu_vice_current_host_len_ok:
+    lda #<REU_LAUNCH_PROGRAM_BASE
+    sta launch_reu_reu_lo
+    lda #>REU_LAUNCH_PROGRAM_BASE
+    sta launch_reu_reu_hi
+    lda #$00
+    sta reu_slot_bank
+    lda #<program_image_buffer
+    sta launch_reu_c64_lo
+    lda #>program_image_buffer
+    sta launch_reu_c64_hi
+    lda #$02
+    sta launch_reu_remaining_lo
+    lda #$00
+    sta launch_reu_remaining_hi
+    lda #REU_CMD_COPY_REU_TO_C64
+    sta reu_command_temp
+    jsr reu_transfer_chunk_loop_preserved
     lda program_image_buffer+0
     sta TOOL_ABI_FILE_DEST_LO
     lda program_image_buffer+1
@@ -2617,48 +2651,15 @@ load_external_program_vice_current_direct_loaded_len_ready:
     lda program_image_len_hi
     sbc #$00
     sta program_image_len_hi
-    bcc load_external_program_vice_current_direct_fail
-    jsr stage_program_image_payload_to_reu
-    bcs load_external_program_vice_current_direct_fail
-load_external_program_vice_current_direct_finish:
-    lda TOOL_ABI_FILE_DEST_LO
-    sta LAUNCH_STUB_LOAD_LO_PTR_PATCH
-    sta LAUNCH_STUB_LOAD_LO_CUR_PATCH
-    lda TOOL_ABI_FILE_DEST_HI
-    sta LAUNCH_STUB_LOAD_HI_PTR_PATCH
-    sta LAUNCH_STUB_LOAD_HI_CUR_PATCH
-    lda program_image_len_lo
-    sta LAUNCH_STUB_LEN_LO_PATCH
-    lda program_image_len_hi
-    sta LAUNCH_STUB_LEN_HI_PATCH
-    lda #<LAUNCH_STUB_ADDR
-    sta launch_load_cache_lo
-    lda #>LAUNCH_STUB_ADDR
-    sta launch_load_cache_hi
-    jsr snapshot_program_image_length
+    lda #<(REU_LAUNCH_PROGRAM_BASE+2)
+    sta launch_load_source_lo
+    lda #>(REU_LAUNCH_PROGRAM_BASE+2)
+    sta launch_load_source_hi
     clc
     rts
-load_external_program_vice_current_direct_fail:
-    jsr CLRCHN
-    lda #RUN_STATUS_LOAD_FAILED
-    sta program_status
+stage_launch_program_to_reu_vice_current_host_fail:
     sec
     rts
-
-stage_program_image_payload_to_reu:
-    lda #<(program_image_buffer+2)
-    sta launch_reu_c64_lo
-    lda #>(program_image_buffer+2)
-    sta launch_reu_c64_hi
-    lda #<REU_LAUNCH_PROGRAM_BASE
-    sta launch_reu_reu_lo
-    lda #>REU_LAUNCH_PROGRAM_BASE
-    sta launch_reu_reu_hi
-    lda program_image_len_lo
-    sta launch_reu_remaining_lo
-    lda program_image_len_hi
-    sta launch_reu_remaining_hi
-    jmp spill_udos_chunk_loop
 
 read_launch_header_vice_current:
     lda #RUN_STATUS_LOAD_FAILED
@@ -2685,7 +2686,7 @@ fill_vice_dir_cache_current_flat:
     sta vice_lfn
     lda #$00
     sta vice_secondary
-    jsr vice_open_read_from_ptr
+    jsr vice_open_read_from_ptr_preserved
     bcs fill_vice_dir_cache_current_fail
     lda #<flat_sector_buffer
     sta PTR
@@ -2717,7 +2718,7 @@ fill_vice_dir_cache_from_ptr:
     sta vice_lfn
     lda #$00
     sta vice_secondary
-    jsr vice_open_read_from_ptr
+    jsr vice_open_read_from_ptr_preserved
     bcs fill_vice_dir_cache_from_ptr_fail
     lda #<flat_sector_buffer
     sta PTR
@@ -2764,7 +2765,7 @@ fill_vice_manifest_dir_cache_host_current:
     sta vice_lfn
     lda #$00
     sta vice_secondary
-    jsr vice_open_read_from_ptr
+    jsr vice_open_read_from_ptr_preserved
     bcs fill_vice_manifest_dir_cache_host_current_fail
     lda #<flat_dir_sector_buffer
     sta PTR
@@ -4114,6 +4115,7 @@ svc_emit_mem_response:
     jmp svc_console_newline
 
 svc_try_autoexec_batch:
+.if UDOS_INCLUDE_AUTOEXEC
     stx saved_rp_x
     jsr load_autoexec_arg_buffer
     ldx saved_rp_x
@@ -4123,6 +4125,12 @@ svc_try_autoexec_batch:
     sta 0,x
     sta 1,x
     rts
+.else
+    lda #$00
+    sta 0,x
+    sta 1,x
+    rts
+.endif
 
 load_autoexec_arg_buffer:
     ldy #$00
@@ -6531,7 +6539,7 @@ program_lookup:
     cmp #RUN_STATUS_LOAD_FAILED
     bne :+
     jmp program_status_return
-:    
+:
     jsr uci_probe
     bcc program_lookup_hw
     jsr vice_probe_available
@@ -7313,15 +7321,26 @@ launch_external_program_if_ready:
     beq launch_external_program_if_ready_done
     cmp #PROGRAM_LAUNCH_VICE_HOST
     bne launch_external_program_if_ready_done
-    jsr stage_launch_metadata
+    jsr svc_sync_tool_launch_path_shadow
     jsr spill_udos_to_reu
-    bcs launch_external_program_if_ready_load_failed
+    bcc :+
+    jmp launch_external_program_if_ready_load_failed
+:
     jsr load_external_program_vice_current_direct
-    bcs launch_external_program_if_ready_load_failed
+    bcc :+
+    jmp launch_external_program_if_ready_load_failed
+:
+    jsr stage_launch_metadata
+    jsr svc_install_launch_return_stub
+    jsr svc_install_tool_abi_fixed_page
     lda launch_load_cache_lo
     sta $F7
     lda launch_load_cache_hi
     sta $F8
+    lda #$A0
+    sta LAUNCH_TRACE_STAGE
+    lda #$01
+    sta LAUNCH_TRACE_CODE
     jmp ($00F7)
 launch_external_program_if_ready_load_failed:
     lda #RUN_STATUS_LOAD_FAILED
@@ -7330,33 +7349,18 @@ launch_external_program_if_ready_done:
     rts
 
 stage_launch_metadata:
-    lda #$00
-    sta WRITEBACK_TRACE_STAGE
-    sta WRITEBACK_TRACE_COUNT
-    sta WRITEBACK_TRACE_KIND
-    jsr svc_install_launch_stub
-    jsr svc_install_launch_return_stub
     jsr svc_sync_tool_cmdline_shadow
     jsr svc_sync_tool_backend_path_shadow
+    jsr svc_sync_tool_launch_path_shadow
     lda #PROGRAM_LAUNCH_RESULT_LOAD_FAILED
     sta LAUNCH_RESULT_FLAG
     lda #$00
     sta LAUNCH_EXIT_STATUS
     jsr tool_writeback_clear_and_save
-    lda launch_load_cache_lo
-    sta LAUNCH_STUB_LOAD_LO_PTR_PATCH
-    sta LAUNCH_STUB_LOAD_LO_CUR_PATCH
-    lda launch_load_cache_hi
-    sta LAUNCH_STUB_LOAD_HI_PTR_PATCH
-    sta LAUNCH_STUB_LOAD_HI_CUR_PATCH
-    lda program_image_len_lo
-    sta LAUNCH_STUB_LEN_LO_PATCH
-    lda program_image_len_hi
-    sta LAUNCH_STUB_LEN_HI_PATCH
     rts
 
 spill_udos_to_reu:
-    jsr reu_init
+    jsr reu_init_preserved
     lda reu_present
     bne :+
     sec
@@ -7384,9 +7388,9 @@ spill_udos_to_reu:
     sta launch_reu_reu_lo
     lda #>REU_LAUNCH_HIRAM_BASE
     sta launch_reu_reu_hi
-    lda #<$1000
+    lda #<REU_LAUNCH_HIRAM_SIZE
     sta launch_reu_remaining_lo
-    lda #>$1000
+    lda #>REU_LAUNCH_HIRAM_SIZE
     sta launch_reu_remaining_hi
     jsr spill_udos_chunk_loop
     bcs spill_udos_to_reu_fail
@@ -7394,77 +7398,11 @@ spill_udos_to_reu_fail:
     rts
 
 spill_udos_chunk_loop:
-    lda launch_reu_remaining_lo
-    ora launch_reu_remaining_hi
-    bne :+
-    jmp spill_udos_chunk_done
-:
-    lda launch_reu_remaining_hi
-    beq spill_udos_chunk_remainder
-    lda #$FF
-    bne spill_udos_chunk_size_ready
-spill_udos_chunk_remainder:
-    lda launch_reu_remaining_lo
-spill_udos_chunk_size_ready:
-    sta launch_reu_chunk
-    php
-    sei
-    lda C64_PORT
-    sta reu_saved_port
-    and #$F8
-    ora #C64_PORT_IO_ON
-    sta C64_PORT
-    lda launch_reu_c64_lo
-    sta REU_C64ADDR_LO
-    lda launch_reu_c64_hi
-    sta REU_C64ADDR_HI
-    lda launch_reu_reu_lo
-    sta REU_REUADDR_LO
-    lda launch_reu_reu_hi
-    sta REU_REUADDR_HI
-    lda #$00
-    sta REU_REUADDR_BANK
-    lda launch_reu_chunk
-    sta REU_COUNT_LO
-    lda #$00
-    sta REU_COUNT_HI
-    sta REU_IRQMASK
-    sta REU_CONTROL
     lda #REU_CMD_COPY_C64_TO_REU
-    sta REU_COMMAND
-    lda reu_saved_port
-    and #$F8
-    sta C64_PORT
+    sta reu_command_temp
     lda #$00
-    sta REU_TRIGGER
-    lda reu_saved_port
-    sta C64_PORT
-    plp
-    clc
-    lda launch_reu_c64_lo
-    adc launch_reu_chunk
-    sta launch_reu_c64_lo
-    bcc :+
-    inc launch_reu_c64_hi
-:
-    clc
-    lda launch_reu_reu_lo
-    adc launch_reu_chunk
-    sta launch_reu_reu_lo
-    bcc :+
-    inc launch_reu_reu_hi
-:
-    sec
-    lda launch_reu_remaining_lo
-    sbc launch_reu_chunk
-    sta launch_reu_remaining_lo
-    lda launch_reu_remaining_hi
-    sbc #$00
-    sta launch_reu_remaining_hi
-    jmp spill_udos_chunk_loop
-spill_udos_chunk_done:
-    clc
-    rts
+    sta reu_slot_bank
+    jmp reu_transfer_chunk_loop_preserved
 
 svc_install_launch_stub:
     lda #<launch_stub_entry_template
@@ -7512,6 +7450,15 @@ svc_install_launch_return_stub:
     rts
 
 svc_install_tool_abi:
+    jsr svc_install_tool_abi_fixed_page
+    lda #$00
+    sta TOOL_ABI_CMDLINE_LEN
+    sta TOOL_ABI_CMDLINE_BUF
+    sta TOOL_ABI_CURRENT_PATH
+    sta TOOL_ABI_LAUNCH_PATH
+    rts
+
+svc_install_tool_abi_fixed_page:
     lda #<tool_abi_fixed_template
     sta PTR
     lda #>tool_abi_fixed_template
@@ -7524,12 +7471,7 @@ svc_install_tool_abi:
     sta launch_reu_remaining_lo
     lda #>(tool_abi_fixed_template_end-tool_abi_fixed_template)
     sta launch_reu_remaining_hi
-    jsr svc_install_copy_block
-    lda #$00
-    sta TOOL_ABI_CMDLINE_LEN
-    sta TOOL_ABI_CMDLINE_BUF
-    sta TOOL_ABI_CURRENT_PATH
-    rts
+    jmp svc_install_copy_block
 
 svc_sync_tool_cmdline_shadow:
     lda program_cmdline_len
@@ -7570,6 +7512,20 @@ svc_sync_tool_backend_path_shadow_loop:
 svc_sync_tool_backend_path_shadow_done:
     lda #$00
     sta TOOL_ABI_CURRENT_PATH+MAX_LINE_LEN
+    rts
+
+svc_sync_tool_launch_path_shadow:
+    lda LAUNCH_DRIVE_SNAPSHOT
+    sta temp_drive
+    lda LAUNCH_DIR_SNAPSHOT
+    sta temp_dir_id
+    lda #<TOOL_ABI_LAUNCH_PATH
+    sta SCREEN_PTR
+    lda #>TOOL_ABI_LAUNCH_PATH
+    sta SCREEN_PTR+1
+    jsr fill_backend_path_vice
+    lda #$00
+    sta TOOL_ABI_LAUNCH_PATH+MAX_LINE_LEN
     rts
 
 svc_install_copy_block:
@@ -7620,7 +7576,7 @@ tool_writeback_reu_addr_done:
 
 tool_writeback_transfer_record:
     pha
-    jsr reu_init
+    jsr reu_init_preserved
     lda reu_present
     bne :+
     pla
@@ -7629,8 +7585,7 @@ tool_writeback_transfer_record:
 :
     lda C64_PORT
     sta reu_saved_port
-    and #$F8
-    ora #C64_PORT_IO_ON
+    ora #C64_PORT_CHAREN_ON
     sta C64_PORT
     lda #<tool_writeback_buffer
     sta REU_C64ADDR_LO
@@ -7928,11 +7883,11 @@ svc_apply_tool_writeback_file_save_have_content:
     jsr store_vice_host_current_from_screen_ptr
     bcc :+
     jmp svc_apply_tool_writeback_pop
-: 
+:
     jsr store_vice_manifest_host_current
     bcc :+
     jmp svc_apply_tool_writeback_pop
-: 
+:
     jsr clear_vice_tree_slot
     jmp svc_apply_tool_writeback_pop
 svc_apply_tool_writeback_file_delete:
@@ -8120,6 +8075,22 @@ svc_program_exit:
     lda #$00
     sta PROGRAM_EXIT_SNAPSHOT
     rts
+
+svc_vm_acheron_enter:
+    jsr clear_rstack
+    sec
+    lda 0,x
+    sbc #$01
+    sta PTR
+    lda 1,x
+    sbc #$00
+    sta PTR+1
+    lda PTR+1
+    pha
+    lda PTR
+    pha
+    clc
+    jmp acheron
 
 split_copy_args:
     lda arg_length
@@ -10908,11 +10879,11 @@ build_full_path_copy_name_loop:
     inc PTR
     bne :+
     inc PTR+1
-:    
+:
     inc SCREEN_PTR
     bne :+
     inc SCREEN_PTR+1
-:    
+:
     inc saved_response_y
     lda saved_response_y
     cmp #MAX_LINE_LEN
@@ -11878,7 +11849,7 @@ copy_vice_dir_name_loop:
     cmp #'['
     bcs :+
     ora #$20
-:   
+:
     sta (PTR),y
     iny
     bne copy_vice_dir_name_loop
@@ -14061,31 +14032,6 @@ advance_vice_tree_name_slot_loop:
 select_vice_tree_name_slot_done:
     rts
 
-reu_init:
-    lda #$00
-    sta reu_present
-    lda C64_PORT
-    sta reu_saved_port
-    and #$F8
-    ora #C64_PORT_IO_ON
-    sta C64_PORT
-    lda #$55
-    sta REU_REUADDR_LO
-    lda REU_REUADDR_LO
-    cmp #$55
-    bne reu_init_restore
-    lda #$AA
-    sta REU_REUADDR_LO
-    lda REU_REUADDR_LO
-    cmp #$AA
-    bne reu_init_restore
-    lda #$01
-    sta reu_present
-reu_init_restore:
-    lda reu_saved_port
-    sta C64_PORT
-    rts
-
 set_vice_tree_slot_cache_ptr:
     lda #<vice_tree_slot_cache
     sta PTR
@@ -14118,8 +14064,7 @@ reu_transfer_vice_tree_slot_cache:
     sta reu_command_temp
     lda C64_PORT
     sta reu_saved_port
-    and #$F8
-    ora #C64_PORT_IO_ON
+    ora #C64_PORT_CHAREN_ON
     sta C64_PORT
     lda #<vice_tree_slot_cache
     sta REU_C64ADDR_LO
@@ -14151,7 +14096,7 @@ reu_transfer_vice_tree_slot_cache:
     rts
 
 save_selected_vice_tree_content_slot:
-    jsr reu_init
+    jsr reu_init_preserved
     lda reu_present
     beq save_selected_vice_tree_content_slot_done
     jsr select_vice_tree_reu_slot_addr
@@ -14163,7 +14108,7 @@ save_selected_vice_tree_content_slot_done:
 
 select_vice_tree_content_slot:
     jsr set_vice_tree_slot_cache_ptr
-    jsr reu_init
+    jsr reu_init_preserved
     lda reu_present
     beq select_vice_tree_content_slot_done
     jsr select_vice_tree_reu_slot_addr
@@ -14328,7 +14273,7 @@ query_file_vice_open_current:
     sta vice_lfn
     lda #$00
     sta vice_secondary
-    jsr vice_open_read_from_ptr
+    jsr vice_open_read_from_ptr_preserved
     bcs query_file_vice_open_current_fail
     jsr vice_close_current_file
     clc
@@ -14365,7 +14310,7 @@ query_dir_vice_host_current:
     sta vice_lfn
     lda #$00
     sta vice_secondary
-    jsr vice_open_read_from_ptr
+    jsr vice_open_read_from_ptr_preserved
     bcs query_dir_vice_host_current_fail
     jsr vice_close_current_file
     clc
@@ -14412,10 +14357,7 @@ query_program_file_vice_host_current:
 query_program_file_vice_host_current_restore_open:
     jsr restore_path_name_shadow
 query_program_file_vice_host_current_open:
-    jmp query_file_vice_open_current
-query_program_file_vice_host_current_fail:
-    sec
-    rts
+    jmp query_program_file_vice
 
 store_vice_tree_live_current_from_screen_ptr:
     lda SCREEN_PTR
@@ -14746,7 +14688,7 @@ build_mem_prefix_loop:
     inx
     bne build_mem_prefix_loop
 build_mem_prefix_done:
-    jsr reu_init
+    jsr reu_init_preserved
     lda reu_present
     beq build_mem_actual_ram
     lda #$00
@@ -15120,34 +15062,9 @@ idle_loop:
 
 launch_stub_entry_template:
     sei
+    cld
     ldx #$FF
     txs
-    lda #<$1000
-    sta $F9
-    lda #>$1000
-    sta $FA
-    lda #<REU_LAUNCH_MAIN_BASE
-    sta $FB
-    lda #>REU_LAUNCH_MAIN_BASE
-    sta $FC
-    lda #<REU_LAUNCH_MAIN_SIZE
-    sta $FD
-    lda #>REU_LAUNCH_MAIN_SIZE
-    sta $FE
-    jsr launch_stub_spill_loop
-    lda #<$C000
-    sta $F9
-    lda #>$C000
-    sta $FA
-    lda #<REU_LAUNCH_HIRAM_BASE
-    sta $FB
-    lda #>REU_LAUNCH_HIRAM_BASE
-    sta $FC
-    lda #<REU_LAUNCH_HIRAM_SIZE
-    sta $FD
-    lda #>REU_LAUNCH_HIRAM_SIZE
-    sta $FE
-    jsr launch_stub_spill_loop
 launch_stub_load_lo_ptr_patch_instr:
     lda #$00
 launch_stub_load_lo_ptr_operand = * - 1
@@ -15164,10 +15081,16 @@ launch_stub_load_hi_cur_patch_instr:
     lda #$00
 launch_stub_load_hi_cur_operand = * - 1
     sta $FC
+launch_stub_reu_lo_patch_instr:
     lda #<REU_LAUNCH_PROGRAM_BASE
+launch_stub_reu_lo_operand = * - 1
     sta $F9
+launch_stub_reu_hi_patch_instr:
     lda #>REU_LAUNCH_PROGRAM_BASE
+launch_stub_reu_hi_operand = * - 1
     sta $FA
+    lda #$00
+    sta LAUNCH_STUB_BANK
 launch_stub_len_lo_patch_instr:
     lda #$00
 launch_stub_len_lo_operand = * - 1
@@ -15187,6 +15110,7 @@ launch_stub_copy_loop:
 launch_stub_copy_remainder:
     lda $FD
 launch_stub_copy_chunk_ready:
+    pha
     sta REU_COUNT_LO
     lda #$00
     sta REU_COUNT_HI
@@ -15198,8 +15122,9 @@ launch_stub_copy_chunk_ready:
     sta REU_REUADDR_LO
     lda $FA
     sta REU_REUADDR_HI
-    lda #$00
+    lda LAUNCH_STUB_BANK
     sta REU_REUADDR_BANK
+    lda #$00
     sta REU_IRQMASK
     sta REU_CONTROL
     lda #REU_CMD_COPY_REU_TO_C64
@@ -15208,95 +15133,39 @@ launch_stub_copy_chunk_ready:
     sta C64_PORT
     lda #$00
     sta REU_TRIGGER
-    lda #$37
-    sta C64_PORT
-    clc
-    lda $FB
-    adc REU_COUNT_LO
-    sta $FB
-    bcc :+
-    inc $FC
-:
-    clc
-    lda $F9
-    adc REU_COUNT_LO
-    sta $F9
-    bcc :+
-    inc $FA
-:
-    sec
-    lda $FD
-    sbc REU_COUNT_LO
-    sta $FD
-    lda $FE
-    sbc #$00
-    sta $FE
-    jmp launch_stub_copy_loop
-launch_stub_copy_done:
-    cli
-    jmp ($00F7)
-
-launch_stub_spill_loop:
-    lda $FD
-    ora $FE
-    beq launch_stub_spill_done
-    lda $FE
-    beq launch_stub_spill_remainder
-    lda #$FF
-    bne launch_stub_spill_chunk_ready
-launch_stub_spill_remainder:
-    lda $FD
-launch_stub_spill_chunk_ready:
-    pha
-    sta REU_COUNT_LO
-    lda #$00
-    sta REU_COUNT_HI
-    lda $F9
-    sta REU_C64ADDR_LO
-    lda $FA
-    sta REU_C64ADDR_HI
-    lda $FB
-    sta REU_REUADDR_LO
-    lda $FC
-    sta REU_REUADDR_HI
-    lda #$00
-    sta REU_REUADDR_BANK
-    sta REU_IRQMASK
-    sta REU_CONTROL
-    lda #REU_CMD_COPY_C64_TO_REU
-    sta REU_COMMAND
-    lda #$30
-    sta C64_PORT
-    lda #$00
-    sta REU_TRIGGER
-    lda #$37
+    lda #$36
     sta C64_PORT
     pla
-    sta REU_COUNT_LO
-    clc
-    lda $F9
-    adc REU_COUNT_LO
-    sta $F9
-    bcc :+
-    inc $FA
-:
+    sta LAUNCH_STUB_CHUNK
     clc
     lda $FB
-    adc REU_COUNT_LO
+    adc LAUNCH_STUB_CHUNK
     sta $FB
     bcc :+
     inc $FC
 :
+    clc
+    lda $F9
+    adc LAUNCH_STUB_CHUNK
+    sta $F9
+    bcc :+
+    inc $FA
+    bne :+
+    inc LAUNCH_STUB_BANK
+:
     sec
     lda $FD
-    sbc REU_COUNT_LO
+    sbc LAUNCH_STUB_CHUNK
     sta $FD
     lda $FE
     sbc #$00
     sta $FE
-    jmp launch_stub_spill_loop
-launch_stub_spill_done:
-    rts
+    jmp LAUNCH_STUB_ADDR + (launch_stub_copy_loop - launch_stub_entry_template)
+launch_stub_copy_done:
+    lda #$36
+    sta C64_PORT
+    cli
+    jmp ($00F7)
 launch_stub_entry_template_end:
 
 launch_stub_return_template:
@@ -15304,12 +15173,17 @@ launch_stub_return_template:
     tax
     txa
     sta LAUNCH_EXIT_STATUS
+    lda #$A2
+    sta LAUNCH_TRACE_STAGE
+    txa
+    sta LAUNCH_TRACE_CODE
     lda #PROGRAM_LAUNCH_RESULT_OK
     sta LAUNCH_RESULT_FLAG
     jmp LAUNCH_RESTORE_ADDR
 launch_stub_return_template_end:
 
 launch_stub_restore_template:
+    cld
     lda #<$1000
     sta $F9
     lda #>$1000
@@ -15322,7 +15196,7 @@ launch_stub_restore_template:
     sta $FD
     lda #>REU_LAUNCH_MAIN_SIZE
     sta $FE
-    jsr launch_stub_restore_loop
+    jsr LAUNCH_RESTORE_ADDR + (launch_stub_restore_loop - launch_stub_restore_template)
     lda #<$C000
     sta $F9
     lda #>$C000
@@ -15335,7 +15209,7 @@ launch_stub_restore_template:
     sta $FD
     lda #>REU_LAUNCH_HIRAM_SIZE
     sta $FE
-    jsr launch_stub_restore_loop
+    jsr LAUNCH_RESTORE_ADDR + (launch_stub_restore_loop - launch_stub_restore_template)
     cli
     ldx #$FF
     txs
@@ -15380,30 +15254,36 @@ launch_stub_restore_chunk_ready:
     lda #$37
     sta C64_PORT
     pla
-    sta REU_COUNT_LO
+    sta LAUNCH_STUB_CHUNK
     clc
     lda $F9
-    adc REU_COUNT_LO
+    adc LAUNCH_STUB_CHUNK
     sta $F9
     bcc :+
     inc $FA
 :
     clc
     lda $FB
-    adc REU_COUNT_LO
+    adc LAUNCH_STUB_CHUNK
     sta $FB
     bcc :+
     inc $FC
 :
     sec
     lda $FD
-    sbc REU_COUNT_LO
+    sbc LAUNCH_STUB_CHUNK
     sta $FD
     lda $FE
     sbc #$00
     sta $FE
-    jmp launch_stub_restore_loop
+    jmp LAUNCH_RESTORE_ADDR + (launch_stub_restore_loop - launch_stub_restore_template)
 launch_stub_restore_done:
+    lda #$A3
+    sta LAUNCH_TRACE_STAGE
+    lda #$01
+    sta LAUNCH_TRACE_CODE
+    lda #$37
+    sta C64_PORT
     rts
 launch_stub_restore_template_end:
 
@@ -15427,104 +15307,19 @@ vice_name_length_fail:
 vice_clear_channels_status:
     jsr CLRCHN
 vice_clear_status:
-    lda #$00
-    sta $90
-    rts
+    jmp vice_clear_status_preserved
 
 vice_readst_no_eoi:
-    jsr READST
-    and #$BF
-    rts
+    jmp vice_readst_no_eoi_preserved
 
 vice_setlfs_current:
-    lda vice_lfn
-    ldx temp_drive
-    cpx #DRIVE_A
-    beq vice_setlfs_current_drive_a
-    ldx #IEC_ID_B
-    bne vice_setlfs_current_apply
-vice_setlfs_current_drive_a:
-    ldx #IEC_ID_A
-vice_setlfs_current_apply:
-    ldy vice_secondary
-    jmp SETLFS
+    jmp vice_setlfs_current_preserved
 
 vice_open_read_from_ptr:
-    lda #$10
-    sta save_debug_open_status0
-    lda PTR
-    sta save_debug_open_status2
-    lda PTR+1
-    sta save_debug_open_status3
-    jsr vice_name_length_from_ptr
-    bcs vice_open_read_from_ptr_fail_name
-    pha
-    jsr vice_clear_channels_status
-    jsr vice_setlfs_current
-    pla
-    ldx save_debug_open_status2
-    ldy save_debug_open_status3
-    jsr SETNAM
-    jsr OPEN_K
-    bcs vice_open_read_from_ptr_fail_close_open
-    jsr READST
-    sta save_debug_open_status1
-    bne vice_open_read_from_ptr_fail_close_open
-    jsr vice_clear_status
-    ldx vice_lfn
-    jsr CHKIN_K
-    bcs vice_open_read_from_ptr_fail_close_chkin
-    jsr READST
-    sta save_debug_open_status1
-    bne vice_open_read_from_ptr_fail_close_chkin
-    lda #$12
-    sta save_debug_open_status0
-    clc
-    rts
-vice_open_read_from_ptr_fail_close_open:
-    bne vice_open_read_from_ptr_fail_close
-vice_open_read_from_ptr_fail_close_chkin:
-vice_open_read_from_ptr_fail_close:
-    php
-    jsr vice_close_current_file
-    plp
-vice_open_read_from_ptr_fail:
-    sec
-    rts
-vice_open_read_from_ptr_fail_name:
-    lda #$11
-    sta save_debug_open_status0
-    sec
-    rts
+    jmp vice_open_read_from_ptr_preserved
 
 vice_open_write_from_ptr:
-    jsr vice_name_length_from_ptr
-    bcs vice_open_write_from_ptr_fail
-    pha
-    jsr vice_clear_channels_status
-    jsr vice_setlfs_current
-    pla
-    ldx PTR
-    ldy PTR+1
-    jsr SETNAM
-    jsr OPEN_K
-    jsr vice_readst_no_eoi
-    bne vice_open_write_from_ptr_fail_close
-    jsr vice_clear_status
-    ldx vice_lfn
-    jsr CHKOUT_K
-    jsr vice_readst_no_eoi
-    sta save_debug_open_status1
-    bne vice_open_write_from_ptr_fail_close
-    clc
-    rts
-vice_open_write_from_ptr_fail_close:
-    php
-    jsr vice_close_current_file
-    plp
-vice_open_write_from_ptr_fail:
-    sec
-    rts
+    jmp vice_open_write_from_ptr_preserved
 
 vice_issue_command_from_ptr:
     jsr vice_name_length_from_ptr
@@ -15568,43 +15363,6 @@ vice_write_screen_ptr_to_current_file_done:
     clc
     rts
 vice_write_screen_ptr_to_current_file_fail_close:
-    php
-    jsr vice_close_current_file
-    plp
-    sec
-    rts
-
-vice_write_screen_ptr_len_to_current_file:
-    lda TOOL_ABI_FILE_LIMIT_LO
-    sta TOOL_ABI_FILE_REMAIN_LO
-    lda TOOL_ABI_FILE_LIMIT_HI
-    sta TOOL_ABI_FILE_REMAIN_HI
-vice_write_screen_ptr_len_to_current_file_loop:
-    lda TOOL_ABI_FILE_REMAIN_LO
-    ora TOOL_ABI_FILE_REMAIN_HI
-    beq vice_write_screen_ptr_len_to_current_file_done
-    ldy #$00
-    lda (SCREEN_PTR),y
-    jsr CHROUT
-    jsr vice_readst_no_eoi
-    bne vice_write_screen_ptr_len_to_current_file_fail_close
-    inc SCREEN_PTR
-    bne :+
-    inc SCREEN_PTR+1
-:
-    sec
-    lda TOOL_ABI_FILE_REMAIN_LO
-    sbc #$01
-    sta TOOL_ABI_FILE_REMAIN_LO
-    lda TOOL_ABI_FILE_REMAIN_HI
-    sbc #$00
-    sta TOOL_ABI_FILE_REMAIN_HI
-    jmp vice_write_screen_ptr_len_to_current_file_loop
-vice_write_screen_ptr_len_to_current_file_done:
-    jsr vice_close_current_file
-    clc
-    rts
-vice_write_screen_ptr_len_to_current_file_fail_close:
     php
     jsr vice_close_current_file
     plp
@@ -15679,6 +15437,10 @@ vice_read_open_file_into_tool_dest_wide_loop:
     lda TOOL_ABI_FILE_REMAIN_LO
     ora TOOL_ABI_FILE_REMAIN_HI
     beq vice_read_open_file_into_tool_dest_wide_full
+    lda TOOL_ABI_FILE_DEST_LO
+    sta PTR
+    lda TOOL_ABI_FILE_DEST_HI
+    sta PTR+1
     jsr CHRIN
     pha
     lda TOOL_ABI_FILE_DEST_LO
@@ -15713,12 +15475,12 @@ vice_read_open_file_into_tool_dest_wide_full:
     rts
 
 tool_abi_fixed_template:
-    jmp tool_abi_get_abi_version
-    jmp tool_abi_console_write_sc0
-    jmp tool_abi_console_newline
-    jmp tool_abi_program_get_cmdline_ptr
-    jmp tool_abi_program_get_cmdline_len
-    jmp tool_abi_program_exit
+    jmp tool_abi_get_abi_version_preserved
+    jmp tool_abi_console_write_sc0_preserved
+    jmp tool_abi_console_newline_preserved
+    jmp tool_abi_program_get_cmdline_ptr_preserved
+    jmp tool_abi_program_get_cmdline_len_preserved
+    jmp tool_abi_program_exit_preserved
     jmp tool_abi_file_load_sc0
     jmp tool_abi_dir_begin_current
     jmp tool_abi_dir_next
@@ -15728,64 +15490,23 @@ tool_abi_fixed_template:
     jmp tool_abi_file_delete_sc0
     jmp tool_abi_file_rename_sc0
     jmp tool_abi_file_copy_sc0
+    jmp tool_abi_file_write_begin_sc0_preserved
+    jmp tool_abi_file_write_chunk_sc0_preserved
+    jmp tool_abi_file_write_close_sc0_preserved
+    jmp tool_abi_file_stage_reu_sc0_preserved
+    jmp tool_abi_reu_read_sc0_preserved
+    jmp tool_abi_reu_write_sc0_preserved
+    jmp tool_abi_vm_acheron_enter
 tool_abi_fixed_template_end:
-
-tool_abi_get_abi_version:
-    lda #<ABI_VERSION
-    sta 0,x
-    lda #>ABI_VERSION
-    sta 1,x
-    rts
-
-tool_abi_console_write_sc0:
-    lda 0,x
-    sta PTR
-    lda 1,x
-    sta PTR+1
-tool_abi_console_write_ptr:
-    ldy #$00
-tool_abi_write_loop:
-    lda (PTR),y
-    beq tool_abi_write_done
-    jsr tool_abi_console_putc
-    iny
-    bne tool_abi_write_loop
-tool_abi_write_done:
-    rts
-
-tool_abi_console_newline:
-    jsr tool_abi_console_mod40
-    beq tool_abi_newline_done
-tool_abi_newline_loop:
-    lda #$20
-    jsr tool_abi_console_putc
-    jsr tool_abi_console_mod40
-    bne tool_abi_newline_loop
-tool_abi_newline_done:
-    rts
-
-tool_abi_program_get_cmdline_ptr:
-    lda #<TOOL_ABI_CMDLINE_BUF
-    sta 0,x
-    lda #>TOOL_ABI_CMDLINE_BUF
-    sta 1,x
-    rts
-
-tool_abi_program_get_cmdline_len:
-    lda TOOL_ABI_CMDLINE_LEN
-    sta 0,x
-    lda #$00
-    sta 1,x
-    rts
-
-tool_abi_program_exit:
-    lda 0,x
-    jmp LAUNCH_RETURN_ADDR
 
 tool_abi_file_load_sc0:
     stx TOOL_ABI_OPEN_LFN
+    lda #$70
+    sta save_debug_stage_byte
     lda #$00
     sta TOOL_QUEUE_TRACE4
+    sta save_debug_open_status0
+    sta save_debug_open_status1
     sta save_debug_write_path_buffer
     sta TOOL_ABI_OPEN_PATH
     lda 0,x
@@ -15812,30 +15533,14 @@ tool_abi_file_load_sc0:
     bne :+
     jmp tool_abi_file_probe_current
 :
-    lda PROGRAM_DRIVE_SNAPSHOT
-    sta current_drive
-    tay
-    lda PROGRAM_DIR_SNAPSHOT
-    sta dir_state_table,y
-    jsr tool_abi_seed_program_mount_snapshot
-    jsr tool_abi_build_open_path
-    bcc :+
-    jmp tool_abi_file_load_fail
-:
-    jsr tool_abi_append_read_suffix
-    bcc :+
-    jmp tool_abi_file_load_fail
-:
-    lda PROGRAM_DRIVE_SNAPSHOT
-    sta temp_drive
-    lda #VICE_LFN_FILE
-    sta vice_lfn
-    lda #$00
-    sta vice_secondary
-    jsr vice_open_read_from_ptr
+    lda #$60
+    sta TOOL_QUEUE_TRACE4
+    jsr tool_abi_open_program_read_path_preserved
     bcc :+
     jmp tool_abi_file_load_nofile
 :
+    lda #$61
+    sta TOOL_QUEUE_TRACE4
 tool_abi_file_load_loop_setup:
     lda TOOL_ABI_FILE_LIMIT_HI
     bne tool_abi_file_load_loop_setup_wide
@@ -15854,7 +15559,11 @@ tool_abi_file_load_loop_setup:
     lda #TOOL_FILE_STATUS_TOO_LARGE
     bne tool_abi_file_load_finalize
 tool_abi_file_load_loop_setup_wide:
+    lda #$62
+    sta TOOL_QUEUE_TRACE4
     jsr vice_read_open_file_into_tool_dest_wide
+    lda #$63
+    sta TOOL_QUEUE_TRACE4
     lda #TOOL_FILE_STATUS_OK
     bcs tool_abi_file_load_finalize
 tool_abi_file_load_too_large:
@@ -15920,7 +15629,7 @@ tool_abi_file_probe_nofile:
     sta vice_lfn
     lda #VICE_SA_READ
     sta vice_secondary
-    jsr vice_open_read_from_ptr
+    jsr vice_open_read_from_ptr_preserved
     bcs tool_abi_file_probe_exact_open_fail
     ldx #$03
 tool_abi_file_probe_exact_read_loop:
@@ -16022,20 +15731,20 @@ tool_abi_resolve_copy_dest_shadow:
     lda arg_length
     bne :+
     jmp tool_abi_resolve_copy_dest_shadow_bad
-: 
+:
     cmp #2
     bcc tool_abi_resolve_copy_dest_shadow_scan
     lda arg_buffer+1
     cmp #ASCII_COLON
     bne :+
     jmp tool_abi_resolve_copy_dest_shadow_bad
-: 
+:
 tool_abi_resolve_copy_dest_shadow_scan:
     lda arg_buffer+0
     cmp #ASCII_SLASH
     bne :+
     jmp tool_abi_resolve_copy_dest_shadow_bad
-: 
+:
     lda #$FF
     sta saved_response_y
     lda #$00
@@ -16050,7 +15759,7 @@ tool_abi_resolve_copy_dest_shadow_scan_loop:
     lda vice_name_index
     beq :+
     jmp tool_abi_resolve_copy_dest_shadow_bad
-: 
+:
     tya
     sta saved_response_y
     inc vice_name_index
@@ -16063,13 +15772,13 @@ tool_abi_resolve_copy_dest_shadow_scan_done:
     lda saved_response_y
     bne :+
     jmp tool_abi_resolve_copy_dest_shadow_bad
-: 
+:
     tax
     inx
     cpx arg_length
     bcc :+
     jmp tool_abi_resolve_copy_dest_shadow_bad
-: 
+:
     lda #$00
     sta parse_cmd_start
     lda saved_response_y
@@ -16077,21 +15786,21 @@ tool_abi_resolve_copy_dest_shadow_scan_done:
     jsr copy_component_token_to_path_name
     bcc :+
     jmp tool_abi_resolve_copy_dest_shadow_bad
-: 
+:
     jsr lookup_dynamic_dir_current_from_path_name
     bcc tool_abi_resolve_copy_dest_shadow_dir_ok
     jsr tool_abi_build_current_dir_open_path
     bcc :+
     jmp tool_abi_resolve_copy_dest_shadow_bad
-: 
+:
     jsr fill_vice_dir_cache_from_ptr
     bcc :+
     jmp tool_abi_resolve_copy_dest_shadow_bad
-: 
+:
     jsr ensure_dynamic_dir_current_from_path_name
     bcc :+
     jmp tool_abi_resolve_copy_dest_shadow_bad
-: 
+:
 tool_abi_resolve_copy_dest_shadow_dir_ok:
     sta temp_dir_id
     lda saved_response_y
@@ -16102,7 +15811,7 @@ tool_abi_resolve_copy_dest_shadow_name_only:
     jsr copy_path_name_from_parse
     bcc :+
     jmp tool_abi_resolve_copy_dest_shadow_bad
-: 
+:
     lda #PATH_STATUS_OK
     rts
 tool_abi_resolve_copy_dest_shadow_bad:
@@ -16189,7 +15898,7 @@ tool_abi_file_save_resolve_tree_only:
     cmp #PATH_STATUS_OK
     beq :+
     jmp tool_abi_file_save_fail_resolve
-: 
+:
     ldy temp_drive
     lda mount_flag_table,y
     cmp #MOUNT_FLAG_TREE
@@ -16248,40 +15957,10 @@ tool_abi_file_save_fail_tree:
     bne tool_abi_file_save_fail
 
 tool_abi_file_save_direct_safe:
-    jsr tool_abi_build_write_path_from_ptr_safe
-    sta vice_name_index
-    lda #VICE_LFN_TOOL
-    sta vice_lfn
-    lda #VICE_SA_WRITE
-    sta vice_secondary
-    jsr tool_abi_close_current_file
-    jsr vice_setlfs_current
-    lda vice_name_index
-    ldx PTR
-    ldy PTR+1
-    jsr SETNAM
-    jsr OPEN_K
-    jsr READST
-    sta save_debug_open_status0
-    beq :+
-    lda save_debug_open_status0
-    cmp #$12
-    bne tool_abi_file_save_direct_fail_close
-    jsr tool_abi_close_current_file
-    lda vice_name_index
-    ldx PTR
-    ldy PTR+1
-    jsr SETNAM
-    jsr OPEN_K
-    jsr READST
-    sta save_debug_open_status0
-    bne tool_abi_file_save_direct_fail_close
+    jsr tool_abi_file_open_write_current
+    bcc :+
+    rts
 :
-    ldx vice_lfn
-    jsr CHKOUT_K
-    jsr READST
-    sta save_debug_open_status1
-    bne tool_abi_file_save_direct_fail_close
     lda vice_tree_content_src_lo
     sta SCREEN_PTR
     lda vice_tree_content_src_hi
@@ -16290,70 +15969,35 @@ tool_abi_file_save_direct_safe:
     sta TOOL_ABI_FILE_REMAIN_LO
     lda TOOL_ABI_FILE_LIMIT_HI
     sta TOOL_ABI_FILE_REMAIN_HI
-tool_abi_file_save_direct_write_loop:
-    lda TOOL_ABI_FILE_REMAIN_LO
-    ora TOOL_ABI_FILE_REMAIN_HI
-    beq tool_abi_file_save_direct_done
-    ldy #$00
-    lda (SCREEN_PTR),y
-    jsr CHROUT
-    jsr READST
-    bne tool_abi_file_save_direct_fail_close
-    inc SCREEN_PTR
-    bne :+
-    inc SCREEN_PTR+1
-:
-    sec
-    lda TOOL_ABI_FILE_REMAIN_LO
-    sbc #$01
-    sta TOOL_ABI_FILE_REMAIN_LO
-    lda TOOL_ABI_FILE_REMAIN_HI
-    sbc #$00
-    sta TOOL_ABI_FILE_REMAIN_HI
-    jmp tool_abi_file_save_direct_write_loop
-tool_abi_file_save_direct_done:
-    jsr tool_abi_close_current_file
-    clc
-    rts
-tool_abi_file_save_direct_fail_close:
+    jsr tool_abi_file_write_chunk_current
     php
     jsr tool_abi_close_current_file
     plp
-    sec
     rts
 
 tool_abi_build_write_path_from_ptr_safe:
-    ldx #$00
-    lda #'@'
-    sta dest_fullpath_buffer,x
-    inx
-    lda #ASCII_COLON
-    sta dest_fullpath_buffer,x
-    inx
-    ldy #$00
-tool_abi_build_write_path_ptr_copy_safe:
-    lda (PTR),y
-    beq tool_abi_build_write_path_ptr_suffix_safe
-    sta dest_fullpath_buffer,x
-    iny
-    inx
-    cpx #FULL_PATH_BUF_LEN-3
-    bcc tool_abi_build_write_path_ptr_copy_safe
-tool_abi_build_write_path_ptr_suffix_safe:
-    lda #ASCII_COMMA
-    sta dest_fullpath_buffer,x
-    inx
-    lda #'W'
-    sta dest_fullpath_buffer,x
-    inx
-    lda #$00
-    sta dest_fullpath_buffer,x
-    lda #<dest_fullpath_buffer
-    sta PTR
-    lda #>dest_fullpath_buffer
-    sta PTR+1
-    txa
-    rts
+    jmp tool_abi_build_write_path_from_ptr_safe_preserved
+
+tool_abi_file_write_begin_sc0:
+    jmp tool_abi_file_write_begin_sc0_preserved
+
+tool_abi_file_open_write_current:
+    jmp tool_abi_file_open_write_current_preserved
+
+tool_abi_file_write_chunk_sc0:
+    jmp tool_abi_file_write_chunk_sc0_preserved
+
+tool_abi_file_write_chunk_current:
+    jmp tool_abi_file_write_chunk_current_preserved
+
+tool_abi_file_write_close_sc0:
+    jmp tool_abi_file_write_close_sc0_preserved
+
+tool_abi_file_stage_reu_sc0:
+    jmp tool_abi_file_stage_reu_sc0_preserved
+
+tool_abi_vm_acheron_enter:
+    jmp svc_vm_acheron_enter
 
 tool_abi_dir_make_sc0:
     stx tool_abi_saved_x
@@ -16835,7 +16479,7 @@ tool_abi_file_copy_sc0:
     cmp #PATH_STATUS_OK
     beq :+
     jmp tool_abi_file_copy_nofile
-: 
+:
     lda temp_drive
     sta source_drive
     lda temp_dir_id
@@ -16844,7 +16488,7 @@ tool_abi_file_copy_sc0:
     jsr query_file_response_vice_current
     bcc :+
     jmp tool_abi_file_copy_nofile
-: 
+:
     lda dest_drive
     sta temp_drive
     lda dest_dir_id
@@ -16874,7 +16518,7 @@ tool_abi_file_copy_sc0:
     cmp #PATH_STATUS_OK
     beq :+
     jmp tool_abi_file_copy_fail
-: 
+:
     lda temp_drive
     sta dest_drive
     lda temp_dir_id
@@ -17128,13 +16772,7 @@ tool_abi_build_open_path:
     sta PTR
     lda #>TOOL_ABI_OPEN_PATH
     sta PTR+1
-    jsr tool_abi_build_full_path_to_ptr
-    bcs tool_abi_build_open_path_fail
-    clc
-    rts
-tool_abi_build_open_path_fail:
-    sec
-    rts
+    jmp tool_abi_build_full_path_to_ptr
 
 tool_abi_build_full_target_path:
     lda #<TOOL_ABI_OPEN_PATH
@@ -17142,6 +16780,29 @@ tool_abi_build_full_target_path:
     lda #>TOOL_ABI_OPEN_PATH
     sta PTR+1
 tool_abi_build_full_path_to_ptr:
+    lda TOOL_ABI_FILE_NAME_LO
+    sta SCREEN_PTR
+    lda TOOL_ABI_FILE_NAME_HI
+    sta SCREEN_PTR+1
+    ldy #$00
+    lda (SCREEN_PTR),y
+    cmp #ASCII_BANG
+    bne tool_abi_build_full_path_current
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    ldy #$00
+tool_abi_build_full_target_path_copy_launch_prefix:
+    lda TOOL_ABI_LAUNCH_PATH,y
+    beq tool_abi_build_full_target_path_prefix_done
+    sta (PTR),y
+    iny
+    cpy #FULL_PATH_BUF_LEN-2
+    bcc tool_abi_build_full_target_path_copy_launch_prefix
+    sec
+    rts
+tool_abi_build_full_path_current:
     ldy #$00
 tool_abi_build_full_target_path_copy_prefix:
     lda TOOL_ABI_CURRENT_PATH,y
@@ -17165,6 +16826,9 @@ tool_abi_build_full_target_path_prefix_done:
     iny
 tool_abi_build_full_target_path_name_start:
     sty vice_name_index
+    lda SCREEN_PTR
+    ora SCREEN_PTR+1
+    bne tool_abi_build_full_target_path_copy_name
     lda TOOL_ABI_FILE_NAME_LO
     sta SCREEN_PTR
     lda TOOL_ABI_FILE_NAME_HI
@@ -17179,14 +16843,14 @@ tool_abi_build_full_target_path_copy_name:
     bcs :+
     clc
     adc #$40
-:   
+:
     ldy vice_name_index
     sta (PTR),y
     inc vice_name_index
     inc SCREEN_PTR
     bne :+
     inc SCREEN_PTR+1
-:   
+:
     lda vice_name_index
     cmp #FULL_PATH_BUF_LEN-1
     bcc tool_abi_build_full_target_path_copy_name
@@ -17565,6 +17229,7 @@ tool_abi_mod40_done:
     rts
 tool_abi_template_end:
 
+.segment "HIRAM"
 current_drive:
     .byte DRIVE_A
 input_mode:
@@ -17595,11 +17260,17 @@ launch_reu_remaining_hi:
     .byte 0
 launch_reu_chunk:
     .byte 0
+launch_load_source_lo:
+    .byte 0
+launch_load_source_hi:
+    .byte 0
 launch_load_cache_lo:
     .byte 0
 launch_load_cache_hi:
     .byte 0
 saved_rp_x:
+    .byte 0
+tool_abi_file_stage_saved_x:
     .byte 0
 tool_abi_saved_x:
     .byte 0
@@ -17738,7 +17409,7 @@ uci_data_length:
 uci_status_length:
     .byte 0
 program_status:
-    .byte RUN_STATUS_BAD
+    .res 1
 program_launch_mode:
     .byte PROGRAM_LAUNCH_NONE
 flat_dir_track:
@@ -17790,7 +17461,7 @@ flat_dst_curr_sector:
 flat_dst_fill:
     .byte 0
 flat_dst_type:
-    .byte $82
+    .res 1
 flat_dst_blocks_lo:
     .byte 0
 flat_dst_blocks_hi:
@@ -17866,13 +17537,13 @@ mount_flag_table:
 dir_state_table:
     .byte DIR_ID_ROOT, DIR_ID_ROOT
 mounted_image_lo:
-    .byte <image_none_a, <image_none_b
+    .res 2
 mounted_image_hi:
-    .byte >image_none_a, >image_none_b
+    .res 2
 volume_ptr_lo:
-    .byte <volume_system, <volume_work
+    .res 2
 volume_ptr_hi:
-    .byte >volume_system, >volume_work
+    .res 2
 
 .segment "HIRAM"
 volume_label_a:
@@ -17966,14 +17637,18 @@ vice_tree_slot_cache:
     .res PROGRAM_IMAGE_MAX
 
 ; External-tool queued writeback keeps persistent records in REU and uses
-; preserved ABI space for one staging record plus the live count byte.
+; preserved ABI space for one staging record only. The live count/map must stay
+; out of the CFxx tool-ABI jump page or launched tools will clobber them.
 tool_writeback_buffer = TOOL_WRITEBACK_STAGING_BASE
-tool_writeback_count = TOOL_WRITEBACK_COUNT_RAM
-tool_writeback_dirmap = TOOL_WRITEBACK_DIRMAP_BASE
+tool_writeback_count:
+    .res 1
+tool_writeback_dirmap:
+    .res VICE_DIR_DYNAMIC_MAX
 
 .segment "CODE"
 vice_name_buffer:
     .res HW_DIR_NAME_STRIDE
+.segment "HIRAM"
 vice_tree_content_src_lo:
     .res 1
 vice_tree_content_src_hi:
@@ -18004,6 +17679,7 @@ vice_line_num_lo:
     .res 1
 vice_line_num_hi:
     .res 1
+.segment "CODE"
 script_line_data:
     .res (MAX_LINE_LEN+1) * SCRIPT_LINE_MAX
 
@@ -18395,3 +18071,586 @@ resp_run_prefix:
     .byte "RUN ", 0
 resp_args_prefix:
     .byte "ARGS ", 0
+
+.segment "CODE"
+reu_init_preserved:
+    lda #$00
+    sta reu_present
+    lda C64_PORT
+    sta reu_saved_port
+    ora #C64_PORT_CHAREN_ON
+    sta C64_PORT
+    lda #$55
+    sta REU_REUADDR_LO
+    lda REU_REUADDR_LO
+    cmp #$55
+    bne reu_init_preserved_restore
+    lda #$AA
+    sta REU_REUADDR_LO
+    lda REU_REUADDR_LO
+    cmp #$AA
+    bne reu_init_preserved_restore
+    lda #$01
+    sta reu_present
+reu_init_preserved_restore:
+    lda reu_saved_port
+    sta C64_PORT
+    rts
+
+reu_transfer_chunk_loop_preserved:
+    lda launch_reu_remaining_lo
+    ora launch_reu_remaining_hi
+    bne :+
+    clc
+    rts
+:
+    lda launch_reu_remaining_hi
+    beq reu_transfer_chunk_loop_preserved_remainder
+    lda #$FF
+    bne reu_transfer_chunk_loop_preserved_size_ready
+reu_transfer_chunk_loop_preserved_remainder:
+    lda launch_reu_remaining_lo
+reu_transfer_chunk_loop_preserved_size_ready:
+    sta launch_reu_chunk
+    php
+    sei
+    lda C64_PORT
+    sta reu_saved_port
+    ora #C64_PORT_CHAREN_ON
+    sta C64_PORT
+    lda launch_reu_c64_lo
+    sta REU_C64ADDR_LO
+    lda launch_reu_c64_hi
+    sta REU_C64ADDR_HI
+    lda launch_reu_reu_lo
+    sta REU_REUADDR_LO
+    lda launch_reu_reu_hi
+    sta REU_REUADDR_HI
+    lda reu_slot_bank
+    sta REU_REUADDR_BANK
+    lda launch_reu_chunk
+    sta REU_COUNT_LO
+    lda #$00
+    sta REU_COUNT_HI
+    sta REU_IRQMASK
+    sta REU_CONTROL
+    lda reu_command_temp
+    sta REU_COMMAND
+    lda reu_saved_port
+    and #$F8
+    sta C64_PORT
+    lda #$00
+    sta REU_TRIGGER
+    lda reu_saved_port
+    sta C64_PORT
+    plp
+    clc
+    lda launch_reu_c64_lo
+    adc launch_reu_chunk
+    sta launch_reu_c64_lo
+    bcc :+
+    inc launch_reu_c64_hi
+:
+    clc
+    lda launch_reu_reu_lo
+    adc launch_reu_chunk
+    sta launch_reu_reu_lo
+    bcc :+
+    inc launch_reu_reu_hi
+    bne :+
+    inc reu_slot_bank
+:
+    sec
+    lda launch_reu_remaining_lo
+    sbc launch_reu_chunk
+    sta launch_reu_remaining_lo
+    lda launch_reu_remaining_hi
+    sbc #$00
+    sta launch_reu_remaining_hi
+    jmp reu_transfer_chunk_loop_preserved
+
+tool_abi_program_exit:
+tool_abi_program_exit_preserved:
+    lda 0,x
+    tay
+    lda #$A1
+    sta LAUNCH_TRACE_STAGE
+    tya
+    sta LAUNCH_TRACE_CODE
+    tya
+    jmp LAUNCH_RETURN_ADDR
+
+tool_abi_get_abi_version:
+tool_abi_get_abi_version_preserved:
+    lda #<ABI_VERSION
+    sta 0,x
+    lda #>ABI_VERSION
+    sta 1,x
+    rts
+
+tool_abi_console_write_sc0:
+tool_abi_console_write_sc0_preserved:
+    lda 0,x
+    sta PTR
+    lda 1,x
+    sta PTR+1
+tool_abi_console_write_ptr:
+tool_abi_console_write_ptr_preserved:
+    ldy #$00
+tool_abi_write_loop:
+tool_abi_write_loop_preserved:
+    lda (PTR),y
+    beq tool_abi_write_done_preserved
+    jsr tool_abi_console_putc
+    iny
+    bne tool_abi_write_loop_preserved
+tool_abi_write_done:
+tool_abi_write_done_preserved:
+    rts
+
+tool_abi_console_newline:
+tool_abi_console_newline_preserved:
+    jsr tool_abi_console_mod40
+    beq tool_abi_newline_done_preserved
+tool_abi_newline_loop:
+tool_abi_newline_loop_preserved:
+    lda #$20
+    jsr tool_abi_console_putc
+    jsr tool_abi_console_mod40
+    bne tool_abi_newline_loop_preserved
+tool_abi_newline_done:
+tool_abi_newline_done_preserved:
+    rts
+
+tool_abi_program_get_cmdline_ptr:
+tool_abi_program_get_cmdline_ptr_preserved:
+    lda #<TOOL_ABI_CMDLINE_BUF
+    sta 0,x
+    lda #>TOOL_ABI_CMDLINE_BUF
+    sta 1,x
+    rts
+
+tool_abi_program_get_cmdline_len:
+tool_abi_program_get_cmdline_len_preserved:
+    lda TOOL_ABI_CMDLINE_LEN
+    sta 0,x
+    lda #$00
+    sta 1,x
+    rts
+
+vice_open_read_from_ptr_preserved:
+    lda #$90
+    sta save_debug_stage_byte
+    ldy #$00
+vice_open_read_from_ptr_name_loop_preserved:
+    lda (PTR),y
+    beq vice_open_read_from_ptr_name_done_preserved
+    iny
+    cpy #FULL_PATH_BUF_LEN
+    bcc vice_open_read_from_ptr_name_loop_preserved
+vice_open_read_from_ptr_name_done_preserved:
+    tya
+    beq vice_open_read_from_ptr_fail_name_preserved
+    sta save_debug_open_status0
+    pha
+    jsr CLRCHN
+    lda vice_lfn
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq vice_open_read_from_ptr_drive_a_preserved
+    ldx #IEC_ID_B
+    bne vice_open_read_from_ptr_setlfs_preserved
+vice_open_read_from_ptr_drive_a_preserved:
+    ldx #IEC_ID_A
+vice_open_read_from_ptr_setlfs_preserved:
+    ldy vice_secondary
+    jsr SETLFS
+    pla
+    ldx PTR
+    ldy PTR+1
+    jsr SETNAM
+    jsr OPEN_K
+    bcs vice_open_read_from_ptr_fail_close_open_preserved
+    jsr READST
+    sta save_debug_open_status1
+    bne vice_open_read_from_ptr_fail_close_open_preserved
+    lda #$91
+    sta save_debug_stage_byte
+    lda #$00
+    sta $90
+    ldx vice_lfn
+    jsr CHKIN_K
+    bcs vice_open_read_from_ptr_fail_close_chkin_preserved
+    jsr READST
+    sta save_debug_open_status2
+    bne vice_open_read_from_ptr_fail_close_chkin_preserved
+    clc
+    rts
+vice_open_read_from_ptr_fail_close_open_preserved:
+    bne vice_open_read_from_ptr_fail_close_preserved
+vice_open_read_from_ptr_fail_close_chkin_preserved:
+vice_open_read_from_ptr_fail_close_preserved:
+    php
+    jsr CLRCHN
+    lda vice_lfn
+    jsr CLOSE_K
+    plp
+vice_open_read_from_ptr_fail_preserved:
+    sec
+    rts
+vice_open_read_from_ptr_fail_name_preserved:
+    sec
+    rts
+
+tool_abi_open_program_read_path:
+tool_abi_open_program_read_path_preserved:
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta temp_drive
+    tay
+    lda PROGRAM_DIR_SNAPSHOT
+    sta dir_state_table,y
+    jsr tool_abi_seed_program_mount_snapshot
+    jsr tool_abi_build_open_path
+    bcs tool_abi_open_program_read_path_done_preserved
+    jsr tool_abi_append_read_suffix
+    bcs tool_abi_open_program_read_path_done_preserved
+    lda #VICE_LFN_FILE
+    sta vice_lfn
+    lda #VICE_SA_READ
+    sta vice_secondary
+    jmp vice_open_read_from_ptr_preserved
+tool_abi_open_program_read_path_done_preserved:
+    rts
+
+tool_abi_build_write_path_from_ptr_safe_preserved:
+    ldx #$00
+    lda #'@'
+    sta dest_fullpath_buffer,x
+    inx
+    lda #ASCII_COLON
+    sta dest_fullpath_buffer,x
+    inx
+    ldy #$00
+tool_abi_build_write_path_ptr_copy_safe_preserved:
+    lda (PTR),y
+    beq tool_abi_build_write_path_ptr_suffix_safe_preserved
+    sta dest_fullpath_buffer,x
+    iny
+    inx
+    cpx #FULL_PATH_BUF_LEN-3
+    bcc tool_abi_build_write_path_ptr_copy_safe_preserved
+tool_abi_build_write_path_ptr_suffix_safe_preserved:
+    lda #ASCII_COMMA
+    sta dest_fullpath_buffer,x
+    inx
+    lda #'W'
+    sta dest_fullpath_buffer,x
+    inx
+    lda #$00
+    sta dest_fullpath_buffer,x
+    lda #<dest_fullpath_buffer
+    sta PTR
+    lda #>dest_fullpath_buffer
+    sta PTR+1
+    txa
+    rts
+
+tool_abi_file_write_begin_sc0_preserved:
+    lda #$B0
+    sta save_debug_stage_byte
+    stx saved_rp_x
+    lda 0,x
+    sta TOOL_ABI_FILE_NAME_LO
+    lda 1,x
+    sta TOOL_ABI_FILE_NAME_HI
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta temp_drive
+    jsr tool_abi_build_open_path
+    bcs tool_abi_file_write_begin_fail_preserved
+    jsr tool_abi_file_open_write_current_preserved
+    bcs tool_abi_file_write_begin_fail_preserved
+    ldx saved_rp_x
+    lda #TOOL_FILE_STATUS_OK
+    sta 2,x
+    clc
+    rts
+tool_abi_file_write_begin_fail_preserved:
+    ldx saved_rp_x
+    sec
+    rts
+
+tool_abi_file_open_write_current_preserved:
+    jsr tool_abi_build_write_path_from_ptr_safe_preserved
+    lda #VICE_LFN_TOOL
+    sta vice_lfn
+    lda #VICE_SA_WRITE
+    sta vice_secondary
+    jsr tool_abi_close_current_file
+    jmp vice_open_write_from_ptr_preserved
+
+tool_abi_file_write_chunk_sc0_preserved:
+    stx saved_rp_x
+    lda 0,x
+    sta SCREEN_PTR
+    lda 1,x
+    sta SCREEN_PTR+1
+    lda 2,x
+    sta TOOL_ABI_FILE_REMAIN_LO
+    lda 3,x
+    sta TOOL_ABI_FILE_REMAIN_HI
+    jsr tool_abi_file_write_chunk_current_preserved
+    bcc :+
+    jmp tool_abi_file_write_chunk_fail_preserved
+:
+    ldx saved_rp_x
+    lda #TOOL_FILE_STATUS_OK
+    sta 4,x
+    rts
+
+tool_abi_file_write_chunk_current_preserved:
+    lda #VICE_LFN_TOOL
+    sta vice_lfn
+    jsr vice_clear_status_preserved
+    ldx vice_lfn
+    jsr CHKOUT_K
+    jsr vice_readst_no_eoi_preserved
+    bne tool_abi_file_write_chunk_fail_clrchn_preserved
+tool_abi_file_write_chunk_loop_preserved:
+    lda TOOL_ABI_FILE_REMAIN_LO
+    ora TOOL_ABI_FILE_REMAIN_HI
+    beq tool_abi_file_write_chunk_done_preserved
+    ldy #$00
+    lda (SCREEN_PTR),y
+    jsr CHROUT
+    jsr vice_readst_no_eoi_preserved
+    bne tool_abi_file_write_chunk_fail_clrchn_preserved
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    sec
+    lda TOOL_ABI_FILE_REMAIN_LO
+    sbc #$01
+    sta TOOL_ABI_FILE_REMAIN_LO
+    lda TOOL_ABI_FILE_REMAIN_HI
+    sbc #$00
+    sta TOOL_ABI_FILE_REMAIN_HI
+    jmp tool_abi_file_write_chunk_loop_preserved
+tool_abi_file_write_chunk_done_preserved:
+    jsr CLRCHN
+    clc
+    rts
+tool_abi_file_write_chunk_fail_clrchn_preserved:
+    jsr CLRCHN
+    sec
+    rts
+tool_abi_file_write_chunk_fail_preserved:
+    ldx saved_rp_x
+    sec
+    rts
+
+tool_abi_file_write_close_sc0_preserved:
+    stx saved_rp_x
+    lda #VICE_LFN_TOOL
+    sta vice_lfn
+    jsr tool_abi_close_current_file
+    ldx saved_rp_x
+    lda #TOOL_FILE_STATUS_OK
+    sta 0,x
+    rts
+
+tool_abi_file_stage_reu_sc0_preserved:
+    lda #$A0
+    sta save_debug_stage_byte
+    sta SERVICE_STAGE_SNAPSHOT
+    stx tool_abi_file_stage_saved_x
+    ldx tool_abi_file_stage_saved_x
+    lda 0,x
+    sta TOOL_ABI_FILE_NAME_LO
+    lda 1,x
+    sta TOOL_ABI_FILE_NAME_HI
+    lda 2,x
+    sta launch_reu_reu_lo
+    lda 3,x
+    sta launch_reu_reu_hi
+    lda 4,x
+    sta reu_slot_bank
+    lda #$00
+    sta 5,x
+    sta 6,x
+    sta 7,x
+    sta 8,x
+    lda #$A1
+    sta save_debug_stage_byte
+    sta SERVICE_STAGE_SNAPSHOT
+    jsr reu_init_preserved
+    lda reu_present
+    bne :+
+    jmp tool_abi_file_stage_reu_fail_preserved
+:
+    lda #$A2
+    sta save_debug_stage_byte
+    sta SERVICE_STAGE_SNAPSHOT
+    jsr tool_abi_open_program_read_path_preserved
+    bcc :+
+    jmp tool_abi_file_stage_reu_nofile_preserved
+:
+    lda #$A3
+    sta save_debug_stage_byte
+    sta SERVICE_STAGE_SNAPSHOT
+    lda #REU_CMD_COPY_C64_TO_REU
+    sta reu_command_temp
+tool_abi_file_stage_reu_loop_preserved:
+    lda #<program_image_buffer
+    sta PTR
+    lda #>program_image_buffer
+    sta PTR+1
+    lda #PROGRAM_IMAGE_MAX
+    jsr vice_read_open_file_into_ptr_len_binary
+    php
+    lda vice_read_length
+    sta launch_reu_remaining_lo
+    lda #$00
+    sta launch_reu_remaining_hi
+    lda #<program_image_buffer
+    sta launch_reu_c64_lo
+    lda #>program_image_buffer
+    sta launch_reu_c64_hi
+    jsr reu_transfer_chunk_loop_preserved
+    lda #$A4
+    sta SERVICE_STAGE_SNAPSHOT
+    ldx tool_abi_file_stage_saved_x
+    clc
+    lda 6,x
+    adc vice_read_length
+    sta 6,x
+    bcc tool_abi_file_stage_reu_chunk_done_preserved
+    inc 7,x
+    bne tool_abi_file_stage_reu_chunk_done_preserved
+    inc 8,x
+tool_abi_file_stage_reu_chunk_done_preserved:
+    plp
+    lda #$A5
+    sta SERVICE_STAGE_SNAPSHOT
+    bcc tool_abi_file_stage_reu_loop_preserved
+    lda #$A6
+    sta SERVICE_STAGE_SNAPSHOT
+    jsr tool_abi_close_current_file
+    ldx tool_abi_file_stage_saved_x
+    lda #TOOL_FILE_STATUS_OK
+    sta 5,x
+    tsx
+    stx REU_RTS_SP_SNAPSHOT
+    lda $0101,x
+    sta REU_RTS_LO_SNAPSHOT
+    lda $0102,x
+    sta REU_RTS_HI_SNAPSHOT
+    clc
+    rts
+tool_abi_file_stage_reu_nofile_preserved:
+    ldx tool_abi_file_stage_saved_x
+    lda #TOOL_FILE_STATUS_NOFILE
+    sta 5,x
+    lda #$A8
+    sta SERVICE_STAGE_SNAPSHOT
+tool_abi_file_stage_reu_fail_preserved:
+    sec
+    rts
+
+vice_clear_status_preserved:
+    lda #$00
+    sta $90
+    rts
+
+vice_readst_no_eoi_preserved:
+    jsr READST
+    and #$BF
+    rts
+
+vice_setlfs_current_preserved:
+    lda vice_lfn
+    ldx temp_drive
+    cpx #DRIVE_A
+    beq vice_setlfs_current_preserved_drive_a
+    ldx #IEC_ID_B
+    bne vice_setlfs_current_preserved_apply
+vice_setlfs_current_preserved_drive_a:
+    ldx #IEC_ID_A
+vice_setlfs_current_preserved_apply:
+    ldy vice_secondary
+    jmp SETLFS
+
+vice_open_write_from_ptr_preserved:
+    jsr tool_abi_name_length_from_ptr
+    bcs vice_open_write_from_ptr_preserved_fail
+    pha
+    jsr CLRCHN
+    jsr vice_clear_status_preserved
+    jsr vice_setlfs_current_preserved
+    pla
+    ldx PTR
+    ldy PTR+1
+    jsr SETNAM
+    jsr OPEN_K
+    jsr vice_readst_no_eoi_preserved
+    bne vice_open_write_from_ptr_preserved_fail_close
+    jsr vice_clear_status_preserved
+    ldx vice_lfn
+    jsr CHKOUT_K
+    jsr vice_readst_no_eoi_preserved
+    bne vice_open_write_from_ptr_preserved_fail_close
+    clc
+    rts
+vice_open_write_from_ptr_preserved_fail_close:
+    php
+    jsr tool_abi_close_current_file
+    plp
+vice_open_write_from_ptr_preserved_fail:
+    sec
+    rts
+
+tool_abi_reu_read_sc0_preserved:
+    lda #REU_CMD_COPY_REU_TO_C64
+    bne tool_abi_reu_copy_sc0_preserved
+
+tool_abi_reu_write_sc0_preserved:
+    lda #REU_CMD_COPY_C64_TO_REU
+
+tool_abi_reu_copy_sc0_preserved:
+    php
+    sei
+    sta reu_command_temp
+    stx saved_rp_x
+    lda 0,x
+    sta launch_reu_reu_lo
+    lda 1,x
+    sta launch_reu_reu_hi
+    lda 2,x
+    sta reu_slot_bank
+    lda 3,x
+    sta launch_reu_c64_lo
+    lda 4,x
+    sta launch_reu_c64_hi
+    lda 5,x
+    sta launch_reu_remaining_lo
+    lda 6,x
+    sta launch_reu_remaining_hi
+    lda #$00
+    sta 7,x
+    jsr reu_init_preserved
+    lda reu_present
+    beq tool_abi_reu_copy_fail_preserved
+    jsr reu_transfer_chunk_loop_preserved
+    lda #$36
+    sta C64_PORT
+    plp
+    ldx saved_rp_x
+    lda #TOOL_FILE_STATUS_OK
+    sta 7,x
+    rts
+tool_abi_reu_copy_fail_preserved:
+    lda #$36
+    sta C64_PORT
+    plp
+    sec
+    rts

@@ -54,6 +54,11 @@ UDOS_LAUNCH_DEBUG_BYTES = (
     ("LAUNCH_TRACE_CODE", 0x03F3),
     ("WRITEBACK_TRACE_STAGE", 0x03F4),
     ("WRITEBACK_TRACE_COUNT", 0x03F5),
+    ("WRITEBACK_TRACE_KIND", 0x03F6),
+    ("LAUNCH_PATH_TRACE0", 0x03F7),
+    ("LAUNCH_PATH_TRACE1", 0x03F8),
+    ("LAUNCH_PATH_TRACE2", 0x03F9),
+    ("LAUNCH_PATH_TRACE3", 0x03FA),
     ("RETURN_QUEUE_TRACE0", 0x03E8),
     ("RETURN_QUEUE_TRACE1", 0x03E9),
     ("RETURN_QUEUE_TRACE2", 0x03EA),
@@ -63,6 +68,14 @@ UDOS_LAUNCH_DEBUG_BYTES = (
     ("TOOL_QUEUE_TRACE2", 0x03FD),
     ("TOOL_QUEUE_TRACE3", 0x03FE),
     ("TOOL_QUEUE_TRACE4", 0x03FF),
+    ("REU_REMAIN_HI_SNAPSHOT", 0xCFE2),
+    ("REU_RTS_LO_SNAPSHOT", 0xCFE3),
+    ("REU_RTS_HI_SNAPSHOT", 0xCFE4),
+    ("REU_ENTRY_RTS_LO_SNAPSHOT", 0xCFE5),
+    ("REU_ENTRY_RTS_HI_SNAPSHOT", 0xCFE6),
+    ("PROGRAM_STATE_SNAPSHOT", 0xCFF6),
+    ("PROGRAM_EXIT_SNAPSHOT", 0xCFF7),
+    ("STAGE_SNAPSHOT", 0xCFFD),
     ("SAVE_STAGE", 0xC59E),
     ("SAVE_OPEN0", 0xC59F),
     ("SAVE_OPEN1", 0xC5A0),
@@ -786,6 +799,7 @@ def launch_vice(
     keybuf: str | None = None,
     keybuf_delay: int | None = None,
     extra_args: list[str] | None = None,
+    capture_output: bool = False,
 ) -> subprocess.Popen[str]:
     global _SCREEN_BASE_HINT
     _SCREEN_BASE_HINT = None
@@ -828,8 +842,8 @@ def launch_vice(
                 *vice_cmd,
             ]
     popen_kwargs: dict[str, object] = {
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
+        "stdout": subprocess.PIPE if capture_output else subprocess.DEVNULL,
+        "stderr": subprocess.PIPE if capture_output else subprocess.DEVNULL,
         "text": True,
     }
     if os.name == "nt":

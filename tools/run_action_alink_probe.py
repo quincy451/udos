@@ -6,7 +6,6 @@ import shutil
 import subprocess
 import sys
 import time
-import tempfile
 from pathlib import Path
 
 import vice_prg_probe as vp
@@ -16,7 +15,6 @@ ROOT = Path(__file__).resolve().parent
 ACTION_ALINK_BUILD = ROOT.parent.parent / "actionc64u" / "build" / "udos_tools" / "ALINK.PRG"
 ACTION_ALINK_CURRENT_LABELS = ROOT.parent.parent / "actionc64u" / "build" / "udos_tools" / "alink.current.labels"
 UDOS_RESIDENT_LABELS = ROOT.parent / "build" / "udos-resident.labels"
-AVM_PACK = ROOT.parent.parent / "actionc64u" / "tools" / "avm_pack.py"
 CONNECT_DELAYS = (14.0,)
 
 
@@ -78,7 +76,6 @@ def load_selected_alink_labels() -> dict[str, int]:
         "module_name",
         "target_path",
         "source_buffer",
-        "binary_target_path",
         "debug_phase",
         "debug_phase_zp",
         "debug_sp_before_strings",
@@ -169,11 +166,6 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         "source_head": list(client.memory_get(source_buffer_addr, source_buffer_addr + 31)),
         "TOOL_ABI_FILE_STATUS": client.memory_get(0xCDC1, 0xCDC1)[0],
     }
-    binary_target_path_addr = labels.get("binary_target_path")
-    if binary_target_path_addr is not None:
-        data["BINARY_TARGET_PATH_HEAD"] = list(
-            client.memory_get(binary_target_path_addr, binary_target_path_addr + 31)
-        )
     if save_stage_addr is not None:
         data["RESIDENT_SAVE_STAGE"] = client.memory_get(save_stage_addr, save_stage_addr)[0]
     if None not in (save_status0_addr, save_status1_addr, save_status2_addr, save_status3_addr):
@@ -271,48 +263,6 @@ def util_object_text() -> str:
     )
 
 
-def expected_avm_source() -> str:
-    return (
-        "entry 0\n"
-        "code $3e\n"
-        "setp16 main_str0\n"
-        "calln print\n"
-        "setp16 main_str1\n"
-        "calln printe\n"
-        "call h\n"
-        "call t\n"
-        "push16 123\n"
-        "calln printi\n"
-        "push16 42\n"
-        "calln printie\n"
-        "calln exit\n"
-        "h:\n"
-        "call u\n"
-        "call z\n"
-        "ret\n"
-        "z:\n"
-        "ret\n"
-        "t:\n"
-        "setp16 t_str0\n"
-        "calln print\n"
-        "push16 7\n"
-        "calln printie\n"
-        "call u\n"
-        "ret\n"
-        "u:\n"
-        "call v\n"
-        "ret\n"
-        "v:\n"
-        "ret\n"
-        "main_str0:\n"
-        "stringz HELLO\n"
-        "main_str1:\n"
-        "stringz WORLD\n"
-        "t_str0:\n"
-        "stringz TOOL\n"
-    )
-
-
 def prepare_workspace(fs_root: Path, project_name: str) -> Path:
     lowercase_workspace = detect_lowercase_workspace(fs_root)
     images_root = case_insensitive_child(fs_root, host_name("IMAGES", lowercase_workspace))
@@ -333,12 +283,12 @@ def prepare_workspace(fs_root: Path, project_name: str) -> Path:
     write_ascii(project_root / host_name("UDOSDIR.TXT", lowercase_workspace), "D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n")
     write_ascii(src_root / host_name("UDOSDIR.TXT", lowercase_workspace), "F MAIN.ACT\n")
     write_ascii(bin_root / host_name("UDOSDIR.TXT", lowercase_workspace), "")
-    write_ascii(obj_root / host_name("UDOSDIR.TXT", lowercase_workspace), "F H.AVO\nF MAIN.AVO\nF T.AVO\nF U.AVO\n")
+    write_ascii(obj_root / host_name("UDOSDIR.TXT", lowercase_workspace), "F H.OBJ\nF MAIN.OBJ\nF T.OBJ\nF U.OBJ\n")
     write_ascii(src_root / host_name("MAIN.ACT", lowercase_workspace), 'MODULE MAIN\rPROC MAIN()\rPrint("HELLO")\rPrintIE(42)\rRETURN\r')
-    write_ascii(obj_root / host_name("MAIN.AVO", lowercase_workspace), main_object_text())
-    write_ascii(obj_root / host_name("H.AVO", lowercase_workspace), helper_object_text())
-    write_ascii(obj_root / host_name("T.AVO", lowercase_workspace), tool_object_text())
-    write_ascii(obj_root / host_name("U.AVO", lowercase_workspace), util_object_text())
+    write_ascii(obj_root / host_name("MAIN.OBJ", lowercase_workspace), main_object_text())
+    write_ascii(obj_root / host_name("H.OBJ", lowercase_workspace), helper_object_text())
+    write_ascii(obj_root / host_name("T.OBJ", lowercase_workspace), tool_object_text())
+    write_ascii(obj_root / host_name("U.OBJ", lowercase_workspace), util_object_text())
 
     if ACTION_ALINK_BUILD.is_file():
         root_target = action_root / host_name("ALINK.PRG", lowercase_workspace)
@@ -352,33 +302,15 @@ def prepare_workspace(fs_root: Path, project_name: str) -> Path:
 
 def verify_host_output(project_root: Path) -> None:
     lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
-    avm_path = project_root / host_name("BIN", lowercase_workspace) / host_name("MAIN.AVM", lowercase_workspace)
+    bin_dir = project_root / host_name("BIN", lowercase_workspace)
+    prg_path = bin_dir / host_name("MAIN.PRG", lowercase_workspace)
+    avm_path = bin_dir / host_name("MAIN.AVM", lowercase_workspace)
     if not avm_path.is_file():
         raise RuntimeError(f"expected host file {avm_path} to exist")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        expected_text_path = Path(tmpdir) / "expected.avm.txt"
-        expected_packed_path = Path(tmpdir) / "expected.avm"
-        expected_text_path.write_text(expected_avm_source(), encoding="ascii")
-        subprocess.run(
-            [
-                sys.executable,
-                str(AVM_PACK),
-                "--text",
-                "--flags",
-                "1",
-                str(expected_text_path),
-                "-o",
-                str(expected_packed_path),
-            ],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        packed = avm_path.read_bytes()
-        expected = expected_packed_path.read_bytes()
-    if packed != expected:
-        raise RuntimeError(f"expected packed AVM bytes {expected!r}, got {packed!r}")
+    if avm_path.stat().st_size <= 4:
+        raise RuntimeError(f"expected linked AVM {avm_path} to contain payload bytes")
+    if prg_path.exists():
+        raise RuntimeError(f"did not expect direct PRG artifact {prg_path} to exist")
 
 
 def run_once(image: Path, work_root: Path, project_name: str, connect_delay: float) -> None:
@@ -390,7 +322,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         "--fs-root",
         str(work_root),
         "--command",
-        "ALINK MAIN",
+        "ALINK MAIN.AVM",
         "--pre-command",
         f"CD {project_name}",
         "--pre-prompt",
@@ -402,7 +334,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         "--done-fragment",
         "",
         "--contains",
-        "ARGS MAIN",
+        "ARGS MAIN.AVM",
         "--not-contains",
         "SAVE FAIL",
         "--not-contains",

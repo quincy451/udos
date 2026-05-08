@@ -30,7 +30,7 @@ def install_avmrun(fs_root: Path, project_root: Path) -> None:
     rap.ensure_catalog_entries(project_root / "UDOSDIR.TXT", ["F AVMRUN.PRG"])
 
 
-def resolve_output_command(project_root: Path) -> tuple[str, str]:
+def resolve_avm_output_command(project_root: Path) -> tuple[str, str]:
     lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
     bin_dir = project_root / rap.host_name("BIN", lowercase_workspace)
     actual_avm = rap.case_insensitive_child(bin_dir, "MAIN.AVM")
@@ -114,7 +114,7 @@ def main() -> int:
             vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, args.attempt_delay)))
             rap.run_once(image, work_root, project_name, connect_delay)
             rap.verify_host_output(project_root)
-            avm_relpath, avm_name = resolve_output_command(project_root)
+            avm_relpath, avm_name = resolve_avm_output_command(project_root)
             run_avmrun_once(image, work_root, project_name, connect_delay, avm_relpath, avm_name)
             return 0
         except vp.ViceError as exc:

@@ -159,26 +159,48 @@ Separate VICE smoke targets:
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a project root marked by `ACTION.PROJ`
   - validates `ACTC.PRG MAIN` launches from mounted `ACTION.DNP`
-  - emits a deterministic `OBJ/MAIN.AVO` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`, folded narrow decimal `PrintI` / `PrintIE` `+` / `-` / `*` / `/` expressions with inline spaces, simple precedence, parenthesized grouping, and simple `=` / `<` / `>` / `<=` / `>=` / `<>` comparisons, current source-inferred runtime-import metadata, and explicit `payload_bytes`
+  - emits a deterministic `OBJ/MAIN.OBJ` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`, folded narrow decimal `PrintI` / `PrintIE` `+` / `-` / `*` / `/` expressions with inline spaces, simple precedence, parenthesized grouping, and simple `=` / `<` / `>` / `<=` / `>=` / `<>` comparisons, current source-inferred runtime-import metadata, and explicit `payload_bytes`; `.AVO` is now the legacy compatibility name for this project-object format
   - verifies the generated host-side object file contents directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough for stable shell-side `TYPE OBJ/...` readback
 - `make vice-action-alink`
   - uses the release image with deterministic typed input on top of a copied Action workspace
-  - seeds a project root marked by `ACTION.PROJ` plus deterministic `OBJ/*.AVO` fixtures
+  - seeds a project root marked by `ACTION.PROJ` plus deterministic `OBJ/*.OBJ` fixtures
   - validates `ALINK.PRG MAIN` through host-side artifact creation instead of screen scraping
   - emits a deterministic `BIN/MAIN.AVM` binary final-image artifact as the first UDOS-native linker slice, using compiler-emitted export sizes plus `body_ops` for direct byte emission
   - current focused proof resolves a wider unresolved external closure with sibling externals from `main`, a shared child object, and a deeper leaf, while carrying child-object integer and string literal pools in the emitted payload
   - verifies the generated host-side binary directly by checking the exact emitted `AVM1` bytes and proving an unused local export is stripped from the final image
 - `make vice-action-alink-avmrun`
+  - AVM-specific linker/runner proof
   - uses the release image with deterministic typed input on top of a copied Action workspace
   - launches `ALINK.PRG MAIN` to generate `BIN/MAIN.AVM`
   - launches `AVMRUN.PRG BIN/MAIN.AVM` against that live linker artifact
   - proves the current linked image executes by printing `HELLOWORLD`, `TOOL7`, and `12342` before returning to `B:DNP/PROJ3>`
-- `make vice-action-actc-alink-avmrun`
+- `make vice-action-actc-alink-launch-printmath`
   - uses the release image with deterministic typed input on top of a copied Action workspace
-  - launches `ACTC.PRG MAIN` to generate `OBJ/MAIN.AVO`
-  - launches `ALINK.PRG MAIN` to generate `BIN/MAIN.AVM`
-  - launches `AVMRUN.PRG BIN/MAIN.AVM` against that live compiler/linker artifact
-  - proves the integrated pipeline prints `HELLO`, `TOOL7`, and `01` before returning to `B:DNP/PROJ3>`
+  - launches `ACTC.PRG MAIN` to generate `OBJ/MAIN.OBJ`
+  - launches `ALINK.PRG MAIN` to generate direct `BIN/MAIN.PRG`
+  - proves the current live imported `printmath` shape prints `hello`, `tool7`, and `5459`
+    before returning to `B:DNP/PROJ3>`
+- `make vice-action-actc-alink-avmrunc-printmath`
+  - remains the helper-bearing compat replay target for the same shape
+  - it is no longer the primary higher-level proof for `printmath`
+  - current truthful contract is narrower:
+    - compile is green
+    - link is green
+    - compat `AVMRUNC` is green under `tool_abi_harness`
+    - `make vice-action-avmrunc-shellmin` is green for trivial
+      shell-launched `AVMRUNC -> AVM`
+    - `make vice-action-avmrunc-shelladd` is green again on the rebuilt release image
+      and returns to `B:DNP/PROJ3>` under the public multi-attempt gate
+- `make vice-action-actc-alink-launch`
+  - helper-free higher-level default
+  - uses the release image with deterministic typed input on top of a copied Action workspace
+  - launches `ACTC.PRG MAIN` to generate `OBJ/MAIN.OBJ`
+  - launches `ALINK.PRG MAIN` to generate direct `BIN/MAIN.PRG`
+  - launches that helper-free `MAIN.PRG` under VICE with no `MAIN.AVM` / `AVMRUN` dependency
+- `make vice-action-actc-alink-launch-if-else-chain`
+  - named helper-free higher-level proof for the base local-call chain shape
+- `make vice-action-actc-alink-launch-nested-else-chain`
+  - named helper-free higher-level proof for the nested false-path local-call chain shape
 - `make vice-action-actchk`
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a healthy project root marked by `ACTION.PROJ`
@@ -284,17 +306,17 @@ Separate VICE smoke targets:
   - validates the `AVM1` header and prints `AVM OK`
 - `make vice-action-avmrun`
   - uses the release image plus deterministic typed input
-  - validates `AVMRUN.PRG` launches from mounted `ACTION.DNP`
+  - validates `AVMRUNC.PRG` launches from mounted `ACTION.DNP`
   - loads `UDOSHELLO.AVM` through the preserved external-tool file-load ABI
-  - executes the current constrained flagged Acheron-backed `AVM1` subset
+  - executes the current constrained compat/interpreter `AVM1` subset
   - prints `UDOS AVM OK` and returns to the shell
 - `make vice-action-avmrun-flow`
   - uses the release image plus deterministic typed input
-  - validates `AVMRUN.PRG` can run `UDOSFLOW.AVM`
-  - proves the current constrained subset can execute `jump`, `call`, and `ret`
+  - validates `AVMRUNC.PRG` can run `UDOSFLOW.AVM`
+  - proves the current constrained compat/interpreter subset can execute `jump`, `call`, and `ret`
   - prints `UDOS AVM FLOW OK` and returns to the shell
 - `make vice-action-avmrun-runtime`
-  - rebuilds the current `AVMRUN.PRG`, prepares focused `RUNTC.AVM` and
+  - rebuilds the current `AVMRUNC.PRG`, prepares focused `RUNTC.AVM` and
     `RUNTG.AVM` samples on a copied release workspace, and proves the narrow
     interpreted subset can execute `push16`, `add`, `sub`, `eq`, `ne`, `lt`,
     and `gt`

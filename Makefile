@@ -61,8 +61,10 @@ ACTION_ACTDIR_BUILD := build/action-actdir
 ACTION_ACTADD_BUILD := build/action-actadd
 ACTION_ACTC_BUILD := build/action-actc
 ACTION_ALINK_BUILD := build/action-alink
+ACTION_ALINK_PRG_BUILD := build/action-alink-prg
 ACTION_ALINK_AVMRUN_BUILD := build/action-alink-avmrun
-ACTION_ACTC_ALINK_AVMRUN_BUILD := build/action-actc-alink-avmrun
+ACTION_ACTC_ALINK_LAUNCH_BUILD := build/action-actc-alink-launch
+ACTION_ACTC_ALINK_AVMRUNC_BUILD := build/action-actc-alink-avmrunc
 ACTION_ACTFILE_BUILD := build/action-actfile
 ACTION_ACTSRC_BUILD := build/action-actsrc
 ACTION_ACTWORK_BUILD := build/action-actwork
@@ -74,6 +76,10 @@ ACTION_AVMINFO_BUILD := build/action-avminfo
 ACTION_AVMRUN_BUILD := build/action-avmrun
 ACTION_AVMRUN_FLOW_BUILD := build/action-avmrun-flow
 ACTION_AVMRUN_RUNTIME_FS := build/action-avmrun-runtime-fs
+ACTION_AVMRUN_STDPRINT_FAST_FS := build/action-avmrun-stdprint-fast-fs
+ACTION_AVMRUN_REALPRINT_FAST_FS := build/action-avmrun-realprint-fast-fs
+ACTION_AVMRUN_DBF_FAST_FS := build/action-avmrun-dbf-fast-fs
+ACTION_AVMRUN_DBF_RECORD_FAST_FS := build/action-avmrun-dbf-record-fast-fs
 ACTION_WORKSPACE_FS := build/action-workspace-fs
 ACTION_ACTSRC_FS := build/action-actsrc-fs
 ACTION_ACTFILE_FS := build/action-actfile-fs
@@ -81,8 +87,12 @@ ACTION_ACTADD_FS := build/action-actadd-fs
 ACTION_ACT2SAVE_FS := build/action-act2save-fs
 ACTION_ACTC_FS := build/action-actc-fs
 ACTION_ALINK_FS := build/action-alink-fs
+ACTION_ALINK_PRG_FS := build/action-alink-prg-fs
 ACTION_ALINK_AVMRUN_FS := build/action-alink-avmrun-fs
-ACTION_ACTC_ALINK_AVMRUN_FS := build/action-actc-alink-avmrun-fs
+ACTION_ACTC_ALINK_LAUNCH_FS := build/action-actc-alink-launch-fs
+ACTION_ACTC_ALINK_AVMRUNC_FS := build/action-actc-alink-avmrunc-fs
+ACTION_ACTC_ALINK_AVMRUNC_SHAPE ?=
+ACTION_ACTC_ALINK_LAUNCH_SHAPE ?= if_else_local_call_chain_nested_do_if_else
 ACTION_ACTCHK_FS := build/action-actchk-fs
 ACTION_ACTMON_FS := build/action-actmon-fs
 ACTION_ACTWORK_FS := build/action-actwork-fs
@@ -152,6 +162,10 @@ ACTMON_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actmon_udos.sh
 ACTCHK_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actchk_udos.sh
 ACTCOPY_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actcopy_udos.sh
 ACTDEL_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actdel_udos.sh
+ACTDBG_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actdbg_udos.sh
+ACTDBG_OVERLAY_BUILD := $(ACTIONC64U_DIR)/tools/build_actdbg_overlay_optional_ui.sh
+ACTDBG_EXEC_OVERLAY_BUILD := $(ACTIONC64U_DIR)/tools/build_actdbg_overlay_exec.sh
+ACTEDIT_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actedit_udos.sh
 ACTDIR_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actdir_udos.sh
 ACTFILE_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actfile_udos.sh
 ACTINFO_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actinfo_udos.sh
@@ -162,9 +176,24 @@ ACTRMDIR_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actrmdir_udos.sh
 ACTSRC_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actsrc_udos.sh
 ACTWRITE_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actwrite_udos.sh
 AVMRUN_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_avmrun_udos.sh
+AVMRUNC_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_avmrunc_udos.sh
 AVMINFO_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_avminfo_udos.sh
 ACTWORK_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actwork_udos.sh
+ACTC_OVERLAY_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_noop.sh
+ACTC_OVERLAY_SOURCE_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_source_header.sh
+ACTC_OVERLAY_DECL_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_decl_counts.sh
+ACTC_OVERLAY_LAYOUT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_payload_layout.sh
+ACTC_OVERLAY_IMPORT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_runtime_imports.sh
+ACTC_OVERLAY_EMIT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_emit_object.sh
+ACTC_OVERLAY_BODY_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_body_collect.sh
 ACTC_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTC.PRG
+ACTC_OVERLAY_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL0.BIN
+ACTC_OVERLAY_SOURCE_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL1.BIN
+ACTC_OVERLAY_DECL_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL2.BIN
+ACTC_OVERLAY_LAYOUT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL3.BIN
+ACTC_OVERLAY_IMPORT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL4.BIN
+ACTC_OVERLAY_EMIT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL5.BIN
+ACTC_OVERLAY_BODY_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL6.BIN
 ACTADD_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTADD.PRG
 ACT2SAVE_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACT2SAVE.PRG
 ALINK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ALINK.PRG
@@ -172,6 +201,10 @@ ACTMON_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTMON.PRG
 ACTCHK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTCHK.PRG
 ACTCOPY_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTCOPY.PRG
 ACTDEL_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTDEL.PRG
+ACTDBG_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTDBG.PRG
+ACTDBG_OVERLAY_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTDBG_OVL1.BIN
+ACTDBG_EXEC_OVERLAY_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTDBG_OVL2.BIN
+ACTEDIT_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTEDIT.PRG
 ACTDIR_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTDIR.PRG
 ACTFILE_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTFILE.PRG
 ACTINFO_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTINFO.PRG
@@ -182,6 +215,16 @@ ACTRMDIR_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTRMDIR.PRG
 ACTSRC_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTSRC.PRG
 ACTWRITE_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTWRITE.PRG
 AVMRUN_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/AVMRUN.PRG
+AVMRUNC_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/AVMRUNC.PRG
+AVMRUN_PRINTSTD_HELPER_BIN := $(ACTIONC64U_DIR)/build/udos_tools/RT_PRINT_STD_HELPER.BIN
+AVMRUN_PRINTREAL_HELPER_BIN := $(ACTIONC64U_DIR)/build/udos_tools/RT_PRINT_F_HELPER.BIN
+AVMRUN_GFX_HELPER_BIN := $(ACTIONC64U_DIR)/build/udos_tools/RT_GFX1_HELPER.BIN
+AVMRUN_SIDSPR_HELPER_BIN := $(ACTIONC64U_DIR)/build/udos_tools/RT_SIDSPR1_HELPER.BIN
+AVMRUN_DBF_HELPER_BIN := $(ACTIONC64U_DIR)/build/udos_tools/RT_DBF1_HELPER.BIN
+AVMRUN_MATH_HELPER_BIN := $(ACTIONC64U_DIR)/build/udos_tools/RT_MATH1_HELPER.BIN
+AVMRUN_OVERLAY_BIN := $(ACTIONC64U_DIR)/build/udos_tools/AVMRUN_OVL1.BIN
+AVMRUN_REALOPS_OVERLAY_BIN := $(ACTIONC64U_DIR)/build/udos_tools/AVMRUN_OVL2.BIN
+AVMRUN_INTERP_OVERLAY_BIN := $(ACTIONC64U_DIR)/build/udos_tools/AVMRUN_OVL3.BIN
 AVMINFO_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/AVMINFO.PRG
 ACTWORK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTWORK.PRG
 
@@ -189,7 +232,8 @@ PROOF_DEPS ?= proof
 RESIDENT_DEPS ?= resident
 RELEASE_DEPS ?= release
 
-.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-alink-avmrun vice-action-actc-alink-avmrun vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-copy-root vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-action-avmrun-runtime vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean acheron-dep force proof vice-proof resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-alink-prg vice-action-alink-prg-fanout vice-action-alink-prg-word-store vice-action-alink-prg-word-load-store vice-action-alink-prg-if-else vice-action-alink-prg-nested-if vice-action-alink-prg-do-until-eq vice-action-alink-prg-do-until-lt vice-action-alink-prg-if-local-call-do-until-eq vice-action-alink-prg-if-else-local-call-do-until-eq vice-action-alink-prg-nested-if-local-call vice-action-alink-prg-nested-else-local-call vice-action-alink-prg-nested-do-local-call vice-action-alink-prg-nested-do-if-else-local-call vice-action-alink-prg-if-local-call-nested-do-if-else vice-action-alink-prg-if-else-local-call-nested-do-if-else vice-action-alink-prg-nested-else-local-call-nested-do-if-else vice-action-alink-prg-if-else-local-call-chain-nested-do-if-else vice-action-alink-avmrun vice-action-alink-launch-word-store vice-action-alink-launch-word-load-store vice-action-avmrunc-shellmin vice-action-avmrunc-shelladd vice-action-avmrunc-shelladd-trace vice-action-actc-alink-avmrunc vice-action-actc-alink-avmrunc-printmath vice-action-actc-alink-launch vice-action-actc-alink-launch-printmath vice-action-actc-alink-launch-if-else-chain vice-action-actc-alink-launch-nested-else-chain vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-copy-root vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-action-avminfo vice-action-avmrun vice-action-avmrun-flow vice-action-avmrun-runtime vice-action-avmrun-stdprint-fast vice-action-avmrun-dbf-fast vice-action-avmrun-dbf-record-fast vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: vice-action-alink-compat vice-action-compat-shellmin vice-action-compat-shelladd vice-action-compat-shelladd-trace vice-action-actc-alink-compat vice-action-actc-alink-compat-printmath vice-action-runtime-compat vice-action-runtime-compat-flow
 
 all: proof resident
 
@@ -250,6 +294,13 @@ resident: acheron-dep $(RESIDENT_OBJ) $(RESIDENT_BOOT_OBJ)
 release:
 	$(MAKE) BUILD_DIR=$(RELEASE_BUILD) RESIDENT_DEFINES="-D UDOS_INCLUDE_AUTOEXEC=0" resident
 	bash $(ACTC_UDOS_BUILD)
+	bash $(ACTC_OVERLAY_BUILD)
+	bash $(ACTC_OVERLAY_SOURCE_BUILD)
+	bash $(ACTC_OVERLAY_DECL_BUILD)
+	bash $(ACTC_OVERLAY_LAYOUT_BUILD)
+	bash $(ACTC_OVERLAY_IMPORT_BUILD)
+	bash $(ACTC_OVERLAY_EMIT_BUILD)
+	bash $(ACTC_OVERLAY_BODY_BUILD)
 	bash $(ACTADD_UDOS_BUILD)
 	bash $(ACT2SAVE_UDOS_BUILD)
 	bash $(ALINK_UDOS_BUILD)
@@ -257,6 +308,10 @@ release:
 	bash $(ACTCHK_UDOS_BUILD)
 	bash $(ACTCOPY_UDOS_BUILD)
 	bash $(ACTDEL_UDOS_BUILD)
+	bash $(ACTDBG_UDOS_BUILD)
+	bash $(ACTDBG_OVERLAY_BUILD)
+	bash $(ACTDBG_EXEC_OVERLAY_BUILD)
+	bash $(ACTEDIT_UDOS_BUILD)
 	bash $(ACTDIR_UDOS_BUILD)
 	bash $(ACTFILE_UDOS_BUILD)
 	bash $(ACTINFO_UDOS_BUILD)
@@ -267,11 +322,15 @@ release:
 	bash $(ACTSRC_UDOS_BUILD)
 	bash $(ACTWRITE_UDOS_BUILD)
 	bash $(AVMRUN_UDOS_BUILD)
+	bash $(AVMRUNC_UDOS_BUILD)
 	bash $(AVMINFO_UDOS_BUILD)
 	bash $(ACTWORK_UDOS_BUILD)
 	$(PYTHON) tools/prepare_release_fs.py --base $(VICE_FS_ROOT) --output $(RELEASE_FS)
 	cp $(RELEASE_BUILD)/udos-resident.d64 $(RELEASE_DISK)
 	-$(C1541) $(RELEASE_DISK) -delete ACTC.PRG
+	-$(C1541) $(RELEASE_DISK) -delete ACTC_OVL0.BIN
+	-$(C1541) $(RELEASE_DISK) -delete ACTC_OVL1.BIN
+	-$(C1541) $(RELEASE_DISK) -delete ACTC_OVL2.BIN
 	-$(C1541) $(RELEASE_DISK) -delete ACTADD.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACT2SAVE.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ALINK.PRG
@@ -279,6 +338,10 @@ release:
 	-$(C1541) $(RELEASE_DISK) -delete ACTCHK.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTCOPY.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTDEL.PRG
+	-$(C1541) $(RELEASE_DISK) -delete ACTDBG.PRG
+	-$(C1541) $(RELEASE_DISK) -delete ACTDBG_OVL1.BIN
+	-$(C1541) $(RELEASE_DISK) -delete ACTDBG_OVL2.BIN
+	-$(C1541) $(RELEASE_DISK) -delete ACTEDIT.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTDIR.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTFILE.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTINFO.PRG
@@ -289,9 +352,16 @@ release:
 	-$(C1541) $(RELEASE_DISK) -delete ACTSRC.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTWRITE.PRG
 	-$(C1541) $(RELEASE_DISK) -delete AVMRUN.PRG
+	-$(C1541) $(RELEASE_DISK) -delete AVMRUNC.PRG
+	-$(C1541) $(RELEASE_DISK) -delete RT_PRINT_STD_HELPER.BIN
+	-$(C1541) $(RELEASE_DISK) -delete RT_PRINT_F_HELPER.BIN
+	-$(C1541) $(RELEASE_DISK) -delete RT_GFX1_HELPER.BIN
+	-$(C1541) $(RELEASE_DISK) -delete RT_SIDSPR1_HELPER.BIN
+	-$(C1541) $(RELEASE_DISK) -delete RT_DBF1_HELPER.BIN
+	-$(C1541) $(RELEASE_DISK) -delete RT_MATH1_HELPER.BIN
 	-$(C1541) $(RELEASE_DISK) -delete AVMINFO.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTWORK.PRG
-	$(C1541) $(RELEASE_DISK) -write $(ACTC_UDOS_PRG) ACTC.PRG -write $(ACTADD_UDOS_PRG) ACTADD.PRG -write $(ACT2SAVE_UDOS_PRG) ACT2SAVE.PRG -write $(ALINK_UDOS_PRG) ALINK.PRG -write $(ACTMON_UDOS_PRG) ACTMON.PRG -write $(ACTCHK_UDOS_PRG) ACTCHK.PRG -write $(ACTCOPY_UDOS_PRG) ACTCOPY.PRG -write $(ACTDEL_UDOS_PRG) ACTDEL.PRG -write $(ACTDIR_UDOS_PRG) ACTDIR.PRG -write $(ACTFILE_UDOS_PRG) ACTFILE.PRG -write $(ACTINFO_UDOS_PRG) ACTINFO.PRG -write $(ACTMKDIR_UDOS_PRG) ACTMKDIR.PRG -write $(ACTMOVE_UDOS_PRG) ACTMOVE.PRG -write $(ACTNEW_UDOS_PRG) ACTNEW.PRG -write $(ACTRMDIR_UDOS_PRG) ACTRMDIR.PRG -write $(ACTSRC_UDOS_PRG) ACTSRC.PRG -write $(ACTWRITE_UDOS_PRG) ACTWRITE.PRG -write $(AVMRUN_UDOS_PRG) AVMRUN.PRG -write $(AVMINFO_UDOS_PRG) AVMINFO.PRG -write $(ACTWORK_UDOS_PRG) ACTWORK.PRG
+	$(C1541) $(RELEASE_DISK) -write $(ACTC_UDOS_PRG) ACTC.PRG -write $(ACTC_OVERLAY_BIN) ACTC_OVL0.BIN -write $(ACTC_OVERLAY_SOURCE_BIN) ACTC_OVL1.BIN -write $(ACTC_OVERLAY_DECL_BIN) ACTC_OVL2.BIN -write $(ACTC_OVERLAY_LAYOUT_BIN) ACTC_OVL3.BIN -write $(ACTC_OVERLAY_IMPORT_BIN) ACTC_OVL4.BIN -write $(ACTC_OVERLAY_EMIT_BIN) ACTC_OVL5.BIN -write $(ACTC_OVERLAY_BODY_BIN) ACTC_OVL6.BIN -write $(ACTADD_UDOS_PRG) ACTADD.PRG -write $(ACT2SAVE_UDOS_PRG) ACT2SAVE.PRG -write $(ACTMON_UDOS_PRG) ACTMON.PRG -write $(ACTCHK_UDOS_PRG) ACTCHK.PRG -write $(ACTCOPY_UDOS_PRG) ACTCOPY.PRG -write $(ACTDEL_UDOS_PRG) ACTDEL.PRG -write $(ACTDBG_UDOS_PRG) ACTDBG.PRG -write $(ACTDBG_OVERLAY_BIN) ACTDBG_OVL1.BIN -write $(ACTDBG_EXEC_OVERLAY_BIN) ACTDBG_OVL2.BIN -write $(ACTEDIT_UDOS_PRG) ACTEDIT.PRG -write $(ACTDIR_UDOS_PRG) ACTDIR.PRG -write $(ACTFILE_UDOS_PRG) ACTFILE.PRG -write $(ACTINFO_UDOS_PRG) ACTINFO.PRG -write $(ACTMKDIR_UDOS_PRG) ACTMKDIR.PRG -write $(ACTMOVE_UDOS_PRG) ACTMOVE.PRG -write $(ACTNEW_UDOS_PRG) ACTNEW.PRG -write $(ACTRMDIR_UDOS_PRG) ACTRMDIR.PRG -write $(ACTSRC_UDOS_PRG) ACTSRC.PRG -write $(ACTWRITE_UDOS_PRG) ACTWRITE.PRG -write $(AVMRUN_UDOS_PRG) AVMRUN.PRG -write $(AVMRUNC_UDOS_PRG) AVMRUNC.PRG -write $(AVMRUN_PRINTSTD_HELPER_BIN) RT_PRINT_STD_HELPER.BIN -write $(AVMRUN_PRINTREAL_HELPER_BIN) RT_PRINT_F_HELPER.BIN -write $(AVMRUN_GFX_HELPER_BIN) RT_GFX1_HELPER.BIN -write $(AVMRUN_SIDSPR_HELPER_BIN) RT_SIDSPR1_HELPER.BIN -write $(AVMRUN_DBF_HELPER_BIN) RT_DBF1_HELPER.BIN -write $(AVMRUN_MATH_HELPER_BIN) RT_MATH1_HELPER.BIN -write $(AVMRUN_OVERLAY_BIN) AVMRUN_OVL1.BIN -write $(AVMRUN_REALOPS_OVERLAY_BIN) AVMRUN_OVL2.BIN -write $(AVMRUN_INTERP_OVERLAY_BIN) AVMRUN_OVL3.BIN -write $(AVMINFO_UDOS_PRG) AVMINFO.PRG -write $(ACTWORK_UDOS_PRG) ACTWORK.PRG
 
 vice-release: $(RELEASE_DEPS)
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RELEASE_DISK) \
@@ -496,10 +566,279 @@ vice-action-alink: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ALINK_FS)
 	mkdir -p $(ACTION_ALINK_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_FS)/
-	$(PYTHON) tools/run_action_alink_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_FS) \
+	$(PYTHON) tools/run_action_alink_seeded_runtime_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_FS) \
 		--attempts 3 --attempt-delay 4.0
 
-vice-action-alink-avmrun: $(RELEASE_DEPS)
+vice-action-alink-prg: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape word_store --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-fanout: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape fanout --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-word-store: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape word_store --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-word-load-store: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape word_load_store --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-if-else: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape if_else --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-nested-if: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape nested_if --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-nested-else: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape nested_else --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-nested-do-until-eq: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape nested_do_until_eq --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-do-if-until-eq: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape do_if_until_eq --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-do-if-else-until-eq: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape do_if_else_until_eq --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-if-do-until-eq: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape if_do_until_eq --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-if-else-do-until-eq: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape if_else_do_until_eq --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-if-local-call-do-until-eq: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape if_local_call_do_until_eq --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-if-else-local-call-do-until-eq: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape if_else_local_call_do_until_eq --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-nested-if-local-call: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape nested_if_local_call --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-nested-else-local-call: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape nested_else_local_call --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-nested-do-local-call: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape nested_do_local_call --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-nested-do-if-else-local-call: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape nested_do_if_else_local_call --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-if-local-call-nested-do-if-else: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape if_local_call_nested_do_if_else --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-if-else-local-call-nested-do-if-else: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape if_else_local_call_nested_do_if_else --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-nested-else-local-call-nested-do-if-else: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape nested_else_local_call_nested_do_if_else --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-if-else-local-call-chain-nested-do-if-else: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape if_else_local_call_chain_nested_do_if_else --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-nested-else-local-call-chain-nested-do-if-else: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape nested_else_local_call_chain_nested_do_if_else --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-if-ne: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape if_ne --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-if-ge: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape if_ge --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-do-until-eq: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape do_until_eq --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-do-until-lt: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_harness_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape do_until_lt --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-avmrun: vice-action-alink-compat
+
+vice-action-alink-compat: $(RELEASE_DEPS)
 	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
 	bash /mnt/c/test/action/actionc64u/tools/build_avmrun_udos.sh
 	rm -rf $(ACTION_ALINK_AVMRUN_FS)
@@ -508,15 +847,81 @@ vice-action-alink-avmrun: $(RELEASE_DEPS)
 	$(PYTHON) tools/run_action_alink_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_AVMRUN_FS) \
 		--attempts 3 --attempt-delay 4.0
 
-vice-action-actc-alink-avmrun: $(RELEASE_DEPS)
+vice-action-alink-launch-word-store: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape word_store --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-launch-word-load-store: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape word_load_store_seeded --attempts 3 --attempt-delay 4.0
+
+vice-action-avmrunc-shellmin: vice-action-compat-shellmin
+
+vice-action-compat-shellmin: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_avmrunc_udos.sh
+	$(PYTHON) tools/run_action_avmrunc_shell_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--mode shellmin --expect prompt --attempts 3 --attempt-delay 4.0
+
+vice-action-avmrunc-shelladd: vice-action-compat-shelladd
+
+vice-action-compat-shelladd: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_avmrunc_udos.sh
+	$(PYTHON) tools/run_action_avmrunc_shell_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--mode shelladd --expect prompt --attempts 3 --attempt-delay 4.0
+
+vice-action-avmrunc-shelladd-trace: vice-action-compat-shelladd-trace
+
+vice-action-compat-shelladd-trace: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_avmrunc_udos.sh
+	$(PYTHON) tools/run_action_avmrunc_shell_trace.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
+		--attempts 3 --attempt-delay 4.0 --timeout 6.0 --poll-interval 0.02
+
+vice-action-actc-alink-avmrunc: vice-action-actc-alink-compat
+
+vice-action-actc-alink-compat: $(RELEASE_DEPS)
 	bash /mnt/c/test/action/actionc64u/tools/build_actc_udos.sh
 	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
-	bash /mnt/c/test/action/actionc64u/tools/build_avmrun_udos.sh
-	rm -rf $(ACTION_ACTC_ALINK_AVMRUN_FS)
-	mkdir -p $(ACTION_ACTC_ALINK_AVMRUN_FS)
-	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_AVMRUN_FS)/
-	$(PYTHON) tools/run_action_actc_alink_avmrun_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_AVMRUN_FS) \
+	bash /mnt/c/test/action/actionc64u/tools/build_avmrunc_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_AVMRUNC_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_AVMRUNC_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_AVMRUNC_FS)/
+	$(PYTHON) tools/run_action_actc_alink_avmrunc_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_AVMRUNC_FS) \
+		$(if $(ACTION_ACTC_ALINK_AVMRUNC_SHAPE),--shape $(ACTION_ACTC_ALINK_AVMRUNC_SHAPE),) \
 		--attempts 2 --attempt-delay 4.0
+
+vice-action-actc-alink-avmrunc-printmath: vice-action-actc-alink-compat-printmath
+
+vice-action-actc-alink-compat-printmath: $(RELEASE_DEPS)
+	$(MAKE) vice-action-actc-alink-compat ACTION_ACTC_ALINK_AVMRUNC_SHAPE=printmath
+
+vice-action-actc-alink-launch-printmath: $(RELEASE_DEPS)
+	$(MAKE) vice-action-actc-alink-launch ACTION_ACTC_ALINK_LAUNCH_SHAPE=printmath
+
+vice-action-actc-alink-launch: $(RELEASE_DEPS)
+	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_actc_udos.sh
+	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	$(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) \
+		$(if $(ACTION_ACTC_ALINK_LAUNCH_SHAPE),--shape $(ACTION_ACTC_ALINK_LAUNCH_SHAPE),)
+
+vice-action-actc-alink-launch-if-else-chain: $(RELEASE_DEPS)
+	$(MAKE) vice-action-actc-alink-launch ACTION_ACTC_ALINK_LAUNCH_SHAPE=if_else_local_call_chain_nested_do_if_else
+
+vice-action-actc-alink-launch-nested-else-chain: $(RELEASE_DEPS)
+	$(MAKE) vice-action-actc-alink-launch ACTION_ACTC_ALINK_LAUNCH_SHAPE=nested_else_local_call_chain_nested_do_if_else
 
 vice-action-actchk: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTCHK_FS)
@@ -751,21 +1156,41 @@ vice-action-avminfo: $(RELEASE_DEPS)
 		--contains "RUN AVMINFO.PRG" \
 		--contains "AVM OK"
 
-vice-action-avmrun: $(RELEASE_DEPS)
+vice-action-avmrun: vice-action-runtime-compat
+
+vice-action-runtime-compat: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
-		--command "AVMRUN UDOSHELLO.AVM" --run-marker "RUN AVMRUN.PRG" --done-fragment "UDOS AVM OK" --prompt-count 2 \
+		--command "AVMRUNC UDOSHELLO.AVM" --run-marker "RUN AVMRUNC.PRG" --done-fragment "UDOS AVM OK" --prompt-count 2 \
 		--contains "UDOS AVM OK"
 
-vice-action-avmrun-flow: $(RELEASE_DEPS)
+vice-action-avmrun-flow: vice-action-runtime-compat-flow
+
+vice-action-runtime-compat-flow: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_probe.py --disk $(RELEASE_DISK) --fs-root $(RELEASE_FS) \
-		--command "AVMRUN UDOSFLOW.AVM" --run-marker "RUN AVMRUN.PRG" --done-fragment "UDOS AVM FLOW OK" --prompt-count 2 \
+		--command "AVMRUNC UDOSFLOW.AVM" --run-marker "RUN AVMRUNC.PRG" --done-fragment "UDOS AVM FLOW OK" --prompt-count 2 \
 		--contains "UDOS AVM FLOW OK"
 
 vice-action-avmrun-runtime: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_avmrun_runtime_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_AVMRUN_RUNTIME_FS)
+
+vice-action-avmrun-stdprint-fast: $(RELEASE_DEPS)
+	sleep 2
+	$(PYTHON) tools/run_action_avmrun_stdprint_fast_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_AVMRUN_STDPRINT_FAST_FS)
+
+vice-action-avmrun-realprint-fast: $(RELEASE_DEPS)
+	sleep 2
+	$(PYTHON) tools/run_action_avmrun_realprint_fast_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_AVMRUN_REALPRINT_FAST_FS)
+
+vice-action-avmrun-dbf-fast: $(RELEASE_DEPS)
+	sleep 2
+	$(PYTHON) tools/run_action_avmrun_dbf_fast_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_AVMRUN_DBF_FAST_FS)
+
+vice-action-avmrun-dbf-record-fast: $(RELEASE_DEPS)
+	sleep 2
+	$(PYTHON) tools/run_action_avmrun_dbf_fast_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_AVMRUN_DBF_RECORD_FAST_FS) --mode records
 
 vice-proof: $(PROOF_DEPS)
 	$(PYTHON) tools/vice_prg_probe.py --disk $(PROOF_AUTO_PRG) --expected "UDOS VM OK"

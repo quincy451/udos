@@ -50,6 +50,36 @@ def last_nonempty_line(screen: str) -> str:
     return ""
 
 
+def wait_for_active_prompt(
+    client: vp.BinaryMonitorClient,
+    prompt: str,
+    timeout: float,
+    *,
+    retry_echo: str | None = None,
+    poll_interval: float = 0.2,
+) -> str:
+    deadline = time.monotonic() + timeout
+    last_screen = ""
+    retry_count = 0
+    while time.monotonic() < deadline:
+        last_screen = screen_text_for_fragment(client, prompt)
+        last_line = last_nonempty_line(last_screen)
+        if vp.screen_contains(last_screen, "READY."):
+            raise vp.ViceError(f"escaped to READY instead of returning to {prompt!r}:\n{last_screen}")
+        if vp.screen_contains(last_line, prompt):
+            return last_screen
+        retry_count = maybe_retry_command_enter(
+            client,
+            last_screen=last_screen,
+            retry_echo=retry_echo,
+            retry_count=retry_count,
+        )
+        time.sleep(poll_interval)
+    raise vp.ViceError(
+        f"expected active prompt {prompt!r} as the last live line, got {last_nonempty_line(last_screen)!r}:\n{last_screen}"
+    )
+
+
 def nudge_to_prompt(
     client: vp.BinaryMonitorClient,
     process,
@@ -376,23 +406,33 @@ def main() -> int:
             ],
         )
         client = vp.BinaryMonitorClient("127.0.0.1", port, timeout=5.0)
+        stage = "launch"
 
         try:
             connect_delay = connect_delays[(attempt - 1) % len(connect_delays)]
+            stage = "connect-delay"
             if connect_delay > 0.0:
                 time.sleep(connect_delay)
+            stage = "connect"
             client.connect(time.monotonic() + 20.0)
+            stage = "ping"
             client.ping()
+            stage = "resume"
             client.resume()
             if args.boot_settle > 0.0:
+                stage = "boot-settle"
                 time.sleep(args.boot_settle)
 
-            wait_for_screen_fragment(client, "A:D64/>", args.boot_timeout, poll_interval=args.poll_interval)
+            stage = "wait-a-prompt"
+            wait_for_active_prompt(client, "A:D64/>", args.boot_timeout, poll_interval=args.poll_interval)
+            stage = "initial-settle"
             time.sleep(args.initial_settle)
             mount_command = f"MOUNT B: {args.mount_path}"
+            stage = "mount-type"
             type_command(client, mount_command, args.shell_timeout)
             time.sleep(1.0)
             try:
+                stage = "mount-wait"
                 wait_for_mount_completion(
                     client,
                     args.shell_timeout,
@@ -400,15 +440,19 @@ def main() -> int:
                     poll_interval=args.poll_interval,
                 )
             except vp.ViceError:
+                stage = "mount-retry-type"
                 type_command(client, mount_command, args.shell_timeout)
                 time.sleep(1.0)
+                stage = "mount-retry-wait"
                 wait_for_mount_completion(
                     client,
                     args.shell_timeout,
                     retry_echo=mount_command,
                     poll_interval=args.poll_interval,
                 )
+            stage = "switch-b"
             type_command(client, "B:", args.shell_timeout)
+            stage = "wait-b-prompt"
             screen = wait_for_screen_fragment(
                 client,
                 args.b_prompt,
@@ -418,8 +462,10 @@ def main() -> int:
             )
             final_prompt = args.final_prompt or args.b_prompt
             prompt_count = vp.screen_count(screen, final_prompt)
+            stage = "command-settle"
             time.sleep(args.command_settle)
             for index, pre_command in enumerate(args.pre_command):
+                stage = f"pre-command-type[{index}]"
                 type_command(client, pre_command, args.shell_timeout)
                 pre_fragments: list[str] = []
                 if index < len(args.pre_prompt) and args.pre_prompt[index]:
@@ -427,6 +473,7 @@ def main() -> int:
                 if index < len(args.pre_fragment) and args.pre_fragment[index]:
                     pre_fragments.append(args.pre_fragment[index])
                 if pre_fragments:
+                    stage = f"pre-command-wait-fragments[{index}]"
                     screen = wait_for_screen_fragments(
                         client,
                         pre_fragments,
@@ -437,6 +484,7 @@ def main() -> int:
                     prompt_count = max(prompt_count, vp.screen_count(screen, final_prompt))
                 else:
                     prompt_count += 1
+                    stage = f"pre-command-wait-prompt[{index}]"
                     screen = wait_for_prompt_count(
                         client,
                         args.b_prompt,
@@ -446,10 +494,14 @@ def main() -> int:
                         poll_interval=args.poll_interval,
                     )
                     prompt_count = max(prompt_count, vp.screen_count(screen, final_prompt))
+                stage = f"pre-command-settle[{index}]"
                 time.sleep(args.command_settle)
+            stage = "main-command-type"
             type_command(client, args.command, args.shell_timeout)
+            stage = "main-command-settle"
             time.sleep(args.command_settle)
             if args.run_marker:
+                stage = "wait-run-marker"
                 wait_for_screen_fragment(
                     client,
                     args.run_marker,
@@ -462,6 +514,7 @@ def main() -> int:
                 if args.done_fragment:
                     fragments.append(args.done_fragment)
                 if fragments:
+                    stage = "skip-prompt-wait-fragments"
                     screen = wait_for_screen_fragments(
                         client,
                         fragments,
@@ -470,13 +523,16 @@ def main() -> int:
                         poll_interval=args.poll_interval,
                     )
                 else:
+                    stage = "skip-prompt-sleep"
                     time.sleep(args.shell_timeout)
+                    stage = "skip-prompt-read-screen"
                     screen = screen_text(client)
             else:
                 prompt_count += 1
                 fragments: list[str] = []
                 if args.done_fragment:
                     fragments.append(args.done_fragment)
+                stage = "wait-final-prompt-and-fragments"
                 screen = wait_for_prompt_count_and_fragments(
                     client,
                     final_prompt,
@@ -487,9 +543,12 @@ def main() -> int:
                     poll_interval=args.poll_interval,
                 )
             if args.post_command:
+                stage = "post-command-settle"
                 time.sleep(args.command_settle)
+                stage = "post-command-type"
                 type_command(client, args.post_command, args.shell_timeout)
                 if args.post_done_fragment and args.post_done_fragment.endswith(">"):
+                    stage = "post-command-wait-fragment"
                     screen = wait_for_screen_fragment(
                         client,
                         args.post_done_fragment,
@@ -503,6 +562,7 @@ def main() -> int:
                     post_fragments: list[str] = []
                     if args.post_done_fragment:
                         post_fragments.append(args.post_done_fragment)
+                    stage = "post-command-wait-prompt-and-fragments"
                     screen = wait_for_prompt_count_and_fragments(
                         client,
                         final_prompt,
@@ -512,11 +572,13 @@ def main() -> int:
                         retry_echo=args.post_command,
                         poll_interval=args.poll_interval,
                     )
+            stage = "validate-contains"
             for fragment in args.contains:
                 if not vp.screen_contains(screen, fragment):
                     raise vp.ViceError(
                         f"expected screen fragment {fragment!r} was not present in final screen:\n{screen}"
                     )
+            stage = "validate-not-contains"
             for fragment in args.not_contains:
                 if vp.screen_contains(screen, fragment):
                     raise vp.ViceError(
@@ -606,7 +668,7 @@ def main() -> int:
                             f"vice_dir_b[{index}]=state:0x{state:02X},parent:0x{parent:02X},name:{name!r}"
                         )
                 path_trace = " ".join(path_parts)
-            note_parts = [f"attempt {attempt}: {exc}"]
+            note_parts = [f"attempt {attempt} stage={stage}: {exc}"]
             if launch_trace:
                 note_parts.append(launch_trace)
             if path_trace:

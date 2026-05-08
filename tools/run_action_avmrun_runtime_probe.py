@@ -13,8 +13,8 @@ RUNNER = ROOT / 'tools' / 'run_action_avmrun_probe.py'
 
 
 def build_avmrun() -> Path:
-    subprocess.run(['bash', 'tools/build_avmrun_udos.sh'], cwd=ACTION, check=True, stdout=subprocess.DEVNULL)
-    prg = ACTION / 'build' / 'udos_tools' / 'AVMRUN.PRG'
+    subprocess.run(['bash', 'tools/build_avmrunc_udos.sh'], cwd=ACTION, check=True, stdout=subprocess.DEVNULL)
+    prg = ACTION / 'build' / 'udos_tools' / 'AVMRUNC.PRG'
     if not prg.is_file():
         raise FileNotFoundError(prg)
     return prg
@@ -65,10 +65,10 @@ def prepare_fs(fs_root: Path, avmrun_prg: Path) -> None:
         avm = img / name.replace('.AVT', '.AVM')
         txt.write_text(text, encoding='ascii')
         pack_text(txt, avm)
-    shutil.copy2(avmrun_prg, img / 'AVMRUN.PRG')
+    shutil.copy2(avmrun_prg, img / 'AVMRUNC.PRG')
     manifest = img / 'UDOSDIR.TXT'
     lines = [line.strip() for line in manifest.read_text(encoding='ascii', errors='ignore').splitlines() if line.strip()]
-    for entry in ('F AVMRUN.PRG', 'F RUNTC.AVM', 'F RUNTC.AVT', 'F RUNTG.AVM', 'F RUNTG.AVT'):
+    for entry in ('F AVMRUNC.PRG', 'F RUNTC.AVM', 'F RUNTC.AVT', 'F RUNTG.AVM', 'F RUNTG.AVT'):
         if entry not in lines:
             lines.append(entry)
     manifest.write_text('\n'.join(lines) + '\n', encoding='ascii')
@@ -80,6 +80,7 @@ def run_probe(disk: Path, fs_root: Path, command: str, *checks: str, attempts: i
         '--disk', str(disk),
         '--fs-root', str(fs_root),
         '--command', command,
+        '--run-marker', 'RUN AVMRUNC.PRG',
         '--b-prompt', 'B:DNP/',
         '--final-prompt', 'B:DNP/>',
         '--done-fragment', '',
@@ -107,8 +108,8 @@ def main() -> int:
     fs_root = Path(args.fs_root).resolve()
     avmrun_prg = build_avmrun()
     prepare_fs(fs_root, avmrun_prg)
-    run_probe(disk, fs_root, 'AVMRUN RUNTC.AVM', '124', attempts=args.attempts, attempt_delay=args.attempt_delay)
-    run_probe(disk, fs_root, 'AVMRUN RUNTG.AVM', '3', '1', attempts=args.attempts, attempt_delay=args.attempt_delay)
+    run_probe(disk, fs_root, 'AVMRUNC RUNTC.AVM', '124', attempts=args.attempts, attempt_delay=args.attempt_delay)
+    run_probe(disk, fs_root, 'AVMRUNC RUNTG.AVM', '3', '1', attempts=args.attempts, attempt_delay=args.attempt_delay)
     return 0
 
 

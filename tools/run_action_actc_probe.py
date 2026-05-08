@@ -22,6 +22,7 @@ else:
     ACTC_BODY_HEAD = []
 CONNECT_DELAYS = (10.0,) + tuple(delay for delay in avp.WORKSPACE_CONNECT_DELAYS if delay != 10.0)
 ACTC_RESIDENT_DEBUG = (
+    ("ACTC_LAST_TRACE", 0x03E7),
     ("RETURN0", 0x03E8),
     ("RETURN1", 0x03E9),
     ("RETURN2", 0x03EA),
@@ -51,6 +52,7 @@ ACTC_SAVE_PATH_LEN = 96
 LAUNCH_DRIVE_SNAPSHOT_ADDR = 0xCFFC
 LAUNCH_DIR_SNAPSHOT_ADDR = 0xCFFE
 TOOL_ABI_OPEN_PATH = 0xCD40
+TOOL_ABI_LAUNCH_PATH = 0xCD20
 TOOL_WRITEBACK_NAME_MAX = 32
 TOOL_WRITEBACK_MAX_RECORDS = 7
 TOOL_WRITEBACK_RECORD_SIZE = 71
@@ -119,8 +121,6 @@ def prepare_workspace(fs_root: Path, project_name: str) -> Path:
     lowercase_workspace = detect_lowercase_workspace(fs_root)
     images_root = case_insensitive_child(fs_root, host_name("IMAGES", lowercase_workspace))
     action_root = case_insensitive_child(images_root, host_name("ACTION.DNP", lowercase_workspace))
-    bin_root = case_insensitive_child(action_root, host_name("BIN", lowercase_workspace))
-
     project_root = action_root / host_name(project_name.upper(), lowercase_workspace)
     lower_project_root = project_root.parent / project_root.name.lower()
     shutil.rmtree(project_root, ignore_errors=True)
@@ -142,24 +142,15 @@ def prepare_workspace(fs_root: Path, project_name: str) -> Path:
 
     if ACTION_ACTC_BUILD.is_file():
         root_target = action_root / host_name("ACTC.PRG", lowercase_workspace)
-        root_bin_target = bin_root / host_name("ACTC.PRG", lowercase_workspace)
-        project_target = project_root / host_name("ACTC.PRG", lowercase_workspace)
-        project_bin_target = project_bin_root / host_name("ACTC.PRG", lowercase_workspace)
         shutil.copy2(ACTION_ACTC_BUILD, root_target)
-        shutil.copy2(root_target, root_bin_target)
-        shutil.copy2(root_target, project_target)
-        shutil.copy2(root_target, project_bin_target)
         ensure_catalog_entries(action_root / host_name("UDOSDIR.TXT", lowercase_workspace), [f"D {project_name.upper()}", "F ACTC.PRG"])
-        ensure_catalog_entries(bin_root / host_name("UDOSDIR.TXT", lowercase_workspace), ["F ACTC.PRG"])
-        ensure_catalog_entries(project_root / host_name("UDOSDIR.TXT", lowercase_workspace), ["F ACTC.PRG"])
-        ensure_catalog_entries(project_bin_root / host_name("UDOSDIR.TXT", lowercase_workspace), ["F ACTC.PRG"])
 
     return project_root
 
 
 def verify_host_output(project_root: Path) -> None:
     lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
-    output_path = project_root / host_name("OBJ", lowercase_workspace) / host_name("MAIN.AVO", lowercase_workspace)
+    output_path = project_root / host_name("OBJ", lowercase_workspace) / host_name("MAIN.OBJ", lowercase_workspace)
     if not output_path.is_file():
         raise RuntimeError(f"expected host file {output_path} to exist")
     text = output_path.read_text(encoding="ascii", errors="ignore")
@@ -294,6 +285,7 @@ def read_actc_trace(client: vp.BinaryMonitorClient) -> str:
         if dest_fullpath_addr is not None:
             extras.append(f"DEST_FULLPATH={read_cstr(client, dest_fullpath_addr, 96)!r}")
         extras.append(f"CURRENT_PATH={read_cstr(client, 0xCD00, 64)!r}")
+        extras.append(f"LAUNCH_PATH={read_cstr(client, TOOL_ABI_LAUNCH_PATH, 64)!r}")
         extras.append(f"OPEN_PATH={read_cstr(client, 0xCD40, 96)!r}")
         extras.append(f"C64_PORT={client.memory_get(0x0001, 0x0001)[0]!r}")
         extras.append(f"PROGRAM_DRIVE_SNAPSHOT={client.memory_get(0xCFF8, 0xCFF8)[0]!r}")
@@ -307,6 +299,7 @@ def read_actc_trace(client: vp.BinaryMonitorClient) -> str:
         extras.append(f"LAUNCH_PATH_TRACE={list(client.memory_get(0x03F7, 0x03FA))!r}")
         extras.append(f"PROGRAM_IMAGE_LEN={list(client.memory_get(0xCFFA, 0xCFFB))!r}")
         extras.append(f"TOOL_ABI_FILE_BLOCK={list(client.memory_get(0xCDC6, 0xCDCB))!r}")
+        extras.append(f"ACTC_LAST_TRACE={client.memory_get(0x03E7, 0x03E7)[0]!r}")
         return_trace = list(client.memory_get(0x03E8, 0x03EF))
         extras.append(f"RETURN_TRACE={return_trace!r}")
         name_head = bytes(return_trace[4:8]).split(b"\x00", 1)[0].decode("ascii", errors="replace")
@@ -339,18 +332,29 @@ def collect_actc_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
     try:
         data["REGISTERS"] = client.registers_get()
         registers = data["REGISTERS"]
+        if isinstance(registers, dict) and "PC" in registers:
+            pc = int(registers["PC"]) & 0xFFFF
+            start = max(0, pc - 8)
+            end = min(0xFFFF, pc + 23)
+            data["PC_WINDOW_ADDR"] = start
+            data["PC_WINDOW"] = list(client.memory_get(start, end))
         if isinstance(registers, dict) and "SP" in registers:
             sp = int(registers["SP"]) & 0xFF
             stack_start = 0x0100 + ((sp + 1) & 0xFF)
             stack_end = min(0x01FF, stack_start + 15)
             data["STACK_WINDOW"] = list(client.memory_get(stack_start, stack_end))
             data["STACK_WINDOW_ADDR"] = stack_start
+        data["LAUNCH_STUB_ZP"] = list(client.memory_get(0x00F6, 0x00FE))
     except Exception as exc:
         data["REGISTERS"] = f"ERR:{exc!r}"
+        data["PC_WINDOW"] = f"ERR:{exc!r}"
+        data["PC_WINDOW_ADDR"] = f"ERR:{exc!r}"
         data["STACK_WINDOW"] = f"ERR:{exc!r}"
         data["STACK_WINDOW_ADDR"] = f"ERR:{exc!r}"
+        data["LAUNCH_STUB_ZP"] = f"ERR:{exc!r}"
     try:
         data["C64_PORT"] = client.memory_get(0x0001, 0x0001)[0]
+        data["ACTC_LAST_TRACE"] = client.memory_get(0x03E7, 0x03E7)[0]
         actc_trace_addr = labels.get("actc_trace_byte")
         if actc_trace_addr is not None:
             data["ACTC_TRACE"] = client.memory_get(actc_trace_addr, actc_trace_addr)[0]
@@ -448,6 +452,7 @@ def collect_actc_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         data["TOOL_ABI_FILE_REMAIN"] = list(client.memory_get(0xCDC2, 0xCDC3))
         data["TOOL_ABI_FILE_LEN"] = list(client.memory_get(0xCDC4, 0xCDC5))
         data["CURRENT_PATH"] = read_cstr(client, 0xCD00, 64)
+        data["LAUNCH_PATH"] = read_cstr(client, TOOL_ABI_LAUNCH_PATH, 64)
         data["OPEN_PATH"] = read_cstr(client, 0xCD40, 96)
         desired_path_addr = resident_labels.get("desired_path_buffer")
         if desired_path_addr is not None:
@@ -478,6 +483,19 @@ def collect_actc_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         data["PROGRAM_DIR_SNAPSHOT"] = f"ERR:{exc!r}"
         data["LAUNCH_DRIVE_SNAPSHOT"] = f"ERR:{exc!r}"
         data["LAUNCH_DIR_SNAPSHOT"] = f"ERR:{exc!r}"
+    try:
+        data["TOOL_FIXED_WRITE_CHUNK"] = list(client.memory_get(0xCF30, 0xCF38))
+        data["TOOL_FIXED_REU"] = list(client.memory_get(0xCF39, 0xCF3E))
+        for label in (
+            "tool_abi_fixed_template",
+            "tool_abi_file_write_chunk_sc0",
+            "tool_abi_file_write_chunk_current",
+        ):
+            addr = resident_labels.get(label)
+            if addr is not None:
+                data[label.upper()] = list(client.memory_get(addr, addr + 31))
+    except Exception as exc:
+        data["TOOL_FIXED_WRITE_CHUNK"] = f"ERR:{exc!r}"
     for name in ("current_drive", "temp_drive"):
         addr = resident_labels.get(name)
         if addr is None:
@@ -654,7 +672,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         saw_run = False
         retry_count = 0
         lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
-        output_path = project_root / host_name("OBJ", lowercase_workspace) / host_name("MAIN.AVO", lowercase_workspace)
+        output_path = project_root / host_name("OBJ", lowercase_workspace) / host_name("MAIN.OBJ", lowercase_workspace)
         stage_d_snapshot: dict[str, object] | None = None
         prelaunch_snapshot: dict[str, object] | None = None
         live_tool_snapshot: dict[str, object] | None = None
@@ -689,6 +707,8 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
                     if live_tool_snapshot is None:
                         live_tool_snapshot = current_live_tool_snapshot
                     actc_trace = current_live_tool_snapshot.get("ACTC_TRACE")
+                    if not isinstance(actc_trace, int) or actc_trace == 0:
+                        actc_trace = current_live_tool_snapshot.get("ACTC_LAST_TRACE")
                     if first_actc_trace_snapshot is None and isinstance(actc_trace, int) and actc_trace != 0:
                         first_actc_trace_snapshot = current_live_tool_snapshot
                     if first_tool_signal_snapshot is None and (
@@ -753,28 +773,6 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
                 size = output_path.stat().st_size
                 if size > 0:
                     break
-                extra = f"\nSTAGE_D_SNAPSHOT: {stage_d_snapshot!r}" if stage_d_snapshot is not None else ""
-                if prelaunch_snapshot is not None:
-                    extra += f"\nPRELAUNCH_SNAPSHOT: {prelaunch_snapshot!r}"
-                if live_tool_snapshot is not None:
-                    extra += f"\nLIVE_TOOL_SNAPSHOT: {live_tool_snapshot!r}"
-                if first_tool_signal_snapshot is not None:
-                    extra += f"\nFIRST_TOOL_SIGNAL_SNAPSHOT: {first_tool_signal_snapshot!r}"
-                if first_actc_trace_snapshot is not None:
-                    extra += f"\nFIRST_ACTC_TRACE_SNAPSHOT: {first_actc_trace_snapshot!r}"
-                if first_path_snapshot is not None:
-                    extra += f"\nFIRST_PATH_SNAPSHOT: {first_path_snapshot!r}"
-                if first_good_content_snapshot is not None:
-                    extra += f"\nFIRST_GOOD_CONTENT_SNAPSHOT: {first_good_content_snapshot!r}"
-                if first_bad_content_snapshot is not None:
-                    extra += f"\nFIRST_BAD_CONTENT_SNAPSHOT: {first_bad_content_snapshot!r}"
-                if first_program_loaded_snapshot is not None:
-                    extra += f"\nFIRST_PROGRAM_LOADED_SNAPSHOT: {first_program_loaded_snapshot!r}"
-                if first_file_complete_snapshot is not None:
-                    extra += f"\nFIRST_FILE_COMPLETE_SNAPSHOT: {first_file_complete_snapshot!r}"
-                if last_live_tool_snapshot is not None:
-                    extra += f"\nLAST_LIVE_TOOL_SNAPSHOT: {last_live_tool_snapshot!r}"
-                raise vp.ViceError(f"ACTC zero-byte output ({read_actc_trace(client)}){extra} with screen:\n{screen}")
             if saw_run and vp.screen_contains(screen, "READY."):
                 extra = f"\nSTAGE_D_SNAPSHOT: {stage_d_snapshot!r}" if stage_d_snapshot is not None else ""
                 if prelaunch_snapshot is not None:

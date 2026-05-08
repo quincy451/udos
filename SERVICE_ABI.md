@@ -295,6 +295,17 @@ Current ABI version:
   - marks program state as exited
   - records exit status `0`
 
+### `svc_vm_acheron_enter`
+- input: `rP = absolute AVM entry pointer`
+- output: none
+- current behavior:
+  - clears the resident Acheron register stack
+  - synthesizes the entry return frame expected by Acheron
+  - enters the resident Acheron engine on the supplied entry address
+- note:
+  - this is the fixed-page service that allows `AVMRUN.PRG` to use the
+    resident VM engine instead of linking a duplicate `acheron.o` copy
+
 ### `svc_mark_ready`
 - input: none
 - output: none

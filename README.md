@@ -104,7 +104,7 @@ Current milestone:
     typed input on top of the release workspace, seeds a project root marked
     by `ACTION.PROJ`, launches `ACTC.PRG MAIN`, and proves the first
     UDOS-native compiler front-end slice can emit a deterministic
-    `OBJ/MAIN.AVO` object stub on the host fs tree, including extracted
+    `OBJ/MAIN.OBJ` object stub on the host fs tree, including extracted
     top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`,
     folded narrow decimal `PrintI` / `PrintIE` `+` / `-` / `*` / `/`
     expressions with inline spaces, simple precedence, parenthesized
@@ -117,7 +117,7 @@ Current milestone:
     shell-side `TYPE OBJ/...` readback
   - `make vice-action-alink` now uses the release image with deterministic
     typed input on top of a copied Action workspace, seeds a project root
-    marked by `ACTION.PROJ` plus deterministic `OBJ/*.AVO` fixtures, launches
+    marked by `ACTION.PROJ` plus deterministic `OBJ/*.OBJ` fixtures, launches
     `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
     deterministic `BIN/MAIN.AVM` binary final-image artifact on the host fs
     tree; the focused proof keeps verification host-side by waiting for that
@@ -128,18 +128,34 @@ Current milestone:
     focused proof now resolves a wider unresolved external closure with
     sibling externals from `main`, a shared child object, and a deeper leaf,
     while still carrying child-object integer and string literal pools into
-    the linked binary image
-  - `make vice-action-alink-avmrun` now uses the release image with
+    the linked binary image. Project objects are now emitted and documented as
+    `OBJ/*.OBJ`; legacy `OBJ/*.AVO` remains a compatibility input path during
+    migration
+  - `make vice-action-alink-avmrun` is now the AVM-specific linker/runner
+    proof. It uses the release image with
     deterministic typed input on top of a copied Action workspace, launches
     `ALINK.PRG MAIN`, then launches `AVMRUN.PRG BIN/MAIN.AVM`, and proves the
     emitted linked image executes through the current Acheron-backed runner by
     printing `HELLOWORLD`, `TOOL7`, and `12342` before returning to
     `B:DNP/PROJ3>`
-  - `make vice-action-actc-alink-avmrun` now uses the release image with
-    deterministic typed input on top of a copied Action workspace, launches
-    `ACTC.PRG MAIN`, `ALINK.PRG MAIN`, then `AVMRUN.PRG BIN/MAIN.AVM`, and
-    proves the integrated compiler/linker/runner path prints `HELLO`,
-    `TOOL7`, and `01` before returning to `B:DNP/PROJ3>`
+  - `make vice-action-actc-alink-launch-printmath` is green again as the
+    named higher-level direct-launch proof for the imported `printmath` shape.
+    It launches `ACTC.PRG MAIN`, then `ALINK.PRG MAIN`, then direct
+    `BIN/MAIN.PRG`, and proves the live screen reaches `hello`, `tool7`, and
+    `5459` before returning to the UDOS prompt
+  - `make vice-action-actc-alink-avmrunc-printmath` remains the helper-bearing
+    compat replay target for the same source shape; it is no longer the primary
+    higher-level proof for `printmath`
+  - `make vice-action-actc-alink-launch` is now the helper-free higher-level
+    default. It uses the release image with deterministic typed input on top
+    of a copied Action workspace, launches `ACTC.PRG MAIN`, then
+    `ALINK.PRG MAIN`, then direct `BIN/MAIN.PRG` under VICE with no
+    `MAIN.AVM` / `AVMRUN` dependency
+  - `make vice-action-actc-alink-launch-if-else-chain` is the named helper-free
+    higher-level proof for the base local-call chain shape
+  - `make vice-action-actc-alink-launch-nested-else-chain` is the named
+    helper-free higher-level proof for the nested false-path local-call chain
+    shape
   - `make vice-action-actchk` now uses the release image with deterministic
     typed input on top of the release workspace, seeds a healthy project root
     marked by `ACTION.PROJ`, launches `ACTCHK.PRG`, validates expected
@@ -228,15 +244,28 @@ Current milestone:
     typed input, launches `AVMINFO.PRG`, loads `HELLO.AVM` through the
     preserved launch-safe file-load ABI, and returns to the UDOS prompt
   - `make vice-action-avmrun` now mounts the exported Action workspace from the
-    release image, launches `AVMRUN.PRG`, loads `UDOSHELLO.AVM` through the
+    release image, launches `AVMRUNC.PRG`, loads `UDOSHELLO.AVM` through the
     preserved launch-safe file-load ABI, executes the current constrained
-    flagged Acheron-backed `AVM1` subset, and returns to the UDOS prompt
+    compat/interpreter `AVM1` subset, and returns to the UDOS prompt
   - `make vice-action-avmrun-flow` now runs `UDOSFLOW.AVM` from the mounted
-    Action workspace and proves the current constrained subset can handle
-    `jump`, `call`, and `ret` before returning to the UDOS prompt
+    Action workspace through `AVMRUNC.PRG` and proves the current constrained
+    compat/interpreter subset can handle `jump`, `call`, and `ret` before
+    returning to the UDOS prompt
   - `make vice-action-avmrun-runtime` now prepares focused runtime samples on
     the mounted Action workspace and proves the current narrow interpreted
     subset can execute `push16`, `add`, `sub`, `eq`, `ne`, `lt`, and `gt`
+    through `AVMRUNC.PRG`
+  - `make vice-action-avmrun-stdprint-fast` now prepares a synthetic trailer-backed
+    `FASTSTD.AVM`, removes `RT_PRINT_STD_HELPER.BIN`, `AVMRUN_OVL1.BIN`, and
+    `AVMRUN_OVL3.BIN` from the mounted Action workspace, then proves `AVMRUN.PRG`
+    can still print `HELLO` through the resident Acheron fast path using only the
+    program-owned standard-print native helper trailer
+  - `make vice-action-avmrun-realprint-fast` now prepares a synthetic
+    trailer-backed `FASTREAL.AVM`, removes `RT_PRINT_F_HELPER.BIN`,
+    `AVMRUN_OVL1.BIN`, `AVMRUN_OVL2.BIN`, and `AVMRUN_OVL3.BIN` from the
+    mounted Action workspace, then proves `AVMRUN.PRG` can still print `7`
+    through the resident Acheron fast path using only the program-owned
+    REAL-print native helper trailer
 
 Current command parser rule:
 - shell keywords require a separator before arguments
