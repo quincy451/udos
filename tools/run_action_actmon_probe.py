@@ -9,7 +9,6 @@ import sys
 import time
 from pathlib import Path
 
-import run_action_avmrun_probe as avm
 import run_action_actc_probe as rcp
 import vice_prg_probe as vp
 
@@ -231,7 +230,7 @@ def run_phase(
     attempt_delay: float,
 ) -> tuple[str, Path]:
     project_prompt = f"B:DNP/{project_name.upper()}>"
-    runner = ROOT / "run_action_avmrun_probe.py"
+    runner = ROOT / "run_action_command_probe.py"
     last_error: str | None = None
     for attempt in range(1, attempts + 1):
         debug_log(f"phase start command={command!r} attempt={attempt}/{attempts}")

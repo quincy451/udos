@@ -5,76 +5,55 @@
 UDOS is a DOS-like shell and resident service environment for the Commodore 64
 Ultimate.
 
-The shell, service layer, filesystem logic, and process/command logic are to be
-implemented in AcheronVM wherever practical. Native 6502 code is reserved for
-bootstrap and hardware-edge glue.
+The current resident shell/runtime is native 6502. Linked Action output is
+launched as a direct `.PRG`; no resident interpreter or separate launcher is
+part of the normal program path.
 
 ## Design Rules
 
 - shell/services logic does not live in C
-- AcheronVM is the primary resident programming environment
-- native 6502 is only for bootstrap, VM trampolines, UCI transport, IRQ-safe glue, and tiny hardware primitives
+- native 6502 owns bootstrap, resident services, command dispatch, UCI transport, and hardware primitives
 - resident memory pressure must stay visible in documentation
 - D64/D71/D81 are flat from the shell's perspective
 - DNP is the only format with subdirectory semantics
+- `alink` decides what goes into the linked Action `.PRG`
 
 ## Proven Baseline
 
-The current Phase 1 proof validates these assumptions in VICE:
-- local AcheronVM runtime can be linked into a C64-target PRG
-- a VM-side `calln` can invoke native glue
-- a tiny native routine can update screen RAM and a marker byte deterministically
-- the linked entrypoint is not the VM base address; wrapper generation must use the real linked `.start`
-
-Current measured proof layout:
-- dispatcher: `$00E6`
-- runtime body: `$072A`
-- proof code: `$002E`
-- proof entrypoint: `$1810`
+The active baseline is the native resident shell plus the release workspace
+image. The old standalone VM banner proof and separate runtime-runner path have
+been removed from the active build surface.
 
 ## Resident Core
 
-The resident core is planned as these layers:
+The resident core is layered as:
 
 1. Native bootstrap
-   - machine bring-up
    - initial loader
-   - resident image relocation if needed
-   - AcheronVM entry/exit trampolines
-2. Resident AcheronVM runtime
-   - the VM dispatcher and enabled instruction set
-   - resident enough that later commands can execute in the same VM environment
+   - resident image load and entry
+   - launch/return restore stubs
+2. Native resident shell/runtime
+   - command tokenization
+   - built-in command dispatch
+   - implicit direct `.PRG` program launch
 3. Resident service ABI
-   - fixed jump/service entry convention from VM code into native services
+   - fixed tool-facing service page
    - versioned and documented
 4. Native UCI transport driver
    - direct Ultimate-facing register transport
-   - tiny, synchronous first cut
-5. VM-facing filesystem abstraction
+   - synchronous first cut
+5. Filesystem abstraction
    - logical drives `A:` and `B:`
    - mount table
    - current directory state per drive
-6. Resident command dispatcher
-   - command tokenization
-   - lookup of built-in vs overlay command
-   - argument handoff
-7. Resident commands
-   - `DIR`, `CD`, `VOL`, `MOUNT`, `MEM`, `TYPE`, `COPY`, `REN`, `DEL`, `HELP`, `VER`
-   - implicit program launch for bare non-keyword input
 
 ## Overlay Model
 
-Overlays are planned for larger or less frequently used commands:
-- `XCOPY`
-- `DELTREE`
-- `TREE`
-- batch/scripting support
-- later developer utilities
+Overlays remain planned for larger or less frequently used commands.
 
 Overlay policy draft:
 - resident core resolves overlay image by command name
-- overlay code executes in the same AcheronVM environment
-- native bootstrap is responsible only for loading and transferring control
+- overlay code should be native and use the resident service ABI
 - overlays may use REU as staging/cache if that meaningfully reduces disk churn
 
 ## Filesystem Model
@@ -94,48 +73,46 @@ Required behavior:
 - any command needing subdirectory semantics on D64/D71/D81 must fail clearly
 - no fake nested-path emulation on flat images
 
-## Service ABI Draft
+## Service ABI
 
-This is a draft for the first stable resident ABI boundary.
+The resident exports a fixed tool ABI page for external tools and launched
+programs. Tools call native resident services directly through that page.
 
-### VM-to-native call shape
-- AcheronVM code uses `calln` into a native service trampoline
-- `rP` and the visible register window carry scalar parameters
-- native service writes return values back into the current register window
-- service calls preserve VM invariants and return to VM mode cleanly
-
-### First ABI groups
+First ABI groups:
 - console I/O
 - memory/status
 - image mount/query
 - directory enumeration
 - file open/read/write/rename/delete/copy
-- program/overlay load
+- program launch/return state
 - UCI transport primitives
 
-### Versioning
-- a resident ABI version word will be exported in native glue and mirrored in VM-visible state
-- overlays must declare the ABI version they require
+Versioning:
+- a resident ABI version word is exported by the native service layer
+- external tools must tolerate additive ABI growth
 
-## Memory Model Assumptions
+## Memory Model
 
-Current assumptions, not yet hardware-validated:
-- resident VM/runtime loaded in main RAM
-- REU available as cache/workspace, not as a hidden requirement for the first proof
-- overlay and filesystem scratch space may move into REU once the base shell loop is stable
+Current assumptions:
+- resident image loads at `$1810` and enters at `$18D3`
+- resident code/data must stay below `$A000`
+- REU is used as cache/workspace and for launch-time resident spill/restore
+- shell boot must not require REU
 
 These assumptions must stay explicit until measured on real hardware.
 
 ## Current Milestone Summary
 
 ### What works
-- local AcheronVM runtime can be built from assembly sources
-- a minimal AcheronVM proof runs under VICE from a D64 image
+- the resident shell boots under VICE
+- mounted workspace images launch direct `.PRG` programs
+- resident spill/restore returns from launched tools under VICE
 
 ### What is unverified
-- final ABI details
-- UCI transport register map and calling costs
-- realistic resident footprint once filesystem services are present
+- real hardware UCI behavior
+- final overlay ABI details
+- realistic resident footprint once more tools are resident-aware
 
 ### Next concrete step
-- implement the Phase 2 resident bootstrap skeleton and freeze the first resident ABI around console, memory, mount/query, and command dispatch services
+- keep the native resident below `$A000`, run focused VICE launch/return tests,
+  then hardware-validate the UCI-backed filesystem paths

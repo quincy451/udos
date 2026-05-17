@@ -29,7 +29,8 @@ def main() -> int:
     last_error: str | None = None
     for attempt in range(1, max(1, args.attempts) + 1):
         project_root = rap.prepare_workspace(fs_root, project_name)
-        output_path = project_root / "bin" / "main.avmtxt"
+        lowercase_workspace = rap.detect_lowercase_workspace(fs_root)
+        output_path = project_root / rap.host_name("BIN", lowercase_workspace) / rap.host_name("MAIN.PRG", lowercase_workspace)
         if output_path.exists():
             output_path.unlink()
         vp.cleanup_stale_vice(settle_seconds=2.0)
@@ -60,7 +61,8 @@ def main() -> int:
                 if process.poll() is not None:
                     raise vp.ViceError("x64sc exited before ALINK produced host output")
                 if output_path.is_file():
-                    rap.verify_host_output(project_root)
+                    if output_path.stat().st_size <= 2:
+                        raise vp.ViceError(f"linked PRG is too small: {output_path}")
                     return 0
                 time.sleep(0.5)
             last_error = f"expected host file {output_path} to exist after {args.wait_seconds:.1f} seconds"

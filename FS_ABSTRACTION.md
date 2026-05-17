@@ -2,7 +2,7 @@
 
 ## Goal
 
-Expose a single VM-facing mounted-image model while keeping image-format policy
+Expose a single resident mounted-image model while keeping image-format policy
 explicit.
 
 ## Logical Drives
@@ -115,8 +115,8 @@ Current resident mounted-image model:
 Current mock directory model:
 - flat images report a root-only listing
 - `DNP` root reports `BIN/`, `SRC/`, and `WORK/`
-- `DNP` `SRC` reports `BOOT.ASM` and `FS.AVM`
-- `DNP` `BIN` reports `SHELL.AVM` and `DIR.AVM`
+- `DNP` `SRC` reports `BOOT.ASM` and `FS.ASM`
+- `DNP` `BIN` reports `SHELL.PRG` and `DIR.PRG`
 - resident labels are currently:
   - `A:` -> `SYSTEM`
   - `B:` -> `WORK`
@@ -127,8 +127,8 @@ Current mock directory model:
   - example fallback: `/IMAGES/WORK.DNP` -> `WORK`
 - resident mock file contents currently include:
   - flat root `SYSTEM`, `COMMANDS`, `README`
-  - `DNP/SRC` `BOOT.ASM`, `FS.AVM`
-  - `DNP/BIN` `SHELL.AVM`, `DIR.AVM`
+  - `DNP/SRC` `BOOT.ASM`, `FS.ASM`
+  - `DNP/BIN` `SHELL.PRG`, `DIR.PRG`
 - resident mutable copy model currently supports:
   - a small `WORK` file table per logical drive
   - create/update semantics for `COPY`

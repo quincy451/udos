@@ -4,7 +4,6 @@
 
 Resident components hold the always-needed execution environment:
 - native bootstrap
-- resident AcheronVM runtime
 - native service ABI
 - shell dispatcher
 - first built-in commands
@@ -29,7 +28,7 @@ Planned command resolution order:
 Near-term direction:
 - bootstrap and core remain a single D64-loadable image
 - overlay/module format stays simple and native-project-specific at first
-- AcheronVM remains resident; later modules provide VM code payloads plus minimal metadata
+- later modules should provide native payloads plus minimal metadata
 
 Minimum metadata planned for loadable modules:
 - module name

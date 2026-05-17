@@ -72,7 +72,7 @@ def stage_runtime_module_closure(project_root: Path) -> None:
         if name in seen:
             continue
         seen.add(name)
-        source_path = UDOS_RUNTIME_MODULES / f"{name}.avo"
+        source_path = UDOS_RUNTIME_MODULES / f"{name}.obj"
         if not source_path.is_file():
             continue
         lib_root.mkdir(parents=True, exist_ok=True)
@@ -152,7 +152,7 @@ def prepare_workspace(fs_root: Path, project_name: str, shape: str) -> tuple[Pat
     rcp.write_ascii(bin_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace), "")
     rcp.write_ascii(obj_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace), "")
 
-    for stale_name in ("MAIN.PRG", "MAIN.AVM", "main.prg", "main.avm"):
+    for stale_name in ("MAIN.PRG", "main.prg"):
         (project_root / stale_name).unlink(missing_ok=True)
         (bin_root / stale_name).unlink(missing_ok=True)
 
@@ -208,21 +208,41 @@ def run_actc_phase(image: Path, work_root: Path, project_name: str) -> None:
         raise RuntimeError(f"ACTC harness phase completed without expected host output {output_path}")
 
 
-def run_alink_phase(project_root: Path) -> None:
+def run_alink_phase(project_root: Path) -> dict[str, object]:
     try:
-        rpp.run_harness(ACTION_ALINK_BUILD, ACTION_ALINK_LABELS, project_root)
+        return rpp.run_harness(ACTION_ALINK_BUILD, ACTION_ALINK_LABELS, project_root)
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError("ALINK harness phase timed out after 120s") from exc
     except RuntimeError as exc:
         raise RuntimeError(str(exc)) from exc
 
 
+def verify_alink_dependency_loads(summary: dict[str, object], shape: str) -> None:
+    case = rpp.direct_prg_case(shape)
+    expected_loads = case.get("expected_alink_loads", [])
+    if not isinstance(expected_loads, list) or not expected_loads:
+        return
+    ops = summary.get("ops", [])
+    if not isinstance(ops, list):
+        raise RuntimeError("ALINK harness summary did not include file operations")
+    loaded_paths: set[str] = set()
+    for op in ops:
+        if not isinstance(op, dict):
+            continue
+        path = op.get("path")
+        if isinstance(path, str):
+            loaded_paths.add(path.upper())
+    missing = [
+        path
+        for path in expected_loads
+        if isinstance(path, str) and path.upper() not in loaded_paths
+    ]
+    if missing:
+        raise RuntimeError(f"ALINK did not load expected dependency objects: {missing}")
+
+
 def verify_link_output(project_root: Path, shape: str) -> Path:
     prg_path = rpp.verify_host_output(project_root, shape)
-    lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
-    avm_path = project_root / rcp.host_name("BIN", lowercase_workspace) / rcp.host_name("MAIN.AVM", lowercase_workspace)
-    if avm_path.exists():
-        raise RuntimeError(f"unexpected AVM output for helper-free direct PRG probe: {avm_path}")
     return prg_path
 
 
@@ -236,9 +256,11 @@ def run_once(image: Path, fs_root: Path, project_name: str, work_root: Path, sha
         try:
             vp.cleanup_stale_vice(settle_seconds=STAGE_ATTEMPT_DELAY)
             run_actc_phase(image, work_root, project_name)
+            rpp.verify_actc_object_output(project_root, shape)
             stage_case_objects(project_root, shape)
             stage_runtime_module_closure(project_root)
-            run_alink_phase(project_root)
+            alink_summary = run_alink_phase(project_root)
+            verify_alink_dependency_loads(alink_summary, shape)
             prg_path = verify_link_output(project_root, shape)
             rpp.run_prg_phase(image, work_root, project_name, mount_path, PRG_CONNECT_DELAY, prg_path, shape)
             return
@@ -253,7 +275,7 @@ def run_once(image: Path, fs_root: Path, project_name: str, work_root: Path, sha
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run the ACTC -> ALINK -> helper-free launch proof through direct MAIN.PRG")
+    parser = argparse.ArgumentParser(description="Run the ACTC -> ALINK launch proof through direct MAIN.PRG")
     parser.add_argument("--disk", required=True)
     parser.add_argument("--fs-root", required=True)
     parser.add_argument("--project", default="PROJ3")

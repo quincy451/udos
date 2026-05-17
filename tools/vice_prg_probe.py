@@ -463,6 +463,8 @@ def screen_count(screen: str, fragment: str) -> int:
 
 
 def active_screen_base(d018: int, dd00: int) -> int:
+    if d018 == 0xFF and dd00 == 0xFF:
+        return 0x0400
     vic_bank = ((dd00 ^ 0x03) & 0x03) * 0x4000
     screen_offset = ((d018 >> 4) & 0x0F) * 0x0400
     return vic_bank + screen_offset

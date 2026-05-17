@@ -16,7 +16,8 @@ It now covers:
 
 ## Calling Convention
 
-- VM code calls native services with AcheronVM `calln`.
+- Public tool callers use the fixed service jump table addresses generated in
+  `udos_services.inc`.
 - `rP` carries the primary argument or return value.
 - native code sees `.X` pointing at the current `rP` storage.
 - return values are written back through `0,X` and `1,X`.
@@ -294,17 +295,6 @@ Current ABI version:
 - current behavior:
   - marks program state as exited
   - records exit status `0`
-
-### `svc_vm_acheron_enter`
-- input: `rP = absolute AVM entry pointer`
-- output: none
-- current behavior:
-  - clears the resident Acheron register stack
-  - synthesizes the entry return frame expected by Acheron
-  - enters the resident Acheron engine on the supplied entry address
-- note:
-  - this is the fixed-page service that allows `AVMRUN.PRG` to use the
-    resident VM engine instead of linking a duplicate `acheron.o` copy
 
 ### `svc_mark_ready`
 - input: none

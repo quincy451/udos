@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 import run_action_alink_probe as rap
-import run_action_avmrun_probe as avp
+import run_action_command_probe as avp
 import vice_prg_probe as vp
 
 
@@ -22,6 +22,7 @@ TOOL_ABI_HARNESS = ACTION_ROOT / "build" / "udos_tools" / "tool_abi_harness"
 UDOS_SERVICES_INC = ACTION_ROOT / "build" / "udos_tools" / "udos_services.inc"
 ACTION_ALINK_LABELS = ACTION_ROOT / "build" / "udos_tools" / "alink.current.labels"
 ACTION_ACTC_HARNESS_LABELS = ACTION_ROOT / "build" / "udos_tools" / "actc_harness.current.labels"
+UDOS_RUNTIME_MODULES = ACTION_ROOT / "src" / "runtime" / "udos_modules"
 CONNECT_DELAYS = rap.CONNECT_DELAYS
 
 DIRECT_PRG_LOAD_ADDR = 0x1000
@@ -35,14 +36,29 @@ DIRECT_PRG_EXIT_MARKER_VALUE = 0xA5
 DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
     "single_call": {
         "source": "MODULE MAIN\rPROC A()\rRETURN\rPROC MAIN()\rA()\rRETURN\r",
-        "expected_tail": bytes((0x48, 0x45, 0x20, 0x10, 0x49, 0x18, 0x10)),
+        "has_stub": False,
+        "expected_object_fragments": [
+            "x main 0 20\n",
+            "x a 19 1\n",
+            "b M\n",
+            "m 20 13 10 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF 60\n",
+        ],
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF60"),
     },
     "fanout": {
         "source": "MODULE MAIN\rPROC A()\rRETURN\rPROC B()\rA()\rRETURN\rPROC MAIN()\rA()\rB()\rRETURN\r",
-        "expected_tail": bytes((0x48, 0x45, 0x20, 0x10, 0x48, 0x45, 0x20, 0x10, 0x45, 0x21, 0x10, 0x49, 0x18, 0x10)),
+        "has_stub": False,
+        "expected_object_fragments": [
+            "x main 0 27\n",
+            "x b 22 4\n",
+            "x a 26 1\n",
+            "b M\n",
+            "m 20 1A 10 20 16 10 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF 20 1A 10 60 60\n",
+        ],
+        "expected_tail": bytes.fromhex("201A10201610A9A58DD003A90085028503A2024C0FCF201A106060"),
     },
     "word_store": {
-        "seed_object": "AVO1\nx main 0 7\nb p0S0r\ni 7\nv x 0\n",
+        "seed_object": "OBJ1\nx main 0 7\nb p0S0r\ni 7\nv x 0\n",
         "has_stub": False,
         "expected_tail": bytes.fromhex("A907A2008D22108E23108DD1038ED203A9A58DD003A90085028503A2024C0FCF00000000"),
         "store_check_addr": 0x03D1,
@@ -60,7 +76,7 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_hi_value": 0x00,
     },
     "word_load_store_seeded": {
-        "seed_object": "AVO1\nx main 0 13\nb p0S0L0S1r\ni 7\nv x 0\nv y 0\nk 0\nn main\n",
+        "seed_object": "OBJ1\nx main 0 13\nb p0S0L0S1r\ni 7\nv x 0\nv y 0\nk 0\nn main\n",
         "has_stub": False,
         "expected_tail": bytes.fromhex("A907A2008D2E108E2F10AD2E10AE2F108D30108E31108DD1038ED203A9A58DD003A90085028503A2024C0FCF000000000000"),
         "store_check_addr": 0x03D1,
@@ -81,16 +97,536 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "has_stub": False,
         "extra_library_objects": {
             "W.OBJ": (
-                "AVO1\n"
+                "OBJ1\n"
                 "x w 0 13\n"
                 "b s0i0r\n"
-                "s TOOL\n"
-                "i 7\n"
+                "s WIDG\n"
+                "i 42\n"
                 "n w\n"
             ),
         },
-        "expected_tail": bytes.fromhex("2003cf2006cf60000000000000000048454c4c4f00544f4f4c00"),
-        "screen_fragments": ["hello", "tool7", "5459"],
+        "expected_tail": bytes.fromhex("2003cf2006cf60000000000000000048454c4c4f005749444700"),
+        "screen_fragments": ["hello", "widg42", "5459"],
+        "expected_alink_loads": ["LIB/W.OBJ"],
+    },
+    "transitive_library_load": {
+        "seed_object": "OBJ1\nx main 0 1\nb r\nu a\nn main\n",
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 1\nb r\nu b\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 1\nb r\nn b\n",
+        },
+        "expected_tail": bytes.fromhex("A9A58DD003A90085028503A2024C0FCF"),
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ"],
+    },
+    "real_printre_int": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL X\r"
+            "PROC MAIN()\r"
+            "X=REAL(7)\r"
+            "PrintRE(X)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_i_to_f", "rt_print_f"],
+        "expected_tail": bytes.fromhex(
+            "A9208502A9108503A2022003CF2006CFA9A58DD003A90085028503A2024C0FCF3700"
+        ),
+        "screen_fragments": ["7"],
+        "expected_alink_loads": ["LIB/RT_I_TO_F.OBJ", "LIB/RT_PRINT_F.OBJ"],
+    },
+    "real_printre_byte": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL X\r"
+            "PROC MAIN()\r"
+            "X=REAL(42)\r"
+            "PrintRE(X)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_i_to_f", "rt_print_f"],
+        "expected_tail": bytes.fromhex(
+            "A9208502A9108503A2022003CF2006CFA9A58DD003A90085028503A2024C0FCF343200"
+        ),
+        "screen_fragments": ["42"],
+        "expected_alink_loads": ["LIB/RT_I_TO_F.OBJ", "LIB/RT_PRINT_F.OBJ"],
+    },
+    "real_printre_fraction": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL A\r"
+            "REAL B\r"
+            "REAL X\r"
+            "PROC MAIN()\r"
+            "A=REAL(3)\r"
+            "B=REAL(2)\r"
+            "X=A/B\r"
+            "PrintRE(X)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_i_to_f", "rt_f_div", "rt_print_f"],
+        "expected_tail": bytes.fromhex(
+            "A9208502A9108503A2022003CF2006CFA9A58DD003A90085028503A2024C0FCF312E3500"
+        ),
+        "screen_fragments": ["1.5"],
+        "expected_alink_loads": ["LIB/RT_I_TO_F.OBJ", "LIB/RT_F_DIV.OBJ", "LIB/RT_PRINT_F.OBJ"],
+    },
+    "empty_return": {
+        "seed_object": "OBJ1\nx main 0 1\nb r\nn main\n",
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A9A58DD003A90085028503A2024C0FCF"),
+    },
+    "actc_object_code_empty_return": {
+        "source": "MODULE MAIN\rPROC MAIN()\rRETURN\r",
+        "has_stub": False,
+        "expected_object_fragments": [
+            "x main 0 16\n",
+            "b M\n",
+            "m A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n",
+        ],
+        "expected_tail": bytes.fromhex("A9A58DD003A90085028503A2024C0FCF"),
+    },
+    "object_code_return": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 16\n"
+            "b M\n"
+            "m A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A9A58DD003A90085028503A2024C0FCF"),
+    },
+    "object_code_local_call": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 20\n"
+            "x a 19 1\n"
+            "b M\n"
+            "b M\n"
+            "m 20 13 10 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF 60\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF60"),
+    },
+    "object_code_external_call": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 19\n"
+            "b u0M\n"
+            "u helper\n"
+            "m 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "HELPER.OBJ": "OBJ1\nx helper 0 1\nb M\nm 60\nn helper\n",
+        },
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF60"),
+        "expected_alink_loads": ["LIB/HELPER.OBJ"],
+    },
+    "object_code_external_call_twice": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 22\n"
+            "b u0M\n"
+            "u helper\n"
+            "m 20 00 00 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "r 4 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "HELPER.OBJ": "OBJ1\nx helper 0 1\nb M\nm 60\nn helper\n",
+        },
+        "expected_tail": bytes.fromhex("201610201610A9A58DD003A90085028503A2024C0FCF60"),
+        "expected_alink_loads": ["LIB/HELPER.OBJ"],
+    },
+    "object_code_lettered_import_call": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 19\n"
+            "b uAM\n"
+            "u d0\n"
+            "u d1\n"
+            "u d2\n"
+            "u d3\n"
+            "u d4\n"
+            "u d5\n"
+            "u d6\n"
+            "u d7\n"
+            "u d8\n"
+            "u d9\n"
+            "u helper\n"
+            "m 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 uA\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "D0.OBJ": "OBJ1\nx d0 0 1\nb M\nm 60\nn d0\n",
+            "D1.OBJ": "OBJ1\nx d1 0 1\nb M\nm 60\nn d1\n",
+            "D2.OBJ": "OBJ1\nx d2 0 1\nb M\nm 60\nn d2\n",
+            "D3.OBJ": "OBJ1\nx d3 0 1\nb M\nm 60\nn d3\n",
+            "D4.OBJ": "OBJ1\nx d4 0 1\nb M\nm 60\nn d4\n",
+            "D5.OBJ": "OBJ1\nx d5 0 1\nb M\nm 60\nn d5\n",
+            "D6.OBJ": "OBJ1\nx d6 0 1\nb M\nm 60\nn d6\n",
+            "D7.OBJ": "OBJ1\nx d7 0 1\nb M\nm 60\nn d7\n",
+            "D8.OBJ": "OBJ1\nx d8 0 1\nb M\nm 60\nn d8\n",
+            "D9.OBJ": "OBJ1\nx d9 0 1\nb M\nm 60\nn d9\n",
+            "HELPER.OBJ": "OBJ1\nx helper 0 1\nb M\nm 60\nn helper\n",
+        },
+        "expected_tail": bytes.fromhex(
+            "201D10A9A58DD003A90085028503A2024C0FCF6060606060606060606060"
+        ),
+        "expected_alink_loads": [
+            "LIB/D0.OBJ",
+            "LIB/D1.OBJ",
+            "LIB/D2.OBJ",
+            "LIB/D3.OBJ",
+            "LIB/D4.OBJ",
+            "LIB/D5.OBJ",
+            "LIB/D6.OBJ",
+            "LIB/D7.OBJ",
+            "LIB/D8.OBJ",
+            "LIB/D9.OBJ",
+            "LIB/HELPER.OBJ",
+        ],
+    },
+    "object_code_external_pair": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 22\n"
+            "b u0u1M\n"
+            "u a\n"
+            "u b\n"
+            "m 20 00 00 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "r 4 u1\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 1\nb M\nm 60\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 1\nb M\nm 60\nn b\n",
+        },
+        "expected_tail": bytes.fromhex("201610201710A9A58DD003A90085028503A2024C0FCF6060"),
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ"],
+    },
+    "object_code_transitive_call": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 19\n"
+            "b u0M\n"
+            "u a\n"
+            "m 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 4\nb u0M\nu b\nm 20 00 00 60\nr 1 u0\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 1\nb M\nm 60\nn b\n",
+        },
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF2017106060"),
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ"],
+    },
+    "object_code_project_transitive_call": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 19\n"
+            "b u0M\n"
+            "u a\n"
+            "m 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_objects": {
+            "A.OBJ": "OBJ1\nx a 0 4\nb u0M\nu b\nm 20 00 00 60\nr 1 u0\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 1\nb M\nm 60\nn b\n",
+        },
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF2017106060"),
+        "expected_alink_loads": ["OBJ/A.OBJ", "OBJ/B.OBJ"],
+    },
+    "object_code_project_precedes_library": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 19\n"
+            "b u0M\n"
+            "u a\n"
+            "m 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_objects": {
+            "A.OBJ": "OBJ1\nx a 0 1\nb M\nm 60\nn a\n",
+        },
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 1\nb M\nm EA\nn a\n",
+        },
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF60"),
+        "expected_alink_loads": ["OBJ/A.OBJ"],
+        "unexpected_alink_loads": ["LIB/A.OBJ"],
+    },
+    "object_code_mixed_project_library_closure": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 22\n"
+            "b u0u1M\n"
+            "u a\n"
+            "u b\n"
+            "m 20 00 00 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "r 4 u1\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_objects": {
+            "A.OBJ": "OBJ1\nx a 0 4\nb u0M\nu c\nm 20 00 00 60\nr 1 u0\nn a\n",
+        },
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 1\nb M\nm EA\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 1\nb M\nm 60\nn b\n",
+            "C.OBJ": "OBJ1\nx c 0 1\nb M\nm 60\nn c\n",
+        },
+        "expected_tail": bytes.fromhex(
+            "201610201A10A9A58DD003A90085028503A2024C0FCF201B10606060"
+        ),
+        "expected_alink_loads": ["OBJ/A.OBJ", "LIB/B.OBJ", "LIB/C.OBJ"],
+        "unexpected_alink_loads": ["LIB/A.OBJ"],
+    },
+    "object_code_external_triangle": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 22\n"
+            "b u0u1M\n"
+            "u a\n"
+            "u b\n"
+            "m 20 00 00 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "r 4 u1\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 4\nb u0M\nu b\nm 20 00 00 60\nr 1 u0\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 1\nb M\nm 60\nn b\n",
+        },
+        "expected_tail": bytes.fromhex("201610201A10A9A58DD003A90085028503A2024C0FCF201A106060"),
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ"],
+    },
+    "object_code_external_diamond": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 22\n"
+            "b u0u1M\n"
+            "u a\n"
+            "u b\n"
+            "m 20 00 00 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "r 4 u1\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 4\nb u0M\nu c\nm 20 00 00 60\nr 1 u0\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 4\nb u0M\nu c\nm 20 00 00 60\nr 1 u0\nn b\n",
+            "C.OBJ": "OBJ1\nx c 0 1\nb M\nm 60\nn c\n",
+        },
+        "expected_tail": bytes.fromhex(
+            "201610201A10A9A58DD003A90085028503A2024C0FCF201E1060201E106060"
+        ),
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ", "LIB/C.OBJ"],
+    },
+    "object_code_external_square": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 22\n"
+            "b u0u1M\n"
+            "u a\n"
+            "u b\n"
+            "m 20 00 00 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "r 4 u1\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 4\nb u0M\nu c\nm 20 00 00 60\nr 1 u0\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 4\nb u0M\nu d\nm 20 00 00 60\nr 1 u0\nn b\n",
+            "C.OBJ": "OBJ1\nx c 0 1\nb M\nm 60\nn c\n",
+            "D.OBJ": "OBJ1\nx d 0 1\nb M\nm 60\nn d\n",
+        },
+        "expected_tail": bytes.fromhex(
+            "201610201A10A9A58DD003A90085028503A2024C0FCF201E1060201F10606060"
+        ),
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ", "LIB/C.OBJ", "LIB/D.OBJ"],
+    },
+    "external_print_line": {
+        "seed_object": "OBJ1\nx main 0 3\nb u0r\nu w\nn main\n",
+        "has_stub": False,
+        "extra_library_objects": {
+            "W.OBJ": "OBJ1\nx w 0 3\nb e0r\ns LINKED\nn w\n",
+        },
+        "expected_tail": bytes.fromhex(
+            "201310A9A58DD003A90085028503A2024C0FCFA9248502A9108503"
+            "A2022003CF2006CF604C494E4B454400"
+        ),
+        "screen_fragments": ["linked"],
+        "expected_alink_loads": ["LIB/W.OBJ"],
+    },
+    "external_return_call": {
+        "seed_object": "OBJ1\nx main 0 3\nb u0r\nu a\nn main\n",
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 1\nb r\nn a\n",
+        },
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF60"),
+        "expected_alink_loads": ["LIB/A.OBJ"],
+    },
+    "external_store_call": {
+        "seed_object": "OBJ1\nx main 0 3\nb u0r\nu a\nn main\n",
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 7\nb p0S0r\ni 42\nv x 0\nn a\n",
+        },
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCFA92AA2008DD1038ED20360"),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x2A,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+        "expected_alink_loads": ["LIB/A.OBJ"],
+    },
+    "external_load_store_call": {
+        "seed_object": "OBJ1\nx main 0 3\nb u0r\nu a\nn main\n",
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 13\nb p0S0L0S1r\ni 42\nv x 0\nv y 0\nn a\n",
+        },
+        "expected_tail": bytes.fromhex(
+            "201310A9A58DD003A90085028503A2024C0FCFA92A"
+            "A2008D38108E3910AD3810AE39108D3A108E3B108DD1038ED20360"
+        ),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x2A,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+        "expected_alink_loads": ["LIB/A.OBJ"],
+    },
+    "external_string_int_call": {
+        "seed_object": "OBJ1\nx main 0 3\nb u0r\nu a\nn main\n",
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 13\nb s0i0r\ns TOOL\ni 42\nn a\n",
+        },
+        "expected_tail": bytes.fromhex(
+            "201310A9A58DD003A90085028503A2024C0FCFA9958502A9108503A2022003CFA92A"
+            "8D9110A9008D9210A200AD9110C964900938E9648D9110E8D0F0E000F00C8A186930"
+            "207B10A9018D9210A200AD9110C90A900938E90A8D9110E8D0F0E000D005AD9210"
+            "F0078A186930207B10AD9110186930207B102006CF608D9310A9008D9410A993"
+            "8502A9108503A2022003CF6000000000544F4F4C00"
+        ),
+        "screen_fragments": ["tool42"],
+        "expected_alink_loads": ["LIB/A.OBJ"],
+    },
+    "external_return_pair": {
+        "seed_object": "OBJ1\nx main 0 5\nb u0u1r\nu a\nu b\nn main\n",
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 1\nb r\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 1\nb r\nn b\n",
+        },
+        "expected_tail": bytes.fromhex("201610201710A9A58DD003A90085028503A2024C0FCF6060"),
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ"],
+    },
+    "transitive_external_print_line": {
+        "seed_object": "OBJ1\nx main 0 3\nb u0r\nu a\nn main\n",
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 3\nb u0r\nu b\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 3\nb e0r\ns DEEP\nn b\n",
+        },
+        "expected_tail": bytes.fromhex(
+            "201310A9A58DD003A90085028503A2024C0FCF20171060"
+            "A9288502A9108503A2022003CF2006CF604445455000"
+        ),
+        "screen_fragments": ["deep"],
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ"],
+    },
+    "transitive_external_return_call": {
+        "seed_object": "OBJ1\nx main 0 3\nb u0r\nu a\nn main\n",
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 3\nb u0r\nu b\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 1\nb r\nn b\n",
+        },
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF2017106060"),
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ"],
+    },
+    "transitive_external_store_call": {
+        "seed_object": "OBJ1\nx main 0 3\nb u0r\nu a\nn main\n",
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 3\nb u0r\nu b\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 7\nb p0S0r\ni 42\nv x 0\nn b\n",
+        },
+        "expected_tail": bytes.fromhex(
+            "201310A9A58DD003A90085028503A2024C0FCF20171060"
+            "A92AA2008DD1038ED20360"
+        ),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x2A,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ"],
+    },
+    "transitive_external_load_store_call": {
+        "seed_object": "OBJ1\nx main 0 3\nb u0r\nu a\nn main\n",
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 3\nb u0r\nu b\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 13\nb p0S0L0S1r\ni 42\nv x 0\nv y 0\nn b\n",
+        },
+        "expected_tail": bytes.fromhex(
+            "201310A9A58DD003A90085028503A2024C0FCF20171060"
+            "A92AA2008D38108E3910AD3810AE39108D3A108E3B108DD1038ED20360"
+        ),
+        "store_check_addr": 0x03D1,
+        "store_check_value": 0x2A,
+        "store_check_hi_addr": 0x03D2,
+        "store_check_hi_value": 0x00,
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ"],
+    },
+    "transitive_external_string_int_call": {
+        "seed_object": "OBJ1\nx main 0 3\nb u0r\nu a\nn main\n",
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 3\nb u0r\nu b\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 13\nb s0i0r\ns TOOL\ni 42\nn b\n",
+        },
+        "expected_tail": bytes.fromhex(
+            "201310A9A58DD003A90085028503A2024C0FCF20171060A9998502A9108503A202"
+            "2003CFA92A8D9510A9008D9610A200AD9510C964900938E9648D9510E8D0F0E0"
+            "00F00C8A186930207F10A9018D9610A200AD9510C90A900938E90A8D9510E8D0"
+            "F0E000D005AD9610F0078A186930207F10AD9510186930207F102006CF608D"
+            "9710A9008D9810A9978502A9108503A2022003CF6000000000544F4F4C00"
+        ),
+        "screen_fragments": ["tool42"],
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ"],
+    },
+    "unsupported_body": {
+        "seed_object": "OBJ1\nx main 0 2\nb zr\nn main\n",
+        "has_stub": False,
+        "expect_alink_failure": True,
+        "expected_alink_error": "UNSUPPORTED BODY",
     },
     "if_eq": {
         "source": "MODULE MAIN\rCARD X\rCARD Y\rPROC MAIN()\rX=7\rIF X=7 THEN\rY=1\rFI\rRETURN\r",
@@ -393,15 +929,62 @@ def prepare_workspace(fs_root: Path, project_name: str, shape: str) -> tuple[Pat
     else:
         rap.write_ascii(obj_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace), "")
 
+    extra_project_objects = case.get("extra_objects", {})
+    if isinstance(extra_project_objects, dict) and extra_project_objects:
+        entries: list[str] = []
+        for name, text in extra_project_objects.items():
+            if not isinstance(name, str) or not name or not isinstance(text, str):
+                continue
+            rap.write_ascii(obj_root / rap.host_name(name, lowercase_workspace), text)
+            entries.append(f"F {name.upper()}")
+        if entries:
+            rap.ensure_catalog_entries(obj_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace), entries)
+
+    extra_library_objects = case.get("extra_library_objects", {})
+    if isinstance(extra_library_objects, dict) and extra_library_objects:
+        lib_root = project_root / rap.host_name("LIB", lowercase_workspace)
+        lib_root.mkdir(parents=True, exist_ok=True)
+        entries = []
+        for name, text in extra_library_objects.items():
+            if not isinstance(name, str) or not name or not isinstance(text, str):
+                continue
+            rap.write_ascii(lib_root / rap.host_name(name, lowercase_workspace), text)
+            entries.append(f"F {name.upper()}")
+        if entries:
+            rap.ensure_catalog_entries(lib_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace), entries)
+            rap.ensure_catalog_entries(project_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace), ["D LIB"])
+
+    runtime_library_objects = case.get("runtime_library_objects", [])
+    if isinstance(runtime_library_objects, list) and runtime_library_objects:
+        lib_root = project_root / rap.host_name("LIB", lowercase_workspace)
+        lib_root.mkdir(parents=True, exist_ok=True)
+        entries = []
+        for module_name in runtime_library_objects:
+            if not isinstance(module_name, str) or not module_name:
+                continue
+            source_path = UDOS_RUNTIME_MODULES / f"{module_name}.obj"
+            if not source_path.is_file():
+                raise RuntimeError(f"missing runtime OBJ module: {source_path}")
+            target_name = module_name.upper() + ".OBJ"
+            shutil.copy2(source_path, lib_root / rap.host_name(target_name, lowercase_workspace))
+            entries.append(f"F {target_name}")
+        if entries:
+            rap.ensure_catalog_entries(lib_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace), entries)
+            rap.ensure_catalog_entries(project_root / rap.host_name("UDOSDIR.TXT", lowercase_workspace), ["D LIB"])
+
     install_program(fs_root, project_root, ACTION_ALINK_BUILD, "ALINK.PRG")
     mount_path = f"/{images_root.name}/{action_root.name}"
     return project_root, mount_path
 
 
+def host_prg_path(project_root: Path) -> Path:
+    lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
+    return project_root / rap.host_name("BIN", lowercase_workspace) / rap.host_name("MAIN.PRG", lowercase_workspace)
+
+
 def verify_host_output(project_root: Path, shape: str) -> Path:
     case = direct_prg_case(shape)
-    lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
-    prg_path = project_root / rap.host_name("BIN", lowercase_workspace) / rap.host_name("MAIN.PRG", lowercase_workspace)
+    prg_path = host_prg_path(project_root)
     if not prg_path.is_file():
         raise RuntimeError(f"expected direct PRG {prg_path} to exist")
     prg_bytes = prg_path.read_bytes()
@@ -416,6 +999,21 @@ def verify_host_output(project_root: Path, shape: str) -> Path:
         got = prg_bytes[-len(expected_tail):].hex()
         raise RuntimeError(f"unexpected direct PRG payload tail for {shape}: {got}")
     return prg_path
+
+
+def verify_actc_object_output(project_root: Path, shape: str) -> None:
+    case = direct_prg_case(shape)
+    fragments = case.get("expected_object_fragments", [])
+    if not isinstance(fragments, list) or not fragments:
+        return
+    lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
+    obj_path = project_root / rap.host_name("OBJ", lowercase_workspace) / rap.host_name("MAIN.OBJ", lowercase_workspace)
+    if not obj_path.is_file():
+        raise RuntimeError(f"expected ACTC object {obj_path} to exist")
+    text = obj_path.read_text(encoding="ascii")
+    missing = [fragment for fragment in fragments if isinstance(fragment, str) and fragment not in text]
+    if missing:
+        raise RuntimeError(f"ACTC object {obj_path} missing expected fragments: {missing!r}\n{text}")
 
 
 def run_harness(prg: Path, labels: Path, project_root: Path) -> dict[str, object]:
@@ -447,6 +1045,77 @@ def run_harness(prg: Path, labels: Path, project_root: Path) -> dict[str, object
     if int(summary.get("exit_status", 1)) != 0:
         raise RuntimeError(result.stdout + result.stderr)
     return summary
+
+
+def verify_alink_dependency_loads(summary: dict[str, object], shape: str) -> None:
+    case = direct_prg_case(shape)
+    expected_loads = case.get("expected_alink_loads", [])
+    unexpected_loads = case.get("unexpected_alink_loads", [])
+    if (
+        (not isinstance(expected_loads, list) or not expected_loads)
+        and (not isinstance(unexpected_loads, list) or not unexpected_loads)
+    ):
+        return
+    ops = summary.get("ops", [])
+    if not isinstance(ops, list):
+        raise RuntimeError("ALINK harness summary did not include file operations")
+    loaded_paths: set[str] = set()
+    for op in ops:
+        if not isinstance(op, dict):
+            continue
+        path = op.get("path")
+        if isinstance(path, str):
+            loaded_paths.add(path.upper())
+    missing = [
+        path
+        for path in expected_loads
+        if isinstance(path, str) and path.upper() not in loaded_paths
+    ]
+    if missing:
+        raise RuntimeError(f"ALINK did not load expected dependency objects: {missing}")
+    unexpected = [
+        path
+        for path in unexpected_loads
+        if isinstance(path, str) and path.upper() in loaded_paths
+    ]
+    if unexpected:
+        raise RuntimeError(f"ALINK loaded unexpected dependency objects: {unexpected}")
+
+
+def expect_alink_rejection(project_root: Path, shape: str) -> dict[str, object]:
+    case = direct_prg_case(shape)
+    try:
+        run_harness(ACTION_ALINK_BUILD, ACTION_ALINK_LABELS, project_root)
+    except RuntimeError as exc:
+        prg_path = host_prg_path(project_root)
+        if prg_path.exists():
+            raise RuntimeError(f"ALINK rejected {shape} but still emitted {prg_path}") from exc
+        error_text = str(exc).strip()
+        console = ""
+        exit_status: int | None = None
+        try:
+            failure_summary = json.loads(error_text)
+            if isinstance(failure_summary, dict):
+                raw_console = failure_summary.get("console", "")
+                if isinstance(raw_console, str):
+                    console = raw_console.strip()
+                raw_status = failure_summary.get("exit_status")
+                if isinstance(raw_status, int):
+                    exit_status = raw_status
+        except json.JSONDecodeError:
+            pass
+        expected_error = case.get("expected_alink_error")
+        if isinstance(expected_error, str) and expected_error:
+            diagnostic = console or error_text
+            if expected_error not in diagnostic:
+                raise RuntimeError(f"expected ALINK diagnostic {expected_error!r}, got {diagnostic!r}") from exc
+        return {
+            "shape": shape,
+            "alink_rejected": True,
+            "exit_status": exit_status,
+            "console": console,
+        }
+    raise RuntimeError(f"expected ALINK to reject unsupported body for {shape}")
 
 
 def run_prg_phase(
@@ -561,19 +1230,32 @@ def run_prg_phase(
         vp.terminate_process_tree(process)
 
 
-def run_once(image: Path, work_root: Path, project_name: str, connect_delay: float, shape: str) -> dict[str, object]:
+def run_once(
+    image: Path,
+    work_root: Path,
+    project_name: str,
+    connect_delay: float,
+    shape: str,
+    skip_launch: bool = False,
+) -> dict[str, object]:
     case = direct_prg_case(shape)
     project_root, mount_path = prepare_workspace(work_root, project_name, shape)
 
     if "source" in case:
         print({"stage": "actc_harness"}, flush=True)
         run_harness(ACTION_ACTC_HARNESS_BUILD, ACTION_ACTC_HARNESS_LABELS, project_root)
+        verify_actc_object_output(project_root, shape)
     else:
         print({"stage": "seed_object"}, flush=True)
     print({"stage": "alink_harness"}, flush=True)
-    run_harness(ACTION_ALINK_BUILD, ACTION_ALINK_LABELS, project_root)
+    if bool(case.get("expect_alink_failure", False)):
+        return expect_alink_rejection(project_root, shape)
+    alink_summary = run_harness(ACTION_ALINK_BUILD, ACTION_ALINK_LABELS, project_root)
+    verify_alink_dependency_loads(alink_summary, shape)
     time.sleep(0.5)
     prg_path = verify_host_output(project_root, shape)
+    if skip_launch:
+        return {"shape": shape, "launch_skipped": True, "prg_path": str(prg_path)}
     return run_prg_phase(
         image,
         work_root,
@@ -586,13 +1268,14 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="VICE proof for ALINK direct helper-free PRG emission")
+    parser = argparse.ArgumentParser(description="VICE proof for ALINK direct PRG emission")
     parser.add_argument("--disk", required=True)
     parser.add_argument("--fs-root", required=True)
     parser.add_argument("--project", default="PROJ3")
     parser.add_argument("--shape", choices=sorted(DIRECT_PRG_CASES), default="word_store")
     parser.add_argument("--attempts", type=int, default=3)
     parser.add_argument("--attempt-delay", type=float, default=4.0)
+    parser.add_argument("--skip-launch", action="store_true", help="verify ALINK output without launching VICE")
     args = parser.parse_args()
 
     image = Path(args.disk).resolve()
@@ -607,8 +1290,9 @@ def main() -> int:
         try:
             shutil.rmtree(work_root, ignore_errors=True)
             shutil.copytree(fs_root, work_root)
-            vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, args.attempt_delay)))
-            result = run_once(image, work_root, project_name, connect_delay, args.shape)
+            if not args.skip_launch:
+                vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, args.attempt_delay)))
+            result = run_once(image, work_root, project_name, connect_delay, args.shape, args.skip_launch)
             print(result, flush=True)
             return 0
         except Exception as exc:

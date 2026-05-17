@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent
 ACTION_ALINK_BUILD = ROOT.parent.parent / "actionc64u" / "build" / "udos_tools" / "ALINK.PRG"
 ACTION_ALINK_CURRENT_LABELS = ROOT.parent.parent / "actionc64u" / "build" / "udos_tools" / "alink.current.labels"
 UDOS_RESIDENT_LABELS = ROOT.parent / "build" / "udos-resident.labels"
-CONNECT_DELAYS = (14.0,)
+CONNECT_DELAYS = (10.0, 14.0)
 
 
 def write_ascii(path: Path, text: str) -> None:
@@ -214,7 +214,7 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
 
 def main_object_text() -> str:
     return (
-        'AVO1\n'
+        'OBJ1\n'
         'x main 0 31\n'
         'b s0e1u0u1j0i1r\n'
         'u h\n'
@@ -230,7 +230,7 @@ def main_object_text() -> str:
 
 def helper_object_text() -> str:
     return (
-        'AVO1\n'
+        'OBJ1\n'
         'x h 0 7\n'
         'x z 7 1\n'
         'b u0c1r\n'
@@ -242,7 +242,7 @@ def helper_object_text() -> str:
 
 def tool_object_text() -> str:
     return (
-        'AVO1\n'
+        'OBJ1\n'
         'x t 0 16\n'
         'b s0i0u0r\n'
         's TOOL\n'
@@ -254,7 +254,7 @@ def tool_object_text() -> str:
 
 def util_object_text() -> str:
     return (
-        'AVO1\n'
+        'OBJ1\n'
         'x u 0 4\n'
         'x v 4 1\n'
         'b c1r\n'
@@ -300,29 +300,27 @@ def prepare_workspace(fs_root: Path, project_name: str) -> Path:
     return project_root
 
 
-def verify_host_output(project_root: Path) -> None:
+def verify_bad_name_rejected(project_root: Path) -> None:
     lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
     bin_dir = project_root / host_name("BIN", lowercase_workspace)
     prg_path = bin_dir / host_name("MAIN.PRG", lowercase_workspace)
-    avm_path = bin_dir / host_name("MAIN.AVM", lowercase_workspace)
-    if not avm_path.is_file():
-        raise RuntimeError(f"expected host file {avm_path} to exist")
-    if avm_path.stat().st_size <= 4:
-        raise RuntimeError(f"expected linked AVM {avm_path} to contain payload bytes")
+    bad_path = bin_dir / host_name("MAIN.BAD", lowercase_workspace)
     if prg_path.exists():
         raise RuntimeError(f"did not expect direct PRG artifact {prg_path} to exist")
+    if bad_path.exists():
+        raise RuntimeError(f"did not expect invalid-name artifact {bad_path} to exist")
 
 
 def run_once(image: Path, work_root: Path, project_name: str, connect_delay: float) -> None:
     cmd = [
         sys.executable,
-        str(ROOT / "run_action_avmrun_probe.py"),
+        str(ROOT / "run_action_command_probe.py"),
         "--disk",
         str(image),
         "--fs-root",
         str(work_root),
         "--command",
-        "ALINK MAIN.AVM",
+        "ALINK MAIN.BAD",
         "--pre-command",
         f"CD {project_name}",
         "--pre-prompt",
@@ -334,11 +332,13 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         "--done-fragment",
         "",
         "--contains",
-        "ARGS MAIN.AVM",
+        "ARGS MAIN.BAD",
+        "--contains",
+        "BAD NAME",
         "--not-contains",
         "SAVE FAIL",
         "--not-contains",
-        "BAD AVO",
+        "BAD OBJECT",
         "--not-contains",
         "TOO LARGE",
         "--not-contains",
@@ -396,7 +396,7 @@ def main() -> int:
             project_root = prepare_workspace(work_root, project_name)
             vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, args.attempt_delay)))
             run_once(image, work_root, project_name, connect_delay)
-            verify_host_output(project_root)
+            verify_bad_name_rejected(project_root)
             return 0
         except vp.ViceError as exc:
             if attempt == args.attempts:

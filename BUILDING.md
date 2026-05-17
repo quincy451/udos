@@ -17,23 +17,6 @@ Required:
 Optional for emulator validation:
 - `x64sc`
 
-Local dependency path assumed by this repo:
-- AcheronVM source at `/mnt/c/test/action/acheronvm`
-
-## Build The Proof Image
-
-```sh
-cd /mnt/c/test/action/udos
-make proof
-```
-
-Outputs:
-- `build/udos-proof.prg`
-- `build/udos-proof.labels`
-- `build/udos-proof.map`
-- `build/udosboot.prg`
-- `build/udos-proof.d64`
-
 ## Build The Resident Image
 
 ```sh
@@ -71,20 +54,6 @@ Release behavior:
 
 ## Emulator Validation
 
-### Proof
-
-```sh
-cd /mnt/c/test/action/udos
-make vice-proof
-```
-
-Current validated proof facts:
-- autostarts `build/udosboot.prg` in `x64sc`
-- linked entrypoint: `$1810`
-- banner: `UDOS VM OK`
-- marker byte: `$CFFF = $42`
-- proof code footprint: `$002E`
-
 ### Resident
 
 ```sh
@@ -97,8 +66,7 @@ Current `vice-resident` behavior:
 - autostarts the BASIC wrapper PRG in `x64sc`
 - validates the boot path reaches the resident prompt:
   - `A:D64/>`
-- validates the default boot-root `AUTOEXEC.BAT` output:
-  - `AUTOEXEC OK`
+- verifies the default resident boots without embedded `AUTOEXEC.BAT`
 - verifies `MEM` separately through the Python test suite:
   - derives the launch-capable REU reservation from `build/udos-resident.labels`
   - checks the live shell prints launch-capable RAM usage/free values when REU is present
@@ -128,7 +96,7 @@ Separate VICE smoke targets:
 - `make vice-batch-stop`
   - validates stop-on-error through `STOP.BAT`
 - `make vice-autoexec`
-  - validates boot `AUTOEXEC.BAT` from the default `A:` boot root
+  - retired: embedded resident `AUTOEXEC.BAT` is disabled so the resident image stays within memory
 - `make vice-release`
   - validates the release boot image reaches `A:D64/>` without printing `AUTOEXEC OK`
 - `make vice-action-workspace`
@@ -159,44 +127,27 @@ Separate VICE smoke targets:
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a project root marked by `ACTION.PROJ`
   - validates `ACTC.PRG MAIN` launches from mounted `ACTION.DNP`
-  - emits a deterministic `OBJ/MAIN.OBJ` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`, folded narrow decimal `PrintI` / `PrintIE` `+` / `-` / `*` / `/` expressions with inline spaces, simple precedence, parenthesized grouping, and simple `=` / `<` / `>` / `<=` / `>=` / `<>` comparisons, current source-inferred runtime-import metadata, and explicit `payload_bytes`; `.AVO` is now the legacy compatibility name for this project-object format
+  - emits a deterministic `OBJ/MAIN.OBJ` object stub as the first UDOS-native compiler front-end slice, including extracted top-level `PROC` export offset/size triplets, compiler-emitted `body_ops`, folded narrow decimal `PrintI` / `PrintIE` `+` / `-` / `*` / `/` expressions with inline spaces, simple precedence, parenthesized grouping, and simple `=` / `<` / `>` / `<=` / `>=` / `<>` comparisons, current source-inferred runtime-import metadata, and explicit `payload_bytes`
   - verifies the generated host-side object file contents directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough for stable shell-side `TYPE OBJ/...` readback
 - `make vice-action-alink`
   - uses the release image with deterministic typed input on top of a copied Action workspace
   - seeds a project root marked by `ACTION.PROJ` plus deterministic `OBJ/*.OBJ` fixtures
   - validates `ALINK.PRG MAIN` through host-side artifact creation instead of screen scraping
-  - emits a deterministic `BIN/MAIN.AVM` binary final-image artifact as the first UDOS-native linker slice, using compiler-emitted export sizes plus `body_ops` for direct byte emission
+  - emits a deterministic direct `BIN/MAIN.PRG` final program; `ALINK` owns all bytes that go into the runnable program
   - current focused proof resolves a wider unresolved external closure with sibling externals from `main`, a shared child object, and a deeper leaf, while carrying child-object integer and string literal pools in the emitted payload
-  - verifies the generated host-side binary directly by checking the exact emitted `AVM1` bytes and proving an unused local export is stripped from the final image
-- `make vice-action-alink-avmrun`
-  - AVM-specific linker/runner proof
-  - uses the release image with deterministic typed input on top of a copied Action workspace
-  - launches `ALINK.PRG MAIN` to generate `BIN/MAIN.AVM`
-  - launches `AVMRUN.PRG BIN/MAIN.AVM` against that live linker artifact
-  - proves the current linked image executes by printing `HELLOWORLD`, `TOOL7`, and `12342` before returning to `B:DNP/PROJ3>`
+  - verifies the generated host-side binary directly and proves an unused local export is stripped from the final image
 - `make vice-action-actc-alink-launch-printmath`
   - uses the release image with deterministic typed input on top of a copied Action workspace
   - launches `ACTC.PRG MAIN` to generate `OBJ/MAIN.OBJ`
   - launches `ALINK.PRG MAIN` to generate direct `BIN/MAIN.PRG`
   - proves the current live imported `printmath` shape prints `hello`, `tool7`, and `5459`
     before returning to `B:DNP/PROJ3>`
-- `make vice-action-actc-alink-avmrunc-printmath`
-  - remains the helper-bearing compat replay target for the same shape
-  - it is no longer the primary higher-level proof for `printmath`
-  - current truthful contract is narrower:
-    - compile is green
-    - link is green
-    - compat `AVMRUNC` is green under `tool_abi_harness`
-    - `make vice-action-avmrunc-shellmin` is green for trivial
-      shell-launched `AVMRUNC -> AVM`
-    - `make vice-action-avmrunc-shelladd` is green again on the rebuilt release image
-      and returns to `B:DNP/PROJ3>` under the public multi-attempt gate
 - `make vice-action-actc-alink-launch`
   - helper-free higher-level default
   - uses the release image with deterministic typed input on top of a copied Action workspace
   - launches `ACTC.PRG MAIN` to generate `OBJ/MAIN.OBJ`
   - launches `ALINK.PRG MAIN` to generate direct `BIN/MAIN.PRG`
-  - launches that helper-free `MAIN.PRG` under VICE with no `MAIN.AVM` / `AVMRUN` dependency
+  - launches that helper-free `MAIN.PRG` under VICE with no separate runtime launcher
 - `make vice-action-actc-alink-launch-if-else-chain`
   - named helper-free higher-level proof for the base local-call chain shape
 - `make vice-action-actc-alink-launch-nested-else-chain`
@@ -290,51 +241,30 @@ Separate VICE smoke targets:
 - `make vice-action-actrmdir-persist`
   - uses the resident image plus a retrying mounted-tree probe
   - validates `ACTRMDIR.PRG` launches from mounted `ACTION.DNP`
-  - seeds `OBJ` on the host fs before launch, removes it through
+  - seeds `TMPRMDIR` on the host fs before launch, removes it through
     `ACTRMDIR.PRG`, and validates the host-persistent VICE tree remove-dir path
     after VICE exits
-  - requires `IMAGES/ACTION.DNP/OBJ` to be absent
+  - requires `IMAGES/ACTION.DNP/TMPRMDIR` to be absent
 - `make vice-action-actwrite`
   - uses the release image plus deterministic typed input
   - validates `ACTWRITE.PRG` launches from mounted `ACTION.DNP`
   - writes `OUT.TXT` through the preserved external-tool file-save ABI
   - reads `OUT.TXT` back through the shell and verifies `ACTION WRITE OK`
-- `make vice-action-avminfo`
-  - uses the release image plus deterministic typed input
-  - validates `AVMINFO.PRG` launches from mounted `ACTION.DNP`
-  - loads `HELLO.AVM` through the preserved external-tool file-load ABI
-  - validates the `AVM1` header and prints `AVM OK`
-- `make vice-action-avmrun`
-  - uses the release image plus deterministic typed input
-  - validates `AVMRUNC.PRG` launches from mounted `ACTION.DNP`
-  - loads `UDOSHELLO.AVM` through the preserved external-tool file-load ABI
-  - executes the current constrained compat/interpreter `AVM1` subset
-  - prints `UDOS AVM OK` and returns to the shell
-- `make vice-action-avmrun-flow`
-  - uses the release image plus deterministic typed input
-  - validates `AVMRUNC.PRG` can run `UDOSFLOW.AVM`
-  - proves the current constrained compat/interpreter subset can execute `jump`, `call`, and `ret`
-  - prints `UDOS AVM FLOW OK` and returns to the shell
-- `make vice-action-avmrun-runtime`
-  - rebuilds the current `AVMRUNC.PRG`, prepares focused `RUNTC.AVM` and
-    `RUNTG.AVM` samples on a copied release workspace, and proves the narrow
-    interpreted subset can execute `push16`, `add`, `sub`, `eq`, `ne`, `lt`,
-    and `gt`
 - `make vice-selftest`
-  - builds focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
+  - builds focused command-feed images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
   - writes the generated D64 artifacts under `build/udos-selftest-*.d64`
   - writes final-screen captures under `build/udos-selftest-*.actual.txt`
   - diffs those captures against `tests/selftest/expected_*.txt`
 
 Current resident map facts:
-- linked entrypoint: `$1810`
-- Acheron dispatcher: `$00E6`
-- Acheron runtime body: `$072A`
-- resident core code: `$662D`
-- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$9000`
+- resident load start: `$1810`
+- linked entrypoint: `$18D3`
+- resident core code: `$87AA`
+- resident image end: `$9FBA`
+- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$87F0`
 - VICE validation now enables a `16 MiB` REU by default
 - current direct `MEM` probe:
-  - `RAM USED 0 FREE 65535 REU USED 35377 FREE 16741839`
+  - `RAM USED 0 FREE 65535 REU USED 40862 FREE 16736354`
 - hardware directory cache budget:
   - `6` entries per drive
   - `20` bytes per cached name

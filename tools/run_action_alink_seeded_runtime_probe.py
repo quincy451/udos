@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 import run_action_alink_probe as rap
-import run_action_avmrun_probe as avp
+import run_action_command_probe as avp
 import vice_prg_probe as vp
 
 
@@ -27,7 +27,7 @@ SEND_TIMEOUT = 5.0
 
 def seeded_main_object_text() -> str:
     return (
-        "AVO1\n"
+        "OBJ1\n"
         "x main 0 30\n"
         "b e0u0p0p1ayp2p3gzr\n"
         "u w\n"
@@ -43,7 +43,7 @@ def seeded_main_object_text() -> str:
 
 def seeded_work_object_text() -> str:
     return (
-        "AVO1\n"
+        "OBJ1\n"
         "x w 0 13\n"
         "b s0i0r\n"
         "s TOOL\n"
@@ -878,19 +878,19 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         data["ALINK_LOADED_TARGET_RAW"] = f"ERR:{exc!r}"
         data["ALINK_LOADED_TARGET_TEXT"] = f"ERR:{exc!r}"
     try:
-        bad_avo_source = list(client.memory_get(0xCFD0, 0xCFDF))
-        data["BAD_AVO_SOURCE_RAW"] = bad_avo_source
-        data["BAD_AVO_SOURCE_TEXT"] = bytes(v for v in bad_avo_source if v != 0).decode("ascii", errors="replace")
+        bad_object_source = list(client.memory_get(0xCFD0, 0xCFDF))
+        data["BAD_OBJECT_SOURCE_RAW"] = bad_object_source
+        data["BAD_OBJECT_SOURCE_TEXT"] = bytes(v for v in bad_object_source if v != 0).decode("ascii", errors="replace")
     except Exception as exc:  # pragma: no cover - debug only
-        data["BAD_AVO_SOURCE_RAW"] = f"ERR:{exc!r}"
-        data["BAD_AVO_SOURCE_TEXT"] = f"ERR:{exc!r}"
+        data["BAD_OBJECT_SOURCE_RAW"] = f"ERR:{exc!r}"
+        data["BAD_OBJECT_SOURCE_TEXT"] = f"ERR:{exc!r}"
     try:
-        bad_avo_target = list(client.memory_get(0xCFC0, 0xCFCF))
-        data["BAD_AVO_TARGET_RAW"] = bad_avo_target
-        data["BAD_AVO_TARGET_TEXT"] = bytes(v for v in bad_avo_target if v != 0).decode("ascii", errors="replace")
+        bad_object_target = list(client.memory_get(0xCFC0, 0xCFCF))
+        data["BAD_OBJECT_TARGET_RAW"] = bad_object_target
+        data["BAD_OBJECT_TARGET_TEXT"] = bytes(v for v in bad_object_target if v != 0).decode("ascii", errors="replace")
     except Exception as exc:  # pragma: no cover - debug only
-        data["BAD_AVO_TARGET_RAW"] = f"ERR:{exc!r}"
-        data["BAD_AVO_TARGET_TEXT"] = f"ERR:{exc!r}"
+        data["BAD_OBJECT_TARGET_RAW"] = f"ERR:{exc!r}"
+        data["BAD_OBJECT_TARGET_TEXT"] = f"ERR:{exc!r}"
     return data
 
 
@@ -944,7 +944,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
             if (
                 vp.screen_contains(screen, "TOO LARGE")
                 or vp.screen_contains(screen, "SAVE FAIL")
-                or vp.screen_contains(screen, "BAD AVO")
+                or vp.screen_contains(screen, "BAD OBJECT")
             ):
                 debug = collect_debug(client)
                 raise vp.ViceError(
@@ -1019,7 +1019,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
             if (
                 vp.screen_contains(screen, "TOO LARGE")
                 or vp.screen_contains(screen, "SAVE FAIL")
-                or vp.screen_contains(screen, "BAD AVO")
+                or vp.screen_contains(screen, "BAD OBJECT")
                 or vp.screen_contains(screen, "LOAD FAIL")
                 or vp.screen_contains(screen, "NO OBJECT")
             ):

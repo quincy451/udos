@@ -1,23 +1,17 @@
 # UDOS TODO
 
-## Phase 1
-
-- validate `udos-proof.prg` in VICE
-- record proof memory footprint from map output
-- decide which AcheronVM features stay enabled for the resident shell build
-
 ## Phase 2
 
 - define bootstrap image layout
 - define resident ABI entry numbering and register conventions
-- implement native trampoline table
-- implement a tiny resident shell loop stub in VM code
+- implement and keep the native resident service table stable
+- keep the native resident shell loop small enough to stay below `$A000`
 
 ## Phase 3
 
 - document C64 Ultimate UCI assumptions and unknowns
 - implement native UCI transport primitives
-- add VM-callable wrappers and a host-side seam where possible
+- add resident service wrappers and a host-side seam where possible
 
 ## Phase 4
 
@@ -54,7 +48,7 @@
 - extend `VOL` from flat-image header import to true mounted-image metadata across the remaining formats
 - hardware-validate and harden the current tree-capable implicit program-image load path on target
 - hardware-validate and harden the new flat-image raw implicit program-image load path on target
-- define how the resident parser exposes argument buffers to later VM-side command code without growing native glue unnecessarily
+- define how the resident parser exposes argument buffers to later overlay code without growing resident glue unnecessarily
 
 ## Phase 6
 

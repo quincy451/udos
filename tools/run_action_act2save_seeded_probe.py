@@ -11,7 +11,7 @@ from pathlib import Path
 import run_action_actc_probe as rcp
 import run_action_alink_probe as rap
 import run_action_alink_seeded_runtime_probe as seeded
-import run_action_avmrun_probe as avp
+import run_action_command_probe as avp
 import vice_prg_probe as vp
 
 
@@ -23,18 +23,12 @@ FINAL_TIMEOUT = 30.0
 SETTLE_SECONDS = 2.0
 EXPECTED_BYTES = bytes(
     (
-        0x41, 0x56, 0x4D, 0x31, 0x02, 0x38, 0x00, 0x00,
-        0x00, 0x01, 0x2D, 0x00, 0x61, 0x2D, 0x00, 0x49,
-        0x10, 0xFF, 0x45, 0x20, 0x00, 0x11, 0x78, 0x00,
-        0x11, 0x04, 0x00, 0x14, 0x49, 0x30, 0xFF, 0x11,
-        0x39, 0x00, 0x11, 0x39, 0x00, 0x1D, 0x49, 0x31,
-        0xFF, 0x49, 0x20, 0xFF, 0x61, 0x33, 0x00, 0x49,
-        0x00, 0xFF, 0x11, 0x07, 0x00, 0x49, 0x31, 0xFF,
-        0x48, 0x48, 0x45, 0x4C, 0x4C, 0x4F, 0x00, 0x54,
-        0x4F, 0x4F, 0x4C, 0x00,
+        0x00, 0x10, 0xA9, 0xA5, 0x8D, 0xD0, 0x03, 0xA9,
+        0x00, 0x85, 0x02, 0x85, 0x03, 0xA2, 0x02, 0x4C,
+        0x0F, 0xCF,
     )
 )
-EXPECTED_OBJECT_BYTES = b"AVO1\rONELOAD DIAGNOSTIC\r"
+EXPECTED_OBJECT_BYTES = b"OBJ1\rONELOAD DIAGNOSTIC\r"
 SEND_TIMEOUT = 5.0
 POLL_INTERVAL = 0.05
 
@@ -185,9 +179,9 @@ def prepare_workspace(fs_root: Path, project_name: str) -> tuple[Path, Path]:
     rap.ensure_catalog_entries(project_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace), ["F ACT2SAVE.PRG"])
     obj_root = project_root / rcp.host_name("OBJ", lowercase_workspace)
     obj_root.mkdir(exist_ok=True)
-    (obj_root / rcp.host_name("MAIN.AVO", lowercase_workspace)).write_bytes(EXPECTED_OBJECT_BYTES)
-    rap.ensure_catalog_entries(obj_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace), ["F MAIN.AVO"])
-    output_path = project_root / rcp.host_name("BIN", lowercase_workspace) / rcp.host_name("MAIN.AVM", lowercase_workspace)
+    (obj_root / rcp.host_name("MAIN.OBJ", lowercase_workspace)).write_bytes(EXPECTED_OBJECT_BYTES)
+    rap.ensure_catalog_entries(obj_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace), ["F MAIN.OBJ"])
+    output_path = project_root / rcp.host_name("BIN", lowercase_workspace) / rcp.host_name("MAIN.PRG", lowercase_workspace)
     output_path.unlink(missing_ok=True)
     return project_root, output_path
 
@@ -248,7 +242,7 @@ def run_once(
         avp.wait_for_screen_fragment(client, f"B:DNP/{project_name}", PROMPT_TIMEOUT, retry_echo=cd_command)
         time.sleep(SETTLE_SECONDS)
 
-        run_command = "RUN ACT2SAVE.PRG"
+        run_command = "ACT2SAVE.PRG MAIN"
         avp.type_command(client, run_command, SEND_TIMEOUT)
         launch_deadline = time.monotonic() + PROMPT_TIMEOUT
         while time.monotonic() < launch_deadline:

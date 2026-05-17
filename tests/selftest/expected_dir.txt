@@ -1,5 +1,6 @@
 udos for commodore 64
   a:d64/> mount b: /images/work.dnp
+b:work dnp
   a:d64/> b:
 b:dnp/
   b:dnp/> md new

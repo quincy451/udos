@@ -1,7 +1,7 @@
-.include "acheron.inc"
 .include "uci_transport.inc"
 
 .export start
+.export resident_image_end
 .export svc_get_abi_version
 .export svc_transport_get_mode
 .export svc_drive_get_current
@@ -29,13 +29,8 @@
 .export svc_program_get_image_ptr
 .export svc_program_get_image_len
 .export svc_program_exit
-.export svc_vm_acheron_enter
 .export svc_mark_ready
 .export svc_idle
-.import acheron
-.import clear_rstack
-.import __ACHERON_LAST__
-
 SCREEN = $0400
 COLOR = $D800
 CURSOR = $CFE0
@@ -47,6 +42,7 @@ REU_ENTRY_RTS_HI_SNAPSHOT = $CFE6
 REU_ENTRY_SP_SNAPSHOT = $CFE7
 SCREEN_PTR = $F9
 PTR = $FB
+SHELL_RP = $FD
 LAUNCH_STAGE_REQ = $F0
 LAUNCH_STAGE_REQ_NAME_LO = LAUNCH_STAGE_REQ + 0
 LAUNCH_STAGE_REQ_NAME_HI = LAUNCH_STAGE_REQ + 1
@@ -108,7 +104,6 @@ TOOL_SVC_FILE_WRITE_CLOSE_SC0 = TOOL_ABI_BASE + 51
 TOOL_SVC_FILE_STAGE_REU_SC0 = TOOL_ABI_BASE + 54
 TOOL_SVC_REU_READ_SC0 = TOOL_ABI_BASE + 57
 TOOL_SVC_REU_WRITE_SC0 = TOOL_ABI_BASE + 60
-TOOL_SVC_VM_ACHERON_ENTER = TOOL_ABI_BASE + 63
 TOOL_ABI_CMDLINE_LEN = $CF70
 TOOL_ABI_CMDLINE_BUF = $CF80
 TOOL_ABI_CURRENT_PATH = $CD00
@@ -381,6 +376,7 @@ REU_STAGE_CHUNK = RETURN_QUEUE_TRACE1
 REU_STAGE_CMD = RETURN_QUEUE_TRACE2
 REU_STAGE_EXIT = RETURN_QUEUE_TRACE3
 REU_STAGE_PORT = WRITEBACK_TRACE_COUNT
+TOOL_WRITEBACK_COUNT_SHADOW = $03E6
 TOOL_WRITEBACK_STAGING_BASE = TOOL_ABI_OPEN_PATH
 TOOL_WRITEBACK_NAME_MAX = 32
 TOOL_WRITEBACK_MAX_RECORDS = 7
@@ -415,7 +411,7 @@ LAUNCH_STUB_REU_HI_PATCH = LAUNCH_STUB_ADDR + (launch_stub_reu_hi_operand - laun
 LAUNCH_STUB_LEN_LO_PATCH = LAUNCH_STUB_ADDR + (launch_stub_len_lo_operand - launch_stub_entry_template)
 LAUNCH_STUB_LEN_HI_PATCH = LAUNCH_STUB_ADDR + (launch_stub_len_hi_operand - launch_stub_entry_template)
 REU_LAUNCH_MAIN_BASE = REU_VICE_TREE_TOTAL
-REU_LAUNCH_MAIN_SIZE = __ACHERON_LAST__ - $1000
+REU_LAUNCH_MAIN_SIZE = resident_image_end - RESIDENT_CODE_START
 REU_LAUNCH_HIRAM_BASE = REU_LAUNCH_MAIN_BASE + REU_LAUNCH_MAIN_SIZE
 REU_LAUNCH_HIRAM_SIZE = $0C00
 REU_LAUNCH_PROGRAM_BASE = REU_LAUNCH_HIRAM_BASE + REU_LAUNCH_HIRAM_SIZE
@@ -424,7 +420,7 @@ FLAT_LABEL_LEN = 16
 FLAT_DIR_READ_LEN = 247
 FLAT_SECTOR_READ_LEN = 255
 .ifndef UDOS_INCLUDE_AUTOEXEC
-UDOS_INCLUDE_AUTOEXEC = 1
+UDOS_INCLUDE_AUTOEXEC = 0
 .endif
 FLAT_ENTRY_COUNT = 3 + UDOS_INCLUDE_AUTOEXEC
 UCI_WRITE_DATA_MAX = 251
@@ -486,175 +482,146 @@ IMG_FILE_WORK_TABLE_LO = 31
 IMG_FILE_WORK_TABLE_HI = 32
 IMG_FILE_WORK_COUNT = 33
 
+.macro rp8 value
+    lda #<value
+    sta SHELL_RP
+    lda #$00
+    sta SHELL_RP+1
+.endmacro
+
+.macro rp16 value
+    lda #<value
+    sta SHELL_RP
+    lda #>value
+    sta SHELL_RP+1
+.endmacro
+
+.macro svc target
+    ldx #SHELL_RP
+    jsr target
+.endmacro
+
+.macro savep target
+    lda SHELL_RP
+    sta target
+    lda SHELL_RP+1
+    sta target+1
+.endmacro
+
+.segment "BIN_HEADER"
+    .word RESIDENT_CODE_START
+
 .code
 
 start:
-    jsr clear_rstack
     jsr clear_hiram
-    jsr acheron
-        call resident_main
-        native
-resident_halt:
-    jmp resident_halt
+    jmp resident_main
 
 resident_main:
-    mgrow 1
-    calln svc_console_reset
-    calln svc_install_tool_abi
-    calln svc_get_abi_version
-    stma ABI_SNAPSHOT
-    calln svc_transport_get_mode
-    stma TRANSPORT_SNAPSHOT
+    svc svc_console_reset
+    svc svc_install_tool_abi
+    svc svc_get_abi_version
+    savep ABI_SNAPSHOT
+    svc svc_transport_get_mode
+    savep TRANSPORT_SNAPSHOT
 
-    setp16 $0100      ; bind A: as D64
-    calln svc_fs_bind_drive
-    stma BIND_A_SNAPSHOT
+    rp16 $0100      ; bind A: as D64
+    svc svc_fs_bind_drive
+    savep BIND_A_SNAPSHOT
 
-    setp16 $0401      ; bind B: as DNP
-    calln svc_fs_bind_drive
-    stma BIND_B_SNAPSHOT
+    rp16 $0401      ; bind B: as DNP
+    svc svc_fs_bind_drive
+    savep BIND_B_SNAPSHOT
 
-    setp8 DRIVE_A
-    calln svc_drive_set_current
-    stma CURRENT_DRIVE_SNAPSHOT
+    rp8 DRIVE_A
+    svc svc_drive_set_current
+    savep CURRENT_DRIVE_SNAPSHOT
 
-    setp8 DRIVE_A
-    calln svc_fs_get_mount_flags
-    stma CURRENT_FLAGS_SNAPSHOT
+    rp8 DRIVE_A
+    svc svc_fs_get_mount_flags
+    savep CURRENT_FLAGS_SNAPSHOT
 
-    setp8 DRIVE_A
-    calln svc_fs_get_mount_type
-    stma MOUNT_SNAPSHOT
+    rp8 DRIVE_A
+    svc svc_fs_get_mount_type
+    savep MOUNT_SNAPSHOT
 
-    setp16 header_text
-    calln svc_console_write_sc0
-    calln svc_console_newline
-    calln svc_try_autoexec_batch
+    rp16 header_text
+    svc svc_console_write_sc0
+    svc svc_console_newline
+    svc svc_try_autoexec_batch
 
 shell_loop:
-    setp8 $30
-    stma STAGE_SNAPSHOT
-    calln svc_shell_preprompt
+    lda #$30
+    sta STAGE_SNAPSHOT
+    svc svc_shell_preprompt
 shell_prompt:
-    setp8 $31
-    stma STAGE_SNAPSHOT
-    calln svc_console_write_prompt
-    calln svc_line_read
-    case8 SHELL_CMD_NONE, shell_none
-    case8 SHELL_CMD_RUN, cmd_run_program
-    case8 SHELL_CMD_DRIVE_ERR, cmd_emit_response
-    case8 SHELL_CMD_MD, cmd_emit_response
-    case8 SHELL_CMD_RD, cmd_emit_response
-    case8 SHELL_CMD_MOUNT, cmd_emit_response
-    case8 SHELL_CMD_COPY, cmd_emit_response
-    case8 SHELL_CMD_REN, cmd_emit_response
-    case8 SHELL_CMD_DEL, cmd_emit_response
-    case8 SHELL_CMD_TYPE, cmd_emit_response
-    case8 SHELL_CMD_DIR, cmd_emit_response
-    case8 SHELL_CMD_CD, cmd_emit_response
-    case8 SHELL_CMD_ECHO, cmd_emit_response
-    case8 SHELL_CMD_HELP, cmd_emit_response
-    case8 SHELL_CMD_VER, cmd_emit_response
-    case8 SHELL_CMD_VOL, cmd_emit_response
-    case8 SHELL_CMD_MEM, cmd_emit_mem_native
-    setp16 resp_unknown
-    calln svc_console_write_sc0
-    calln svc_console_newline
-    jump shell_loop
+    lda #$31
+    sta STAGE_SNAPSHOT
+    svc svc_console_write_prompt
+    svc svc_line_read
+    lda SHELL_RP
+    cmp #SHELL_CMD_NONE
+    beq shell_none
+    cmp #SHELL_CMD_RUN
+    beq cmd_run_program
+    cmp #SHELL_CMD_MEM
+    beq cmd_emit_mem
+    jmp cmd_emit_response
 
 shell_none:
-    jump shell_loop
+    jmp shell_loop
 
 cmd_emit_response:
-    setp8 $11
-    stma STAGE_SNAPSHOT
-    calln svc_shell_response_ptr
-    calln svc_command_status_from_response
-    calln svc_console_write_sc0
-    calln svc_console_newline
-    jump shell_loop
+    lda #$11
+    sta STAGE_SNAPSHOT
+    svc svc_shell_response_ptr
+    svc svc_command_status_from_response
+    svc svc_console_write_sc0
+    svc svc_console_newline
+    jmp shell_loop
 
-cmd_emit_mem_native:
-    setp8 $11
-    stma STAGE_SNAPSHOT
-    calln svc_emit_mem_response
-    jump shell_loop
+cmd_emit_mem:
+    lda #$11
+    sta STAGE_SNAPSHOT
+    svc svc_emit_mem_response
+    jmp shell_loop
 
 cmd_run_program:
-    setp8 $12
-    stma STAGE_SNAPSHOT
-    calln svc_program_prepare_run
-    calln svc_program_finish_prepare
-    jump shell_loop
-
-cmd_run_batch:
-    calln svc_command_status_clear
-    jump shell_loop
-
-cmd_run_execute:
-    setp8 $13
-    stma STAGE_SNAPSHOT
-    setp16 resp_run_prefix
-    calln svc_console_write_sc0
-    calln svc_program_get_target_ptr
-    calln svc_console_write_sc0
-    calln svc_console_newline
-    calln svc_program_get_cmdline_len
-    case8 0, cmd_run_done
-    setp16 resp_args_prefix
-    calln svc_console_write_sc0
-    calln svc_program_get_cmdline_ptr
-    calln svc_console_write_sc0
-    calln svc_console_newline
-cmd_run_done:
-    setp8 $14
-    stma STAGE_SNAPSHOT
-    calln svc_program_exit
-    calln svc_command_status_from_program_exit
-    jump shell_loop
-
-cmd_run_error:
-    calln svc_command_status_fail
-    calln svc_program_error_ptr
-    calln svc_console_write_sc0
-    calln svc_console_newline
-    jump shell_loop
-
-shell_done:
-    setp8 $F0
-    stma STAGE_SNAPSHOT
-    calln svc_mark_ready
-    setp8 $F1
-    stma STAGE_SNAPSHOT
-    calln svc_idle
-    retm
+    lda #$12
+    sta STAGE_SNAPSHOT
+    svc svc_program_prepare_run
+    svc svc_program_finish_prepare
+    jmp shell_loop
 
 program_return_resume:
-    mgrow 1
-    setp8 $A4
-    stma LAUNCH_TRACE_STAGE
-    setp8 $01
-    stma LAUNCH_TRACE_CODE
-    setp8 $21
-    stma STAGE_SNAPSHOT
-    calln svc_apply_tool_writeback
-    setp8 $22
-    stma STAGE_SNAPSHOT
-    calln svc_program_consume_launch_result
-    setp8 $23
-    stma STAGE_SNAPSHOT
-    case8 PROGRAM_LAUNCH_RESULT_LOAD_FAILED, program_return_load_failed
-    calln svc_command_status_from_program_exit
-    setp8 $24
-    stma STAGE_SNAPSHOT
-    jump shell_loop
+    lda #$A4
+    sta LAUNCH_TRACE_STAGE
+    lda #$01
+    sta LAUNCH_TRACE_CODE
+    lda #$21
+    sta STAGE_SNAPSHOT
+    lda TOOL_WRITEBACK_COUNT_SHADOW
+    sta tool_writeback_count
+    svc svc_apply_tool_writeback
+    lda #$22
+    sta STAGE_SNAPSHOT
+    svc svc_program_consume_launch_result
+    lda #$23
+    sta STAGE_SNAPSHOT
+    lda SHELL_RP
+    cmp #PROGRAM_LAUNCH_RESULT_LOAD_FAILED
+    beq program_return_load_failed
+    svc svc_command_status_from_program_exit
+    lda #$24
+    sta STAGE_SNAPSHOT
+    jmp shell_loop
 
 program_return_load_failed:
-    calln svc_command_status_fail
-    setp16 resp_program_load_failed
-    calln svc_console_write_sc0
-    calln svc_console_newline
-    jump shell_loop
+    svc svc_command_status_fail
+    rp16 resp_program_load_failed
+    svc svc_console_write_sc0
+    svc svc_console_newline
+    jmp shell_loop
 
 svc_get_abi_version:
     lda #<ABI_VERSION
@@ -2015,9 +1982,15 @@ build_vice_write_path_ptr_copy:
     sta dest_fullpath_buffer,x
     iny
     inx
-    cpx #FULL_PATH_BUF_LEN-3
+    cpx #FULL_PATH_BUF_LEN-5
     bcc build_vice_write_path_ptr_copy
 build_vice_write_path_ptr_suffix:
+    lda #ASCII_COMMA
+    sta dest_fullpath_buffer,x
+    inx
+    lda #'S'
+    sta dest_fullpath_buffer,x
+    inx
     lda #ASCII_COMMA
     sta dest_fullpath_buffer,x
     inx
@@ -2111,6 +2084,7 @@ store_vice_host_current_from_screen_ptr:
     lda SCREEN_PTR+1
     sta vice_tree_content_src_hi
     jsr vice_close_current_file
+    jsr delete_file_vice_host_current
     jsr build_vice_write_path_from_name
     lda vice_tree_content_src_lo
     sta SCREEN_PTR
@@ -5170,7 +5144,7 @@ split_inline_done:
     rts
 
 build_prompt_response:
-    stx saved_rp_x
+    stx shell_saved_rp_x
     lda current_drive
     sta temp_drive
     tay
@@ -5189,7 +5163,7 @@ build_prompt_response:
     iny
     lda #$00
     sta response_buffer,y
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<response_buffer
     sta 0,x
     lda #>response_buffer
@@ -5197,7 +5171,7 @@ build_prompt_response:
     rts
 
 build_dir_response:
-    stx saved_rp_x
+    stx shell_saved_rp_x
     jsr resolve_arg_target
     cmp #PATH_STATUS_OK
     beq dir_build_ok
@@ -5205,21 +5179,21 @@ build_dir_response:
     beq dir_build_flat
     cmp #PATH_STATUS_UNMOUNTED
     beq dir_build_unmounted
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_dir
     sta 0,x
     lda #>resp_bad_dir
     sta 1,x
     rts
 dir_build_flat:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_flat_image
     sta 0,x
     lda #>resp_flat_image
     sta 1,x
     rts
 dir_build_unmounted:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_unmounted
     sta 0,x
     lda #>resp_unmounted
@@ -5246,7 +5220,7 @@ dir_append_loop:
 dir_build_done:
     lda #$00
     sta response_buffer,y
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<response_buffer
     sta 0,x
     lda #>response_buffer
@@ -5254,7 +5228,7 @@ dir_build_done:
     rts
 
 build_cd_response:
-    stx saved_rp_x
+    stx shell_saved_rp_x
     jsr resolve_arg_target
     cmp #PATH_STATUS_OK
     beq cd_build_ok
@@ -5262,21 +5236,21 @@ build_cd_response:
     beq cd_build_flat
     cmp #PATH_STATUS_UNMOUNTED
     beq cd_build_unmounted
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_dir
     sta 0,x
     lda #>resp_bad_dir
     sta 1,x
     rts
 cd_build_flat:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_flat_image
     sta 0,x
     lda #>resp_flat_image
     sta 1,x
     rts
 cd_build_unmounted:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_unmounted
     sta 0,x
     lda #>resp_unmounted
@@ -5300,7 +5274,7 @@ cd_build_ok:
     jsr append_selected_drive_path
     lda #$00
     sta response_buffer,y
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<response_buffer
     sta 0,x
     lda #>response_buffer
@@ -5308,11 +5282,11 @@ cd_build_ok:
     rts
 
 build_mount_response:
-    stx saved_rp_x
+    stx shell_saved_rp_x
     jsr resolve_mount_arg
     cmp #MOUNT_STATUS_OK
     beq mount_build_ok
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_mount
     sta 0,x
     lda #>resp_bad_mount
@@ -5327,21 +5301,21 @@ mount_build_ok:
     beq mount_build_notdisk
     cmp #MOUNT_STATUS_DRIVE
     beq mount_build_drive
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_mount_failed
     sta 0,x
     lda #>resp_mount_failed
     sta 1,x
     rts
 mount_build_notdisk:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_not_disk_image
     sta 0,x
     lda #>resp_not_disk_image
     sta 1,x
     rts
 mount_build_drive:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_drive_not_present
     sta 0,x
     lda #>resp_drive_not_present
@@ -5373,7 +5347,7 @@ mount_build_reply:
     jsr append_selected_drive_summary
     lda #$00
     sta response_buffer,y
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<response_buffer
     sta 0,x
     lda #>response_buffer
@@ -5381,10 +5355,10 @@ mount_build_reply:
     rts
 
 build_copy_response:
-    stx saved_rp_x
+    stx shell_saved_rp_x
     jsr split_copy_args
     bcc copy_source_ready
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_copy
     sta 0,x
     lda #>resp_bad_copy
@@ -5402,7 +5376,7 @@ copy_source_not_flat:
     bne copy_source_not_unmounted
     jmp copy_build_unmounted
 copy_source_not_unmounted:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_file
     sta 0,x
     lda #>resp_bad_file
@@ -5448,7 +5422,7 @@ copy_hw_not_unmounted:
     bne copy_hw_not_bad
     jmp copy_build_bad
 copy_hw_not_bad:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_read_only
     sta 0,x
     lda #>resp_read_only
@@ -5481,7 +5455,7 @@ copy_vice_not_unmounted:
     bne copy_vice_not_bad
     jmp copy_build_bad
 copy_vice_not_bad:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_read_only
     sta 0,x
     lda #>resp_read_only
@@ -5492,7 +5466,7 @@ copy_vice_target_ready:
     bcs :+
     jmp copy_build_ok
 :
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_copy_failed
     sta 0,x
     lda #>resp_copy_failed
@@ -5526,7 +5500,7 @@ copy_wild_hw_dest_ok:
     bne :+
     jmp copy_build_bad_file
 :
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_copy_failed
     sta 0,x
     lda #>resp_copy_failed
@@ -5559,7 +5533,7 @@ copy_wild_vice_dest_ok:
     bne :+
     jmp copy_build_bad_file
 :
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_copy_failed
     sta 0,x
     lda #>resp_copy_failed
@@ -5570,7 +5544,7 @@ copy_hw_target_ready:
     bcs :+
     jmp copy_build_ok
 :
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_copy_failed
     sta 0,x
     lda #>resp_copy_failed
@@ -5579,7 +5553,7 @@ copy_hw_target_ready:
 copy_source_lookup:
     jsr lookup_file_content
     bcc copy_have_source
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_file
     sta 0,x
     lda #>resp_bad_file
@@ -5605,7 +5579,7 @@ copy_have_source:
     beq copy_build_unmounted
     cmp #PATH_STATUS_BAD
     beq copy_build_bad
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_read_only
     sta 0,x
     lda #>resp_read_only
@@ -5635,7 +5609,7 @@ copy_wild_lookup_dest_ok:
     beq copy_build_bad_file
     cmp #WILDCARD_RESULT_NOSPACE
     beq copy_build_no_space
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_copy_failed
     sta 0,x
     lda #>resp_copy_failed
@@ -5645,49 +5619,49 @@ copy_store_target:
     jsr store_copy_to_work
     bcc copy_build_ok
 copy_build_no_space:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_no_space
     sta 0,x
     lda #>resp_no_space
     sta 1,x
     rts
 copy_build_flat:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_flat_image
     sta 0,x
     lda #>resp_flat_image
     sta 1,x
     rts
 copy_build_unmounted:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_unmounted
     sta 0,x
     lda #>resp_unmounted
     sta 1,x
     rts
 copy_build_bad:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_copy
     sta 0,x
     lda #>resp_bad_copy
     sta 1,x
     rts
 copy_build_bad_file:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_file
     sta 0,x
     lda #>resp_bad_file
     sta 1,x
     rts
 copy_build_read_only:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_read_only
     sta 0,x
     lda #>resp_read_only
     sta 1,x
     rts
 copy_build_ok:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_copied
     sta 0,x
     lda #>resp_copied
@@ -5695,10 +5669,10 @@ copy_build_ok:
     rts
 
 build_ren_response:
-    stx saved_rp_x
+    stx shell_saved_rp_x
     jsr split_ren_args
     bcc ren_source_ready
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_ren
     sta 0,x
     lda #>resp_bad_ren
@@ -5716,7 +5690,7 @@ ren_source_ready:
     bne :+
     jmp ren_build_unmounted
 :
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_file
     sta 0,x
     lda #>resp_bad_file
@@ -5776,14 +5750,14 @@ ren_hw_same_dir:
 ren_hw_fail:
     cmp #RENAME_STATUS_EXISTS
     bne :+
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_exists
     sta 0,x
     lda #>resp_exists
     sta 1,x
     rts
 :
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_rename_failed
     sta 0,x
     lda #>resp_rename_failed
@@ -5829,14 +5803,14 @@ ren_vice_dest_ready:
 ren_vice_fail:
     cmp #RENAME_STATUS_EXISTS
     bne :+
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_exists
     sta 0,x
     lda #>resp_exists
     sta 1,x
     rts
 :
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_rename_failed
     sta 0,x
     lda #>resp_rename_failed
@@ -5850,7 +5824,7 @@ ren_source_lookup:
 :
     jsr lookup_file_content
     bcc ren_have_source
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_file
     sta 0,x
     lda #>resp_bad_file
@@ -5886,7 +5860,7 @@ ren_dest_ready:
     lda file_index
     cmp source_slot
     beq ren_apply_name
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_exists
     sta 0,x
     lda #>resp_exists
@@ -5900,35 +5874,35 @@ ren_apply_name:
     jsr select_dynamic_work_name_slot
     jsr copy_path_name_to_slot_ascii
 ren_build_done:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_renamed
     sta 0,x
     lda #>resp_renamed
     sta 1,x
     rts
 ren_build_flat:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_flat_image
     sta 0,x
     lda #>resp_flat_image
     sta 1,x
     rts
 ren_build_unmounted:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_unmounted
     sta 0,x
     lda #>resp_unmounted
     sta 1,x
     rts
 ren_build_read_only:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_read_only
     sta 0,x
     lda #>resp_read_only
     sta 1,x
     rts
 ren_build_bad:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_ren
     sta 0,x
     lda #>resp_bad_ren
@@ -5936,7 +5910,7 @@ ren_build_bad:
     rts
 
 build_del_response:
-    stx saved_rp_x
+    stx shell_saved_rp_x
     jsr resolve_file_target
     cmp #PATH_STATUS_OK
     beq del_source_ready
@@ -5948,7 +5922,7 @@ build_del_response:
     bne :+
     jmp del_build_unmounted
 :
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_file
     sta 0,x
     lda #>resp_bad_file
@@ -5980,7 +5954,7 @@ del_source_exact_hw:
     bcs :+
     jmp del_build_deleted
 :
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_delete_failed
     sta 0,x
     lda #>resp_delete_failed
@@ -5991,7 +5965,7 @@ del_source_exact_vice:
     bcs :+
     jmp del_build_deleted
 :
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_delete_failed
     sta 0,x
     lda #>resp_delete_failed
@@ -6019,7 +5993,7 @@ del_source_wild_hw:
 :
     lda wildcard_match_count
     beq del_build_bad_file
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_delete_failed
     sta 0,x
     lda #>resp_delete_failed
@@ -6032,7 +6006,7 @@ del_source_wild_vice:
 :
     lda wildcard_match_count
     beq del_build_bad_file
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_delete_failed
     sta 0,x
     lda #>resp_delete_failed
@@ -6048,7 +6022,7 @@ del_source_lookup:
 :
     jsr lookup_file_content
     bcc del_have_source
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_file
     sta 0,x
     lda #>resp_bad_file
@@ -6057,7 +6031,7 @@ del_source_lookup:
 del_have_source:
     jsr delete_work_slot
 del_build_deleted:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_deleted
     sta 0,x
     lda #>resp_deleted
@@ -6072,28 +6046,28 @@ del_source_wild_lookup:
     jsr delete_matching_work_files
     bcc del_build_deleted
 del_build_bad_file:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_file
     sta 0,x
     lda #>resp_bad_file
     sta 1,x
     rts
 del_build_flat:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_flat_image
     sta 0,x
     lda #>resp_flat_image
     sta 1,x
     rts
 del_build_unmounted:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_unmounted
     sta 0,x
     lda #>resp_unmounted
     sta 1,x
     rts
 del_build_read_only:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_read_only
     sta 0,x
     lda #>resp_read_only
@@ -6101,7 +6075,7 @@ del_build_read_only:
     rts
 
 build_md_response:
-    stx saved_rp_x
+    stx shell_saved_rp_x
     lda arg_length
     bne :+
     jmp md_build_bad
@@ -6162,49 +6136,49 @@ md_build_vice:
     jsr create_dir_vice_current
     bcc md_build_created
 md_build_fail:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_mkdir_failed
     sta 0,x
     lda #>resp_mkdir_failed
     sta 1,x
     rts
 md_build_exists:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_exists
     sta 0,x
     lda #>resp_exists
     sta 1,x
     rts
 md_build_created:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_created
     sta 0,x
     lda #>resp_created
     sta 1,x
     rts
 md_build_flat:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_flat_image
     sta 0,x
     lda #>resp_flat_image
     sta 1,x
     rts
 md_build_unmounted:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_unmounted
     sta 0,x
     lda #>resp_unmounted
     sta 1,x
     rts
 md_build_read_only:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_read_only
     sta 0,x
     lda #>resp_read_only
     sta 1,x
     rts
 md_build_bad:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_md
     sta 0,x
     lda #>resp_bad_md
@@ -6212,7 +6186,7 @@ md_build_bad:
     rts
 
 build_rd_response:
-    stx saved_rp_x
+    stx shell_saved_rp_x
     lda arg_length
     bne :+
     jmp rd_build_bad
@@ -6252,7 +6226,7 @@ rd_build_vice:
     lda dir_state_table,y
     cmp dest_dir_id
     bne rd_build_not_busy
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_dir_busy
     sta 0,x
     lda #>resp_dir_busy
@@ -6265,7 +6239,7 @@ rd_build_not_busy:
     bcs rd_build_fail
     lda enum_count
     beq rd_build_empty
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_dir_not_empty
     sta 0,x
     lda #>resp_dir_not_empty
@@ -6278,49 +6252,49 @@ rd_build_empty:
     sta temp_dir_id
     jsr store_vice_dir_tombstone_current
     bcs rd_build_fail
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_removed
     sta 0,x
     lda #>resp_removed
     sta 1,x
     rts
 rd_build_no_such_dir:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_dir
     sta 0,x
     lda #>resp_bad_dir
     sta 1,x
     rts
 rd_build_fail:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_rmdir_failed
     sta 0,x
     lda #>resp_rmdir_failed
     sta 1,x
     rts
 rd_build_flat:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_flat_image
     sta 0,x
     lda #>resp_flat_image
     sta 1,x
     rts
 rd_build_unmounted:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_unmounted
     sta 0,x
     lda #>resp_unmounted
     sta 1,x
     rts
 rd_build_read_only:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_read_only
     sta 0,x
     lda #>resp_read_only
     sta 1,x
     rts
 rd_build_bad:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_rd
     sta 0,x
     lda #>resp_bad_rd
@@ -7366,9 +7340,9 @@ spill_udos_to_reu:
     sec
     rts
 :
-    lda #<$1000
+    lda #<RESIDENT_CODE_START
     sta launch_reu_c64_lo
-    lda #>$1000
+    lda #>RESIDENT_CODE_START
     sta launch_reu_c64_hi
     lda #<REU_LAUNCH_MAIN_BASE
     sta launch_reu_reu_lo
@@ -7629,6 +7603,8 @@ tool_writeback_clear_and_save:
     sta tool_writeback_buffer+TOOL_WRITEBACK_KIND_OFFSET
     lda #$00
     sta tool_writeback_count
+    sta TOOL_WRITEBACK_COUNT_SHADOW
+    clc
     rts
 
 tool_writeback_dirmap_clear:
@@ -7674,11 +7650,15 @@ tool_writeback_append_finish:
     bcc :+
     ldx #TOOL_WRITEBACK_MAX_RECORDS-1
     jsr tool_writeback_save_reu
+    lda tool_writeback_count
+    sta TOOL_WRITEBACK_COUNT_SHADOW
     clc
     rts
 :
     jsr tool_writeback_save_reu
     inc tool_writeback_count
+    lda tool_writeback_count
+    sta TOOL_WRITEBACK_COUNT_SHADOW
     clc
     rts
 
@@ -7907,6 +7887,12 @@ svc_apply_tool_writeback_file_delete:
     jsr select_vice_tree_name_slot
     jmp svc_apply_tool_writeback_copy_name
 svc_apply_tool_writeback_file_delete_empty:
+    lda #<(tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET)
+    sta PTR
+    lda #>(tool_writeback_buffer+TOOL_WRITEBACK_NAME_OFFSET)
+    sta PTR+1
+    jsr copy_ptr_name_to_path_buffer
+    jsr delete_file_vice_host_current
     jsr clear_vice_tree_slot
     jsr store_vice_manifest_host_current
     jmp svc_apply_tool_writeback_pop
@@ -8075,22 +8061,6 @@ svc_program_exit:
     lda #$00
     sta PROGRAM_EXIT_SNAPSHOT
     rts
-
-svc_vm_acheron_enter:
-    jsr clear_rstack
-    sec
-    lda 0,x
-    sbc #$01
-    sta PTR
-    lda 1,x
-    sbc #$00
-    sta PTR+1
-    lda PTR+1
-    pha
-    lda PTR
-    pha
-    clc
-    jmp acheron
 
 split_copy_args:
     lda arg_length
@@ -8535,43 +8505,35 @@ copy_program_target_to_source_buffer_done:
     rts
 
 copy_ptr_name_to_source_buffer:
-    ldy #$00
-copy_ptr_name_to_source_buffer_loop:
-    lda (PTR),y
-    beq copy_ptr_name_to_source_buffer_done
-    cmp #ASCII_SLASH
-    beq copy_ptr_name_to_source_buffer_done
-    cpy #MAX_LINE_LEN
-    bcs copy_ptr_name_to_source_buffer_done
-    jsr normalize_output_char
-    sta source_name_buffer,y
-    iny
-    bne copy_ptr_name_to_source_buffer_loop
-copy_ptr_name_to_source_buffer_done:
-    lda #$00
-    sta source_name_buffer,y
-    rts
-
+    lda #<source_name_buffer
+    sta SCREEN_PTR
+    lda #>source_name_buffer
+    bne copy_ptr_name_to_buffer_high
 copy_ptr_name_to_path_buffer:
+    lda #<path_name_buffer
+    sta SCREEN_PTR
+    lda #>path_name_buffer
+copy_ptr_name_to_buffer_high:
+    sta SCREEN_PTR+1
     ldy #$00
-copy_ptr_name_to_path_buffer_loop:
+copy_ptr_name_to_buffer_loop:
     lda (PTR),y
-    beq copy_ptr_name_to_path_buffer_done
+    beq copy_ptr_name_to_buffer_done
     cmp #ASCII_SLASH
-    beq copy_ptr_name_to_path_buffer_done
+    beq copy_ptr_name_to_buffer_done
     cpy #MAX_LINE_LEN
-    bcs copy_ptr_name_to_path_buffer_done
+    bcs copy_ptr_name_to_buffer_done
     jsr normalize_output_char
-    sta path_name_buffer,y
+    sta (SCREEN_PTR),y
     iny
-    bne copy_ptr_name_to_path_buffer_loop
-copy_ptr_name_to_path_buffer_done:
+    bne copy_ptr_name_to_buffer_loop
+copy_ptr_name_to_buffer_done:
     lda #$00
-    sta path_name_buffer,y
+    sta (SCREEN_PTR),y
     rts
 
 build_type_response:
-    stx saved_rp_x
+    stx shell_saved_rp_x
     jsr resolve_file_target
     cmp #PATH_STATUS_OK
     beq type_build_hw
@@ -8579,21 +8541,21 @@ build_type_response:
     beq type_build_flat
     cmp #PATH_STATUS_UNMOUNTED
     beq type_build_unmounted
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_file
     sta 0,x
     lda #>resp_bad_file
     sta 1,x
     rts
 type_build_flat:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_flat_image
     sta 0,x
     lda #>resp_flat_image
     sta 1,x
     rts
 type_build_unmounted:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_unmounted
     sta 0,x
     lda #>resp_unmounted
@@ -8607,7 +8569,7 @@ type_build_hw:
     jsr read_file_response_vice_current
     bcc type_build_found
 type_build_hw_fail:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_file
     sta 0,x
     lda #>resp_bad_file
@@ -8620,14 +8582,14 @@ type_build_uci:
 type_build_lookup:
     jsr lookup_file_content
     bcc type_build_found
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<resp_bad_file
     sta 0,x
     lda #>resp_bad_file
     sta 1,x
     rts
 type_build_found:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda PTR
     sta 0,x
     lda PTR+1
@@ -14219,7 +14181,15 @@ copy_path_name_to_vice_tree_slot_done:
     rts
 
 copy_screen_ptr_to_vice_tree_slot_content:
+    lda SCREEN_PTR
+    sta vice_tree_content_src_lo
+    lda SCREEN_PTR+1
+    sta vice_tree_content_src_hi
     jsr select_vice_tree_content_slot
+    lda vice_tree_content_src_lo
+    sta SCREEN_PTR
+    lda vice_tree_content_src_hi
+    sta SCREEN_PTR+1
     ldy #$00
 copy_screen_ptr_to_vice_tree_slot_content_loop:
     lda (SCREEN_PTR),y
@@ -14511,7 +14481,7 @@ append_ptr_done:
     rts
 
 build_echo_response:
-    stx saved_rp_x
+    stx shell_saved_rp_x
     ldy #$00
 build_echo_copy_loop:
     cpy arg_length
@@ -14524,7 +14494,7 @@ build_echo_copy_loop:
 build_echo_done:
     lda #$00
     sta response_buffer,y
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<response_buffer
     sta 0,x
     lda #>response_buffer
@@ -14626,7 +14596,7 @@ build_ver_return:
     rts
 
 build_vol_response:
-    stx saved_rp_x
+    stx shell_saved_rp_x
     ldy #$00
     lda #$01
     sta response_buffer,y
@@ -14669,7 +14639,7 @@ build_vol_response:
     jsr append_mount_kind
     lda #$00
     sta response_buffer,y
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<response_buffer
     sta 0,x
     lda #>response_buffer
@@ -14677,7 +14647,7 @@ build_vol_response:
     rts
 
 build_mem_response:
-    stx saved_rp_x
+    stx shell_saved_rp_x
     ldy #$00
     ldx #$00
 build_mem_prefix_loop:
@@ -14699,12 +14669,12 @@ build_mem_prefix_done:
     jsr append_decimal16
     jmp build_mem_append_ram_mid
 build_mem_actual_ram:
-    lda #<__ACHERON_LAST__
+    lda #<resident_image_end
     sec
     sbc #<RESIDENT_CODE_START
     sta mem_used_lo
     sta mem_value_lo
-    lda #>__ACHERON_LAST__
+    lda #>resident_image_end
     sbc #>RESIDENT_CODE_START
     sta mem_used_hi
     sta mem_value_hi
@@ -14746,15 +14716,11 @@ build_mem_reu_prefix_loop:
     inx
     bne build_mem_reu_prefix_loop
 build_mem_reu_prefix_done:
-    lda #<REU_VICE_TREE_TOTAL
-    clc
-    adc #<__ACHERON_LAST__
+    lda #<REU_LAUNCH_PROGRAM_BASE
     sta mem_saved_lo
-    lda #>REU_VICE_TREE_TOTAL
-    adc #>__ACHERON_LAST__
+    lda #>REU_LAUNCH_PROGRAM_BASE
     sta mem_saved_mid
-    lda #$00
-    adc #$00
+    lda #^REU_LAUNCH_PROGRAM_BASE
     sta mem_saved_hi
     lda mem_saved_lo
     sta mem_value_lo
@@ -14808,7 +14774,7 @@ build_mem_copy_to_stable_buffer:
     lda #$00
     sta mem_response_buffer,x
 build_mem_copy_done:
-    ldx saved_rp_x
+    ldx shell_saved_rp_x
     lda #<mem_response_buffer
     sta 0,x
     lda #>mem_response_buffer
@@ -15184,9 +15150,9 @@ launch_stub_return_template_end:
 
 launch_stub_restore_template:
     cld
-    lda #<$1000
+    lda #<RESIDENT_CODE_START
     sta $F9
-    lda #>$1000
+    lda #>RESIDENT_CODE_START
     sta $FA
     lda #<REU_LAUNCH_MAIN_BASE
     sta $FB
@@ -15213,10 +15179,7 @@ launch_stub_restore_template:
     cli
     ldx #$FF
     txs
-    jsr clear_rstack
-    jsr acheron
-        jump program_return_resume
-        native
+    jmp program_return_resume
 
 launch_stub_restore_loop:
     lda $FD
@@ -15348,16 +15311,31 @@ vice_issue_command_from_ptr_fail:
     rts
 
 vice_write_screen_ptr_to_current_file:
-    ldy #$00
+    lda SCREEN_PTR
+    sta vice_tree_content_src_lo
+    lda SCREEN_PTR+1
+    sta vice_tree_content_src_hi
+    lda #PROGRAM_IMAGE_MAX
+    sta vice_read_limit
 vice_write_screen_ptr_to_current_file_loop:
+    lda vice_read_limit
+    beq vice_write_screen_ptr_to_current_file_done
+    lda vice_tree_content_src_lo
+    sta SCREEN_PTR
+    lda vice_tree_content_src_hi
+    sta SCREEN_PTR+1
+    ldy #$00
     lda (SCREEN_PTR),y
     beq vice_write_screen_ptr_to_current_file_done
     jsr CHROUT
     jsr vice_readst_no_eoi
     bne vice_write_screen_ptr_to_current_file_fail_close
-    iny
-    cpy #PROGRAM_IMAGE_MAX
-    bcc vice_write_screen_ptr_to_current_file_loop
+    inc vice_tree_content_src_lo
+    bne :+
+    inc vice_tree_content_src_hi
+:
+    dec vice_read_limit
+    jmp vice_write_screen_ptr_to_current_file_loop
 vice_write_screen_ptr_to_current_file_done:
     jsr vice_close_current_file
     clc
@@ -15366,6 +15344,7 @@ vice_write_screen_ptr_to_current_file_fail_close:
     php
     jsr vice_close_current_file
     plp
+vice_write_screen_ptr_to_current_file_fail:
     sec
     rts
 
@@ -15496,7 +15475,6 @@ tool_abi_fixed_template:
     jmp tool_abi_file_stage_reu_sc0_preserved
     jmp tool_abi_reu_read_sc0_preserved
     jmp tool_abi_reu_write_sc0_preserved
-    jmp tool_abi_vm_acheron_enter
 tool_abi_fixed_template_end:
 
 tool_abi_file_load_sc0:
@@ -15848,6 +15826,13 @@ tool_abi_file_save_sc0:
     sta temp_drive
     lda PROGRAM_DIR_SNAPSHOT
     sta temp_dir_id
+    ldy PROGRAM_DRIVE_SNAPSHOT
+    lda PROGRAM_DRIVE_SNAPSHOT
+    sta current_drive
+    lda PROGRAM_DIR_SNAPSHOT
+    sta dir_state_table,y
+    jsr tool_abi_seed_program_mount_snapshot
+    jsr svc_sync_tool_backend_path_shadow
     ldy temp_drive
     lda mount_flag_table,y
     cmp #MOUNT_FLAG_TREE
@@ -15995,9 +15980,6 @@ tool_abi_file_write_close_sc0:
 
 tool_abi_file_stage_reu_sc0:
     jmp tool_abi_file_stage_reu_sc0_preserved
-
-tool_abi_vm_acheron_enter:
-    jmp svc_vm_acheron_enter
 
 tool_abi_dir_make_sc0:
     stx tool_abi_saved_x
@@ -17270,6 +17252,8 @@ launch_load_cache_hi:
     .byte 0
 saved_rp_x:
     .byte 0
+shell_saved_rp_x:
+    .byte 0
 tool_abi_file_stage_saved_x:
     .byte 0
 tool_abi_saved_x:
@@ -17638,7 +17622,7 @@ vice_tree_slot_cache:
 
 ; External-tool queued writeback keeps persistent records in REU and uses
 ; preserved ABI space for one staging record only. The live count/map must stay
-; out of the CFxx tool-ABI jump page or launched tools will clobber them.
+; out of the CFxx tool-ABI page or launched tools will clobber them.
 tool_writeback_buffer = TOOL_WRITEBACK_STAGING_BASE
 tool_writeback_count:
     .res 1
@@ -17738,19 +17722,18 @@ entry_root_src:
 entry_root_work:
     .byte "WORK/", 0
 entry_bin_shell:
-    .byte "SHELL.AVM", 0
+    .byte "SHELL.PRG", 0
 entry_bin_dir:
-    .byte "DIR.AVM", 0
+    .byte "DIR.PRG", 0
 entry_src_boot:
     .byte "BOOT.ASM", 0
 entry_src_fs:
-    .byte "FS.AVM", 0
+    .byte "FS.ASM", 0
 entry_work_empty:
     .byte "EMPTY", 0
 content_flat_system:
     .byte "UDOS SYSTEM VOLUME", 0
-content_flat_commands:
-    .byte "HELP VER VOL MEM DIR CD MD RD ECHO MOUNT TYPE COPY REN DEL", 0
+content_flat_commands = resp_help
 content_flat_readme:
     .byte "MOCK FLAT IMAGE CONTENT", 0
 .if UDOS_INCLUDE_AUTOEXEC
@@ -17764,7 +17747,7 @@ content_bin_dir:
 content_src_boot:
     .byte "; BOOT.ASM MOCK SOURCE", 0
 content_src_fs:
-    .byte "; FS.AVM MOCK SOURCE", 0
+    .byte "; FS.ASM MOCK SOURCE", 0
 flat_entry_lo:
     .byte <entry_flat_system, <entry_flat_commands, <entry_flat_readme
 .if UDOS_INCLUDE_AUTOEXEC
@@ -17967,9 +17950,9 @@ resp_dir_flat:
 resp_dir_root:
     .byte "BIN/ SRC/ WORK/", 0
 resp_dir_bin:
-    .byte "SHELL.AVM DIR.AVM", 0
+    .byte "SHELL.PRG DIR.PRG", 0
 resp_dir_src:
-    .byte "BOOT.ASM FS.AVM", 0
+    .byte "BOOT.ASM FS.ASM", 0
 resp_dir_work:
     .byte "EMPTY", 0
 resp_flat_image:
@@ -18654,3 +18637,5 @@ tool_abi_reu_copy_fail_preserved:
     plp
     sec
     rts
+
+resident_image_end:

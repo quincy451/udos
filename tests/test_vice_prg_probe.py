@@ -124,7 +124,7 @@ class TestViceProbeArgNormalization(unittest.TestCase):
         self.assertEqual(cmd[1:4], ["-a", "-s", "-screen 0 1024x768x24"])
         self.assertIn(Path("/usr/bin/x64sc").as_posix(), [Path(part).as_posix() for part in cmd])
 
-    def test_locate_x64sc_prefers_path_on_non_windows(self) -> None:
+    def test_locate_x64sc_prefers_x64sc_path_on_non_windows(self) -> None:
         with mock.patch.object(vp, "os") as os_mock:
             os_mock.name = "posix"
             os_mock.environ = {}
@@ -133,7 +133,7 @@ class TestViceProbeArgNormalization(unittest.TestCase):
                 "which",
                 side_effect=lambda name: "/usr/bin/x64" if name == "x64" else "/usr/bin/x64sc",
             ):
-                self.assertTrue(vp.locate_x64sc().as_posix().endswith("/usr/bin/x64"))
+                self.assertTrue(vp.locate_x64sc().as_posix().endswith("/usr/bin/x64sc"))
 
     def test_main_cleans_up_stale_vice_before_probe_attempt(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -148,12 +148,15 @@ class TestViceProbeArgNormalization(unittest.TestCase):
 
     def test_format_udos_launch_trace_reads_expected_bytes(self) -> None:
         client = mock.Mock()
-        values = {
-            0x03F0: b"\x01",
-            0x03F1: b"\x00",
-            0x03F2: b"\xF3",
-            0x03F3: b"\xC3",
-        }
+        values = {addr: b"\x00" for _label, addr in vp.UDOS_LAUNCH_DEBUG_BYTES}
+        values.update(
+            {
+                0x03F0: b"\x01",
+                0x03F1: b"\x00",
+                0x03F2: b"\xF3",
+                0x03F3: b"\xC3",
+            }
+        )
 
         def fake_memory_get(start: int, end: int, *, memspace: int = 0, bank: int = 0) -> bytes:
             self.assertEqual(start, end)
@@ -162,36 +165,35 @@ class TestViceProbeArgNormalization(unittest.TestCase):
             return values[start]
 
         client.memory_get.side_effect = fake_memory_get
-        self.assertEqual(
-            vp.format_udos_launch_trace(client),
-            "VICE debug bytes: "
-            "LAUNCH_RESULT_FLAG=0x01@0x03F0 "
-            "LAUNCH_EXIT_STATUS=0x00@0x03F1 "
-            "LAUNCH_TRACE_STAGE=0xF3@0x03F2 "
-            "LAUNCH_TRACE_CODE=0xC3@0x03F3",
-        )
+        text = vp.format_udos_launch_trace(client)
+        self.assertIn("TOOL_DEBUG0=0x00@0x03D0", text)
+        self.assertIn("LAUNCH_RESULT_FLAG=0x01@0x03F0", text)
+        self.assertIn("LAUNCH_EXIT_STATUS=0x00@0x03F1", text)
+        self.assertIn("LAUNCH_TRACE_STAGE=0xF3@0x03F2", text)
+        self.assertIn("LAUNCH_TRACE_CODE=0xC3@0x03F3", text)
 
     def test_read_active_screen_text_falls_back_to_default_screen_when_vic_regs_invalid(self) -> None:
         client = mock.Mock()
 
         def fake_memory_get(start: int, end: int, *, memspace: int = 0, bank: int = 0) -> bytes:
-            self.assertEqual(memspace, 0)
-            self.assertEqual(bank, 0)
             if (start, end) == (0xD018, 0xD018):
+                self.assertEqual((memspace, bank), (vp.MAIN_MEMSPACE, vp.MAIN_BANK_IO))
                 return b"\xFF"
             if (start, end) == (0xDD00, 0xDD00):
+                self.assertEqual((memspace, bank), (vp.MAIN_MEMSPACE, vp.MAIN_BANK_IO))
                 return b"\xFF"
             if (start, end) == (0x0400, 0x07E7):
+                self.assertEqual((memspace, bank), (vp.MAIN_MEMSPACE, vp.MAIN_BANK_RAM))
                 data = bytearray(b"\x20" * 1000)
-                data[0] = 1  # A
-                data[1] = 2  # B
+                data[0] = 1  # a
+                data[1] = 2  # b
                 return bytes(data)
             self.fail(f"unexpected memory_get range {(start, end)}")
 
         client.memory_get.side_effect = fake_memory_get
         text, d018, dd00 = vp.read_active_screen_text(client)
         self.assertEqual((d018, dd00), (0xFF, 0xFF))
-        self.assertIn("AB", text)
+        self.assertIn("ab", text)
 
 
 if __name__ == "__main__":

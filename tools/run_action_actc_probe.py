@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 import run_action_alink_seeded_runtime_probe as seeded
-import run_action_avmrun_probe as avp
+import run_action_command_probe as avp
 import vice_prg_probe as vp
 
 
@@ -155,12 +155,12 @@ def verify_host_output(project_root: Path) -> None:
         raise RuntimeError(f"expected host file {output_path} to exist")
     text = output_path.read_text(encoding="ascii", errors="ignore")
     required = [
-        "AVO1",
-        "x main 0 38",
-        "b e0u0p0p1ap2myp3p4mp5azr",
+        "OBJ1",
+        "x main 0 22",
+        "b e0u0j0i1r",
         "u w",
         "s HELLO",
-        "i 50\ni 7\ni 3\ni 60\ni 3\ni 2",
+        "i 54\ni 59",
         "k 7",
         "n main",
     ]

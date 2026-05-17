@@ -5,7 +5,7 @@
 The first credible UDOS resident milestone is complete.
 
 Completed baseline:
-- resident AcheronVM runtime
+- native resident shell/runtime
 - resident service ABI
 - native UCI transport seam
 - filesystem abstraction seam
@@ -30,7 +30,7 @@ The resident shell currently also validates:
 ## What Works
 
 Validated in VICE:
-- resident bootstrap enters AcheronVM
+- resident bootstrap enters the native shell
 - prompt reflects drive/kind/path state
 - `A:` flat semantics and `B:` DNP tree semantics are enforced
 - writable `WORK` flow works through the current mock backend:
@@ -87,11 +87,11 @@ Resume target repo when UDOS is ready to host those tools:
 - [actionc64u](/mnt/c/test/action/actionc64u)
 
 Preserved Action repo state at pivot:
-- linker/runtime/VM bootstrap work already present
-- VM-first direction partially established
+- linker/runtime bootstrap work already present
+- older interpreter-first direction preserved as historical context
 - open items remained around:
-  - VM/runtime file services
-  - VM-based tools
+  - runtime file services
+  - tool/runtime split
   - reducing reliance on oversized C on-target tools
 
 ## Next Concrete Step

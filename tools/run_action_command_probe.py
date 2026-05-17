@@ -258,6 +258,15 @@ def wait_for_prompt_count_and_fragments(
     )
 
 
+def append_observed_screen(observed_screens: list[str], screen: str) -> None:
+    if screen and (not observed_screens or observed_screens[-1] != screen):
+        observed_screens.append(screen)
+
+
+def observed_transcript(observed_screens: list[str]) -> str:
+    return "\n".join(observed_screens)
+
+
 def wait_for_mount_completion(
     client: vp.BinaryMonitorClient,
     timeout: float,
@@ -352,13 +361,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run a focused Action workspace command probe in VICE")
     parser.add_argument("--disk", required=True)
     parser.add_argument("--fs-root", required=True)
-    parser.add_argument("--command", default="AVMRUN UDOSHELLO.AVM")
+    parser.add_argument("--command", default="TYPE README.TXT")
     parser.add_argument("--mount-path", default="/IMAGES/ACTION.DNP")
     parser.add_argument("--mount-result", default="B:ACTION DNP")
     parser.add_argument("--b-prompt", default="B:DNP/>")
     parser.add_argument("--final-prompt")
-    parser.add_argument("--run-marker", default="RUN AVMRUN.PRG")
-    parser.add_argument("--done-fragment", default="UDOS AVM OK")
+    parser.add_argument("--run-marker", default="")
+    parser.add_argument("--done-fragment", default="ACTIONC64U FOR UDOS")
     parser.add_argument("--prompt-count", type=int, default=2)
     parser.add_argument("--skip-command-prompt", action="store_true")
     parser.add_argument("--initial-settle", type=float, default=3.0)
@@ -393,6 +402,7 @@ def main() -> int:
     attempt_delay = args.attempt_delay if args.attempt_delay is not None else vp.default_attempt_delay()
 
     for attempt in range(1, args.attempts + 1):
+        observed_screens: list[str] = []
         vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, attempt_delay)))
         port = vp.reserve_tcp_port()
         process = vp.launch_vice(
@@ -424,7 +434,8 @@ def main() -> int:
                 time.sleep(args.boot_settle)
 
             stage = "wait-a-prompt"
-            wait_for_active_prompt(client, "A:D64/>", args.boot_timeout, poll_interval=args.poll_interval)
+            screen = wait_for_active_prompt(client, "A:D64/>", args.boot_timeout, poll_interval=args.poll_interval)
+            append_observed_screen(observed_screens, screen)
             stage = "initial-settle"
             time.sleep(args.initial_settle)
             mount_command = f"MOUNT B: {args.mount_path}"
@@ -433,23 +444,25 @@ def main() -> int:
             time.sleep(1.0)
             try:
                 stage = "mount-wait"
-                wait_for_mount_completion(
+                screen = wait_for_mount_completion(
                     client,
                     args.shell_timeout,
                     retry_echo=mount_command,
                     poll_interval=args.poll_interval,
                 )
+                append_observed_screen(observed_screens, screen)
             except vp.ViceError:
                 stage = "mount-retry-type"
                 type_command(client, mount_command, args.shell_timeout)
                 time.sleep(1.0)
                 stage = "mount-retry-wait"
-                wait_for_mount_completion(
+                screen = wait_for_mount_completion(
                     client,
                     args.shell_timeout,
                     retry_echo=mount_command,
                     poll_interval=args.poll_interval,
                 )
+                append_observed_screen(observed_screens, screen)
             stage = "switch-b"
             type_command(client, "B:", args.shell_timeout)
             stage = "wait-b-prompt"
@@ -460,6 +473,7 @@ def main() -> int:
                 retry_echo="B:",
                 poll_interval=args.poll_interval,
             )
+            append_observed_screen(observed_screens, screen)
             final_prompt = args.final_prompt or args.b_prompt
             prompt_count = vp.screen_count(screen, final_prompt)
             stage = "command-settle"
@@ -481,6 +495,7 @@ def main() -> int:
                         retry_echo=pre_command,
                         poll_interval=args.poll_interval,
                     )
+                    append_observed_screen(observed_screens, screen)
                     prompt_count = max(prompt_count, vp.screen_count(screen, final_prompt))
                 else:
                     prompt_count += 1
@@ -493,6 +508,7 @@ def main() -> int:
                         retry_echo=pre_command,
                         poll_interval=args.poll_interval,
                     )
+                    append_observed_screen(observed_screens, screen)
                     prompt_count = max(prompt_count, vp.screen_count(screen, final_prompt))
                 stage = f"pre-command-settle[{index}]"
                 time.sleep(args.command_settle)
@@ -502,13 +518,14 @@ def main() -> int:
             time.sleep(args.command_settle)
             if args.run_marker:
                 stage = "wait-run-marker"
-                wait_for_screen_fragment(
+                screen = wait_for_screen_fragment(
                     client,
                     args.run_marker,
                     args.shell_timeout,
                     retry_echo=args.command,
                     poll_interval=args.poll_interval,
                 )
+                append_observed_screen(observed_screens, screen)
             if args.skip_command_prompt:
                 fragments: list[str] = []
                 if args.done_fragment:
@@ -522,11 +539,13 @@ def main() -> int:
                         retry_echo=args.command if not args.run_marker else None,
                         poll_interval=args.poll_interval,
                     )
+                    append_observed_screen(observed_screens, screen)
                 else:
                     stage = "skip-prompt-sleep"
                     time.sleep(args.shell_timeout)
                     stage = "skip-prompt-read-screen"
                     screen = screen_text(client)
+                    append_observed_screen(observed_screens, screen)
             else:
                 prompt_count += 1
                 fragments: list[str] = []
@@ -542,6 +561,7 @@ def main() -> int:
                     retry_echo=args.command if not args.run_marker else None,
                     poll_interval=args.poll_interval,
                 )
+                append_observed_screen(observed_screens, screen)
             if args.post_command:
                 stage = "post-command-settle"
                 time.sleep(args.command_settle)
@@ -556,6 +576,7 @@ def main() -> int:
                         retry_echo=args.post_command,
                         poll_interval=args.poll_interval,
                     )
+                    append_observed_screen(observed_screens, screen)
                     prompt_count = max(prompt_count, vp.screen_count(screen, final_prompt))
                 else:
                     prompt_count += 1
@@ -572,17 +593,19 @@ def main() -> int:
                         retry_echo=args.post_command,
                         poll_interval=args.poll_interval,
                     )
+                    append_observed_screen(observed_screens, screen)
             stage = "validate-contains"
+            transcript = observed_transcript(observed_screens)
             for fragment in args.contains:
-                if not vp.screen_contains(screen, fragment):
+                if not vp.screen_contains(transcript, fragment):
                     raise vp.ViceError(
-                        f"expected screen fragment {fragment!r} was not present in final screen:\n{screen}"
+                        f"expected screen fragment {fragment!r} was not present in observed screen transcript:\n{transcript}"
                     )
             stage = "validate-not-contains"
             for fragment in args.not_contains:
-                if vp.screen_contains(screen, fragment):
+                if vp.screen_contains(transcript, fragment):
                     raise vp.ViceError(
-                        f"unexpected screen fragment {fragment!r} was present in final screen:\n{screen}"
+                        f"unexpected screen fragment {fragment!r} was present in observed screen transcript:\n{transcript}"
                     )
             print(screen)
             return 0

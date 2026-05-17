@@ -12,11 +12,8 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
 
 - created a separate `udos` repo/work area
 - preserved prior CP/M-65 and Action state in notes so the shell/runtime pivot stayed reversible
-- audited and built the local AcheronVM dependency
-- added a proof image that validates a minimal AcheronVM-to-native banner path in VICE
 - added a resident bootstrap/core image that:
-  - enters AcheronVM
-  - keeps the VM resident
+  - enters the native resident shell
   - exposes a first resident service ABI
   - renders a state-driven shell prompt
 - added a native UCI transport seam in `src/asm/uci_transport.inc`
@@ -99,9 +96,9 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `%1` / `%2` / `%3` expansion
   - `ECHO`
   - stop-on-error flow
-  - boot-time `AUTOEXEC.BAT` from the default `A:` boot root
+  - default embedded resident `AUTOEXEC.BAT` is disabled so the resident image stays within memory
 - added transcript-backed VICE self-test images:
-  - focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
+  - focused command-feed images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
   - checked-in expected final-screen transcripts under `tests/selftest`
   - generated `build/udos-selftest-*.d64` and `build/udos-selftest-*.actual.txt` artifacts through `make vice-selftest`
 - added release-style boot packaging for VICE:
@@ -151,23 +148,14 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     typed input on top of a copied Action workspace, seeds a project root
     marked by `ACTION.PROJ` plus deterministic `OBJ/*.OBJ` fixtures, launches
     `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
-    deterministic `BIN/MAIN.AVM` binary final-image artifact on the host fs
-    tree; the current focused proof verifies the exact emitted `AVM1` bytes
-    directly and proves an unused local export is stripped from the final
-    image. `ALINK` now uses compiler-emitted export sizes plus `body_ops` for
-    direct byte emission instead of inferring them only from the payload
-    shape. The current focused proof also resolves a wider unresolved
-    external closure with sibling externals from `main`, a shared child
-    object, and a deeper leaf, while carrying child-object integer and string
-    literal pools into the linked binary image. Project objects are now
-    emitted and documented as `OBJ/*.OBJ`; legacy `OBJ/*.AVO` remains a
-    compatibility input path during migration
-  - `make vice-action-alink-avmrun` is now the AVM-specific linker/runner
-    proof. It uses the release image with
-    deterministic typed input on top of a copied Action workspace, launches
-    `ALINK.PRG MAIN`, then launches `AVMRUN.PRG BIN/MAIN.AVM`, and proves the
-    emitted linked image executes by printing `HELLOWORLD`, `TOOL7`, and
-    `12342` before returning to `B:DNP/PROJ3>`
+    deterministic `BIN/MAIN.PRG` final-image artifact on the host fs tree.
+    `ALINK` now uses compiler-emitted export sizes plus `body_ops` for direct
+    program emission instead of inferring them only from the payload shape.
+    The current focused proof also resolves a wider unresolved external closure
+    with sibling externals from `main`, a shared child object, and a deeper
+    leaf, while carrying child-object integer and string literal pools into the
+    linked program image. Project objects are now emitted and documented only as
+    `OBJ/*.OBJ`.
   - `make vice-action-actc-alink-launch-printmath` is green again as the
     named higher-level direct-launch proof for the imported `printmath` shape.
     It uses the release image with deterministic typed input on top of a copied
@@ -177,8 +165,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `make vice-action-actc-alink-launch` is now the helper-free higher-level
     default, using the release image with deterministic typed input on top of
     a copied Action workspace, launching `ACTC.PRG MAIN`, then `ALINK.PRG MAIN`,
-    then direct `BIN/MAIN.PRG` under VICE with no `MAIN.AVM` / `AVMRUN`
-    dependency
+    then direct `BIN/MAIN.PRG` under VICE with no separate runner dependency
   - `make vice-action-actc-alink-launch-if-else-chain` is the named helper-free
     higher-level proof for the base local-call chain shape
   - `make vice-action-actc-alink-launch-nested-else-chain` is the named
@@ -277,23 +264,9 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     typed input, launches `ACTWRITE.PRG`, writes `OUT.TXT` through the
     preserved external-tool file-save ABI, reads it back through the shell,
     and returns to the UDOS prompt
-  - `make vice-action-avminfo` now uses the release image with deterministic
-    typed input, launches `AVMINFO.PRG`, loads `HELLO.AVM` through the
-    preserved launch-safe file-load ABI, validates the `AVM1` header, and
-    returns to the UDOS prompt
-  - `make vice-action-avmrun` now mounts the exported Action workspace from the
-    release image, launches `AVMRUNC.PRG`, loads `UDOSHELLO.AVM` through the
-    preserved launch-safe file-load ABI, executes the current constrained
-    compat/interpreter `AVM1` subset, prints `UDOS AVM OK`, and returns to the
-    UDOS prompt
-  - `make vice-action-avmrun-flow` now runs `UDOSFLOW.AVM` from the mounted
-    Action workspace through `AVMRUNC.PRG` and proves the current constrained
-    compat/interpreter subset can execute `jump`, `call`, and `ret` by
-    printing `UDOS AVM FLOW OK` and returning to the UDOS prompt
-  - `make vice-action-avmrun-runtime` now rebuilds the current `AVMRUNC.PRG`,
-    prepares focused `RUNTC.AVM` and `RUNTG.AVM` samples on a copied release
-    workspace, and proves the narrow interpreted subset can execute `push16`,
-    `add`, `sub`, `eq`, `ne`, `lt`, and `gt`
+  - obsolete runner/tool probes were removed from the active release path; the
+    current Action validation surface is direct tool launch and direct linked
+    `.PRG` execution
 - the tool-side VICE tree file-mutation ABI now resolves nested tree paths for
   host-backed Action project files:
   - direct `ACTDEL SRC/...` validation now removes host-backed source files
@@ -322,16 +295,6 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - when that import is unavailable or fails, the resident label falls back to the mounted image basename
 
 ## Current Verified Facts
-
-### Phase 1 proof
-
-- autostarts `build/udosboot.prg` in VICE for stable validation
-- linked proof entrypoint: `$1810`
-- screen banner seen in VICE: `UDOS VM OK`
-- marker byte at `$CFFF`: `0x42`
-- Acheron dispatcher footprint: `$00E6`
-- Acheron runtime footprint: `$072A`
-- UDOS proof code footprint: `$002E`
 
 ### Resident shell milestone
 
@@ -396,7 +359,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
 - batch execution is now validated in VICE:
   - `ARGS ONE TWO THREE` expands to `ONE/TWO/THREE`
   - `STOP` halts after `TYPE NOFILE.TXT` and does not run the next line
-  - boot `AUTOEXEC.BAT` now runs before the first live shell command
+  - default embedded resident `AUTOEXEC.BAT` is now retired to keep the resident image within memory
 - current VICE-validated transcript:
   - `A:D64/> MOUNT B: /IMAGES/WORK.DNP`
   - `A:D64/> VOL`
@@ -496,14 +459,14 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
 - resident `MEM` now reports:
-  - `RAM USED 0 FREE 65535 REU USED 35377 FREE 16741839`
-- resident core code footprint: `$662D`
-- resident load window in `udos_c64.cfg`: `$9000`
+  - `RAM USED 0 FREE 65535 REU USED 40862 FREE 16736354`
+- resident core code footprint: `$87AA`
+- resident load window in `udos_c64.cfg`: `$87F0`
 
 ## What Works
 
 - standalone UDOS build and VICE validation
-- resident AcheronVM runtime
+- native resident shell/runtime
 - resident service ABI
 - native UCI detection seam
 - synchronous native UCI transfer primitives

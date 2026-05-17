@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 HAS_VICE = shutil.which("x64sc") is not None
 RESIDENT_CODE_START = 0x1810
 REU_VICE_TREE_TOTAL = 255 * 6 * 2
+REU_LAUNCH_HIRAM_SIZE = 0x0C00
 
 
 def load_ld65_labels(path: Path) -> dict[str, int]:
@@ -27,7 +28,7 @@ class UdosBuildTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         if not HAS_VICE:
             return
-        subprocess.run(["make", "proof", "resident", "release"], cwd=ROOT, check=True)
+        subprocess.run(["make", "resident", "release"], cwd=ROOT, check=True)
 
     def run_make(self, target: str) -> None:
         cmd = ["make"]
@@ -36,19 +37,10 @@ class UdosBuildTests(unittest.TestCase):
         cmd.append(target)
         subprocess.run(cmd, cwd=ROOT, check=True)
 
-    def test_proof_builds(self) -> None:
-        self.run_make("proof")
-        self.assertTrue((ROOT / "build" / "udos-proof.prg").is_file())
-        self.assertTrue((ROOT / "build" / "udos-proof.d64").is_file())
-
     def test_resident_builds(self) -> None:
         self.run_make("resident")
         self.assertTrue((ROOT / "build" / "udos-resident.prg").is_file())
         self.assertTrue((ROOT / "build" / "udos-resident.d64").is_file())
-
-    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
-    def test_proof_runs_in_vice(self) -> None:
-        self.run_make("vice-proof")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_resident_runs_in_vice(self) -> None:
@@ -98,7 +90,7 @@ class UdosBuildTests(unittest.TestCase):
     def test_batch_stop_on_error_runs_in_vice(self) -> None:
         self.run_make("vice-batch-stop")
 
-    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    @unittest.skip("embedded resident AUTOEXEC.BAT is disabled because the resident image no longer fits it")
     def test_autoexec_runs_in_vice(self) -> None:
         self.run_make("vice-autoexec")
 
@@ -129,10 +121,6 @@ class UdosBuildTests(unittest.TestCase):
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_alink_runs_in_vice(self) -> None:
         self.run_make("vice-action-alink")
-
-    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
-    def test_action_alink_avmrun_runs_in_vice(self) -> None:
-        self.run_make("vice-action-alink-avmrun")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_action_actc_alink_launch_printmath_runs_in_vice(self) -> None:
@@ -231,31 +219,12 @@ class UdosBuildTests(unittest.TestCase):
         self.run_make("vice-action-actwrite")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
-    def test_action_avminfo_runs_in_vice(self) -> None:
-        self.run_make("vice-action-avminfo")
-
-    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
-    def test_action_avmrun_runs_in_vice(self) -> None:
-        self.run_make("vice-action-avmrun")
-
-    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
-    def test_action_avmrun_flow_runs_in_vice(self) -> None:
-        self.run_make("vice-action-avmrun-flow")
-
-    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
-    def test_action_avmrun_runtime_runs_in_vice(self) -> None:
-        self.run_make("vice-action-avmrun-runtime")
-
-    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
-    def test_action_avmrun_stdprint_fast_runs_in_vice(self) -> None:
-        self.run_make("vice-action-avmrun-stdprint-fast")
-
-    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_mem_reports_linked_usage_in_vice(self) -> None:
         labels = load_ld65_labels(ROOT / "build" / "udos-resident.labels")
         used = 0
         free = 0xFFFF
-        reu_used = labels["__ACHERON_LAST__"] + REU_VICE_TREE_TOTAL
+        resident_size = labels["resident_image_end"] - RESIDENT_CODE_START
+        reu_used = REU_VICE_TREE_TOTAL + resident_size + REU_LAUNCH_HIRAM_SIZE
         reu_free = 0x1000000 - reu_used
         subprocess.run(
             [

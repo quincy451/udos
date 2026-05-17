@@ -30,8 +30,23 @@ class TestReleaseFs(unittest.TestCase):
             self.assertTrue((action_root / "ACTINFO.PRG").is_file())
             self.assertTrue((action_root / "DOC" / "OPERATOR.TXT").is_file())
             self.assertTrue((action_root / "SRC" / "HELLO.ACT").is_file())
-            self.assertTrue((action_root / "BIN" / "HELLO.AVM").is_file())
             self.assertTrue((action_root / "LIB" / "LIBMODS.DAT").is_file())
+            old_binary_pattern = "*." + ("A" + "VM")
+            self.assertFalse(list(action_root.rglob(old_binary_pattern)))
+            self.assertFalse(list(action_root.rglob("*.AVT")))
+            old_vm_prefix = "A" + "VM"
+            old_runner = old_vm_prefix + "RUN"
+            for name in (
+                old_vm_prefix + "INFO.PRG",
+                old_runner + ".PRG",
+                old_runner + "C.PRG",
+                "ACTDBG.PRG",
+                "ACTDBG_OVL1.BIN",
+                "ACTDBG_OVL2.BIN",
+            ):
+                self.assertFalse((action_root / name).exists(), name)
+            self.assertFalse(list(action_root.glob("RT_*_HELPER.BIN")))
+            self.assertFalse(list(action_root.glob(old_runner + "_OVL*.BIN")))
 
 
 if __name__ == "__main__":

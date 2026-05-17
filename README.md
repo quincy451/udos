@@ -1,6 +1,9 @@
 # UDOS
 
-UDOS is a new Commodore 64 Ultimate shell/runtime project centered on AcheronVM.
+UDOS is a Commodore 64 Ultimate shell/runtime project.
+
+The resident shell now runs as native 6502 code. Linked Action output is a
+direct `.PRG`, and no separate launcher is part of that path.
 
 This repo is intentionally separate from the existing `actionc64u/` and `cpm65-u64/`
 work so the shell/runtime can move forward without continuing CP/M-65 feature work.
@@ -67,9 +70,9 @@ Current milestone:
   - `%1` / `%2` / `%3`
   - `ECHO`
   - stop-on-error flow
-  - boot `AUTOEXEC.BAT` from the default `A:` boot root
+  - default embedded resident `AUTOEXEC.BAT` is disabled so the resident image stays within memory
 - Phase 5 now also includes transcript-backed VICE self-test images:
-  - focused `AUTOEXEC.BAT` images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
+  - focused command-feed images for read, copy, rename, delete, directory, batch, stop-on-error, and implicit launch
   - checked-in expected final-screen transcripts
   - generated actual transcripts for direct `diff -u` comparison
 - Phase 5 now also includes a release-style boot image:
@@ -118,39 +121,21 @@ Current milestone:
   - `make vice-action-alink` now uses the release image with deterministic
     typed input on top of a copied Action workspace, seeds a project root
     marked by `ACTION.PROJ` plus deterministic `OBJ/*.OBJ` fixtures, launches
-    `ALINK.PRG MAIN`, and proves the first UDOS-native linker slice can emit a
-    deterministic `BIN/MAIN.AVM` binary final-image artifact on the host fs
-    tree; the focused proof keeps verification host-side by waiting for that
-    file, checking the exact resulting `AVM1` bytes, and proving an unused
-    local export is stripped from the final image. `ALINK` now uses
-    compiler-emitted export sizes plus `body_ops` for direct byte emission
-    instead of inferring them only from the payload shape. The current
-    focused proof now resolves a wider unresolved external closure with
-    sibling externals from `main`, a shared child object, and a deeper leaf,
-    while still carrying child-object integer and string literal pools into
-    the linked binary image. Project objects are now emitted and documented as
-    `OBJ/*.OBJ`; legacy `OBJ/*.AVO` remains a compatibility input path during
-    migration
-  - `make vice-action-alink-avmrun` is now the AVM-specific linker/runner
-    proof. It uses the release image with
-    deterministic typed input on top of a copied Action workspace, launches
-    `ALINK.PRG MAIN`, then launches `AVMRUN.PRG BIN/MAIN.AVM`, and proves the
-    emitted linked image executes through the current Acheron-backed runner by
-    printing `HELLOWORLD`, `TOOL7`, and `12342` before returning to
-    `B:DNP/PROJ3>`
+    `ALINK.PRG MAIN`, and proves the UDOS-native linker emits a direct
+    `BIN/MAIN.PRG` final program on the host fs tree. `ALINK` owns the final
+    program content and no separate runtime launcher is part of this path.
+    Project objects are emitted, documented, and linked as `OBJ/*.OBJ`
+    files with `OBJ1` headers.
   - `make vice-action-actc-alink-launch-printmath` is green again as the
     named higher-level direct-launch proof for the imported `printmath` shape.
     It launches `ACTC.PRG MAIN`, then `ALINK.PRG MAIN`, then direct
     `BIN/MAIN.PRG`, and proves the live screen reaches `hello`, `tool7`, and
     `5459` before returning to the UDOS prompt
-  - `make vice-action-actc-alink-avmrunc-printmath` remains the helper-bearing
-    compat replay target for the same source shape; it is no longer the primary
-    higher-level proof for `printmath`
   - `make vice-action-actc-alink-launch` is now the helper-free higher-level
     default. It uses the release image with deterministic typed input on top
     of a copied Action workspace, launches `ACTC.PRG MAIN`, then
-    `ALINK.PRG MAIN`, then direct `BIN/MAIN.PRG` under VICE with no
-    `MAIN.AVM` / `AVMRUN` dependency
+    `ALINK.PRG MAIN`, then direct `BIN/MAIN.PRG` under VICE with no separate
+    runtime launcher
   - `make vice-action-actc-alink-launch-if-else-chain` is the named helper-free
     higher-level proof for the base local-call chain shape
   - `make vice-action-actc-alink-launch-nested-else-chain` is the named
@@ -185,7 +170,7 @@ Current milestone:
     tracked-module duplication through the preserved file-copy ABI
   - the current `ACTMON` probe script targets that combined `WORK` /
     `ADD EXTRA` / `REN HELPER RENAMED` / `DEL HELPER` flow and is green again
-    through the generic mounted-tree runner, with a clean host-tree reseed
+    through the mounted-tree VICE launch harness, with a clean host-tree reseed
     before each phase attempt so partial mutation attempts do not poison
     later retries; `make vice-action-actmon-check` remains the narrower
     workspace-summary/integrity control proof
@@ -240,33 +225,6 @@ Current milestone:
   - `make vice-action-actwrite` now uses the release image with deterministic
     typed input, launches `ACTWRITE.PRG`, writes `OUT.TXT` through the
     preserved file-save ABI, and reads the file back through the shell
-  - `make vice-action-avminfo` now uses the release image with deterministic
-    typed input, launches `AVMINFO.PRG`, loads `HELLO.AVM` through the
-    preserved launch-safe file-load ABI, and returns to the UDOS prompt
-  - `make vice-action-avmrun` now mounts the exported Action workspace from the
-    release image, launches `AVMRUNC.PRG`, loads `UDOSHELLO.AVM` through the
-    preserved launch-safe file-load ABI, executes the current constrained
-    compat/interpreter `AVM1` subset, and returns to the UDOS prompt
-  - `make vice-action-avmrun-flow` now runs `UDOSFLOW.AVM` from the mounted
-    Action workspace through `AVMRUNC.PRG` and proves the current constrained
-    compat/interpreter subset can handle `jump`, `call`, and `ret` before
-    returning to the UDOS prompt
-  - `make vice-action-avmrun-runtime` now prepares focused runtime samples on
-    the mounted Action workspace and proves the current narrow interpreted
-    subset can execute `push16`, `add`, `sub`, `eq`, `ne`, `lt`, and `gt`
-    through `AVMRUNC.PRG`
-  - `make vice-action-avmrun-stdprint-fast` now prepares a synthetic trailer-backed
-    `FASTSTD.AVM`, removes `RT_PRINT_STD_HELPER.BIN`, `AVMRUN_OVL1.BIN`, and
-    `AVMRUN_OVL3.BIN` from the mounted Action workspace, then proves `AVMRUN.PRG`
-    can still print `HELLO` through the resident Acheron fast path using only the
-    program-owned standard-print native helper trailer
-  - `make vice-action-avmrun-realprint-fast` now prepares a synthetic
-    trailer-backed `FASTREAL.AVM`, removes `RT_PRINT_F_HELPER.BIN`,
-    `AVMRUN_OVL1.BIN`, `AVMRUN_OVL2.BIN`, and `AVMRUN_OVL3.BIN` from the
-    mounted Action workspace, then proves `AVMRUN.PRG` can still print `7`
-    through the resident Acheron fast path using only the program-owned
-    REAL-print native helper trailer
-
 Current command parser rule:
 - shell keywords require a separator before arguments
 - direct drive tokens like `A:` and `B:` switch the current logical drive and keep that drive's current directory
