@@ -237,23 +237,27 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
     "runtime_sprite_pos_helper_linked": {
         "seed_object": (
             "OBJ1\n"
-            "x main 0 25\n"
+            "x main 0 31\n"
             "b u0M\n"
             "u rt_sprite_pos\n"
-            "m A2 02 A9 34 A0 56 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
-            "r 7 u0\n"
+            "m A9 00 8D 10 D0 A9 02 A2 34 A0 56 38 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 13 u0\n"
             "n main\n"
         ),
         "has_stub": False,
         "runtime_library_objects": ["rt_sprite_pos"],
         "expected_tail": bytes.fromhex(
-            "A202A934A056201910A9A58DD003A90085028503A2024C0FCF"
-            "488A0AAA689D00D0989D01D060"
+            "A9008D10D0A902A234A05638201F10A9A58DD003A90085028503A2024C0FCF"
+            "850286039013A901A602F0040ACAD0FC0D10D08D10D0189012"
+            "A901A602F0040ACAD0FC49FF2D10D08D10D0A5020AAAA5039D00D0989D01D060"
         ),
         "store_check_addr": 0xD004,
         "store_check_value": 0x34,
         "store_check_hi_addr": 0xD005,
         "store_check_hi_value": 0x56,
+        "extra_store_checks": [
+            {"addr": 0xD010, "value": 0x04, "mask": 0x04},
+        ],
         "expected_alink_loads": ["LIB/RT_SPRITE_POS.OBJ"],
     },
     "runtime_sprite_data_helper_linked": {
@@ -1660,6 +1664,27 @@ def run_prg_phase(
                     result["store_hi_addr"] = store_addr
                     result["store_hi_value"] = store_value
                     result["store_hi_mask"] = store_mask
+                extra_checks = case.get("extra_store_checks", [])
+                if isinstance(extra_checks, list):
+                    for index, check in enumerate(extra_checks):
+                        if not isinstance(check, dict):
+                            continue
+                        store_addr = int(check["addr"])
+                        store_value = client.memory_get(store_addr, store_addr)[0]
+                        expected_value = int(check["value"])
+                        store_mask = int(check.get("mask", 0xFF))
+                        comparable_value = store_value & store_mask
+                        comparable_expected = expected_value & store_mask
+                        if comparable_value != comparable_expected:
+                            raise vp.ViceError(
+                                f"direct PRG extra store check {index} failed at 0x{store_addr:04X}: "
+                                f"got 0x{store_value:02X}, expected 0x{expected_value:02X} "
+                                f"with mask 0x{store_mask:02X}\n"
+                                f"screen:\n{last_screen}"
+                            )
+                        result[f"extra_store_{index}_addr"] = store_addr
+                        result[f"extra_store_{index}_value"] = store_value
+                        result[f"extra_store_{index}_mask"] = store_mask
                 screen_fragments = case.get("screen_fragments", [])
                 if isinstance(screen_fragments, list):
                     for fragment in screen_fragments:
