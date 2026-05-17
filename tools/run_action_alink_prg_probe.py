@@ -260,6 +260,22 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "expected_tail": bytes.fromhex("A9A58DD003A90085028503A2024C0FCF"),
         "unexpected_alink_loads": ["OBJ/MISSING.OBJ", "LIB/MISSING.OBJ"],
     },
+    "object_code_root_unused_export_import_ignored": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 16\n"
+            "x unused 16 4\n"
+            "b M\n"
+            "b u0M\n"
+            "u missing\n"
+            "m A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF 20 00 00 60\n"
+            "r 17 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A9A58DD003A90085028503A2024C0FCF"),
+        "unexpected_alink_loads": ["OBJ/MISSING.OBJ", "LIB/MISSING.OBJ"],
+    },
     "object_code_external_offset_transitive_call": {
         "seed_object": (
             "OBJ1\n"
