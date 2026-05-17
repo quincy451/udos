@@ -247,6 +247,19 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF60"),
         "expected_alink_loads": ["LIB/HELPER.OBJ"],
     },
+    "object_code_root_unused_import_ignored": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 16\n"
+            "b M\n"
+            "u missing\n"
+            "m A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "expected_tail": bytes.fromhex("A9A58DD003A90085028503A2024C0FCF"),
+        "unexpected_alink_loads": ["OBJ/MISSING.OBJ", "LIB/MISSING.OBJ"],
+    },
     "object_code_external_offset_transitive_call": {
         "seed_object": (
             "OBJ1\n"
@@ -264,6 +277,34 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         },
         "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF2017106060"),
         "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ"],
+    },
+    "object_code_external_unused_import_ignored": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 19\n"
+            "b u0M\n"
+            "u a\n"
+            "m 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": (
+                "OBJ1\n"
+                "x a 0 1\n"
+                "x unused 1 4\n"
+                "b M\n"
+                "b u0M\n"
+                "u missing\n"
+                "m 60 20 00 00 60\n"
+                "r 2 u0\n"
+                "n a\n"
+            ),
+        },
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF60"),
+        "expected_alink_loads": ["LIB/A.OBJ"],
+        "unexpected_alink_loads": ["OBJ/MISSING.OBJ", "LIB/MISSING.OBJ"],
     },
     "object_code_external_call_twice": {
         "seed_object": (
@@ -317,10 +358,9 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "D9.OBJ": "OBJ1\nx d9 0 1\nb M\nm 60\nn d9\n",
             "HELPER.OBJ": "OBJ1\nx helper 0 1\nb M\nm 60\nn helper\n",
         },
-        "expected_tail": bytes.fromhex(
-            "201D10A9A58DD003A90085028503A2024C0FCF6060606060606060606060"
-        ),
-        "expected_alink_loads": [
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF60"),
+        "expected_alink_loads": ["LIB/HELPER.OBJ"],
+        "unexpected_alink_loads": [
             "LIB/D0.OBJ",
             "LIB/D1.OBJ",
             "LIB/D2.OBJ",
@@ -331,7 +371,6 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/D7.OBJ",
             "LIB/D8.OBJ",
             "LIB/D9.OBJ",
-            "LIB/HELPER.OBJ",
         ],
     },
     "object_code_external_pair": {
