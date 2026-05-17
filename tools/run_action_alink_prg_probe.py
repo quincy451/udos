@@ -403,6 +403,91 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "expected_alink_loads": ["OBJ/A.OBJ", "LIB/B.OBJ", "LIB/C.OBJ"],
         "unexpected_alink_loads": ["LIB/A.OBJ"],
     },
+    "object_code_unresolved_import_rejects": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 19\n"
+            "b u0M\n"
+            "u missing\n"
+            "m 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "expect_alink_failure": True,
+        "expected_alink_error": "NO OBJECT",
+    },
+    "object_code_duplicate_export_rejects": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 16\n"
+            "x main 0 16\n"
+            "b M\n"
+            "m A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "expect_alink_failure": True,
+        "expected_alink_error": "BAD OBJECT",
+    },
+    "object_code_library_wrong_export_rejects": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 19\n"
+            "b u0M\n"
+            "u a\n"
+            "m 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx z 0 1\nb M\nm 60\nn z\n",
+        },
+        "expect_alink_failure": True,
+        "expected_alink_error": "BAD OBJECT",
+        "expected_alink_loads": ["LIB/A.OBJ"],
+    },
+    "object_code_project_wrong_export_blocks_library_fallback": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 19\n"
+            "b u0M\n"
+            "u a\n"
+            "m 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_objects": {
+            "A.OBJ": "OBJ1\nx z 0 1\nb M\nm 60\nn z\n",
+        },
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 1\nb M\nm 60\nn a\n",
+        },
+        "expect_alink_failure": True,
+        "expected_alink_error": "BAD OBJECT",
+        "expected_alink_loads": ["OBJ/A.OBJ"],
+        "unexpected_alink_loads": ["LIB/A.OBJ"],
+    },
+    "object_code_external_cycle": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 19\n"
+            "b u0M\n"
+            "u a\n"
+            "m 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": "OBJ1\nx a 0 4\nb u0M\nu b\nm 20 00 00 60\nr 1 u0\nn a\n",
+            "B.OBJ": "OBJ1\nx b 0 1\nb M\nu a\nm 60\nn b\n",
+        },
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF2017106060"),
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/B.OBJ"],
+    },
     "object_code_external_triangle": {
         "seed_object": (
             "OBJ1\n"
@@ -1093,17 +1178,21 @@ def expect_alink_rejection(project_root: Path, shape: str) -> dict[str, object]:
         error_text = str(exc).strip()
         console = ""
         exit_status: int | None = None
+        failure_summary: dict[str, object] | None = None
         try:
-            failure_summary = json.loads(error_text)
-            if isinstance(failure_summary, dict):
-                raw_console = failure_summary.get("console", "")
+            decoded = json.loads(error_text)
+            if isinstance(decoded, dict):
+                failure_summary = decoded
+                raw_console = decoded.get("console", "")
                 if isinstance(raw_console, str):
                     console = raw_console.strip()
-                raw_status = failure_summary.get("exit_status")
+                raw_status = decoded.get("exit_status")
                 if isinstance(raw_status, int):
                     exit_status = raw_status
         except json.JSONDecodeError:
             pass
+        if failure_summary is not None:
+            verify_alink_dependency_loads(failure_summary, shape)
         expected_error = case.get("expected_alink_error")
         if isinstance(expected_error, str) and expected_error:
             diagnostic = console or error_text
