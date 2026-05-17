@@ -306,6 +306,64 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "expected_alink_loads": ["LIB/A.OBJ"],
         "unexpected_alink_loads": ["OBJ/MISSING.OBJ", "LIB/MISSING.OBJ"],
     },
+    "object_code_external_lettered_import_pruned": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 19\n"
+            "b u0M\n"
+            "u a\n"
+            "m 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "A.OBJ": (
+                "OBJ1\n"
+                "x a 0 4\n"
+                "b uAM\n"
+                "u d0\n"
+                "u d1\n"
+                "u d2\n"
+                "u d3\n"
+                "u d4\n"
+                "u d5\n"
+                "u d6\n"
+                "u d7\n"
+                "u d8\n"
+                "u d9\n"
+                "u helper\n"
+                "m 20 00 00 60\n"
+                "r 1 uA\n"
+                "n a\n"
+            ),
+            "D0.OBJ": "OBJ1\nx d0 0 1\nb M\nm 60\nn d0\n",
+            "D1.OBJ": "OBJ1\nx d1 0 1\nb M\nm 60\nn d1\n",
+            "D2.OBJ": "OBJ1\nx d2 0 1\nb M\nm 60\nn d2\n",
+            "D3.OBJ": "OBJ1\nx d3 0 1\nb M\nm 60\nn d3\n",
+            "D4.OBJ": "OBJ1\nx d4 0 1\nb M\nm 60\nn d4\n",
+            "D5.OBJ": "OBJ1\nx d5 0 1\nb M\nm 60\nn d5\n",
+            "D6.OBJ": "OBJ1\nx d6 0 1\nb M\nm 60\nn d6\n",
+            "D7.OBJ": "OBJ1\nx d7 0 1\nb M\nm 60\nn d7\n",
+            "D8.OBJ": "OBJ1\nx d8 0 1\nb M\nm 60\nn d8\n",
+            "D9.OBJ": "OBJ1\nx d9 0 1\nb M\nm 60\nn d9\n",
+            "HELPER.OBJ": "OBJ1\nx helper 0 1\nb M\nm 60\nn helper\n",
+        },
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF2017106060"),
+        "expected_alink_loads": ["LIB/A.OBJ", "LIB/HELPER.OBJ"],
+        "unexpected_alink_loads": [
+            "LIB/D0.OBJ",
+            "LIB/D1.OBJ",
+            "LIB/D2.OBJ",
+            "LIB/D3.OBJ",
+            "LIB/D4.OBJ",
+            "LIB/D5.OBJ",
+            "LIB/D6.OBJ",
+            "LIB/D7.OBJ",
+            "LIB/D8.OBJ",
+            "LIB/D9.OBJ",
+        ],
+    },
     "object_code_external_call_twice": {
         "seed_object": (
             "OBJ1\n"
