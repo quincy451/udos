@@ -230,6 +230,23 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF60"),
         "expected_alink_loads": ["LIB/HELPER.OBJ"],
     },
+    "object_code_offset_external_call": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 3 19\n"
+            "b u0M\n"
+            "u helper\n"
+            "m EA EA EA 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 4 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_library_objects": {
+            "HELPER.OBJ": "OBJ1\nx helper 0 1\nb M\nm 60\nn helper\n",
+        },
+        "expected_tail": bytes.fromhex("201310A9A58DD003A90085028503A2024C0FCF60"),
+        "expected_alink_loads": ["LIB/HELPER.OBJ"],
+    },
     "object_code_external_call_twice": {
         "seed_object": (
             "OBJ1\n"
