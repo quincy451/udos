@@ -174,6 +174,26 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "screen_fragments": ["1.5"],
         "expected_alink_loads": ["LIB/RT_I_TO_F.OBJ", "LIB/RT_F_DIV.OBJ", "LIB/RT_PRINT_F.OBJ"],
     },
+    "runtime_sprite_on_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 21\n"
+            "b u0M\n"
+            "u rt_sprite_on\n"
+            "m A9 02 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 3 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_on"],
+        "expected_tail": bytes.fromhex(
+            "A902201510A9A58DD003A90085028503A2024C0FCF"
+            "AAA901E000F0040ACAD0FC0D15D08D15D060"
+        ),
+        "store_check_addr": 0xD015,
+        "store_check_value": 0x04,
+        "expected_alink_loads": ["LIB/RT_SPRITE_ON.OBJ"],
+    },
     "empty_return": {
         "seed_object": "OBJ1\nx main 0 1\nb r\nn main\n",
         "has_stub": False,
