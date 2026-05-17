@@ -275,6 +275,109 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_value": 0x20,
         "expected_alink_loads": ["LIB/RT_SPRITE_DATA.OBJ"],
     },
+    "runtime_sprite_mc_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 28\n"
+            "b u0M\n"
+            "u rt_sprite_mc\n"
+            "m A9 00 8D 1C D0 A0 01 A9 02 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 10 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_mc"],
+        "expected_tail": bytes.fromhex(
+            "A9008D1CD0A001A902201C10A9A58DD003A90085028503A2024C0FCF"
+            "AAA901E000F0040ACAD0FCC000F0070D1CD08D1CD06049FF2D1CD08D1CD060"
+        ),
+        "store_check_addr": 0xD01C,
+        "store_check_value": 0x04,
+        "expected_alink_loads": ["LIB/RT_SPRITE_MC.OBJ"],
+    },
+    "runtime_sprite_xexp_clear_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 28\n"
+            "b u0M\n"
+            "u rt_sprite_xexp\n"
+            "m A9 FF 8D 1D D0 A0 00 A9 02 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 10 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_xexp"],
+        "expected_tail": bytes.fromhex(
+            "A9FF8D1DD0A000A902201C10A9A58DD003A90085028503A2024C0FCF"
+            "AAA901E000F0040ACAD0FCC000F0070D1DD08D1DD06049FF2D1DD08D1DD060"
+        ),
+        "store_check_addr": 0xD01D,
+        "store_check_value": 0xFB,
+        "expected_alink_loads": ["LIB/RT_SPRITE_XEXP.OBJ"],
+    },
+    "runtime_sprite_yexp_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 28\n"
+            "b u0M\n"
+            "u rt_sprite_yexp\n"
+            "m A9 00 8D 17 D0 A0 01 A9 02 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 10 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_yexp"],
+        "expected_tail": bytes.fromhex(
+            "A9008D17D0A001A902201C10A9A58DD003A90085028503A2024C0FCF"
+            "AAA901E000F0040ACAD0FCC000F0070D17D08D17D06049FF2D17D08D17D060"
+        ),
+        "store_check_addr": 0xD017,
+        "store_check_value": 0x04,
+        "expected_alink_loads": ["LIB/RT_SPRITE_YEXP.OBJ"],
+    },
+    "runtime_sprite_prio_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 28\n"
+            "b u0M\n"
+            "u rt_sprite_prio\n"
+            "m A9 00 8D 1B D0 A0 01 A9 02 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 10 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_prio"],
+        "expected_tail": bytes.fromhex(
+            "A9008D1BD0A001A902201C10A9A58DD003A90085028503A2024C0FCF"
+            "AAA901E000F0040ACAD0FCC000F0070D1BD08D1BD06049FF2D1BD08D1BD060"
+        ),
+        "store_check_addr": 0xD01B,
+        "store_check_value": 0x04,
+        "expected_alink_loads": ["LIB/RT_SPRITE_PRIO.OBJ"],
+    },
+    "runtime_sprite_set_mc_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 23\n"
+            "b u0M\n"
+            "u rt_sprite_set_mc\n"
+            "m A2 0A A9 05 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 5 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_set_mc"],
+        "expected_tail": bytes.fromhex(
+            "A20AA905201710A9A58DD003A90085028503A2024C0FCF8D25D08E26D060"
+        ),
+        "store_check_addr": 0xD025,
+        "store_check_value": 0x05,
+        "store_check_mask": 0x0F,
+        "store_check_hi_addr": 0xD026,
+        "store_check_hi_value": 0x0A,
+        "store_check_hi_mask": 0x0F,
+        "expected_alink_loads": ["LIB/RT_SPRITE_SET_MC.OBJ"],
+    },
     "empty_return": {
         "seed_object": "OBJ1\nx main 0 1\nb r\nn main\n",
         "has_stub": False,
