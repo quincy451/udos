@@ -617,6 +617,42 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_SID_VOLUME_STATE.OBJ",
         ],
     },
+    "actc_runtime_sound_compat_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSound(1,52,10,6)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sound", "rt_sid_state", "rt_sid_volume_state"],
+        "expected_object_fragments": [
+            "b p0p1p2p3u0r\n",
+            "u rt_sound\n",
+            "i 1\n",
+            "i 52\n",
+            "i 10\n",
+            "i 6\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A9068502A901A234A00A201D10A9A58DD003A90085028503A2024C0FCF"
+            "850386048405A502290F8506A5030A0A0A38E5038507AAA9FF38E5048508"
+            "0A0A0A0A0A9D00D4A5084A4A4A9D01D4A505C90CB00CC908B00CC904B00C"
+            "A910D00AA980D006A940D002A92009018509A603A5099D8510A6079D04D4"
+            "AD881029F005068D88108D18D460"
+            "00000000"
+        ),
+        "store_check_addr": 0xD407,
+        "store_check_value": 0x60,
+        "store_check_hi_addr": 0xD408,
+        "store_check_hi_value": 0x19,
+        "extra_store_checks": [
+            {"addr": 0xD40B, "value": 0x41},
+            {"addr": 0x1086, "value": 0x41},
+            {"addr": 0xD418, "value": 0x06},
+            {"addr": 0x1088, "value": 0x06},
+        ],
+        "expected_alink_loads": [
+            "LIB/RT_SOUND.OBJ",
+            "LIB/RT_SID_STATE.OBJ",
+            "LIB/RT_SID_VOLUME_STATE.OBJ",
+        ],
+    },
     "runtime_sprite_collision_helpers_linked": {
         "seed_object": (
             "OBJ1\n"
