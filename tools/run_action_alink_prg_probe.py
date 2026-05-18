@@ -247,14 +247,18 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "n main\n"
         ),
         "has_stub": False,
-        "runtime_library_objects": ["rt_sid_wave"],
+        "runtime_library_objects": ["rt_sid_wave", "rt_sid_state"],
         "expected_tail": bytes.fromhex(
             "A9018D0BD4A901A040201C10A9A58DD003A90085028503A2024C0FCF"
-            "85028403A5020A0A0A38E502186904AAA5039D00D460"
+            "85028403AAA5039D3810A5020A0A0A38E502186904AAA5039D00D460"
+            "000000"
         ),
         "store_check_addr": 0xD40B,
         "store_check_value": 0x40,
-        "expected_alink_loads": ["LIB/RT_SID_WAVE.OBJ"],
+        "extra_store_checks": [
+            {"addr": 0x1039, "value": 0x40},
+        ],
+        "expected_alink_loads": ["LIB/RT_SID_WAVE.OBJ", "LIB/RT_SID_STATE.OBJ"],
     },
     "runtime_sid_ad_helper_linked": {
         "seed_object": (
@@ -295,6 +299,33 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_addr": 0xD40D,
         "store_check_value": 0xF8,
         "expected_alink_loads": ["LIB/RT_SID_SR.OBJ"],
+    },
+    "runtime_sid_on_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 28\n"
+            "b u0u1M\n"
+            "u rt_sid_wave\n"
+            "u rt_sid_on\n"
+            "m A9 01 A0 40 20 00 00 A9 01 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 5 u0\n"
+            "r 10 u1\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_wave", "rt_sid_on", "rt_sid_state"],
+        "expected_tail": bytes.fromhex(
+            "A901A040201C10A901203810A9A58DD003A90085028503A2024C0FCF"
+            "85028403AAA5039D5710A5020A0A0A38E502186904AAA5039D00D460"
+            "8502AABD571009019D57108503A5020A0A0A38E502186904AAA5039D00D460"
+            "000000"
+        ),
+        "store_check_addr": 0xD40B,
+        "store_check_value": 0x41,
+        "extra_store_checks": [
+            {"addr": 0x1058, "value": 0x41},
+        ],
+        "expected_alink_loads": ["LIB/RT_SID_WAVE.OBJ", "LIB/RT_SID_ON.OBJ", "LIB/RT_SID_STATE.OBJ"],
     },
     "runtime_sprite_off_helper_linked": {
         "seed_object": (
