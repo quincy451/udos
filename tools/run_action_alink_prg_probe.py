@@ -544,6 +544,30 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ],
         "expected_alink_loads": ["LIB/RT_SID_WAVE.OBJ", "LIB/RT_SID_ON.OBJ", "LIB/RT_SID_STATE.OBJ"],
     },
+    "actc_runtime_sid_on_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidWave(1,64)\rSidOn(1)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_wave", "rt_sid_on", "rt_sid_state"],
+        "expected_object_fragments": [
+            "b p0p1u0p2u1r\n",
+            "u rt_sid_wave\n",
+            "u rt_sid_on\n",
+            "i 1\n",
+            "i 64\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A901A040201C10A901203810A9A58DD003A90085028503A2024C0FCF"
+            "85028403AAA5039D5710A5020A0A0A38E502186904AAA5039D00D460"
+            "8502AABD571009019D57108503A5020A0A0A38E502186904AAA5039D00D460"
+            "000000"
+        ),
+        "store_check_addr": 0xD40B,
+        "store_check_value": 0x41,
+        "extra_store_checks": [
+            {"addr": 0x1058, "value": 0x41},
+        ],
+        "expected_alink_loads": ["LIB/RT_SID_WAVE.OBJ", "LIB/RT_SID_ON.OBJ", "LIB/RT_SID_STATE.OBJ"],
+    },
     "runtime_sid_off_helper_linked": {
         "seed_object": (
             "OBJ1\n"
@@ -568,7 +592,38 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "000000"
         ),
         "store_check_addr": 0xD40B,
-        "store_check_value": 0x40,
+        "store_check_value": 0x00,
+        "extra_store_checks": [
+            {"addr": 0x107C, "value": 0x40},
+        ],
+        "expected_alink_loads": [
+            "LIB/RT_SID_WAVE.OBJ",
+            "LIB/RT_SID_ON.OBJ",
+            "LIB/RT_SID_OFF.OBJ",
+            "LIB/RT_SID_STATE.OBJ",
+        ],
+    },
+    "actc_runtime_sid_off_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidWave(1,64)\rSidOn(1)\rSidOff(1)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_wave", "rt_sid_on", "rt_sid_off", "rt_sid_state"],
+        "expected_object_fragments": [
+            "b p0p1u0p2u1p3u2r\n",
+            "u rt_sid_wave\n",
+            "u rt_sid_on\n",
+            "u rt_sid_off\n",
+            "i 1\n",
+            "i 64\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A901A040202110A901203D10A901205C10A9A58DD003A90085028503A2024C0FCF"
+            "85028403AAA5039D7B10A5020A0A0A38E502186904AAA5039D00D460"
+            "8502AABD7B1009019D7B108503A5020A0A0A38E502186904AAA5039D00D460"
+            "8502AABD7B1029FE9D7B108503A5020A0A0A38E502186904AAA5039D00D460"
+            "000000"
+        ),
+        "store_check_addr": 0xD40B,
+        "store_check_value": 0x00,
         "extra_store_checks": [
             {"addr": 0x107C, "value": 0x40},
         ],
@@ -2593,6 +2648,7 @@ def run_prg_phase(
         )
         avp.type_command(client, "CD BIN", PRG_PHASE_TIMEOUT)
         avp.wait_for_screen_fragments(client, [bin_prompt], PRG_PHASE_TIMEOUT)
+        client.memory_set(DIRECT_PRG_EXIT_MARKER_ADDR, b"\x00")
         avp.type_command(client, "MAIN.PRG", PRG_PHASE_TIMEOUT)
         deadline = time.monotonic() + PRG_PHASE_TIMEOUT
         last_screen = ""
