@@ -716,6 +716,24 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_mask": 0x0F,
         "expected_alink_loads": ["LIB/RT_SPRITE_COLOR.OBJ"],
     },
+    "actc_runtime_sprite_color_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSpriteColor(2,6)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_color"],
+        "expected_object_fragments": [
+            "b p0p1u0r\n",
+            "u rt_sprite_color\n",
+            "i 2\n",
+            "i 6\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A202A906201710A9A58DD003A90085028503A2024C0FCF9D27D060"
+        ),
+        "store_check_addr": 0xD029,
+        "store_check_value": 0x06,
+        "store_check_mask": 0x0F,
+        "expected_alink_loads": ["LIB/RT_SPRITE_COLOR.OBJ"],
+    },
     "runtime_sprite_pos_helper_linked": {
         "seed_object": (
             "OBJ1\n"
