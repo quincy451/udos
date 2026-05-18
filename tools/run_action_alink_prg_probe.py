@@ -327,6 +327,41 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ],
         "expected_alink_loads": ["LIB/RT_SID_WAVE.OBJ", "LIB/RT_SID_ON.OBJ", "LIB/RT_SID_STATE.OBJ"],
     },
+    "runtime_sid_off_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 33\n"
+            "b u0u1u2M\n"
+            "u rt_sid_wave\n"
+            "u rt_sid_on\n"
+            "u rt_sid_off\n"
+            "m A9 01 A0 40 20 00 00 A9 01 20 00 00 A9 01 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 5 u0\n"
+            "r 10 u1\n"
+            "r 15 u2\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_wave", "rt_sid_on", "rt_sid_off", "rt_sid_state"],
+        "expected_tail": bytes.fromhex(
+            "A901A040202110A901203D10A901205C10A9A58DD003A90085028503A2024C0FCF"
+            "85028403AAA5039D7B10A5020A0A0A38E502186904AAA5039D00D460"
+            "8502AABD7B1009019D7B108503A5020A0A0A38E502186904AAA5039D00D460"
+            "8502AABD7B1029FE9D7B108503A5020A0A0A38E502186904AAA5039D00D460"
+            "000000"
+        ),
+        "store_check_addr": 0xD40B,
+        "store_check_value": 0x40,
+        "extra_store_checks": [
+            {"addr": 0x107C, "value": 0x40},
+        ],
+        "expected_alink_loads": [
+            "LIB/RT_SID_WAVE.OBJ",
+            "LIB/RT_SID_ON.OBJ",
+            "LIB/RT_SID_OFF.OBJ",
+            "LIB/RT_SID_STATE.OBJ",
+        ],
+    },
     "runtime_sprite_off_helper_linked": {
         "seed_object": (
             "OBJ1\n"
