@@ -558,6 +558,29 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ),
         "expected_alink_loads": ["LIB/RT_SID_OSC3.OBJ", "LIB/RT_SID_ENV3.OBJ"],
     },
+    "runtime_sprite_collision_helpers_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 22\n"
+            "b u0u1M\n"
+            "u rt_sprite_hit\n"
+            "u rt_sprite_hit_bg\n"
+            "m 20 00 00 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "r 4 u1\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_hit", "rt_sprite_hit_bg"],
+        "expected_tail": bytes.fromhex(
+            "201610201A10A9A58DD003A90085028503A2024C0FCF"
+            "AD1ED060AD1FD060"
+        ),
+        "expected_alink_loads": [
+            "LIB/RT_SPRITE_HIT.OBJ",
+            "LIB/RT_SPRITE_HIT_BG.OBJ",
+        ],
+    },
     "runtime_sprite_off_helper_linked": {
         "seed_object": (
             "OBJ1\n"
