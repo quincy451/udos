@@ -211,6 +211,46 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_value": 0x04,
         "expected_alink_loads": ["LIB/RT_SPRITE_ON.OBJ"],
     },
+    "runtime_gfx_bgcolor_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 21\n"
+            "b u0M\n"
+            "u rt_gfx_bgcolor\n"
+            "m A9 06 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 3 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_gfx_bgcolor"],
+        "expected_tail": bytes.fromhex(
+            "A906201510A9A58DD003A90085028503A2024C0FCF290F8D21D060"
+        ),
+        "store_check_addr": 0xD021,
+        "store_check_value": 0x06,
+        "store_check_mask": 0x0F,
+        "expected_alink_loads": ["LIB/RT_GFX_BGCOLOR.OBJ"],
+    },
+    "runtime_gfx_bordercolor_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 21\n"
+            "b u0M\n"
+            "u rt_gfx_bordercolor\n"
+            "m A9 1E 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 3 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_gfx_bordercolor"],
+        "expected_tail": bytes.fromhex(
+            "A91E201510A9A58DD003A90085028503A2024C0FCF290F8D20D060"
+        ),
+        "store_check_addr": 0xD020,
+        "store_check_value": 0x0E,
+        "store_check_mask": 0x0F,
+        "expected_alink_loads": ["LIB/RT_GFX_BORDERCOLOR.OBJ"],
+    },
     "runtime_sid_vol_helper_linked": {
         "seed_object": (
             "OBJ1\n"
