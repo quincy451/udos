@@ -205,14 +205,50 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "n main\n"
         ),
         "has_stub": False,
-        "runtime_library_objects": ["rt_sid_vol"],
+        "runtime_library_objects": ["rt_sid_vol", "rt_sid_volume_state"],
         "expected_tail": bytes.fromhex(
-            "A90A201510A9A58DD003A90085028503A2024C0FCF290F8D18D460"
+            "A90A201510A9A58DD003A90085028503A2024C0FCF"
+            "8502AD2B1029F08503A502290F05038D2B108D18D460"
+            "00"
         ),
         "store_check_addr": 0xD418,
         "store_check_value": 0x0A,
         "store_check_mask": 0x0F,
-        "expected_alink_loads": ["LIB/RT_SID_VOL.OBJ"],
+        "extra_store_checks": [
+            {"addr": 0x102B, "value": 0x0A},
+        ],
+        "expected_alink_loads": ["LIB/RT_SID_VOL.OBJ", "LIB/RT_SID_VOLUME_STATE.OBJ"],
+    },
+    "runtime_sid_mode_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 26\n"
+            "b u0u1M\n"
+            "u rt_sid_vol\n"
+            "u rt_sid_mode\n"
+            "m A9 0A 20 00 00 A9 30 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 3 u0\n"
+            "r 8 u1\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_vol", "rt_sid_mode", "rt_sid_volume_state"],
+        "expected_tail": bytes.fromhex(
+            "A90A201A10A930203010A9A58DD003A90085028503A2024C0FCF"
+            "8502AD461029F08503A502290F05038D46108D18D460"
+            "8502AD4610290F8503A50229F005038D46108D18D460"
+            "00"
+        ),
+        "store_check_addr": 0xD418,
+        "store_check_value": 0x3A,
+        "extra_store_checks": [
+            {"addr": 0x1046, "value": 0x3A},
+        ],
+        "expected_alink_loads": [
+            "LIB/RT_SID_VOL.OBJ",
+            "LIB/RT_SID_MODE.OBJ",
+            "LIB/RT_SID_VOLUME_STATE.OBJ",
+        ],
     },
     "runtime_sid_freq_helper_linked": {
         "seed_object": (
@@ -397,24 +433,31 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "n main\n"
         ),
         "has_stub": False,
-        "runtime_library_objects": ["rt_sid_rst", "rt_sid_state", "rt_sid_filter_state"],
+        "runtime_library_objects": [
+            "rt_sid_rst",
+            "rt_sid_state",
+            "rt_sid_filter_state",
+            "rt_sid_volume_state",
+        ],
         "expected_tail": bytes.fromhex(
-            "A9FF8D0BD4A90A8D18D4A201A9559D3A10202410A9A58DD003A90085028503A2024C0FCF"
-            "A900A2189D00D4CA10FAA2029D3A10CA10FA8D3D1060"
-            "00000000"
+            "A9FF8D0BD4A90A8D18D4A201A9559D3D10202410A9A58DD003A90085028503A2024C0FCF"
+            "A900A2189D00D4CA10FAA2029D3D10CA10FA8D40108D411060"
+            "0000000000"
         ),
         "store_check_addr": 0xD40B,
         "store_check_value": 0x00,
         "store_check_hi_addr": 0xD418,
         "store_check_hi_value": 0x00,
         "extra_store_checks": [
-            {"addr": 0x103B, "value": 0x00},
-            {"addr": 0x103D, "value": 0x00},
+            {"addr": 0x103E, "value": 0x00},
+            {"addr": 0x1040, "value": 0x00},
+            {"addr": 0x1041, "value": 0x00},
         ],
         "expected_alink_loads": [
             "LIB/RT_SID_RST.OBJ",
             "LIB/RT_SID_STATE.OBJ",
             "LIB/RT_SID_FILTER_STATE.OBJ",
+            "LIB/RT_SID_VOLUME_STATE.OBJ",
         ],
     },
     "runtime_sid_route_helper_linked": {
