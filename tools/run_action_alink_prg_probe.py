@@ -1514,6 +1514,23 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ],
         "expected_tail": bytes.fromhex("A9A58DD003A90085028503A2024C0FCF"),
     },
+    "actc_empty_ignores_available_runtime_libs": {
+        "source": "MODULE MAIN\rPROC MAIN()\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_on", "rt_sid_freq", "rt_sound", "rt_sid_state"],
+        "expected_object_fragments": [
+            "x main 0 16\n",
+            "b M\n",
+            "m A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n",
+        ],
+        "expected_tail": bytes.fromhex("A9A58DD003A90085028503A2024C0FCF"),
+        "unexpected_alink_loads": [
+            "LIB/RT_SPRITE_ON.OBJ",
+            "LIB/RT_SID_FREQ.OBJ",
+            "LIB/RT_SOUND.OBJ",
+            "LIB/RT_SID_STATE.OBJ",
+        ],
+    },
     "object_code_return": {
         "seed_object": (
             "OBJ1\n"
