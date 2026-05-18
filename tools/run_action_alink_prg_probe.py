@@ -1179,6 +1179,34 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ],
         "expected_alink_loads": ["LIB/RT_SPRITE_POS.OBJ"],
     },
+    "actc_runtime_sprite_pos_low_x_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSpritePos(2,52,86)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_pos"],
+        "expected_object_fragments": [
+            "b p0p1p2u0r\n",
+            "u rt_sprite_pos\n",
+            "i 2\n",
+            "i 52\n",
+            "i 86\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A902A234A05618201A10A9A58DD003A90085028503A2024C0FCF"
+            "850286039013A901A602F0040ACAD0FC0D10D08D10D0189012"
+            "A901A602F0040ACAD0FC49FF2D10D08D10D0A5020AAAA5039D00D0989D01D060"
+        ),
+        "pre_run_memory": [
+            {"addr": 0xD010, "value": 0xFF},
+        ],
+        "store_check_addr": 0xD004,
+        "store_check_value": 0x34,
+        "store_check_hi_addr": 0xD005,
+        "store_check_hi_value": 0x56,
+        "extra_store_checks": [
+            {"addr": 0xD010, "value": 0xFB},
+        ],
+        "expected_alink_loads": ["LIB/RT_SPRITE_POS.OBJ"],
+    },
     "runtime_sprite_data_helper_linked": {
         "seed_object": (
             "OBJ1\n"
@@ -1328,6 +1356,27 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ),
         "store_check_addr": 0xD01D,
         "store_check_value": 0x04,
+        "expected_alink_loads": ["LIB/RT_SPRITE_XEXP.OBJ"],
+    },
+    "actc_runtime_sprite_xexp_clear_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSpriteXExp(2,0)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_xexp"],
+        "expected_object_fragments": [
+            "b p0p1u0r\n",
+            "u rt_sprite_xexp\n",
+            "i 2\n",
+            "i 0\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A902A000201710A9A58DD003A90085028503A2024C0FCF"
+            "AAA901E000F0040ACAD0FCC000F0070D1DD08D1DD06049FF2D1DD08D1DD060"
+        ),
+        "pre_run_memory": [
+            {"addr": 0xD01D, "value": 0xFF},
+        ],
+        "store_check_addr": 0xD01D,
+        "store_check_value": 0xFB,
         "expected_alink_loads": ["LIB/RT_SPRITE_XEXP.OBJ"],
     },
     "runtime_sprite_yexp_helper_linked": {
@@ -2682,6 +2731,14 @@ def run_prg_phase(
         )
         avp.type_command(client, "CD BIN", PRG_PHASE_TIMEOUT)
         avp.wait_for_screen_fragments(client, [bin_prompt], PRG_PHASE_TIMEOUT)
+        pre_run_memory = case.get("pre_run_memory", [])
+        if isinstance(pre_run_memory, list):
+            for init in pre_run_memory:
+                if not isinstance(init, dict):
+                    continue
+                addr = int(init["addr"])
+                value = int(init["value"]) & 0xFF
+                client.memory_set(addr, bytes([value]))
         client.memory_set(DIRECT_PRG_EXIT_MARKER_ADDR, b"\x00")
         avp.type_command(client, "MAIN.PRG", PRG_PHASE_TIMEOUT)
         deadline = time.monotonic() + PRG_PHASE_TIMEOUT
