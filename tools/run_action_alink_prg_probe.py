@@ -619,6 +619,40 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_SID_VOLUME_STATE.OBJ",
         ],
     },
+    "actc_runtime_sid_rst_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidRst()\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": [
+            "rt_sid_rst",
+            "rt_sid_state",
+            "rt_sid_filter_state",
+            "rt_sid_volume_state",
+        ],
+        "expected_object_fragments": [
+            "b u0r\n",
+            "u rt_sid_rst\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "201310A9A58DD003A90085028503A2024C0FCF"
+            "A900A2189D00D4CA10FAA2029D2C10CA10FA8D2F108D301060"
+            "0000000000"
+        ),
+        "store_check_addr": 0xD40B,
+        "store_check_value": 0x00,
+        "store_check_hi_addr": 0xD418,
+        "store_check_hi_value": 0x00,
+        "extra_store_checks": [
+            {"addr": 0x102D, "value": 0x00},
+            {"addr": 0x102F, "value": 0x00},
+            {"addr": 0x1030, "value": 0x00},
+        ],
+        "expected_alink_loads": [
+            "LIB/RT_SID_RST.OBJ",
+            "LIB/RT_SID_STATE.OBJ",
+            "LIB/RT_SID_FILTER_STATE.OBJ",
+            "LIB/RT_SID_VOLUME_STATE.OBJ",
+        ],
+    },
     "runtime_sid_route_helper_linked": {
         "seed_object": (
             "OBJ1\n"
@@ -779,6 +813,34 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ),
         "expected_alink_loads": ["LIB/RT_SID_OSC3.OBJ", "LIB/RT_SID_ENV3.OBJ"],
     },
+    "actc_runtime_sid_osc3_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidOsc3()\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_osc3"],
+        "expected_object_fragments": [
+            "b u0r\n",
+            "u rt_sid_osc3\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "201310A9A58DD003A90085028503A2024C0FCF"
+            "AD1BD460"
+        ),
+        "expected_alink_loads": ["LIB/RT_SID_OSC3.OBJ"],
+    },
+    "actc_runtime_sid_env3_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidEnv3()\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_env3"],
+        "expected_object_fragments": [
+            "b u0r\n",
+            "u rt_sid_env3\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "201310A9A58DD003A90085028503A2024C0FCF"
+            "AD1CD460"
+        ),
+        "expected_alink_loads": ["LIB/RT_SID_ENV3.OBJ"],
+    },
     "runtime_sound_compat_helper_linked": {
         "seed_object": (
             "OBJ1\n"
@@ -873,6 +935,34 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_SPRITE_HIT.OBJ",
             "LIB/RT_SPRITE_HIT_BG.OBJ",
         ],
+    },
+    "actc_runtime_sprite_hit_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSpriteHit()\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_hit"],
+        "expected_object_fragments": [
+            "b u0r\n",
+            "u rt_sprite_hit\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "201310A9A58DD003A90085028503A2024C0FCF"
+            "AD1ED060"
+        ),
+        "expected_alink_loads": ["LIB/RT_SPRITE_HIT.OBJ"],
+    },
+    "actc_runtime_sprite_hit_bg_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSpriteHitBg()\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_hit_bg"],
+        "expected_object_fragments": [
+            "b u0r\n",
+            "u rt_sprite_hit_bg\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "201310A9A58DD003A90085028503A2024C0FCF"
+            "AD1FD060"
+        ),
+        "expected_alink_loads": ["LIB/RT_SPRITE_HIT_BG.OBJ"],
     },
     "runtime_sprite_off_helper_linked": {
         "seed_object": (
