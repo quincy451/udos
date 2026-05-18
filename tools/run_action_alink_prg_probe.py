@@ -295,6 +295,26 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_hi_value": 0x12,
         "expected_alink_loads": ["LIB/RT_SID_FREQ.OBJ"],
     },
+    "actc_runtime_sid_freq_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidFreq(1,4660)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_freq"],
+        "expected_object_fragments": [
+            "b p0p1u0r\n",
+            "u rt_sid_freq\n",
+            "i 1\n",
+            "i 4660\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A901A234A012201910A9A58DD003A90085028503A2024C0FCF"
+            "850286038404A5020A0A0A38E502AAA5039D00D4A5049D01D460"
+        ),
+        "store_check_addr": 0xD407,
+        "store_check_value": 0x34,
+        "store_check_hi_addr": 0xD408,
+        "store_check_hi_value": 0x12,
+        "expected_alink_loads": ["LIB/RT_SID_FREQ.OBJ"],
+    },
     "runtime_sid_pulse_helper_linked": {
         "seed_object": (
             "OBJ1\n"
@@ -307,6 +327,26 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ),
         "has_stub": False,
         "runtime_library_objects": ["rt_sid_pulse"],
+        "expected_tail": bytes.fromhex(
+            "A901A234A012201910A9A58DD003A90085028503A2024C0FCF"
+            "850286038404A5020A0A0A38E502AAA5039D02D4A504290F9D03D460"
+        ),
+        "store_check_addr": 0xD409,
+        "store_check_value": 0x34,
+        "store_check_hi_addr": 0xD40A,
+        "store_check_hi_value": 0x02,
+        "expected_alink_loads": ["LIB/RT_SID_PULSE.OBJ"],
+    },
+    "actc_runtime_sid_pulse_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidPulse(1,4660)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_pulse"],
+        "expected_object_fragments": [
+            "b p0p1u0r\n",
+            "u rt_sid_pulse\n",
+            "i 1\n",
+            "i 4660\n",
+        ],
         "expected_tail": bytes.fromhex(
             "A901A234A012201910A9A58DD003A90085028503A2024C0FCF"
             "850286038404A5020A0A0A38E502AAA5039D02D4A504290F9D03D460"
