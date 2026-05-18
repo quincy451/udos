@@ -1035,6 +1035,27 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_hi_mask": 0x0F,
         "expected_alink_loads": ["LIB/RT_SPRITE_SET_MC.OBJ"],
     },
+    "actc_runtime_sprite_set_mc_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSetSpriteMC(5,10)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_set_mc"],
+        "expected_object_fragments": [
+            "b p0p1u0r\n",
+            "u rt_sprite_set_mc\n",
+            "i 5\n",
+            "i 10\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A20AA905201710A9A58DD003A90085028503A2024C0FCF8D25D08E26D060"
+        ),
+        "store_check_addr": 0xD025,
+        "store_check_value": 0x05,
+        "store_check_mask": 0x0F,
+        "store_check_hi_addr": 0xD026,
+        "store_check_hi_value": 0x0A,
+        "store_check_hi_mask": 0x0F,
+        "expected_alink_loads": ["LIB/RT_SPRITE_SET_MC.OBJ"],
+    },
     "empty_return": {
         "seed_object": "OBJ1\nx main 0 1\nb r\nn main\n",
         "has_stub": False,
