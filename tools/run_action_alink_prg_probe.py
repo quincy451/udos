@@ -1320,6 +1320,27 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_value": 0x04,
         "expected_alink_loads": ["LIB/RT_SPRITE_MC.OBJ"],
     },
+    "actc_runtime_sprite_mc_clear_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSpriteMC(2,0)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_mc"],
+        "expected_object_fragments": [
+            "b p0p1u0r\n",
+            "u rt_sprite_mc\n",
+            "i 2\n",
+            "i 0\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A902A000201710A9A58DD003A90085028503A2024C0FCF"
+            "AAA901E000F0040ACAD0FCC000F0070D1CD08D1CD06049FF2D1CD08D1CD060"
+        ),
+        "pre_run_memory": [
+            {"addr": 0xD01C, "value": 0xFF},
+        ],
+        "store_check_addr": 0xD01C,
+        "store_check_value": 0xFB,
+        "expected_alink_loads": ["LIB/RT_SPRITE_MC.OBJ"],
+    },
     "runtime_sprite_xexp_clear_helper_linked": {
         "seed_object": (
             "OBJ1\n"
@@ -1417,6 +1438,27 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_value": 0x04,
         "expected_alink_loads": ["LIB/RT_SPRITE_YEXP.OBJ"],
     },
+    "actc_runtime_sprite_yexp_clear_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSpriteYExp(2,0)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_yexp"],
+        "expected_object_fragments": [
+            "b p0p1u0r\n",
+            "u rt_sprite_yexp\n",
+            "i 2\n",
+            "i 0\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A902A000201710A9A58DD003A90085028503A2024C0FCF"
+            "AAA901E000F0040ACAD0FCC000F0070D17D08D17D06049FF2D17D08D17D060"
+        ),
+        "pre_run_memory": [
+            {"addr": 0xD017, "value": 0xFF},
+        ],
+        "store_check_addr": 0xD017,
+        "store_check_value": 0xFB,
+        "expected_alink_loads": ["LIB/RT_SPRITE_YEXP.OBJ"],
+    },
     "runtime_sprite_prio_helper_linked": {
         "seed_object": (
             "OBJ1\n"
@@ -1453,6 +1495,27 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ),
         "store_check_addr": 0xD01B,
         "store_check_value": 0x04,
+        "expected_alink_loads": ["LIB/RT_SPRITE_PRIO.OBJ"],
+    },
+    "actc_runtime_sprite_prio_clear_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSpritePrio(2,0)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_prio"],
+        "expected_object_fragments": [
+            "b p0p1u0r\n",
+            "u rt_sprite_prio\n",
+            "i 2\n",
+            "i 0\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A902A000201710A9A58DD003A90085028503A2024C0FCF"
+            "AAA901E000F0040ACAD0FCC000F0070D1BD08D1BD06049FF2D1BD08D1BD060"
+        ),
+        "pre_run_memory": [
+            {"addr": 0xD01B, "value": 0xFF},
+        ],
+        "store_check_addr": 0xD01B,
+        "store_check_value": 0xFB,
         "expected_alink_loads": ["LIB/RT_SPRITE_PRIO.OBJ"],
     },
     "runtime_sprite_set_mc_helper_linked": {
