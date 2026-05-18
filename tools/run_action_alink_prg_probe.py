@@ -231,6 +231,23 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_mask": 0x0F,
         "expected_alink_loads": ["LIB/RT_GFX_BGCOLOR.OBJ"],
     },
+    "actc_runtime_gfx_bgcolor_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rBgColor(6)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_gfx_bgcolor"],
+        "expected_object_fragments": [
+            "b p0u0r\n",
+            "u rt_gfx_bgcolor\n",
+            "i 6\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A906201510A9A58DD003A90085028503A2024C0FCF290F8D21D060"
+        ),
+        "store_check_addr": 0xD021,
+        "store_check_value": 0x06,
+        "store_check_mask": 0x0F,
+        "expected_alink_loads": ["LIB/RT_GFX_BGCOLOR.OBJ"],
+    },
     "runtime_gfx_bordercolor_helper_linked": {
         "seed_object": (
             "OBJ1\n"
@@ -243,6 +260,23 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ),
         "has_stub": False,
         "runtime_library_objects": ["rt_gfx_bordercolor"],
+        "expected_tail": bytes.fromhex(
+            "A91E201510A9A58DD003A90085028503A2024C0FCF290F8D20D060"
+        ),
+        "store_check_addr": 0xD020,
+        "store_check_value": 0x0E,
+        "store_check_mask": 0x0F,
+        "expected_alink_loads": ["LIB/RT_GFX_BORDERCOLOR.OBJ"],
+    },
+    "actc_runtime_gfx_bordercolor_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rBorderColor(30)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_gfx_bordercolor"],
+        "expected_object_fragments": [
+            "b p0u0r\n",
+            "u rt_gfx_bordercolor\n",
+            "i 30\n",
+        ],
         "expected_tail": bytes.fromhex(
             "A91E201510A9A58DD003A90085028503A2024C0FCF290F8D20D060"
         ),
