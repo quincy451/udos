@@ -659,6 +659,26 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_hi_value": 0x46,
         "expected_alink_loads": ["LIB/RT_SID_CUTOFF.OBJ"],
     },
+    "actc_runtime_sid_cutoff_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidCutoff(4660)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_cutoff"],
+        "expected_object_fragments": [
+            "b p0u0r\n",
+            "u rt_sid_cutoff\n",
+            "i 4660\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A234A012201710A9A58DD003A90085028503A2024C0FCF"
+            "8A29078D15D48A4A4A4A85029829070A0A0A0A0A05028D16D460"
+        ),
+        "store_check_addr": 0xD415,
+        "store_check_value": 0x04,
+        "store_check_mask": 0x07,
+        "store_check_hi_addr": 0xD416,
+        "store_check_hi_value": 0x46,
+        "expected_alink_loads": ["LIB/RT_SID_CUTOFF.OBJ"],
+    },
     "runtime_sid_readback_helpers_linked": {
         "seed_object": (
             "OBJ1\n"
