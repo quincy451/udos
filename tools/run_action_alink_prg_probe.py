@@ -219,6 +219,29 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ],
         "expected_alink_loads": ["LIB/RT_SID_VOL.OBJ", "LIB/RT_SID_VOLUME_STATE.OBJ"],
     },
+    "actc_runtime_sid_vol_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidVol(10)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_vol", "rt_sid_volume_state"],
+        "expected_object_fragments": [
+            "x main 0 7\n",
+            "b p0u0r\n",
+            "u rt_sid_vol\n",
+            "i 10\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A90A201510A9A58DD003A90085028503A2024C0FCF"
+            "8502AD2B1029F08503A502290F05038D2B108D18D460"
+            "00"
+        ),
+        "store_check_addr": 0xD418,
+        "store_check_value": 0x0A,
+        "store_check_mask": 0x0F,
+        "extra_store_checks": [
+            {"addr": 0x102B, "value": 0x0A},
+        ],
+        "expected_alink_loads": ["LIB/RT_SID_VOL.OBJ", "LIB/RT_SID_VOLUME_STATE.OBJ"],
+    },
     "runtime_sid_mode_helper_linked": {
         "seed_object": (
             "OBJ1\n"
