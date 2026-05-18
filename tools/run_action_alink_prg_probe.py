@@ -381,6 +381,28 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ],
         "expected_alink_loads": ["LIB/RT_SID_WAVE.OBJ", "LIB/RT_SID_STATE.OBJ"],
     },
+    "actc_runtime_sid_wave_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidWave(1,64)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_wave", "rt_sid_state"],
+        "expected_object_fragments": [
+            "b p0p1u0r\n",
+            "u rt_sid_wave\n",
+            "i 1\n",
+            "i 64\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A901A040201710A9A58DD003A90085028503A2024C0FCF"
+            "85028403AAA5039D3310A5020A0A0A38E502186904AAA5039D00D460"
+            "000000"
+        ),
+        "store_check_addr": 0xD40B,
+        "store_check_value": 0x40,
+        "extra_store_checks": [
+            {"addr": 0x1034, "value": 0x40},
+        ],
+        "expected_alink_loads": ["LIB/RT_SID_WAVE.OBJ", "LIB/RT_SID_STATE.OBJ"],
+    },
     "runtime_sid_ad_helper_linked": {
         "seed_object": (
             "OBJ1\n"
@@ -401,6 +423,24 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_value": 0x97,
         "expected_alink_loads": ["LIB/RT_SID_AD.OBJ"],
     },
+    "actc_runtime_sid_ad_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidAD(1,151)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_ad"],
+        "expected_object_fragments": [
+            "b p0p1u0r\n",
+            "u rt_sid_ad\n",
+            "i 1\n",
+            "i 151\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A901A097201710A9A58DD003A90085028503A2024C0FCF"
+            "85028403A5020A0A0A38E502186905AAA5039D00D460"
+        ),
+        "store_check_addr": 0xD40C,
+        "store_check_value": 0x97,
+        "expected_alink_loads": ["LIB/RT_SID_AD.OBJ"],
+    },
     "runtime_sid_sr_helper_linked": {
         "seed_object": (
             "OBJ1\n"
@@ -413,6 +453,24 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ),
         "has_stub": False,
         "runtime_library_objects": ["rt_sid_sr"],
+        "expected_tail": bytes.fromhex(
+            "A901A0F8201710A9A58DD003A90085028503A2024C0FCF"
+            "85028403A5020A0A0A38E502186906AAA5039D00D460"
+        ),
+        "store_check_addr": 0xD40D,
+        "store_check_value": 0xF8,
+        "expected_alink_loads": ["LIB/RT_SID_SR.OBJ"],
+    },
+    "actc_runtime_sid_sr_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidSR(1,248)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_sr"],
+        "expected_object_fragments": [
+            "b p0p1u0r\n",
+            "u rt_sid_sr\n",
+            "i 1\n",
+            "i 248\n",
+        ],
         "expected_tail": bytes.fromhex(
             "A901A0F8201710A9A58DD003A90085028503A2024C0FCF"
             "85028403A5020A0A0A38E502186906AAA5039D00D460"
