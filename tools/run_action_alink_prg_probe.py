@@ -397,20 +397,80 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "n main\n"
         ),
         "has_stub": False,
-        "runtime_library_objects": ["rt_sid_rst", "rt_sid_state"],
+        "runtime_library_objects": ["rt_sid_rst", "rt_sid_state", "rt_sid_filter_state"],
         "expected_tail": bytes.fromhex(
-            "A9FF8D0BD4A90A8D18D4A201A9559D3710202410A9A58DD003A90085028503A2024C0FCF"
-            "A900A2189D00D4CA10FAA2029D3710CA10FA60"
-            "000000"
+            "A9FF8D0BD4A90A8D18D4A201A9559D3A10202410A9A58DD003A90085028503A2024C0FCF"
+            "A900A2189D00D4CA10FAA2029D3A10CA10FA8D3D1060"
+            "00000000"
         ),
         "store_check_addr": 0xD40B,
         "store_check_value": 0x00,
         "store_check_hi_addr": 0xD418,
         "store_check_hi_value": 0x00,
         "extra_store_checks": [
-            {"addr": 0x1038, "value": 0x00},
+            {"addr": 0x103B, "value": 0x00},
+            {"addr": 0x103D, "value": 0x00},
         ],
-        "expected_alink_loads": ["LIB/RT_SID_RST.OBJ", "LIB/RT_SID_STATE.OBJ"],
+        "expected_alink_loads": [
+            "LIB/RT_SID_RST.OBJ",
+            "LIB/RT_SID_STATE.OBJ",
+            "LIB/RT_SID_FILTER_STATE.OBJ",
+        ],
+    },
+    "runtime_sid_route_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 21\n"
+            "b u0M\n"
+            "u rt_sid_route\n"
+            "m A9 07 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 3 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_route", "rt_sid_filter_state"],
+        "expected_tail": bytes.fromhex(
+            "A907201510A9A58DD003A90085028503A2024C0FCF"
+            "8502AD2B1029F08503A502290F05038D2B108D17D460"
+            "00"
+        ),
+        "store_check_addr": 0xD417,
+        "store_check_value": 0x07,
+        "extra_store_checks": [
+            {"addr": 0x102B, "value": 0x07},
+        ],
+        "expected_alink_loads": ["LIB/RT_SID_ROUTE.OBJ", "LIB/RT_SID_FILTER_STATE.OBJ"],
+    },
+    "runtime_sid_res_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 26\n"
+            "b u0u1M\n"
+            "u rt_sid_route\n"
+            "u rt_sid_res\n"
+            "m A9 07 20 00 00 A9 0A 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 3 u0\n"
+            "r 8 u1\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_route", "rt_sid_res", "rt_sid_filter_state"],
+        "expected_tail": bytes.fromhex(
+            "A907201A10A90A203010A9A58DD003A90085028503A2024C0FCF"
+            "8502AD481029F08503A502290F05038D48108D17D460"
+            "8502AD4810290F8503A5020A0A0A0A05038D48108D17D460"
+            "00"
+        ),
+        "store_check_addr": 0xD417,
+        "store_check_value": 0xA7,
+        "extra_store_checks": [
+            {"addr": 0x1048, "value": 0xA7},
+        ],
+        "expected_alink_loads": [
+            "LIB/RT_SID_ROUTE.OBJ",
+            "LIB/RT_SID_RES.OBJ",
+            "LIB/RT_SID_FILTER_STATE.OBJ",
+        ],
     },
     "runtime_sprite_off_helper_linked": {
         "seed_object": (
