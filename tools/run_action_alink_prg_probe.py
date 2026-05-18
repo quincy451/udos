@@ -624,6 +624,26 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_value": 0x80,
         "expected_alink_loads": ["LIB/RT_SPRITE_DATA.OBJ"],
     },
+    "runtime_sprite_ptr_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 23\n"
+            "b u0M\n"
+            "u rt_sprite_ptr\n"
+            "m A2 02 A9 80 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 5 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_ptr"],
+        "expected_tail": bytes.fromhex(
+            "A202A980201710A9A58DD003A90085028503A2024C0FCF"
+            "9DF80760"
+        ),
+        "store_check_addr": 0x07FA,
+        "store_check_value": 0x80,
+        "expected_alink_loads": ["LIB/RT_SPRITE_PTR.OBJ"],
+    },
     "runtime_sprite_mc_helper_linked": {
         "seed_object": (
             "OBJ1\n"
