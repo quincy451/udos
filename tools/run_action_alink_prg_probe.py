@@ -515,6 +515,29 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_SID_FILTER_STATE.OBJ",
         ],
     },
+    "runtime_sid_cutoff_helper_linked": {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 23\n"
+            "b u0M\n"
+            "u rt_sid_cutoff\n"
+            "m A2 34 A0 12 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 5 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_cutoff"],
+        "expected_tail": bytes.fromhex(
+            "A234A012201710A9A58DD003A90085028503A2024C0FCF"
+            "8A29078D15D48A4A4A4A85029829070A0A0A0A0A05028D16D460"
+        ),
+        "store_check_addr": 0xD415,
+        "store_check_value": 0x04,
+        "store_check_mask": 0x07,
+        "store_check_hi_addr": 0xD416,
+        "store_check_hi_value": 0x46,
+        "expected_alink_loads": ["LIB/RT_SID_CUTOFF.OBJ"],
+    },
     "runtime_sprite_off_helper_linked": {
         "seed_object": (
             "OBJ1\n"
