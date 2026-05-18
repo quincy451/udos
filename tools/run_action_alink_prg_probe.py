@@ -194,6 +194,23 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "store_check_value": 0x04,
         "expected_alink_loads": ["LIB/RT_SPRITE_ON.OBJ"],
     },
+    "actc_runtime_sprite_on_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSpriteOn(2)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_on"],
+        "expected_object_fragments": [
+            "b p0u0r\n",
+            "u rt_sprite_on\n",
+            "i 2\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A902201510A9A58DD003A90085028503A2024C0FCF"
+            "AAA901E000F0040ACAD0FC0D15D08D15D060"
+        ),
+        "store_check_addr": 0xD015,
+        "store_check_value": 0x04,
+        "expected_alink_loads": ["LIB/RT_SPRITE_ON.OBJ"],
+    },
     "runtime_sid_vol_helper_linked": {
         "seed_object": (
             "OBJ1\n"
@@ -272,6 +289,27 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_SID_MODE.OBJ",
             "LIB/RT_SID_VOLUME_STATE.OBJ",
         ],
+    },
+    "actc_runtime_sid_mode_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidMode(48)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_mode", "rt_sid_volume_state"],
+        "expected_object_fragments": [
+            "b p0u0r\n",
+            "u rt_sid_mode\n",
+            "i 48\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A930201510A9A58DD003A90085028503A2024C0FCF"
+            "8502AD2B10290F8503A50229F005038D2B108D18D460"
+            "00"
+        ),
+        "store_check_addr": 0xD418,
+        "store_check_value": 0x30,
+        "extra_store_checks": [
+            {"addr": 0x102B, "value": 0x30},
+        ],
+        "expected_alink_loads": ["LIB/RT_SID_MODE.OBJ", "LIB/RT_SID_VOLUME_STATE.OBJ"],
     },
     "runtime_sid_freq_helper_linked": {
         "seed_object": (
@@ -605,6 +643,27 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ],
         "expected_alink_loads": ["LIB/RT_SID_ROUTE.OBJ", "LIB/RT_SID_FILTER_STATE.OBJ"],
     },
+    "actc_runtime_sid_route_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidRoute(7)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_route", "rt_sid_filter_state"],
+        "expected_object_fragments": [
+            "b p0u0r\n",
+            "u rt_sid_route\n",
+            "i 7\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A907201510A9A58DD003A90085028503A2024C0FCF"
+            "8502AD2B1029F08503A502290F05038D2B108D17D460"
+            "00"
+        ),
+        "store_check_addr": 0xD417,
+        "store_check_value": 0x07,
+        "extra_store_checks": [
+            {"addr": 0x102B, "value": 0x07},
+        ],
+        "expected_alink_loads": ["LIB/RT_SID_ROUTE.OBJ", "LIB/RT_SID_FILTER_STATE.OBJ"],
+    },
     "runtime_sid_res_helper_linked": {
         "seed_object": (
             "OBJ1\n"
@@ -635,6 +694,27 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_SID_RES.OBJ",
             "LIB/RT_SID_FILTER_STATE.OBJ",
         ],
+    },
+    "actc_runtime_sid_res_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSidRes(10)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sid_res", "rt_sid_filter_state"],
+        "expected_object_fragments": [
+            "b p0u0r\n",
+            "u rt_sid_res\n",
+            "i 10\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A90A201510A9A58DD003A90085028503A2024C0FCF"
+            "8502AD2D10290F8503A5020A0A0A0A05038D2D108D17D460"
+            "00"
+        ),
+        "store_check_addr": 0xD417,
+        "store_check_value": 0xA0,
+        "extra_store_checks": [
+            {"addr": 0x102D, "value": 0xA0},
+        ],
+        "expected_alink_loads": ["LIB/RT_SID_RES.OBJ", "LIB/RT_SID_FILTER_STATE.OBJ"],
     },
     "runtime_sid_cutoff_helper_linked": {
         "seed_object": (
@@ -812,6 +892,23 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ),
         "store_check_addr": 0xD015,
         "store_check_value": 0xFB,
+        "expected_alink_loads": ["LIB/RT_SPRITE_OFF.OBJ"],
+    },
+    "actc_runtime_sprite_off_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSpriteOff(2)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_off"],
+        "expected_object_fragments": [
+            "b p0u0r\n",
+            "u rt_sprite_off\n",
+            "i 2\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A902201510A9A58DD003A90085028503A2024C0FCF"
+            "AAA901E000F0040ACAD0FC49FF2D15D08D15D060"
+        ),
+        "store_check_addr": 0xD015,
+        "store_check_value": 0x00,
         "expected_alink_loads": ["LIB/RT_SPRITE_OFF.OBJ"],
     },
     "runtime_sprite_color_helper_linked": {
