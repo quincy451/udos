@@ -742,6 +742,31 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ],
         "expected_alink_loads": ["LIB/RT_SPRITE_POS.OBJ"],
     },
+    "actc_runtime_sprite_pos_helper_linked": {
+        "source": "MODULE MAIN\rPROC MAIN()\rSpritePos(2,308,86)\rRETURN\r",
+        "has_stub": False,
+        "runtime_library_objects": ["rt_sprite_pos"],
+        "expected_object_fragments": [
+            "b p0p1p2u0r\n",
+            "u rt_sprite_pos\n",
+            "i 2\n",
+            "i 308\n",
+            "i 86\n",
+        ],
+        "expected_tail": bytes.fromhex(
+            "A902A234A05638201A10A9A58DD003A90085028503A2024C0FCF"
+            "850286039013A901A602F0040ACAD0FC0D10D08D10D0189012"
+            "A901A602F0040ACAD0FC49FF2D10D08D10D0A5020AAAA5039D00D0989D01D060"
+        ),
+        "store_check_addr": 0xD004,
+        "store_check_value": 0x34,
+        "store_check_hi_addr": 0xD005,
+        "store_check_hi_value": 0x56,
+        "extra_store_checks": [
+            {"addr": 0xD010, "value": 0x04, "mask": 0x04},
+        ],
+        "expected_alink_loads": ["LIB/RT_SPRITE_POS.OBJ"],
+    },
     "runtime_sprite_data_helper_linked": {
         "seed_object": (
             "OBJ1\n"
