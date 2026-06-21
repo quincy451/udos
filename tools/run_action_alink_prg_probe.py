@@ -2784,6 +2784,50 @@ def _actc_input_variable_port_store_runtime_tail() -> bytes:
     )
 
 
+def _actc_input_dual_port_presence_runtime_tail() -> bytes:
+    helper_calls = [
+        (0, "rt_jp", 0x01),
+        (1, "rt_jp", 0x02),
+        (2, "rt_mp", 0x01),
+        (3, "rt_mp", 0x02),
+        (4, "rt_mseen", None),
+    ]
+    variable_count = 5
+    call_bytes = sum(
+        (2 if arg is not None else 0) + 3 + 8
+        for _var_index, _helper_name, arg in helper_calls
+    )
+    root_len = call_bytes + len(_DIRECT_PRG_EXIT_MARKER) + (2 * variable_count)
+    store_base = DIRECT_PRG_LOAD_ADDR + root_len - (2 * variable_count)
+    modules = _runtime_module_closure([helper_name for _var_index, helper_name, _arg in helper_calls])
+    module_addrs = _runtime_module_addrs(modules, DIRECT_PRG_LOAD_ADDR + root_len)
+    code = bytearray()
+    for var_index, helper_name, arg in helper_calls:
+        store_addr = store_base + (2 * var_index)
+        if arg is not None:
+            code.extend([0xA9, arg & 0xFF])
+        code.extend(_jsr(module_addrs[helper_name]))
+        code.extend(
+            [
+                0x8D,
+                store_addr & 0xFF,
+                store_addr >> 8,
+                0xA9,
+                0x00,
+                0x8D,
+                (store_addr + 1) & 0xFF,
+                (store_addr + 1) >> 8,
+            ]
+        )
+    code.extend(_DIRECT_PRG_EXIT_MARKER)
+    code.extend(bytes(2 * variable_count))
+    if len(code) != root_len:
+        raise RuntimeError(f"unexpected INPUT dual-port presence runtime root size: {len(code)}")
+    return bytes(code) + b"".join(
+        _linked_runtime_module_bytes(module, module_addrs) for module in modules
+    )
+
+
 def _actc_input1_export_sample_runtime_tail() -> bytes:
     # The two literal mask assignments reserve variable slots in the linked
     # layout even though they are constant-propagated out of the root code.
@@ -10090,6 +10134,83 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_MX.OBJ",
             "LIB/RT_MY.OBJ",
             "LIB/RT_MB.OBJ",
+        ],
+    },
+    "actc_runtime_input_dual_port_presence_store_linked": {
+        "source": (
+            "MODULE MAIN\r"
+            "BYTE JSA\r"
+            "BYTE JSB\r"
+            "BYTE MPA\r"
+            "BYTE MPB\r"
+            "BYTE MSN\r"
+            "PROC MAIN()\r"
+            "JSA=JoySeen(1)\r"
+            "JSB=JoySeen(2)\r"
+            "MPA=MousePoll(1)\r"
+            "MPB=MousePoll(2)\r"
+            "MSN=MouseSeen()\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": [
+            "rt_jp",
+            "rt_joy",
+            "rt_js",
+            "rt_mp",
+            "rt_ms",
+            "rt_mseen",
+            "rt_mx",
+            "rt_my",
+            "rt_mb",
+            "rt_mb1",
+            "rt_mb2",
+            "rt_jb1",
+            "rt_jb2",
+        ],
+        "expected_object_fragments": [
+            "u rt_jp\n",
+            "u rt_mp\n",
+            "u rt_mseen\n",
+            "i 1\n",
+            "i 2\n",
+            "v jsa 0\n",
+            "v jsb 0\n",
+            "v mpa 0\n",
+            "v mpb 0\n",
+            "v msn 0\n",
+        ],
+        "expected_tail": _actc_input_dual_port_presence_runtime_tail(),
+        "store_check_addr": 0x104F,
+        "store_check_value": 0x00,
+        "store_check_hi_addr": 0x1050,
+        "store_check_hi_value": 0x00,
+        "extra_store_checks": [
+            {"addr": 0x1051, "value": 0x00},
+            {"addr": 0x1052, "value": 0x00},
+            {"addr": 0x1053, "value": 0x00},
+            {"addr": 0x1054, "value": 0x00},
+            {"addr": 0x1055, "value": 0x00},
+            {"addr": 0x1056, "value": 0x00},
+            {"addr": 0x1057, "value": 0x00},
+            {"addr": 0x1058, "value": 0x00},
+        ],
+        "expected_alink_loads": [
+            "LIB/RT_JP.OBJ",
+            "LIB/RT_JOY.OBJ",
+            "LIB/RT_JS.OBJ",
+            "LIB/RT_MP.OBJ",
+            "LIB/RT_MS.OBJ",
+            "LIB/RT_MSEEN.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_MX.OBJ",
+            "LIB/RT_MY.OBJ",
+            "LIB/RT_MB.OBJ",
+            "LIB/RT_MB1.OBJ",
+            "LIB/RT_MB2.OBJ",
+            "LIB/RT_JB1.OBJ",
+            "LIB/RT_JB2.OBJ",
         ],
     },
     "actc_runtime_input_gfx_mixed_helpers_linked": {

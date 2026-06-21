@@ -476,6 +476,7 @@ ACTION_ACTC_ALINK_INPUT_RUNTIME_SHAPES := \
 	actc_runtime_input_joystick_button_condition_gfx_helper_linked \
 	actc_runtime_input_mouse_button2_condition_gfx_helper_linked \
 	actc_runtime_input_variable_port_store_linked \
+	actc_runtime_input_dual_port_presence_store_linked \
 	actc_runtime_input_gfx_mixed_helpers_linked \
 	actc_runtime_input_mouse_result_gfx_arg_linked \
 	actc_runtime_input_mouse_result_sid_arg_linked \
