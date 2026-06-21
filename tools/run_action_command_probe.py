@@ -13,6 +13,11 @@ PATH_DEBUG_ADDRS = {
     "TOOL_ABI_CURRENT_PATH": 0xCD00,
     "TOOL_ABI_OPEN_PATH": 0xCD40,
 }
+FATAL_SCREEN_FRAGMENTS = (
+    "LOAD FAILED",
+    "UDOSCORE LOAD FAILED",
+    "PROGRAM LOAD FAILED",
+)
 
 
 def screen_text(client: vp.BinaryMonitorClient) -> str:
@@ -48,6 +53,11 @@ def last_nonempty_line(screen: str) -> str:
         if stripped:
             return stripped
     return ""
+
+
+def live_prompt_visible(screen: str, prompt: str) -> bool:
+    line = last_nonempty_line(screen)
+    return vp.screen_contains(line, prompt) and len(line.strip()) <= len(prompt) + 2
 
 
 def wait_for_active_prompt(
@@ -205,7 +215,7 @@ def wait_for_prompt_count(
     retry_count = 0
     while time.monotonic() < deadline:
         last_screen = screen_text_for_fragment(client, prompt)
-        if vp.screen_count(last_screen, prompt) >= minimum:
+        if vp.screen_count(last_screen, prompt) >= minimum or live_prompt_visible(last_screen, prompt):
             return last_screen
         retry_count = maybe_retry_command_enter(
             client,
@@ -241,9 +251,9 @@ def wait_for_prompt_count_and_fragments(
                     if vp.screen_contains(candidate, fragment):
                         last_screen = candidate
                         break
-        if vp.screen_count(last_screen, prompt) >= minimum and all(
-            vp.screen_contains(last_screen, fragment) for fragment in fragments
-        ):
+        if (
+            vp.screen_count(last_screen, prompt) >= minimum or live_prompt_visible(last_screen, prompt)
+        ) and all(vp.screen_contains(last_screen, fragment) for fragment in fragments):
             return last_screen
         retry_count = maybe_retry_command_enter(
             client,
@@ -258,6 +268,25 @@ def wait_for_prompt_count_and_fragments(
     )
 
 
+def wait_for_host_paths(fs_root: Path, rel_paths: list[str], timeout: float, poll_interval: float) -> None:
+    if not rel_paths:
+        return
+    deadline = time.monotonic() + timeout
+    missing: list[Path] = []
+    while time.monotonic() < deadline:
+        missing = []
+        for rel_path in rel_paths:
+            path = Path(rel_path)
+            candidate = path if path.is_absolute() else fs_root / path
+            if not candidate.exists():
+                missing.append(candidate)
+        if not missing:
+            return
+        time.sleep(poll_interval)
+    formatted = "\n".join(str(path) for path in missing)
+    raise vp.ViceError(f"expected host paths did not appear:\n{formatted}")
+
+
 def append_observed_screen(observed_screens: list[str], screen: str) -> None:
     if screen and (not observed_screens or observed_screens[-1] != screen):
         observed_screens.append(screen)
@@ -265,6 +294,12 @@ def append_observed_screen(observed_screens: list[str], screen: str) -> None:
 
 def observed_transcript(observed_screens: list[str]) -> str:
     return "\n".join(observed_screens)
+
+
+def reject_fatal_screen_fragments(transcript: str) -> None:
+    for fragment in FATAL_SCREEN_FRAGMENTS:
+        if vp.screen_contains(transcript, fragment):
+            raise vp.ViceError(f"fatal screen fragment {fragment!r} observed:\n{transcript}")
 
 
 def wait_for_mount_completion(
@@ -332,11 +367,14 @@ def send_text(client: vp.BinaryMonitorClient, text: str, timeout: float) -> None
 
 
 def send_return(client: vp.BinaryMonitorClient, timeout: float) -> None:
-    send_text(client, "\r", timeout)
+    clear_keyboard_buffer(client)
+    client.keyboard_feed("\r")
+    time.sleep(0.1)
 
 
 def type_command(client: vp.BinaryMonitorClient, command: str, timeout: float) -> None:
-    send_text(client, command + "\r", timeout)
+    send_text(client, command, timeout)
+    send_return(client, timeout)
 
 
 def read_c_string(client: vp.BinaryMonitorClient, addr: int, max_len: int = 128) -> str:
@@ -375,6 +413,7 @@ def main() -> int:
     parser.add_argument("--connect-delay", type=float)
     parser.add_argument("--boot-timeout", type=float, default=60.0)
     parser.add_argument("--boot-settle", type=float, default=0.0)
+    parser.add_argument("--mount-timeout", type=float, default=45.0)
     parser.add_argument("--poll-interval", type=float, default=0.2)
     parser.add_argument("--shell-timeout", type=float, default=30.0)
     parser.add_argument("--attempts", type=int, default=4)
@@ -384,6 +423,8 @@ def main() -> int:
     parser.add_argument("--pre-fragment", action="append", default=[])
     parser.add_argument("--post-command")
     parser.add_argument("--post-done-fragment")
+    parser.add_argument("--host-exists", action="append", default=[])
+    parser.add_argument("--host-timeout", type=float)
     parser.add_argument("--contains", action="append", default=[])
     parser.add_argument("--not-contains", action="append", default=[])
     parser.add_argument("--labels")
@@ -442,11 +483,12 @@ def main() -> int:
             stage = "mount-type"
             type_command(client, mount_command, args.shell_timeout)
             time.sleep(1.0)
+            mount_timeout = min(args.mount_timeout, args.shell_timeout)
             try:
                 stage = "mount-wait"
                 screen = wait_for_mount_completion(
                     client,
-                    args.shell_timeout,
+                    mount_timeout,
                     retry_echo=mount_command,
                     poll_interval=args.poll_interval,
                 )
@@ -458,7 +500,7 @@ def main() -> int:
                 stage = "mount-retry-wait"
                 screen = wait_for_mount_completion(
                     client,
-                    args.shell_timeout,
+                    mount_timeout,
                     retry_echo=mount_command,
                     poll_interval=args.poll_interval,
                 )
@@ -594,8 +636,17 @@ def main() -> int:
                         poll_interval=args.poll_interval,
                     )
                     append_observed_screen(observed_screens, screen)
+            if args.host_exists:
+                stage = "wait-host-exists"
+                wait_for_host_paths(
+                    fs_root,
+                    args.host_exists,
+                    args.host_timeout if args.host_timeout is not None else args.shell_timeout,
+                    args.poll_interval,
+                )
             stage = "validate-contains"
             transcript = observed_transcript(observed_screens)
+            reject_fatal_screen_fragments(transcript)
             for fragment in args.contains:
                 if not vp.screen_contains(transcript, fragment):
                     raise vp.ViceError(

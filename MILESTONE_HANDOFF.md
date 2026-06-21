@@ -84,7 +84,7 @@ The first credible resident milestone is complete and the Action resume point is
 still preserved.
 
 Resume target repo when UDOS is ready to host those tools:
-- [actionc64u](/mnt/c/test/action/actionc64u)
+- [actionc64u](../actionc64u)
 
 Preserved Action repo state at pivot:
 - linker/runtime bootstrap work already present

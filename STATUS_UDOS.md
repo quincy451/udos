@@ -126,7 +126,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     created `src/helper.act` persists on the host fs tree after VICE exits
   - `make vice-action-act2save` now uses the release image with deterministic
     typed input on top of the release workspace, seeds a project root marked
-    by `ACTION.PROJ`, launches `ACT2SAVE.PRG HELPER`, rewrites
+    by `ACTION.PROJ`, launches `ACTSAVE HELPER`, rewrites
     `SRC/HELPER.ACT` through the preserved external-tool file-save ABI, and
     proves the updated source persists on the host fs tree after VICE exits
   - `make vice-action-actc` now uses the release image with deterministic

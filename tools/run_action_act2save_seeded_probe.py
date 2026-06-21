@@ -9,9 +9,9 @@ import time
 from pathlib import Path
 
 import run_action_actc_probe as rcp
-import run_action_alink_probe as rap
 import run_action_alink_seeded_runtime_probe as seeded
 import run_action_command_probe as avp
+import run_action_probe_fs as pfs
 import vice_prg_probe as vp
 
 
@@ -31,6 +31,12 @@ EXPECTED_BYTES = bytes(
 EXPECTED_OBJECT_BYTES = b"OBJ1\rONELOAD DIAGNOSTIC\r"
 SEND_TIMEOUT = 5.0
 POLL_INTERVAL = 0.05
+CONNECT_DELAYS = (10.0, 14.0)
+
+
+def log_progress(verbose: bool, payload: dict[str, object]) -> None:
+    if verbose:
+        print(json.dumps(payload, sort_keys=True), file=sys.stderr, flush=True)
 
 
 def load_selected_act2save_labels() -> dict[str, int]:
@@ -39,6 +45,8 @@ def load_selected_act2save_labels() -> dict[str, int]:
         "scan_ptr",
         "truncated_flag",
         "module_name",
+        "manifest_entry",
+        "manifest_buffer",
         "target_path",
         "load_buffer",
         "save_buffer",
@@ -101,8 +109,10 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         try:
             if name == "file_params":
                 data[key] = list(client.memory_get(addr, addr + 8))
-            elif name in {"module_name", "target_path"}:
+            elif name in {"module_name", "manifest_entry", "target_path"}:
                 data[key] = seeded.read_cstr(client, addr, 40)
+            elif name == "manifest_buffer":
+                data[key] = seeded.read_cstr(client, addr, 120)
             elif name in {"load_buffer", "save_buffer"}:
                 data[key] = list(client.memory_get(addr, addr + 15))
             elif name == "scan_ptr":
@@ -163,25 +173,32 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
 
 def prepare_workspace(fs_root: Path, project_name: str) -> tuple[Path, Path]:
     project_root = rcp.prepare_workspace(fs_root, project_name)
-    lowercase_workspace = rcp.detect_lowercase_workspace(fs_root)
-    images_root = rcp.case_insensitive_child(fs_root, rcp.host_name("IMAGES", lowercase_workspace))
-    action_root = rcp.case_insensitive_child(images_root, rcp.host_name("ACTION.DNP", lowercase_workspace))
-    act2save_prg = Path("/mnt/c/test/action/actionc64u/build/udos_tools/ACT2SAVE.PRG")
+    lowercase_workspace = pfs.detect_lowercase_workspace(fs_root)
+    images_root = pfs.case_insensitive_child(fs_root, pfs.host_name("IMAGES", lowercase_workspace))
+    action_root = pfs.case_insensitive_child(images_root, pfs.host_name("ACTION.DNP", lowercase_workspace))
+    act2save_prg = ACTION_ROOT / "build" / "udos_tools" / "ACT2SAVE.PRG"
     if not act2save_prg.is_file():
         raise FileNotFoundError(f"missing ACT2SAVE build at {act2save_prg}")
-    root_target = action_root / rcp.host_name("ACT2SAVE.PRG", lowercase_workspace)
-    shutil.copy2(act2save_prg, root_target)
-    shutil.copy2(root_target, project_root / rcp.host_name("ACT2SAVE.PRG", lowercase_workspace))
-    rap.ensure_catalog_entries(
-        action_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace),
-        [f"D {project_name.upper()}", "F ACT2SAVE.PRG"],
+    tool_entries: list[str] = []
+    for tool_name in ("ACT2SAVE.PRG", "ACTSAVE.PRG"):
+        root_target = action_root / pfs.host_name(tool_name, lowercase_workspace)
+        shutil.copy2(act2save_prg, root_target)
+        pfs.sync_case_siblings(root_target)
+        project_target = project_root / pfs.host_name(tool_name, lowercase_workspace)
+        shutil.copy2(root_target, project_target)
+        pfs.sync_case_siblings(project_target)
+        tool_entries.append(f"F {tool_name}")
+    pfs.ensure_catalog_entries(
+        action_root / pfs.host_name("UDOSDIR.TXT", lowercase_workspace),
+        [f"D {project_name.upper()}", *tool_entries],
     )
-    rap.ensure_catalog_entries(project_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace), ["F ACT2SAVE.PRG"])
-    obj_root = project_root / rcp.host_name("OBJ", lowercase_workspace)
+    pfs.ensure_catalog_entries(project_root / pfs.host_name("UDOSDIR.TXT", lowercase_workspace), tool_entries)
+    obj_root = pfs.case_insensitive_child(project_root, "OBJ")
     obj_root.mkdir(exist_ok=True)
-    (obj_root / rcp.host_name("MAIN.OBJ", lowercase_workspace)).write_bytes(EXPECTED_OBJECT_BYTES)
-    rap.ensure_catalog_entries(obj_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace), ["F MAIN.OBJ"])
-    output_path = project_root / rcp.host_name("BIN", lowercase_workspace) / rcp.host_name("MAIN.PRG", lowercase_workspace)
+    (obj_root / pfs.host_name("MAIN.OBJ", lowercase_workspace)).write_bytes(EXPECTED_OBJECT_BYTES)
+    pfs.ensure_catalog_entries(obj_root / pfs.host_name("UDOSDIR.TXT", lowercase_workspace), ["F MAIN.OBJ"])
+    pfs.add_case_aliases(project_root)
+    output_path = pfs.project_output_path(project_root, "BIN", "MAIN.PRG")
     output_path.unlink(missing_ok=True)
     return project_root, output_path
 
@@ -202,7 +219,7 @@ def run_once(
     connect_delay: float,
     require_output: bool = True,
 ) -> tuple[str, dict[str, object]]:
-    _project_root, output_path = prepare_workspace(work_root, project_name)
+    project_root, output_path = prepare_workspace(work_root, project_name)
     port = vp.reserve_tcp_port()
     process = vp.launch_vice(
         image,
@@ -242,7 +259,7 @@ def run_once(
         avp.wait_for_screen_fragment(client, f"B:DNP/{project_name}", PROMPT_TIMEOUT, retry_echo=cd_command)
         time.sleep(SETTLE_SECONDS)
 
-        run_command = "ACT2SAVE.PRG MAIN"
+        run_command = "ACTSAVE MAIN"
         avp.type_command(client, run_command, SEND_TIMEOUT)
         launch_deadline = time.monotonic() + PROMPT_TIMEOUT
         while time.monotonic() < launch_deadline:
@@ -250,7 +267,7 @@ def run_once(
             screen_upper = screen.upper()
             if "ACT2SAVE OK" in screen_upper:
                 break
-            if "RUN ACT2SAVE.PRG" in screen_upper:
+            if "RUN ACTSAVE.PRG" in screen_upper:
                 break
             if "PROGRAM NOT FOUND" in screen_upper or "LOAD FAIL" in screen_upper or "SAVE FAIL" in screen_upper:
                 debug = collect_debug(client)
@@ -261,7 +278,7 @@ def run_once(
         else:
             debug = collect_debug(client)
             raise vp.ViceError(
-                f"expected screen fragment 'RUN ACT2SAVE.PRG' was not present in final screen:\n{screen}\nDEBUG: {json.dumps(debug, indent=2)}"
+                f"expected screen fragment 'RUN ACTSAVE.PRG' was not present in final screen:\n{screen}\nDEBUG: {json.dumps(debug, indent=2)}"
             )
         launch_command = run_command
         deadline = time.monotonic() + FINAL_TIMEOUT
@@ -276,9 +293,10 @@ def run_once(
         retry_count = 0
         program_not_found_retries = 0
         while time.monotonic() < deadline:
-            if require_output and output_path.is_file():
+            actual_output_path = pfs.project_output_path(project_root, "BIN", "MAIN.PRG")
+            if require_output and actual_output_path.is_file():
                 try:
-                    payload = output_path.read_bytes()
+                    payload = actual_output_path.read_bytes()
                 except Exception:
                     payload = b""
                 if payload == EXPECTED_BYTES:
@@ -291,7 +309,7 @@ def run_once(
                         debug["SAVE_CALL_BLOCK"] = list(client.memory_get(0x03E8, 0x03F1))
                     except Exception as exc:  # pragma: no cover - debug only
                         debug["SAVE_CALL_BLOCK"] = f"ERR:{exc!r}"
-                    debug["OUTPUT_PATH"] = str(output_path)
+                    debug["OUTPUT_PATH"] = str(actual_output_path)
                     debug["OUTPUT_BYTES"] = list(payload)
                     debug["STAGE_HISTORY"] = stage_history
                     debug["SAW_RUN_MARKER"] = saw_run_marker
@@ -322,7 +340,7 @@ def run_once(
                 pass
             screen, _d018, _dd00 = vp.read_active_screen_text(client)
             screen_upper = screen.upper()
-            if "RUN ACT2SAVE.PRG" in screen_upper:
+            if "RUN ACTSAVE.PRG" in screen_upper:
                 saw_run_marker = True
             if "PROGRAM NOT FOUND" in screen_upper and not saw_run_marker and program_not_found_retries < 2:
                 avp.type_command(client, run_command, SEND_TIMEOUT)
@@ -339,7 +357,8 @@ def run_once(
                     debug["SAVE_CALL_BLOCK"] = list(client.memory_get(0x03E8, 0x03F1))
                 except Exception as exc:  # pragma: no cover - debug only
                     debug["SAVE_CALL_BLOCK"] = f"ERR:{exc!r}"
-                debug["OUTPUT_PATH"] = str(output_path)
+                actual_output_path = pfs.project_output_path(project_root, "BIN", "MAIN.PRG")
+                debug["OUTPUT_PATH"] = str(actual_output_path)
                 debug["STAGE_HISTORY"] = stage_history
                 debug["SAW_RUN_MARKER"] = saw_run_marker
                 if first_stage_snapshot is not None:
@@ -351,8 +370,8 @@ def run_once(
                     debug["STAGE_D_SNAPSHOT"] = stage_d_snapshot
                 if stage_snapshots:
                     debug["STAGE_SNAPSHOTS"] = stage_snapshots
-                if output_path.is_file():
-                    payload = output_path.read_bytes()
+                if actual_output_path.is_file():
+                    payload = actual_output_path.read_bytes()
                     debug["OUTPUT_BYTES"] = list(payload)
                 else:
                     debug["OUTPUT_BYTES"] = None
@@ -426,6 +445,7 @@ def main() -> int:
     parser.add_argument("--attempt-delay", type=float, default=2.0)
     parser.add_argument("--connect-delay", type=float)
     parser.add_argument("--screen-only-success", action="store_true")
+    parser.add_argument("--verbose", action="store_true", help="print progress payloads")
     parser.add_argument("--verbose-success", action="store_true")
     args = parser.parse_args()
 
@@ -434,16 +454,16 @@ def main() -> int:
     project_name = args.project.upper()
     work_root = fs_root.parent / f"{fs_root.name}-act2save-seeded"
 
-    connect_delays = (args.connect_delay,) if args.connect_delay is not None else rap.CONNECT_DELAYS
+    connect_delays = (args.connect_delay,) if args.connect_delay is not None else CONNECT_DELAYS
     last_error: Exception | None = None
 
     for attempt in range(1, args.attempts + 1):
         vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, args.attempt_delay)))
         connect_delay = connect_delays[(attempt - 1) % len(connect_delays)]
-        print(json.dumps({"attempt": attempt, "attempts": args.attempts, "connect_delay": connect_delay}))
+        log_progress(args.verbose, {"attempt": attempt, "attempts": args.attempts, "connect_delay": connect_delay})
         try:
             shutil.rmtree(work_root, ignore_errors=True)
-            shutil.copytree(fs_root, work_root)
+            shutil.copytree(fs_root, work_root, symlinks=True)
             screen, debug = run_once(
                 image,
                 work_root,
@@ -460,22 +480,21 @@ def main() -> int:
                 raise vp.ViceError(
                     f"expected output bytes {list(EXPECTED_BYTES)!r}, got {list(output_bytes)!r}; DEBUG: {json.dumps(debug, indent=2)}"
                 )
-            print(screen)
-            print(
-                json.dumps(
-                    {
-                        "status": "ACT2SAVE OK",
-                        "output_path": debug.get("OUTPUT_PATH"),
-                        "output_len": len(output_bytes),
-                    }
-                )
+            log_progress(
+                args.verbose or args.verbose_success,
+                {
+                    "status": "ACT2SAVE OK",
+                    "output_path": debug.get("OUTPUT_PATH"),
+                    "output_len": len(output_bytes),
+                },
             )
             if args.verbose_success:
-                print(json.dumps(debug, indent=2))
+                print(screen, file=sys.stderr)
+                print(json.dumps(debug, indent=2), file=sys.stderr)
             return 0
         except Exception as exc:
             last_error = exc
-            print(json.dumps({"attempt": attempt, "connect_delay": connect_delay, "error": str(exc)}))
+            log_progress(args.verbose, {"attempt": attempt, "connect_delay": connect_delay, "error": str(exc)})
             if attempt < args.attempts:
                 time.sleep(args.attempt_delay)
 

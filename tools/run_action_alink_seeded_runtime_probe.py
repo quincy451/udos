@@ -9,6 +9,7 @@ import sys
 import time
 from pathlib import Path
 
+import run_action_probe_fs as pfs
 import run_action_alink_probe as rap
 import run_action_command_probe as avp
 import vice_prg_probe as vp
@@ -23,6 +24,11 @@ PROMPT_TIMEOUT = 30.0
 FINAL_TIMEOUT = 30.0
 SETTLE_SECONDS = 2.0
 SEND_TIMEOUT = 5.0
+
+
+def log_progress(verbose: bool, payload: dict[str, object]) -> None:
+    if verbose:
+        print(json.dumps(payload, sort_keys=True), file=sys.stderr, flush=True)
 
 
 def seeded_main_object_text() -> str:
@@ -53,33 +59,42 @@ def seeded_work_object_text() -> str:
 
 
 def prepare_workspace(fs_root: Path, project_name: str) -> Path:
-    project_root = fs_root / "IMAGES" / "ACTION.DNP" / project_name.upper()
+    lowercase_workspace = pfs.detect_lowercase_workspace(fs_root)
+    images_root = pfs.case_insensitive_child(fs_root, pfs.host_name("IMAGES", lowercase_workspace))
+    action_root = pfs.case_insensitive_child(images_root, pfs.host_name("ACTION.DNP", lowercase_workspace))
+    project_root = action_root / project_name.upper()
     lower_project_root = project_root.parent / project_root.name.lower()
     shutil.rmtree(project_root, ignore_errors=True)
     shutil.rmtree(lower_project_root, ignore_errors=True)
-    (project_root / "src").mkdir(parents=True, exist_ok=True)
-    (project_root / "bin").mkdir(exist_ok=True)
-    (project_root / "obj").mkdir(exist_ok=True)
+    (project_root / "SRC").mkdir(parents=True, exist_ok=True)
+    (project_root / "BIN").mkdir(exist_ok=True)
+    (project_root / "OBJ").mkdir(exist_ok=True)
 
-    rap.write_ascii(project_root / "readme.txt", "ACTION PROJECT READY\n")
-    rap.write_ascii(project_root / "ACTION.PROJ", "ACTION PROJECT\rMAIN.ACT\r")
-    rap.write_ascii(project_root / "UDOSDIR.TXT", "D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n")
-    rap.write_ascii(project_root / "src" / "UDOSDIR.TXT", "F MAIN.ACT\n")
-    rap.write_ascii(project_root / "bin" / "UDOSDIR.TXT", "")
-    obj_dir = project_root / "obj"
-    rap.write_ascii(obj_dir / "UDOSDIR.TXT", "F MAIN.OBJ\nF W.OBJ\n")
-    rap.write_ascii(obj_dir / "main.obj", seeded_main_object_text())
-    rap.write_ascii(obj_dir / "w.obj", seeded_work_object_text())
+    pfs.write_ascii(project_root / "README.TXT", "ACTION PROJECT READY\n")
+    pfs.write_ascii(project_root / "ACTION.PROJ", "ACTION PROJECT\rMAIN.ACT\r")
+    pfs.write_ascii(project_root / "UDOSDIR.TXT", "D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n")
+    pfs.write_ascii(project_root / "SRC" / "UDOSDIR.TXT", "F MAIN.ACT\n")
+    pfs.write_ascii(project_root / "BIN" / "UDOSDIR.TXT", "")
+    obj_dir = project_root / "OBJ"
+    pfs.write_ascii(obj_dir / "UDOSDIR.TXT", "F MAIN.OBJ\nF W.OBJ\n")
+    pfs.write_ascii(obj_dir / "MAIN.OBJ", seeded_main_object_text())
+    pfs.write_ascii(obj_dir / "W.OBJ", seeded_work_object_text())
 
     if rap.ACTION_ALINK_BUILD.is_file():
-        root_target = fs_root / "IMAGES" / "ACTION.DNP" / "ALINK.PRG"
+        root_target = action_root / pfs.host_name("ALINK.PRG", lowercase_workspace)
         shutil.copy2(rap.ACTION_ALINK_BUILD, root_target)
-        shutil.copy2(root_target, project_root / "ALINK.PRG")
-        rap.ensure_catalog_entries(
-            fs_root / "IMAGES" / "ACTION.DNP" / "UDOSDIR.TXT",
+        pfs.sync_case_siblings(root_target)
+        project_target = project_root / "ALINK.PRG"
+        shutil.copy2(root_target, project_target)
+        pfs.sync_case_siblings(project_target)
+        pfs.ensure_catalog_entries(
+            action_root / pfs.host_name("UDOSDIR.TXT", lowercase_workspace),
             [f"D {project_name.upper()}", "F ALINK.PRG"],
         )
-        rap.ensure_catalog_entries(project_root / "UDOSDIR.TXT", ["F ALINK.PRG"])
+        pfs.ensure_catalog_entries(project_root / "UDOSDIR.TXT", ["F ALINK.PRG"])
+    pfs.add_case_aliases(project_root)
+    if lower_project_root != project_root and not lower_project_root.exists():
+        lower_project_root.symlink_to(project_root.name, target_is_directory=True)
     return project_root
 
 
@@ -1075,6 +1090,7 @@ def main() -> int:
     parser.add_argument("--attempts", type=int, default=6)
     parser.add_argument("--attempt-delay", type=float, default=2.0)
     parser.add_argument("--connect-delay", type=float)
+    parser.add_argument("--verbose", action="store_true", help="print progress payloads")
     args = parser.parse_args()
 
     image = Path(args.disk).resolve()
@@ -1085,21 +1101,14 @@ def main() -> int:
     for attempt in range(1, args.attempts + 1):
         connect_delays = (args.connect_delay,) if args.connect_delay is not None else rap.CONNECT_DELAYS
         connect_delay = connect_delays[(attempt - 1) % len(connect_delays)]
-        print(
-            json.dumps(
-                {"attempt": attempt, "attempts": args.attempts, "connect_delay": connect_delay},
-                sort_keys=True,
-            ),
-            file=sys.stderr,
-            flush=True,
-        )
+        log_progress(args.verbose, {"attempt": attempt, "attempts": args.attempts, "connect_delay": connect_delay})
         try:
             shutil.rmtree(work_root, ignore_errors=True)
-            shutil.copytree(fs_root, work_root)
+            shutil.copytree(fs_root, work_root, symlinks=True)
             project_root = prepare_workspace(work_root, project_name)
             vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, args.attempt_delay)))
             screen, debug = run_once(image, work_root, project_name, connect_delay)
-            output_path = project_root / "bin" / "main.prg"
+            output_path = pfs.project_output_path(project_root, "BIN", "MAIN.PRG")
             if not output_path.is_file():
                 raise vp.ViceError(
                     f"expected host file {output_path} to exist after ALINK returned\n"
@@ -1110,17 +1119,13 @@ def main() -> int:
                     f"expected direct PRG {output_path} to contain payload bytes after ALINK returned\n"
                     f"SCREEN:\n{screen}\nDEBUG: {json.dumps(debug, indent=2)}"
                 )
-            print(json.dumps({"screen_tail": screen[-400:], "debug": debug, "output": str(output_path)}, indent=2))
+            log_progress(
+                args.verbose,
+                {"screen_tail": screen[-400:], "debug": debug, "output": str(output_path)},
+            )
             return 0
         except vp.ViceError as exc:
-            print(
-                json.dumps(
-                    {"attempt": attempt, "connect_delay": connect_delay, "error": str(exc)},
-                    sort_keys=True,
-                ),
-                file=sys.stderr,
-                flush=True,
-            )
+            log_progress(args.verbose, {"attempt": attempt, "connect_delay": connect_delay, "error": str(exc)})
             if attempt == args.attempts:
                 print(exc, file=sys.stderr)
                 return 1

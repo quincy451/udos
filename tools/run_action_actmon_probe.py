@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-import run_action_actc_probe as rcp
+import run_action_probe_fs as pfs
 import vice_prg_probe as vp
 
 ROOT = Path(__file__).resolve().parent
@@ -24,6 +24,7 @@ PHASE_TIMEOUT = 210.0
 FILESYSTEM_SETTLE = 1.0
 PROJECT_SYNC_SETTLE = 2.0
 CONNECT_DELAY = 10.0
+ACTMON_PROBE_VERBOSE = False
 
 
 class ProbeError(RuntimeError):
@@ -31,7 +32,7 @@ class ProbeError(RuntimeError):
 
 
 def debug_log(message: str) -> None:
-    if not os.environ.get("ACTMON_PROBE_DEBUG"):
+    if not (ACTMON_PROBE_VERBOSE or os.environ.get("ACTMON_PROBE_DEBUG")):
         return
     print(f"[actmon-probe] {message}", file=sys.stderr, flush=True)
 
@@ -41,38 +42,55 @@ def write_ascii(path: Path, text: str) -> None:
     path.write_bytes(text.encode("ascii"))
 
 
+def ensure_relative_symlink(alias: Path, target_name: str, *, is_dir: bool = False) -> None:
+    if alias.exists() or alias.is_symlink():
+        try:
+            if alias.is_symlink() and os.readlink(alias) == target_name:
+                return
+        except OSError:
+            pass
+        if alias.is_dir() and not alias.is_symlink():
+            shutil.rmtree(alias)
+        else:
+            alias.unlink()
+    alias.symlink_to(target_name, target_is_directory=is_dir)
+
+
 def write_project_state(project_root: Path, modules: list[tuple[str, str]], lowercase_workspace: bool) -> Path:
     lower_project_root = project_root.parent / project_root.name.lower()
     shutil.rmtree(project_root, ignore_errors=True)
     shutil.rmtree(lower_project_root, ignore_errors=True)
-    src_root = project_root / rcp.host_name("SRC", lowercase_workspace)
-    bin_root = project_root / rcp.host_name("BIN", lowercase_workspace)
-    obj_root = project_root / rcp.host_name("OBJ", lowercase_workspace)
+    src_root = project_root / "SRC"
+    bin_root = project_root / "BIN"
+    obj_root = project_root / "OBJ"
     src_root.mkdir(parents=True, exist_ok=True)
     bin_root.mkdir(exist_ok=True)
     obj_root.mkdir(exist_ok=True)
 
-    write_ascii(project_root / rcp.host_name("README.TXT", lowercase_workspace), "ACTION PROJECT READY\n")
+    write_ascii(project_root / "README.TXT", "ACTION PROJECT READY\n")
     write_ascii(
-        project_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace),
+        project_root / "UDOSDIR.TXT",
         "D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n",
     )
-    write_ascii(bin_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace), "")
-    write_ascii(obj_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace), "")
+    write_ascii(bin_root / "UDOSDIR.TXT", "")
+    write_ascii(obj_root / "UDOSDIR.TXT", "")
 
     manifest_lines = ["ACTION PROJECT", *[f"{module}.ACT" for module, _body in modules]]
-    write_ascii(project_root / rcp.host_name("ACTION.PROJ", lowercase_workspace), "\r".join(manifest_lines) + "\r")
+    write_ascii(project_root / "ACTION.PROJ", "\r".join(manifest_lines) + "\r")
+    ensure_relative_symlink(project_root / "action.proj", "ACTION.PROJ")
     write_ascii(
-        src_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace),
+        src_root / "UDOSDIR.TXT",
         "".join(f"F {module}.ACT\n" for module, _body in modules),
     )
 
-    expected = {rcp.host_name(f"{module}.ACT", lowercase_workspace) for module, _body in modules}
+    expected = {f"{module}.ACT" for module, _body in modules}
     for path in src_root.iterdir():
         if path.is_file() and path.name.lower().endswith(".act") and path.name not in expected:
             path.unlink()
     for module, body in modules:
-        write_ascii(src_root / rcp.host_name(f"{module}.ACT", lowercase_workspace), body)
+        write_ascii(src_root / f"{module}.ACT", body)
+    if lower_project_root != project_root and not lower_project_root.exists():
+        lower_project_root.symlink_to(project_root.name, target_is_directory=True)
     return project_root
 
 
@@ -83,10 +101,10 @@ def default_stub_body(name: str) -> str:
 def sync_latest_actmon_prg(fs_root: Path) -> None:
     if not ACTION_ACTMON_BUILD.is_file():
         return
-    lowercase_workspace = rcp.detect_lowercase_workspace(fs_root)
-    images_root = rcp.case_insensitive_child(fs_root, rcp.host_name("IMAGES", lowercase_workspace))
-    action_root = rcp.case_insensitive_child(images_root, rcp.host_name("ACTION.DNP", lowercase_workspace))
-    target = action_root / rcp.host_name("ACTMON.PRG", lowercase_workspace)
+    lowercase_workspace = pfs.detect_lowercase_workspace(fs_root)
+    images_root = pfs.case_insensitive_child(fs_root, pfs.host_name("IMAGES", lowercase_workspace))
+    action_root = pfs.case_insensitive_child(images_root, pfs.host_name("ACTION.DNP", lowercase_workspace))
+    target = pfs.case_insensitive_child(action_root, "ACTMON.PRG")
     if not target.parent.is_dir():
         return
     shutil.copy2(ACTION_ACTMON_BUILD, target)
@@ -109,12 +127,12 @@ def ensure_catalog_entries(path: Path, entries: list[str]) -> None:
         if entry not in target:
             target.append(entry)
     lines = directory_lines + file_lines
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="ascii")
 
 
 def verify_manifest_entries(project_root: Path, required: list[str], absent: list[str]) -> None:
-    lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
-    project_manifest = project_root / rcp.host_name("ACTION.PROJ", lowercase_workspace)
+    project_manifest = pfs.case_insensitive_child(project_root, "ACTION.PROJ")
     if not project_manifest.is_file():
         raise ProbeError(f"expected host file {project_manifest} to exist")
     manifest_text = project_manifest.read_text(encoding="ascii", errors="ignore")
@@ -126,13 +144,24 @@ def verify_manifest_entries(project_root: Path, required: list[str], absent: lis
         raise ProbeError(f"expected host manifest {project_manifest} to omit {present!r}")
 
 
+def find_source_path(project_root: Path, module: str) -> Path:
+    src_root = pfs.case_insensitive_child(project_root, "SRC")
+    return pfs.case_insensitive_child(src_root, f"{module}.ACT")
+
+
+def any_existing_source_path(project_root: Path, module: str) -> Path | None:
+    target_name = f"{module}.ACT".lower()
+    for src_root in project_root.iterdir():
+        if not src_root.is_dir() or src_root.name.lower() != "src":
+            continue
+        for source_path in src_root.iterdir():
+            if source_path.name.lower() == target_name and source_path.exists():
+                return source_path
+    return None
+
+
 def verify_source_contains(project_root: Path, module: str, fragment: str) -> None:
-    lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
-    source_path = (
-        project_root
-        / rcp.host_name("SRC", lowercase_workspace)
-        / rcp.host_name(f"{module}.ACT", lowercase_workspace)
-    )
+    source_path = find_source_path(project_root, module)
     if not source_path.is_file():
         raise ProbeError(f"expected host file {source_path} to exist")
     source_text = source_path.read_text(encoding="ascii", errors="ignore")
@@ -141,13 +170,8 @@ def verify_source_contains(project_root: Path, module: str, fragment: str) -> No
 
 
 def verify_source_missing(project_root: Path, module: str) -> None:
-    lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
-    source_path = (
-        project_root
-        / rcp.host_name("SRC", lowercase_workspace)
-        / rcp.host_name(f"{module}.ACT", lowercase_workspace)
-    )
-    if source_path.exists():
+    source_path = any_existing_source_path(project_root, module)
+    if source_path is not None:
         raise ProbeError(f"expected host path {source_path} to be absent")
 
 
@@ -183,7 +207,7 @@ def cleanup_stale_vice() -> None:
 def copytree_workspace(src_root: Path, dst_root: Path) -> None:
     debug_log(f"copytree {src_root} -> {dst_root}")
     shutil.rmtree(dst_root, ignore_errors=True)
-    shutil.copytree(src_root, dst_root)
+    shutil.copytree(src_root, dst_root, symlinks=True)
 
 
 def restore_clean_workspace(baseline_root: Path, fs_root: Path) -> None:
@@ -193,21 +217,23 @@ def restore_clean_workspace(baseline_root: Path, fs_root: Path) -> None:
 
 def prepare_workspace(fs_root: Path, project_name: str, modules: list[tuple[str, str]]) -> Path:
     debug_log(f"prepare_workspace fs_root={fs_root} project={project_name} modules={len(modules)}")
-    lowercase_workspace = rcp.detect_lowercase_workspace(fs_root)
-    images_root = rcp.case_insensitive_child(fs_root, rcp.host_name("IMAGES", lowercase_workspace))
-    action_root = rcp.case_insensitive_child(images_root, rcp.host_name("ACTION.DNP", lowercase_workspace))
+    lowercase_workspace = pfs.detect_lowercase_workspace(fs_root)
+    images_root = pfs.case_insensitive_child(fs_root, pfs.host_name("IMAGES", lowercase_workspace))
+    action_root = pfs.case_insensitive_child(images_root, pfs.host_name("ACTION.DNP", lowercase_workspace))
     project_root = write_project_state(
-        action_root / rcp.host_name(project_name.upper(), lowercase_workspace),
+        action_root / project_name.upper(),
         modules,
         lowercase_workspace,
     )
     sync_latest_actmon_prg(fs_root)
-    root_actmon = action_root / rcp.host_name("ACTMON.PRG", lowercase_workspace)
+    root_actmon = pfs.case_insensitive_child(action_root, "ACTMON.PRG")
     if root_actmon.is_file():
-        shutil.copy2(root_actmon, project_root / rcp.host_name("ACTMON.PRG", lowercase_workspace))
-        ensure_catalog_entries(project_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace), ["F ACTMON.PRG"])
+        project_actmon = project_root / "ACTMON.PRG"
+        shutil.copy2(root_actmon, project_actmon)
+        ensure_relative_symlink(project_root / "actmon.prg", "ACTMON.PRG")
+        ensure_catalog_entries(project_root / "UDOSDIR.TXT", ["F ACTMON.PRG"])
     ensure_catalog_entries(
-        action_root / rcp.host_name("UDOSDIR.TXT", lowercase_workspace),
+        pfs.case_insensitive_child(action_root, "UDOSDIR.TXT"),
         [f"D {project_name.upper()}", "F ACTMON.PRG"],
     )
     debug_log(f"prepare_workspace done project_root={project_root}")
@@ -320,7 +346,11 @@ def main() -> int:
     parser.add_argument("--delete-module", default="EXTRA")
     parser.add_argument("--attempts", type=int, default=6)
     parser.add_argument("--attempt-delay", type=float, default=1.0)
+    parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
+
+    global ACTMON_PROBE_VERBOSE
+    ACTMON_PROBE_VERBOSE = bool(args.verbose)
 
     image = Path(args.disk).resolve()
     source_fs_root = Path(args.fs_root).resolve()

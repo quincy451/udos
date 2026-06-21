@@ -34,7 +34,7 @@ backend is finished.
 ## Native Transport Layer
 
 The current tree now includes a native transport include:
-- [src/asm/uci_transport.inc](/mnt/c/test/action/udos/src/asm/uci_transport.inc)
+- [src/asm/uci_transport.inc](src/asm/uci_transport.inc)
 
 Implemented routines:
 - `uci_probe`

@@ -379,7 +379,7 @@ REU_STAGE_PORT = WRITEBACK_TRACE_COUNT
 TOOL_WRITEBACK_COUNT_SHADOW = $03E6
 TOOL_WRITEBACK_STAGING_BASE = TOOL_ABI_OPEN_PATH
 TOOL_WRITEBACK_NAME_MAX = 32
-TOOL_WRITEBACK_MAX_RECORDS = 7
+TOOL_WRITEBACK_MAX_RECORDS = 10
 TOOL_WRITEBACK_KIND_NONE = 0
 TOOL_WRITEBACK_KIND_FILE_SAVE = 1
 TOOL_WRITEBACK_KIND_DIR_MAKE = 2
@@ -520,6 +520,7 @@ start:
 resident_main:
     svc svc_console_reset
     svc svc_install_tool_abi
+    jsr tool_writeback_clear_and_save
     svc svc_get_abi_version
     savep ABI_SNAPSHOT
     svc svc_transport_get_mode
@@ -1466,6 +1467,7 @@ fill_backend_path_vice_mount_copy:
     lda (PTR),y
     beq fill_backend_path_vice_mount_done
     jsr screen_code_to_ascii
+    ora #$20
     sta (SCREEN_PTR),y
     iny
     cpy #MAX_LINE_LEN
@@ -1621,17 +1623,8 @@ select_vice_device_id_a:
     rts
 
 build_vice_open_path_from_name:
-    jsr select_backend_path_cache
-    lda PTR
-    sta SCREEN_PTR
-    lda PTR+1
-    sta SCREEN_PTR+1
-    jsr fill_backend_path_vice
-    lda SCREEN_PTR
-    sta PTR
-    lda SCREEN_PTR+1
-    sta PTR+1
-    jmp build_vice_open_path_from_prefix_ptr
+    jsr build_vice_full_path_from_path_name
+    jmp tool_abi_append_read_suffix
 
 build_vice_open_path_from_launch_path:
     lda #<TOOL_ABI_LAUNCH_PATH
@@ -1789,6 +1782,7 @@ build_vice_full_path_from_path_name_prefix:
     cpy #FULL_PATH_BUF_LEN-2
     bcc build_vice_full_path_from_path_name_prefix
 build_vice_full_path_from_path_name_sep:
+    sty vice_path_len
     lda #ASCII_SLASH
     sta source_fullpath_buffer,y
     iny
@@ -1814,6 +1808,7 @@ build_vice_full_path_from_path_name_name_loop:
     cpy #FULL_PATH_BUF_LEN-1
     bcc build_vice_full_path_from_path_name_name_loop
 build_vice_full_path_from_path_name_done:
+    stx vice_name_index
     lda #$00
     sta source_fullpath_buffer,y
     lda #<source_fullpath_buffer
@@ -1852,37 +1847,37 @@ build_vice_manifest_full_path_suffix:
     lda #ASCII_SLASH
     sta source_fullpath_buffer,y
     iny
-    lda #'U'
+    lda #'u'
     sta source_fullpath_buffer,y
     iny
-    lda #'D'
+    lda #'d'
     sta source_fullpath_buffer,y
     iny
-    lda #'O'
+    lda #'o'
     sta source_fullpath_buffer,y
     iny
-    lda #'S'
+    lda #'s'
     sta source_fullpath_buffer,y
     iny
-    lda #'D'
+    lda #'d'
     sta source_fullpath_buffer,y
     iny
-    lda #'I'
+    lda #'i'
     sta source_fullpath_buffer,y
     iny
-    lda #'R'
+    lda #'r'
     sta source_fullpath_buffer,y
     iny
     lda #ASCII_DOT
     sta source_fullpath_buffer,y
     iny
-    lda #'T'
+    lda #'t'
     sta source_fullpath_buffer,y
     iny
-    lda #'X'
+    lda #'x'
     sta source_fullpath_buffer,y
     iny
-    lda #'T'
+    lda #'t'
     sta source_fullpath_buffer,y
     iny
     lda #$00
@@ -2786,37 +2781,37 @@ build_vice_manifest_open_path_suffix:
     lda #ASCII_SLASH
     sta source_fullpath_buffer,y
     iny
-    lda #'U'
+    lda #'u'
     sta source_fullpath_buffer,y
     iny
-    lda #'D'
+    lda #'d'
     sta source_fullpath_buffer,y
     iny
-    lda #'O'
+    lda #'o'
     sta source_fullpath_buffer,y
     iny
-    lda #'S'
+    lda #'s'
     sta source_fullpath_buffer,y
     iny
-    lda #'D'
+    lda #'d'
     sta source_fullpath_buffer,y
     iny
-    lda #'I'
+    lda #'i'
     sta source_fullpath_buffer,y
     iny
-    lda #'R'
+    lda #'r'
     sta source_fullpath_buffer,y
     iny
     lda #ASCII_DOT
     sta source_fullpath_buffer,y
     iny
-    lda #'T'
+    lda #'t'
     sta source_fullpath_buffer,y
     iny
-    lda #'X'
+    lda #'x'
     sta source_fullpath_buffer,y
     iny
-    lda #'T'
+    lda #'t'
     sta source_fullpath_buffer,y
     iny
     lda #$00
@@ -6107,8 +6102,6 @@ md_build_ready:
     bcc md_build_vice
     jmp md_build_read_only
 md_build_vice:
-    lda source_drive
-    sta temp_drive
     lda source_dir_id
     sta temp_dir_id
     jsr fill_vice_manifest_dir_cache_current
@@ -6307,14 +6300,17 @@ create_dir_vice_current:
     jsr vice_dir_alloc_slot
     bcs create_dir_vice_current_fail
 create_dir_vice_current_store:
-    jsr create_dir_vice_host_current
-    bcs create_dir_vice_current_fail
     lda temp_dir_id
     jsr store_vice_dir_parent_for_index
     jsr select_vice_dir_name_slot
     jsr copy_path_name_to_vice_dir_slot_ascii
     lda #VICE_DIR_SLOT_LIVE
     jsr store_vice_dir_state_for_index
+    jsr create_dir_vice_host_current
+    bcc create_dir_vice_current_host_ok
+    jsr query_dir_vice_host_current
+    bcs create_dir_vice_current_fail
+create_dir_vice_current_host_ok:
     clc
     rts
 create_dir_vice_current_found:
@@ -7674,7 +7670,6 @@ tool_writeback_copy_record_loop:
 
 tool_writeback_pop_head:
     lda tool_writeback_count
-    sta LAUNCH_TRACE_CODE
     beq tool_writeback_pop_clear
     cmp #$01
     bne :+
@@ -7686,10 +7681,6 @@ tool_writeback_pop_head:
 :
     ldx #$01
 tool_writeback_pop_loop:
-    txa
-    sta LAUNCH_TRACE_CODE
-    lda #$B1
-    sta LAUNCH_TRACE_STAGE
     cpx tool_writeback_count
     bcs tool_writeback_pop_shift_done
     stx saved_rp_x
@@ -7702,11 +7693,6 @@ tool_writeback_pop_loop:
     bne tool_writeback_pop_loop
 tool_writeback_pop_shift_done:
     dec tool_writeback_count
-    lda tool_writeback_count
-    sta tool_writeback_count
-    sta LAUNCH_TRACE_CODE
-    lda #$B2
-    sta LAUNCH_TRACE_STAGE
     lda tool_writeback_count
     bne :+
     lda #TOOL_WRITEBACK_KIND_NONE
@@ -7781,7 +7767,10 @@ svc_apply_tool_writeback_dir_make:
     sta path_name_buffer,y
 :
     jsr create_dir_vice_current
+    bcc svc_apply_tool_writeback_dir_make_map
+    jsr lookup_dynamic_dir_current_from_path_name
     bcs svc_apply_tool_writeback_dir_make_done
+svc_apply_tool_writeback_dir_make_map:
     lda tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
     cmp #VICE_DIR_DYNAMIC_MAX
     bcs svc_apply_tool_writeback_dir_make_done
@@ -7860,11 +7849,18 @@ svc_apply_tool_writeback_file_save_have_content:
     sta SCREEN_PTR
     lda #>program_image_buffer
     sta SCREEN_PTR+1
+    jsr store_vice_tree_live_current_from_screen_ptr
     jsr store_vice_host_current_from_screen_ptr
     bcc :+
     jmp svc_apply_tool_writeback_pop
 :
+    lda file_index
+    sta vice_tree_slot_index
     jsr store_vice_manifest_host_current
+    php
+    lda vice_tree_slot_index
+    sta file_index
+    plp
     bcc :+
     jmp svc_apply_tool_writeback_pop
 :
@@ -8966,24 +8962,19 @@ rename_file_vice_store:
     lda dest_dir_id
     sta temp_dir_id
     jsr copy_copy_dst_to_path_buffer
-    jsr vice_tree_find_current_slot
-    bcc :+
-    jsr query_file_vice_host_current
+    jsr query_file_vice_open_current
     bcs rename_file_vice_fail
-:
     lda source_drive
     sta temp_drive
     lda source_dir_id
     sta temp_dir_id
     jsr copy_source_name_to_path_buffer
-    jsr vice_tree_find_current_slot
-    bcs rename_file_vice_verify_source_host
-    cmp #VICE_TREE_SLOT_TOMBSTONE
-    beq rename_file_vice_ok
-    jmp rename_file_vice_fail
-rename_file_vice_verify_source_host:
-    jsr query_file_vice_host_current
-    bcs rename_file_vice_ok
+    jsr query_file_vice_open_current
+    bcc rename_file_vice_fail
+    jsr store_vice_tree_tombstone_current
+    bcs rename_file_vice_fail
+    jsr store_vice_manifest_host_current
+    bcc rename_file_vice_ok
     jmp rename_file_vice_fail
 rename_file_vice_ok:
     lda #RENAME_STATUS_FAILED
@@ -16053,6 +16044,10 @@ tool_abi_dir_make_sc0:
     sta temp_dir_id
     jsr create_dir_vice_current
     bcs tool_abi_dir_make_fail
+    lda source_drive
+    sta temp_drive
+    lda source_dir_id
+    sta temp_dir_id
     lda #TOOL_WRITEBACK_KIND_DIR_MAKE
     jsr stash_tool_dir_writeback
     ldx tool_abi_saved_x
@@ -16750,136 +16745,19 @@ tool_abi_copy_enum_entry_done:
     rts
 
 tool_abi_build_open_path:
-    lda #<TOOL_ABI_OPEN_PATH
-    sta PTR
-    lda #>TOOL_ABI_OPEN_PATH
-    sta PTR+1
-    jmp tool_abi_build_full_path_to_ptr
+    jmp tool_abi_build_open_path_preserved
 
 tool_abi_build_full_target_path:
-    lda #<TOOL_ABI_OPEN_PATH
-    sta PTR
-    lda #>TOOL_ABI_OPEN_PATH
-    sta PTR+1
+    jmp tool_abi_build_open_path_preserved
+
 tool_abi_build_full_path_to_ptr:
-    lda TOOL_ABI_FILE_NAME_LO
-    sta SCREEN_PTR
-    lda TOOL_ABI_FILE_NAME_HI
-    sta SCREEN_PTR+1
-    ldy #$00
-    lda (SCREEN_PTR),y
-    cmp #ASCII_BANG
-    bne tool_abi_build_full_path_current
-    inc SCREEN_PTR
-    bne :+
-    inc SCREEN_PTR+1
-:
-    ldy #$00
-tool_abi_build_full_target_path_copy_launch_prefix:
-    lda TOOL_ABI_LAUNCH_PATH,y
-    beq tool_abi_build_full_target_path_prefix_done
-    sta (PTR),y
-    iny
-    cpy #FULL_PATH_BUF_LEN-2
-    bcc tool_abi_build_full_target_path_copy_launch_prefix
-    sec
-    rts
-tool_abi_build_full_path_current:
-    ldy #$00
-tool_abi_build_full_target_path_copy_prefix:
-    lda TOOL_ABI_CURRENT_PATH,y
-    beq tool_abi_build_full_target_path_prefix_done
-    sta (PTR),y
-    iny
-    cpy #FULL_PATH_BUF_LEN-2
-    bcc tool_abi_build_full_target_path_copy_prefix
-    sec
-    rts
-tool_abi_build_full_target_path_prefix_done:
-    cpy #$00
-    beq tool_abi_build_full_target_path_name_start
-    dey
-    lda (PTR),y
-    iny
-    cmp #ASCII_SLASH
-    beq tool_abi_build_full_target_path_name_start
-    lda #ASCII_SLASH
-    sta (PTR),y
-    iny
-tool_abi_build_full_target_path_name_start:
-    sty vice_name_index
-    lda SCREEN_PTR
-    ora SCREEN_PTR+1
-    bne tool_abi_build_full_target_path_copy_name
-    lda TOOL_ABI_FILE_NAME_LO
-    sta SCREEN_PTR
-    lda TOOL_ABI_FILE_NAME_HI
-    sta SCREEN_PTR+1
-tool_abi_build_full_target_path_copy_name:
-    ldy #$00
-    lda (SCREEN_PTR),y
-    beq tool_abi_build_full_target_path_done
-    cmp #$01
-    bcc :+
-    cmp #$1B
-    bcs :+
-    clc
-    adc #$40
-:
-    ldy vice_name_index
-    sta (PTR),y
-    inc vice_name_index
-    inc SCREEN_PTR
-    bne :+
-    inc SCREEN_PTR+1
-:
-    lda vice_name_index
-    cmp #FULL_PATH_BUF_LEN-1
-    bcc tool_abi_build_full_target_path_copy_name
-    sec
-    rts
-tool_abi_build_full_target_path_done:
-    ldy vice_name_index
-    lda #$00
-    sta (PTR),y
-    clc
-    rts
+    jmp tool_abi_build_full_path_to_ptr_preserved
 
 tool_abi_append_read_suffix:
-    ldy #$00
-tool_abi_append_read_suffix_scan:
-    lda (PTR),y
-    beq tool_abi_append_read_suffix_write
-    iny
-    cpy #FULL_PATH_BUF_LEN-4
-    bcc tool_abi_append_read_suffix_scan
-    sec
-    rts
-tool_abi_append_read_suffix_write:
-    lda #ASCII_COMMA
-    sta (PTR),y
-    iny
-    lda #'S'
-    sta (PTR),y
-    iny
-    lda #ASCII_COMMA
-    sta (PTR),y
-    iny
-    lda #'R'
-    sta (PTR),y
-    iny
-    lda #$00
-    sta (PTR),y
-    clc
-    rts
+    jmp tool_abi_append_read_suffix_preserved
 
 tool_abi_seed_program_mount_snapshot:
-    ldy PROGRAM_DRIVE_SNAPSHOT
-    lda MOUNT_SNAPSHOT
-    sta mount_kind_table,y
-    lda CURRENT_FLAGS_SNAPSHOT
-    sta mount_flag_table,y
-    rts
+    jmp tool_abi_seed_program_mount_snapshot_preserved
 
 tool_abi_build_probe_dir_open_path:
     lda TOOL_ABI_FILE_NAME_LO
@@ -17015,25 +16893,10 @@ tool_abi_build_current_dir_store_wild:
     rts
 
 tool_abi_close_current_file:
-    jsr CLRCHN
-    lda vice_lfn
-    jsr CLOSE_K
-    rts
+    jmp tool_abi_close_current_file_preserved
 
 tool_abi_name_length_from_ptr:
-    ldy #$00
-tool_abi_name_length_loop:
-    lda (PTR),y
-    beq tool_abi_name_length_done
-    iny
-    cpy #96
-    bcc tool_abi_name_length_loop
-    sec
-    rts
-tool_abi_name_length_done:
-    tya
-    clc
-    rts
+    jmp tool_abi_name_length_from_ptr_preserved
 
 tool_abi_console_putc:
     pha
@@ -18292,10 +18155,10 @@ tool_abi_open_program_read_path_preserved:
     tay
     lda PROGRAM_DIR_SNAPSHOT
     sta dir_state_table,y
-    jsr tool_abi_seed_program_mount_snapshot
-    jsr tool_abi_build_open_path
+    jsr tool_abi_seed_program_mount_snapshot_preserved
+    jsr tool_abi_build_open_path_preserved
     bcs tool_abi_open_program_read_path_done_preserved
-    jsr tool_abi_append_read_suffix
+    jsr tool_abi_append_read_suffix_preserved
     bcs tool_abi_open_program_read_path_done_preserved
     lda #VICE_LFN_FILE
     sta vice_lfn
@@ -18303,6 +18166,133 @@ tool_abi_open_program_read_path_preserved:
     sta vice_secondary
     jmp vice_open_read_from_ptr_preserved
 tool_abi_open_program_read_path_done_preserved:
+    rts
+
+tool_abi_build_open_path_preserved:
+    lda #<TOOL_ABI_OPEN_PATH
+    sta PTR
+    lda #>TOOL_ABI_OPEN_PATH
+    sta PTR+1
+    jmp tool_abi_build_full_path_to_ptr_preserved
+
+tool_abi_build_full_path_to_ptr_preserved:
+    lda TOOL_ABI_FILE_NAME_LO
+    sta SCREEN_PTR
+    lda TOOL_ABI_FILE_NAME_HI
+    sta SCREEN_PTR+1
+    ldy #$00
+    lda (SCREEN_PTR),y
+    cmp #ASCII_BANG
+    bne tool_abi_build_full_path_current_preserved
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    ldy #$00
+tool_abi_build_full_target_path_copy_launch_prefix_preserved:
+    lda TOOL_ABI_LAUNCH_PATH,y
+    beq tool_abi_build_full_target_path_prefix_done_preserved
+    sta (PTR),y
+    iny
+    cpy #FULL_PATH_BUF_LEN-2
+    bcc tool_abi_build_full_target_path_copy_launch_prefix_preserved
+    sec
+    rts
+tool_abi_build_full_path_current_preserved:
+    ldy #$00
+tool_abi_build_full_target_path_copy_prefix_preserved:
+    lda TOOL_ABI_CURRENT_PATH,y
+    beq tool_abi_build_full_target_path_prefix_done_preserved
+    sta (PTR),y
+    iny
+    cpy #FULL_PATH_BUF_LEN-2
+    bcc tool_abi_build_full_target_path_copy_prefix_preserved
+    sec
+    rts
+tool_abi_build_full_target_path_prefix_done_preserved:
+    cpy #$00
+    beq tool_abi_build_full_target_path_name_start_preserved
+    dey
+    lda (PTR),y
+    iny
+    cmp #ASCII_SLASH
+    beq tool_abi_build_full_target_path_name_start_preserved
+    lda #ASCII_SLASH
+    sta (PTR),y
+    iny
+tool_abi_build_full_target_path_name_start_preserved:
+    sty vice_name_index
+    lda SCREEN_PTR
+    ora SCREEN_PTR+1
+    bne tool_abi_build_full_target_path_copy_name_preserved
+    lda TOOL_ABI_FILE_NAME_LO
+    sta SCREEN_PTR
+    lda TOOL_ABI_FILE_NAME_HI
+    sta SCREEN_PTR+1
+tool_abi_build_full_target_path_copy_name_preserved:
+    ldy #$00
+    lda (SCREEN_PTR),y
+    beq tool_abi_build_full_target_path_done_preserved
+    cmp #$01
+    bcc :+
+    cmp #$1B
+    bcs :+
+    clc
+    adc #$40
+:
+    ldy vice_name_index
+    sta (PTR),y
+    inc vice_name_index
+    inc SCREEN_PTR
+    bne :+
+    inc SCREEN_PTR+1
+:
+    lda vice_name_index
+    cmp #FULL_PATH_BUF_LEN-1
+    bcc tool_abi_build_full_target_path_copy_name_preserved
+    sec
+    rts
+tool_abi_build_full_target_path_done_preserved:
+    ldy vice_name_index
+    lda #$00
+    sta (PTR),y
+    clc
+    rts
+
+tool_abi_append_read_suffix_preserved:
+    ldy #$00
+tool_abi_append_read_suffix_scan_preserved:
+    lda (PTR),y
+    beq tool_abi_append_read_suffix_write_preserved
+    iny
+    cpy #FULL_PATH_BUF_LEN-4
+    bcc tool_abi_append_read_suffix_scan_preserved
+    sec
+    rts
+tool_abi_append_read_suffix_write_preserved:
+    lda #ASCII_COMMA
+    sta (PTR),y
+    iny
+    lda #'S'
+    sta (PTR),y
+    iny
+    lda #ASCII_COMMA
+    sta (PTR),y
+    iny
+    lda #'R'
+    sta (PTR),y
+    iny
+    lda #$00
+    sta (PTR),y
+    clc
+    rts
+
+tool_abi_seed_program_mount_snapshot_preserved:
+    ldy PROGRAM_DRIVE_SNAPSHOT
+    lda MOUNT_SNAPSHOT
+    sta mount_kind_table,y
+    lda CURRENT_FLAGS_SNAPSHOT
+    sta mount_flag_table,y
     rts
 
 tool_abi_build_write_path_from_ptr_safe_preserved:
@@ -18348,7 +18338,7 @@ tool_abi_file_write_begin_sc0_preserved:
     sta TOOL_ABI_FILE_NAME_HI
     lda PROGRAM_DRIVE_SNAPSHOT
     sta temp_drive
-    jsr tool_abi_build_open_path
+    jsr tool_abi_build_open_path_preserved
     bcs tool_abi_file_write_begin_fail_preserved
     jsr tool_abi_file_open_write_current_preserved
     bcs tool_abi_file_write_begin_fail_preserved
@@ -18368,7 +18358,7 @@ tool_abi_file_open_write_current_preserved:
     sta vice_lfn
     lda #VICE_SA_WRITE
     sta vice_secondary
-    jsr tool_abi_close_current_file
+    jsr tool_abi_close_current_file_preserved
     jmp vice_open_write_from_ptr_preserved
 
 tool_abi_file_write_chunk_sc0_preserved:
@@ -18436,7 +18426,7 @@ tool_abi_file_write_close_sc0_preserved:
     stx saved_rp_x
     lda #VICE_LFN_TOOL
     sta vice_lfn
-    jsr tool_abi_close_current_file
+    jsr tool_abi_close_current_file_preserved
     ldx saved_rp_x
     lda #TOOL_FILE_STATUS_OK
     sta 0,x
@@ -18518,7 +18508,7 @@ tool_abi_file_stage_reu_chunk_done_preserved:
     bcc tool_abi_file_stage_reu_loop_preserved
     lda #$A6
     sta SERVICE_STAGE_SNAPSHOT
-    jsr tool_abi_close_current_file
+    jsr tool_abi_close_current_file_preserved
     ldx tool_abi_file_stage_saved_x
     lda #TOOL_FILE_STATUS_OK
     sta 5,x
@@ -18564,7 +18554,7 @@ vice_setlfs_current_preserved_apply:
     jmp SETLFS
 
 vice_open_write_from_ptr_preserved:
-    jsr tool_abi_name_length_from_ptr
+    jsr tool_abi_name_length_from_ptr_preserved
     bcs vice_open_write_from_ptr_preserved_fail
     pha
     jsr CLRCHN
@@ -18586,10 +18576,31 @@ vice_open_write_from_ptr_preserved:
     rts
 vice_open_write_from_ptr_preserved_fail_close:
     php
-    jsr tool_abi_close_current_file
+    jsr tool_abi_close_current_file_preserved
     plp
 vice_open_write_from_ptr_preserved_fail:
     sec
+    rts
+
+tool_abi_close_current_file_preserved:
+    jsr CLRCHN
+    lda vice_lfn
+    jsr CLOSE_K
+    rts
+
+tool_abi_name_length_from_ptr_preserved:
+    ldy #$00
+tool_abi_name_length_loop_preserved:
+    lda (PTR),y
+    beq tool_abi_name_length_done_preserved
+    iny
+    cpy #96
+    bcc tool_abi_name_length_loop_preserved
+    sec
+    rts
+tool_abi_name_length_done_preserved:
+    tya
+    clc
     rts
 
 tool_abi_reu_read_sc0_preserved:

@@ -9,7 +9,7 @@ import run_action_actmon_probe as actmon
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run a focused ACTMON CHECK proof through the generic Action VICE runner")
+    parser = argparse.ArgumentParser(description="Run a focused ACTMON CHECK proof through the UDOS VICE probe harness")
     parser.add_argument("--disk", required=True)
     parser.add_argument("--fs-root", required=True)
     parser.add_argument("--project", default="PROJ3")

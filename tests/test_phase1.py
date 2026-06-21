@@ -59,6 +59,10 @@ class UdosBuildTests(unittest.TestCase):
         self.run_make("vice-drive")
 
     @unittest.skipUnless(HAS_VICE, "x64sc not installed")
+    def test_reu_service_roundtrip_runs_in_vice(self) -> None:
+        self.run_make("vice-reu-services")
+
+    @unittest.skipUnless(HAS_VICE, "x64sc not installed")
     def test_real_tree_reads_run_in_vice(self) -> None:
         self.run_make("vice-real-read")
 

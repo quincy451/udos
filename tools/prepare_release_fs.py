@@ -54,6 +54,21 @@ def robust_rmtree(path: Path) -> None:
         raise last_exc
 
 
+def add_lowercase_aliases(root: Path) -> None:
+    """Expose VICE fsdevice paths on case-sensitive hosts.
+
+    The resident normalizes host paths to lowercase before opening them through
+    VICE. Keep the exported uppercase tree for compatibility with existing
+    tests and scripts, but add lowercase symlinks so Linux hosts resolve the
+    same paths that Windows/WSL resolved case-insensitively.
+    """
+    for path in sorted(root.rglob("*"), key=lambda item: len(item.parts)):
+        lower_path = path.with_name(path.name.lower())
+        if lower_path == path or lower_path.exists():
+            continue
+        lower_path.symlink_to(path.name, target_is_directory=path.is_dir())
+
+
 def import_action_workspace(output: Path) -> None:
     workspace = Path(__file__).resolve().parents[2]
     action_root = workspace / "actionc64u"
@@ -106,6 +121,7 @@ def main() -> int:
         work_manifest.write_text("", encoding="ascii")
 
     import_action_workspace(output)
+    add_lowercase_aliases(output)
     return 0
 
 

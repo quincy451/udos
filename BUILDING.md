@@ -20,7 +20,7 @@ Optional for emulator validation:
 ## Build The Resident Image
 
 ```sh
-cd /mnt/c/test/action/udos
+cd path/to/action/udos
 make resident
 ```
 
@@ -34,7 +34,7 @@ Outputs:
 ## Build The Release Image
 
 ```sh
-cd /mnt/c/test/action/udos
+cd path/to/action/udos
 make release
 ```
 
@@ -57,7 +57,7 @@ Release behavior:
 ### Resident
 
 ```sh
-cd /mnt/c/test/action/udos
+cd path/to/action/udos
 make vice-resident
 ```
 
@@ -120,7 +120,8 @@ Separate VICE smoke targets:
 - `make vice-action-act2save`
   - uses the release image with deterministic typed input on top of the release workspace
   - seeds a project root marked by `ACTION.PROJ`
-  - validates `ACT2SAVE.PRG HELPER` launches from mounted `ACTION.DNP`
+  - validates `ACTSAVE HELPER` launches the short alias for `ACT2SAVE.PRG`
+    from mounted `ACTION.DNP`
   - rewrites `SRC/HELPER.ACT` through the preserved external-tool file-save ABI
   - verifies the rewritten host file now contains `PROC HELPER()` instead of `PROC OLDHELPER()`
 - `make vice-action-actc`
@@ -261,7 +262,7 @@ Current resident map facts:
 - linked entrypoint: `$18D3`
 - resident core code: `$87AA`
 - resident image end: `$9FBA`
-- resident load window in [udos_c64.cfg](/mnt/c/test/action/udos/src/asm/udos_c64.cfg): `$87F0`
+- resident load window in [udos_c64.cfg](src/asm/udos_c64.cfg): `$87F0`
 - VICE validation now enables a `16 MiB` REU by default
 - current direct `MEM` probe:
   - `RAM USED 0 FREE 65535 REU USED 40862 FREE 16736354`
@@ -297,7 +298,7 @@ Current resident map facts:
 ## Tests
 
 ```sh
-cd /mnt/c/test/action/udos
+cd path/to/action/udos
 python3 -m unittest discover -s tests -q
 ```
 
@@ -309,7 +310,7 @@ Notes:
 ## Transcript Self-Test Images
 
 ```sh
-cd /mnt/c/test/action/udos
+cd path/to/action/udos
 make vice-selftest
 ```
 

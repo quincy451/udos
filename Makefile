@@ -79,6 +79,482 @@ ACTION_ALINK_FS := build/action-alink-fs
 ACTION_ALINK_PRG_FS := build/action-alink-prg-fs
 ACTION_ACTC_ALINK_LAUNCH_FS := build/action-actc-alink-launch-fs
 ACTION_ACTC_ALINK_LAUNCH_SHAPE ?= if_else_local_call_chain_nested_do_if_else
+ACTION_ACTC_ALINK_PROBE_TIMEOUT ?= 720s
+ACTION_ACTC_ALINK_PROBE_ATTEMPTS ?= 5
+ACTION_ACTC_ALINK_INPUT_PROBE_ATTEMPTS ?= 5
+ACTION_ALINK_PRG_OBJECT_CODE_PROBE_ATTEMPTS ?= 5
+ACTION_ALINK_PRG_OBJECT_CODE_PROBE_TIMEOUT ?= 300s
+ACTION_ALINK_PRG_OBJECT_CODE_SHELL_TIMEOUT ?= 180
+ACTION_ACTC_ALINK_OBJECT_EMISSION_SHAPES := \
+	single_call \
+	fanout \
+	local_chain_mixed_call \
+	local_external_chain_mixed_call \
+	local_external_helper_only_call \
+	local_external_deep_helper_only_call \
+	local_external_helper_mixed_repeat_call \
+	local_external_project_library_helper_closure \
+	local_external_project_imports_actc_secondary_export \
+	local_external_project_imports_actc_secondary_export_local_chain \
+	local_external_library_imports_actc_secondary_export \
+	local_external_library_imports_actc_secondary_export_local_chain \
+	local_external_direct_and_library_imports_actc_tail \
+	local_external_library_project_imports_actc_secondary_export \
+	local_external_library_project_imports_actc_secondary_export_local_chain \
+	local_external_mixed_shared_library_dependency_dedup \
+	local_external_dual_secondary_exports_shared_library_dedup \
+	local_external_dual_secondary_exports_shared_project_dedup \
+	local_external_dual_secondary_exports_shared_actc_local_dedup \
+	local_external_project_library_transitive_shared_tail \
+	local_external_project_library_transitive_project_tail \
+	local_external_project_library_transitive_tail_imports_actc_local_chain \
+	external_project_library_project_library_chain \
+	external_call \
+	local_external_call \
+	local_external_pair_call \
+	local_external_call_twice \
+	local_external_mixed_repeat_call \
+	external_pair_call \
+	external_triple_call \
+	external_lettered_import_call \
+	external_dependency_windowed_lettered_import_call \
+	local_external_project_dependency_windowed_lettered_import_call \
+	local_external_project_dependency_windowed_lettered_mixed_helper_call \
+	external_mixed_repeat_call \
+	external_call_twice
+ACTION_ALINK_PRG_OBJECT_CODE_GRAPH_SHAPES := \
+	object_code_external_pair \
+	object_code_external_triple_root_imports \
+	object_code_external_offset_transitive_call \
+	object_code_transitive_call \
+	object_code_project_transitive_call \
+	object_code_project_offset_library_dependency \
+	object_code_project_precedes_library \
+	object_code_project_second_export_import \
+	object_code_project_second_export_named_symbol_import \
+	object_code_project_second_export_imports_project_dependency \
+	object_code_project_second_export_lettered_import_project_helper \
+	object_code_project_second_export_lettered_import_library_helper \
+	object_code_project_second_export_lowercase_z_import_library_helper \
+	object_code_project_second_export_lowercase_z_import_project_helper \
+	object_code_project_second_export_dependency_dual_lettered_import_mixed_helpers \
+	object_code_project_second_export_transitive_project_dependency \
+	object_code_project_second_export_project_dependency_imports_library_tail \
+	object_code_project_second_export_transitive_library_dependency \
+	object_code_mixed_second_export_transitive_project_dependency \
+	object_code_mixed_project_library_closure \
+	object_code_mixed_dual_transitive_project_library_closure \
+	object_code_library_imports_project_dependency \
+	object_code_library_second_export_imports_project_dependency \
+	object_code_library_second_export_named_symbol_import \
+	object_code_library_second_export_dependency_dual_lettered_import_mixed_helpers \
+	object_code_library_second_export_lettered_import_project_helper \
+	object_code_library_second_export_lettered_import_library_helper \
+	object_code_library_second_export_lowercase_z_import_project_helper \
+	object_code_library_second_export_lowercase_z_import_library_helper \
+	object_code_library_second_export_imports_library_dependency \
+	object_code_library_second_export_transitive_library_dependency \
+	object_code_library_second_export_transitive_project_dependency \
+	object_code_library_second_export_project_dependency_imports_library_tail \
+	object_code_mixed_second_export_shared_library_dependency_dedup \
+	object_code_mixed_second_export_shared_project_dependency_dedup \
+	object_code_library_offset_project_dependency \
+	object_code_library_imports_root_local_export \
+	object_code_library_imports_offset_root_local_export \
+	object_code_library_second_export_imports_root_local_export \
+	object_code_library_second_export_dependency_imports_root_local_export \
+	object_code_library_second_export_dependency_imports_offset_root_local_export \
+	object_code_project_imports_offset_root_local_export \
+	object_code_transitive_imports_offset_root_local_export \
+	object_code_mixed_transitive_imports_offset_root_local_export \
+	object_code_library_project_transitive_imports_offset_root_local_export \
+	object_code_project_transitive_imports_offset_root_local_export \
+	object_code_library_dual_import_project_library_dependencies \
+	object_code_project_dual_import_project_library_dependencies \
+	object_code_root_library_share_project_dependency_dedup \
+	object_code_root_library_share_library_dependency_dedup \
+	object_code_root_project_share_project_dependency_dedup \
+	object_code_root_project_share_library_dependency_dedup \
+	object_code_project_library_project_library_chain \
+	object_code_mixed_shared_dependency_dedup \
+	object_code_root_project_library_share_library_dependency_dedup \
+	object_code_root_project_library_share_project_dependency_dedup \
+	object_code_mixed_shared_library_dependency_dedup \
+	object_code_external_lettered_import_pruned \
+	object_code_project_lettered_import_pruned \
+	object_code_lettered_import_call \
+	object_code_project_lettered_import_call \
+	object_code_project_dependency_lettered_import_project_helper \
+	object_code_library_dependency_lettered_import_project_helper \
+	object_code_lowercase_z_import_call \
+	object_code_project_lowercase_z_import_call \
+	object_code_dependency_lowercase_z_import_pruned \
+	object_code_project_dependency_lowercase_z_import_pruned \
+	object_code_project_dependency_lowercase_z_import_project_helper \
+	object_code_library_dependency_lowercase_z_import_project_helper \
+	object_code_dependency_reloc_scan_windowed_imports \
+	object_code_external_cycle \
+	object_code_external_back_edge_cycle \
+	object_code_mixed_project_library_back_edge_cycle \
+	object_code_mixed_project_offset_back_edge_cycle \
+	object_code_external_triangle \
+	object_code_external_diamond \
+	object_code_external_square
+ACTION_ALINK_PRG_OBJECT_CODE_CORE_SHAPES := \
+	object_code_return \
+	object_code_split_machine_records \
+	object_code_split_dependency_machine_records \
+	object_code_named_symbol_relocations \
+	object_code_named_symbol_relocation_import_closure \
+	object_code_named_symbol_dependency_import_closure \
+	object_code_named_symbol_dependency_local_export \
+	object_code_local_call \
+	object_code_external_call \
+	object_code_offset_external_call \
+	object_code_root_unused_import_ignored \
+	object_code_root_unused_export_import_ignored \
+	object_code_root_second_export_selected \
+	object_code_root_second_export_import \
+	object_code_root_second_export_named_symbol_import \
+	object_code_root_second_export_imports_root_local_export \
+	object_code_root_second_export_imports_offset_root_local_export \
+	object_code_root_second_export_offset_local_and_library_project_tail \
+	object_code_large_root_page_crossing \
+	object_code_large_root_multi_reloc_page_crossing \
+	object_code_reloc_scan_windowed_imports \
+	object_code_large_dependency_page_crossing \
+	object_code_project_large_dependency_page_crossing \
+	object_code_project_large_dependency_library_tail_page_crossing \
+	object_code_external_unused_import_ignored \
+	object_code_external_second_export \
+	object_code_external_second_export_import \
+	object_code_root_second_export_transitive_library_dependency \
+	object_code_root_second_export_transitive_project_dependency \
+	object_code_root_second_export_project_second_export_library_tail \
+	object_code_root_second_export_library_second_export_project_second_export_tail \
+	object_code_root_second_export_mixed_project_library_dependency \
+	object_code_root_second_export_mixed_library_project_dependency \
+	object_code_root_second_export_dual_import_project_library_dependencies \
+	object_code_root_second_export_dual_import_library_project_dependencies \
+	object_code_root_second_export_dual_import_shared_library_dependency_dedup \
+	object_code_root_second_export_dual_import_shared_project_dependency_dedup \
+	object_code_root_second_export_root_project_share_project_dependency_dedup \
+	object_code_root_second_export_root_library_share_project_dependency_dedup \
+	object_code_root_second_export_root_project_share_library_dependency_dedup \
+	object_code_root_second_export_root_library_share_library_dependency_dedup \
+	object_code_root_second_export_root_project_library_share_library_dependency_dedup \
+	object_code_root_second_export_root_project_library_share_project_dependency_dedup \
+	object_code_root_second_export_dependency_dual_lettered_import_mixed_helpers \
+	object_code_root_second_export_dependency_lowercase_z_import_project_helper \
+	object_code_root_second_export_dependency_lowercase_z_import_library_helper \
+	object_code_root_second_export_library_dependency_lowercase_z_import_project_helper \
+	object_code_root_second_export_library_dependency_lowercase_z_import_library_helper \
+	object_code_root_second_export_dependency_imports_root_local_export \
+	object_code_root_second_export_dependency_imports_offset_root_local_export \
+	object_code_external_call_twice \
+	object_code_external_print_line \
+	object_code_external_store_call \
+	object_code_external_load_store_call \
+	object_code_external_string_int_call \
+	object_code_transitive_external_print_line \
+	object_code_transitive_external_store_call \
+	object_code_transitive_external_load_store_call \
+	object_code_transitive_external_string_int_call
+ACTION_ALINK_PRG_OBJECT_CODE_REJECTION_CASES := \
+	object_code_unresolved_import_rejects \
+	object_code_duplicate_export_rejects \
+	object_code_missing_machine_record_rejects \
+	object_code_zero_size_export_rejects \
+	object_code_export_offset_past_machine_rejects \
+	object_code_export_size_overruns_machine_rejects \
+	object_code_reloc_unknown_import_index_rejects \
+	object_code_dependency_unknown_lowercase_import_index_rejects \
+	object_code_project_unknown_lowercase_import_index_blocks_library_fallback \
+	object_code_project_second_export_named_symbol_local_export \
+	object_code_reloc_malformed_offset_rejects \
+	object_code_library_missing_machine_record_rejects \
+	object_code_library_duplicate_export_rejects \
+	object_code_library_zero_size_export_rejects \
+	object_code_library_export_offset_past_machine_rejects \
+	object_code_library_export_size_overruns_machine_rejects \
+	object_code_library_reloc_malformed_offset_rejects \
+	object_code_library_wrong_export_rejects \
+	object_code_project_bad_dependency_blocks_library_fallback \
+	object_code_project_zero_size_export_blocks_library_fallback \
+	object_code_project_export_offset_past_machine_blocks_library_fallback \
+	object_code_project_export_size_overruns_machine_blocks_library_fallback \
+	object_code_project_duplicate_export_blocks_library_fallback \
+	object_code_project_reloc_malformed_offset_blocks_library_fallback \
+	object_code_project_wrong_export_blocks_library_fallback
+ACTION_ACTC_ALINK_RUNTIME_SHAPES := \
+	actc_runtime_cell_helpers_linked \
+	actc_runtime_helper_free_unused_helper_libraries_pruned \
+	actc_runtime_selective_hardware_helpers_linked \
+	actc_runtime_reordered_hardware_helpers_linked \
+	actc_runtime_mixed_hardware_helpers_linked \
+	actc_runtime_variable_mixed_gfx_sprite_helpers_linked \
+	actc_runtime_no_arg_hardware_helpers_linked \
+	actc_runtime_stateful_byte_hardware_helpers_linked \
+	actc_runtime_word_copy_fill_helpers_linked \
+	actc_runtime_sid_osc3_readback_store_linked \
+	actc_runtime_sid_osc3_byte_readback_store_linked \
+	actc_runtime_sid_env3_readback_store_linked \
+	actc_runtime_multi_readback_store_linked \
+	actc_runtime_readback_store_copy_linked \
+	actc_runtime_byte_readback_store_copy_linked \
+	actc_runtime_sprite_hit_readback_store_linked \
+	actc_runtime_sprite_hit_bg_readback_store_linked \
+	actc_runtime_remaining_hardware_helpers_linked
+ACTION_ACTC_ALINK_CARD_VARIABLE_RUNTIME_SHAPES := \
+	actc_runtime_card_variable_gfx_screen_base_helper_linked \
+	actc_runtime_card_variable_gfx_bitmap_base_helper_linked \
+	actc_runtime_card_variable_gfx_screen_copy_helper_linked \
+	actc_runtime_card_variable_gfx_color_copy_helper_linked \
+	actc_runtime_card_variable_gfx_bitmap_copy_helper_linked \
+	actc_runtime_card_variable_sprite_pos_helper_linked \
+	actc_runtime_card_variable_sprite_data_helper_linked
+ACTION_ACTC_ALINK_MATH_RUNTIME_SHAPES := \
+	actc_runtime_math1_export_sample_linked \
+	actc_runtime_math1_fabs_split_linked \
+	actc_runtime_math1_fsqrt_split_linked \
+	actc_runtime_math1_printre_split_linked \
+	actc_runtime_math1_printr_split_linked \
+	actc_runtime_math1_real_int_split_linked \
+	actc_runtime_math1_real_to_int_split_linked \
+	actc_runtime_math1_real_add_split_linked \
+	actc_runtime_math1_real_sub_split_linked \
+	actc_runtime_math1_real_mul_split_linked \
+	actc_runtime_math1_real_div_split_linked \
+	actc_runtime_math1_real_cmp_split_linked \
+	real_printre_fabs \
+	real_printre_fsqrt
+ACTION_ACTC_ALINK_GFX_RUNTIME_SHAPES := \
+	actc_runtime_gfx1_export_sample_linked \
+	actc_runtime_gfx1_bgcolor_split_linked \
+	actc_runtime_gfx1_bordercolor_split_linked \
+	actc_runtime_gfx1_vic_bank_split_linked \
+	actc_runtime_gfx1_screen_base_split_linked \
+	actc_runtime_gfx1_bitmap_base_split_linked \
+	actc_runtime_gfx1_screen_cell_split_linked \
+	actc_runtime_gfx1_color_cell_split_linked \
+	actc_runtime_gfx1_screen_copy_split_linked \
+	actc_runtime_gfx1_color_copy_split_linked \
+	actc_runtime_gfx1_bitmap_fill_split_linked \
+	actc_runtime_gfx1_bitmap_copy_split_linked \
+	actc_runtime_gfx1_bitmap_on_split_linked \
+	actc_runtime_gfx1_bitmap_off_split_linked \
+	actc_runtime_gfx1_mbitmap_on_split_linked \
+	actc_runtime_gfx1_mbitmap_off_split_linked \
+	actc_runtime_gfx_bgcolor_helper_linked \
+	actc_runtime_gfx_bordercolor_helper_linked \
+	actc_runtime_gfx_vic_bank_helper_linked \
+	actc_runtime_gfx_screen_base_helper_linked \
+	actc_runtime_gfx_bitmap_base_helper_linked \
+	actc_runtime_gfx_screen_cell_helper_linked \
+	actc_runtime_gfx_color_cell_helper_linked \
+	actc_runtime_gfx_screen_copy_helper_linked \
+	actc_runtime_gfx_color_copy_helper_linked \
+	actc_runtime_gfx_bitmap_fill_helper_linked \
+	actc_runtime_gfx_bitmap_copy_helper_linked \
+	actc_runtime_gfx_bitmap_on_helper_linked \
+	actc_runtime_gfx_bitmap_off_helper_linked \
+	actc_runtime_gfx_mbitmap_on_helper_linked \
+	actc_runtime_gfx_mbitmap_off_helper_linked
+ACTION_ACTC_ALINK_VARIABLE_GFX_RUNTIME_SHAPES := \
+	actc_runtime_variable_gfx_bgcolor_helper_linked \
+	actc_runtime_variable_gfx_bordercolor_helper_linked \
+	actc_runtime_variable_gfx_reassigned_color_helpers_linked \
+	actc_runtime_variable_gfx_vic_bank_helper_linked \
+	actc_runtime_variable_gfx_screen_cell_helper_linked \
+	actc_runtime_variable_gfx_color_cell_helper_linked \
+	actc_runtime_variable_gfx_bitmap_fill_helper_linked
+ACTION_ACTC_ALINK_SID_RUNTIME_SHAPES := \
+	actc_runtime_sidspr1_sid_vol_split_linked \
+	actc_runtime_sidspr1_sid_freq_split_linked \
+	actc_runtime_sidspr1_sid_pulse_split_linked \
+	actc_runtime_sidspr1_sid_ad_split_linked \
+	actc_runtime_sidspr1_sid_sr_split_linked \
+	actc_runtime_sidspr1_sid_route_split_linked \
+	actc_runtime_sidspr1_sid_res_split_linked \
+	actc_runtime_sidspr1_sid_cutoff_split_linked \
+	actc_runtime_sidspr1_sid_mode_split_linked \
+	actc_runtime_sidspr1_sid_wave_split_linked \
+	actc_runtime_sidspr1_sid_on_split_linked \
+	actc_runtime_sidspr1_sid_off_split_linked \
+	actc_runtime_sidspr1_sid_rst_split_linked \
+	actc_runtime_sidspr1_sid_osc3_split_linked \
+	actc_runtime_sidspr1_sid_env3_split_linked \
+	actc_runtime_sid_vol_helper_linked \
+	actc_runtime_sid_mode_helper_linked \
+	actc_runtime_sid_freq_helper_linked \
+	actc_runtime_sid_pulse_helper_linked \
+	actc_runtime_sid_wave_helper_linked \
+	actc_runtime_sid_ad_helper_linked \
+	actc_runtime_sid_sr_helper_linked \
+	actc_runtime_sid_on_helper_linked \
+	actc_runtime_sid_off_helper_linked \
+	actc_runtime_sid_rst_helper_linked \
+	actc_runtime_sid_route_helper_linked \
+	actc_runtime_sid_res_helper_linked \
+	actc_runtime_sid_cutoff_helper_linked \
+	actc_runtime_sid_osc3_helper_linked \
+	actc_runtime_sid_env3_helper_linked
+ACTION_ACTC_ALINK_VARIABLE_SID_RUNTIME_SHAPES := \
+	actc_runtime_variable_sid_vol_helper_linked \
+	actc_runtime_variable_sid_reassigned_level_helpers_linked \
+	actc_runtime_variable_sid_mode_helper_linked \
+	actc_runtime_variable_sid_freq_helper_linked \
+	actc_runtime_variable_sid_pulse_helper_linked \
+	actc_runtime_variable_sid_wave_helper_linked \
+	actc_runtime_variable_sid_ad_helper_linked \
+	actc_runtime_variable_sid_sr_helper_linked \
+	actc_runtime_variable_sid_on_helper_linked \
+	actc_runtime_variable_sid_off_helper_linked \
+	actc_runtime_variable_sid_route_helper_linked \
+	actc_runtime_variable_sid_res_helper_linked \
+	actc_runtime_variable_sid_cutoff_helper_linked
+ACTION_ACTC_ALINK_SPRITE_RUNTIME_SHAPES := \
+	actc_runtime_sidspr1_sprite_color_split_linked \
+	actc_runtime_sidspr1_sprite_data_split_linked \
+	actc_runtime_sidspr1_sprite_ptr_split_linked \
+	actc_runtime_sidspr1_sprite_pos_split_linked \
+	actc_runtime_sidspr1_sprite_on_split_linked \
+	actc_runtime_sidspr1_sprite_off_split_linked \
+	actc_runtime_sidspr1_sprite_hit_split_linked \
+	actc_runtime_sidspr1_sprite_hit_bg_split_linked \
+	actc_runtime_sidspr1_sprite_mc_split_linked \
+	actc_runtime_sidspr1_sprite_xexp_split_linked \
+	actc_runtime_sidspr1_sprite_yexp_split_linked \
+	actc_runtime_sidspr1_sprite_prio_split_linked \
+	actc_runtime_sidspr1_sprite_set_mc_split_linked \
+	actc_runtime_sprite_color_helper_linked \
+	actc_runtime_sprite_data_helper_linked \
+	actc_runtime_sprite_ptr_helper_linked \
+	actc_runtime_sprite_pos_helper_linked \
+	actc_runtime_sprite_pos_low_x_helper_linked \
+	actc_runtime_sprite_on_helper_linked \
+	actc_runtime_sprite_off_helper_linked \
+	actc_runtime_sprite_hit_helper_linked \
+	actc_runtime_sprite_hit_bg_helper_linked \
+	actc_runtime_sprite_mc_helper_linked \
+	actc_runtime_sprite_mc_clear_helper_linked \
+	actc_runtime_sprite_xexp_helper_linked \
+	actc_runtime_sprite_xexp_clear_helper_linked \
+	actc_runtime_sprite_yexp_helper_linked \
+	actc_runtime_sprite_yexp_clear_helper_linked \
+	actc_runtime_sprite_prio_helper_linked \
+	actc_runtime_sprite_prio_clear_helper_linked \
+	actc_runtime_sprite_set_mc_helper_linked
+ACTION_ACTC_ALINK_VARIABLE_SPRITE_RUNTIME_SHAPES := \
+	actc_runtime_variable_sprite_color_helper_linked \
+	actc_runtime_variable_sprite_reassigned_color_helpers_linked \
+	actc_runtime_variable_sprite_ptr_helper_linked \
+	actc_runtime_variable_sprite_on_helper_linked \
+	actc_runtime_variable_sprite_off_helper_linked \
+	actc_runtime_variable_sprite_mc_helper_linked \
+	actc_runtime_variable_sprite_mc_clear_helper_linked \
+	actc_runtime_variable_sprite_xexp_helper_linked \
+	actc_runtime_variable_sprite_xexp_clear_helper_linked \
+	actc_runtime_variable_sprite_yexp_helper_linked \
+	actc_runtime_variable_sprite_yexp_clear_helper_linked \
+	actc_runtime_variable_sprite_prio_helper_linked \
+	actc_runtime_variable_sprite_prio_clear_helper_linked \
+	actc_runtime_variable_sprite_set_mc_helper_linked
+ACTION_ACTC_ALINK_INPUT_RUNTIME_SHAPES := \
+	actc_runtime_input_joystick_helpers_linked \
+	actc_runtime_input_joystick_condition_gfx_helper_linked \
+	actc_runtime_input_joystick_not_equal_condition_gfx_helper_linked \
+	actc_runtime_input_joystick_state_store_linked \
+	actc_runtime_input_joystick_two_button_mask_linked \
+	actc_runtime_input_joystick_button_state_helpers_linked \
+	actc_runtime_input_mouse_helpers_linked \
+	actc_runtime_input_mouse_state_store_linked \
+	actc_runtime_input_mouse_two_button_mask_linked \
+	actc_runtime_input_mouse_button_state_helpers_linked \
+	actc_runtime_input_mouse_button_condition_gfx_helper_linked \
+	actc_runtime_input_mouse_button_not_equal_condition_gfx_helper_linked \
+	actc_runtime_input_joystick_button_condition_gfx_helper_linked \
+	actc_runtime_input_mouse_button2_condition_gfx_helper_linked \
+	actc_runtime_input_variable_port_store_linked \
+	actc_runtime_input_gfx_mixed_helpers_linked \
+	actc_runtime_input_mouse_result_gfx_arg_linked \
+	actc_runtime_input_mouse_result_sid_arg_linked \
+	actc_runtime_input_mouse_result_sprite_second_arg_linked \
+	actc_runtime_input_mouse_x_result_sprite_pos_second_arg_linked \
+	actc_runtime_input_mouse_y_result_sprite_pos_third_arg_linked \
+	actc_runtime_input_mouse_button_result_sid_arg_linked \
+	actc_runtime_input_joystick_result_sid_arg_linked \
+	actc_runtime_input_joystick_result_sid_word_arg_linked \
+	actc_runtime_input_joystick_result_sid_first_arg_linked \
+	actc_runtime_input_joystick_result_sid_freq_second_arg_linked \
+	actc_runtime_input_joystick_result_sid_pulse_second_arg_linked \
+	actc_runtime_input_joystick_result_sprite_second_arg_linked \
+	actc_runtime_input_joystick_result_sprite_first_arg_linked \
+	actc_runtime_input_joystick_result_sprite_data_first_arg_linked \
+	actc_runtime_input_joystick_result_sprite_data_second_arg_linked \
+	actc_runtime_input_joystick_result_sprite_ptr_first_arg_linked \
+	actc_runtime_input_joystick_result_sprite_ptr_second_arg_linked \
+	actc_runtime_input_joystick_result_sprite_mc_first_arg_linked \
+	actc_runtime_input_joystick_result_sprite_mc_second_arg_linked \
+	actc_runtime_input_joystick_result_sprite_xexp_first_arg_linked \
+	actc_runtime_input_joystick_result_sprite_xexp_second_arg_linked \
+	actc_runtime_input_joystick_result_sprite_yexp_first_arg_linked \
+	actc_runtime_input_joystick_result_sprite_yexp_second_arg_linked \
+	actc_runtime_input_joystick_result_sprite_prio_first_arg_linked \
+	actc_runtime_input_joystick_result_sprite_prio_second_arg_linked \
+	actc_runtime_input_joystick_result_sprite_set_mc_first_arg_linked \
+	actc_runtime_input_joystick_result_sprite_set_mc_second_arg_linked \
+	actc_runtime_input_joystick_result_sprite_pos_first_arg_linked \
+	actc_runtime_input_joystick_result_sprite_pos_second_arg_linked \
+	actc_runtime_input_joystick_result_sprite_pos_third_arg_linked \
+	actc_runtime_input_joystick_result_sid_second_arg_linked \
+	actc_runtime_input_joystick_result_sid_wave_first_arg_linked \
+	actc_runtime_input_joystick_result_sid_ad_first_arg_linked \
+	actc_runtime_input_joystick_result_sid_ad_second_arg_linked \
+	actc_runtime_input_joystick_result_sid_sr_first_arg_linked \
+	actc_runtime_input_joystick_result_sid_sr_second_arg_linked \
+	actc_runtime_input_joystick_result_gfx_first_arg_linked \
+	actc_runtime_input_joystick_result_gfx_second_arg_linked \
+	actc_runtime_input_joystick_result_gfx_third_arg_linked \
+	actc_runtime_input_sid_mixed_helpers_linked \
+	actc_runtime_input_sprite_mixed_helpers_linked \
+	actc_runtime_input_math_mixed_helpers_linked \
+	actc_runtime_input_mouse_math_mixed_helpers_linked \
+	actc_runtime_input_joystick_math_store_helpers_linked \
+	actc_runtime_input_mouse_math_store_helpers_linked \
+	actc_runtime_input1_export_sample_linked \
+	actc_runtime_input1_joy_split_linked \
+	actc_runtime_input1_joy_seen_split_linked \
+	actc_runtime_input1_joy_button_split_linked \
+	actc_runtime_input1_mouse_poll_split_linked \
+	actc_runtime_input1_mouse_seen_split_linked \
+	actc_runtime_input1_mouse_x_split_linked \
+	actc_runtime_input1_mouse_y_split_linked \
+	actc_runtime_input1_mouse_button_split_linked \
+	actc_runtime_input1_mouse_button_state_split_linked
+ACTION_ACTC_ALINK_DBF_RUNTIME_SHAPES := \
+	actc_runtime_dbf1_export_sample_linked \
+	actc_runtime_dbf1_open_split_linked \
+	actc_runtime_dbf1_close_split_linked \
+	actc_runtime_dbf1_go_split_linked \
+	actc_runtime_dbf1_field_count_split_linked \
+	actc_runtime_dbf1_field_len_split_linked \
+	actc_runtime_dbf1_read_byte_split_linked \
+	actc_runtime_dbf1_deleted_split_linked \
+	actc_runtime_dbf1_header_record_len_split_linked \
+	actc_runtime_dbf1_read_byte_result_sprite_arg_linked \
+	actc_runtime_dbf1_read_byte_joystick_offset_linked \
+	actc_runtime_dbf1_total_recs_split_linked \
+	actc_runtime_dbf1_curr_rec_no_split_linked \
+	actc_runtime_dbf1_total_recs_result_sid_arg_linked
+ACTION_ACTC_ALINK_MISC_RUNTIME_SHAPES := \
+	actc_runtime_repeated_bgcolor_helper_dedup \
+	actc_runtime_sidspr1_export_sample_linked \
+	actc_runtime_sidspr1_sid_wave_mask_linked \
+	actc_runtime_sidspr1_sid_mode_mask_linked \
+	actc_runtime_sidspr1_sprite_prio_back_linked \
+	actc_runtime_named_hardware_constants_linked \
+	actc_runtime_named_constant_mixed_runtime_expr_linked
 ACTION_ACTCHK_FS := build/action-actchk-fs
 ACTION_ACTMON_FS := build/action-actmon-fs
 ACTION_ACTWORK_FS := build/action-actwork-fs
@@ -121,14 +597,18 @@ RESIDENT_LABELS := $(BUILD_DIR)/udos-resident.labels
 RESIDENT_MAP := $(BUILD_DIR)/udos-resident.map
 RETURN_TEST_OBJ := $(BUILD_DIR)/udos_return_test.o
 RETURN_TEST_BIN := $(BUILD_DIR)/udos_return_test.bin
-RETURN_TEST_PRG := $(BUILD_DIR)/RETTEST.PRG
+RETURN_TEST_PRG := $(BUILD_DIR)/rettest.prg
 CLOBBER_TEST_OBJ := $(BUILD_DIR)/udos_clobber_test.o
 CLOBBER_TEST_BIN := $(BUILD_DIR)/udos_clobber_test.bin
-CLOBBER_TEST_PRG := $(BUILD_DIR)/CLOBBER.PRG
+CLOBBER_TEST_PRG := $(BUILD_DIR)/clobber.prg
+REU_SERVICE_TEST_OBJ := $(BUILD_DIR)/udos_reu_service_test.o
+REU_SERVICE_TEST_BIN := $(BUILD_DIR)/udos_reu_service_test.bin
+REU_SERVICE_TEST_PRG := $(BUILD_DIR)/reutest.prg
+VICE_REU_SERVICE_FS := build/vice-reu-service-fs
 RELEASE_BUILD := build/release
 RELEASE_DISK := build/udos-release.d64
 RELEASE_FS := build/udos-release-fs
-ACTIONC64U_DIR := /mnt/c/test/action/actionc64u
+ACTIONC64U_DIR ?= $(abspath $(CURDIR)/../actionc64u)
 ACTC_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
 ACTC_HARNESS_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_harness_udos.sh
 ACTADD_UDOS_BUILD := $(ACTIONC64U_DIR)/tools/build_actadd_udos.sh
@@ -156,6 +636,7 @@ ACTC_OVERLAY_LAYOUT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_payload_
 ACTC_OVERLAY_IMPORT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_runtime_imports.sh
 ACTC_OVERLAY_EMIT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_emit_object.sh
 ACTC_OVERLAY_BODY_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_body_collect.sh
+ACTC_OVERLAY_PREALLOC_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_body_preallocate.sh
 ACTC_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTC.PRG
 ACTC_OVERLAY_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL0.BIN
 ACTC_OVERLAY_SOURCE_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL1.BIN
@@ -164,6 +645,7 @@ ACTC_OVERLAY_LAYOUT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL3.BIN
 ACTC_OVERLAY_IMPORT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL4.BIN
 ACTC_OVERLAY_EMIT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL5.BIN
 ACTC_OVERLAY_BODY_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL6.BIN
+ACTC_OVERLAY_PREALLOC_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL7.BIN
 ACTADD_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTADD.PRG
 ACT2SAVE_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACT2SAVE.PRG
 ALINK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ALINK.PRG
@@ -187,7 +669,8 @@ PROOF_DEPS ?=
 RESIDENT_DEPS ?= resident
 RELEASE_DEPS ?= release
 
-.PHONY: all clean force resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-alink-prg vice-action-alink-prg-matrix vice-action-alink-prg-fanout vice-action-alink-prg-word-store vice-action-alink-prg-word-load-store vice-action-alink-prg-real-printre-int vice-action-alink-prg-real-printre-byte vice-action-alink-prg-real-printre-fraction vice-action-alink-prg-if-else vice-action-alink-prg-nested-if vice-action-alink-prg-do-until-eq vice-action-alink-prg-do-until-lt vice-action-alink-prg-if-local-call-do-until-eq vice-action-alink-prg-if-else-local-call-do-until-eq vice-action-alink-prg-nested-if-local-call vice-action-alink-prg-nested-else-local-call vice-action-alink-prg-nested-do-local-call vice-action-alink-prg-nested-do-if-else-local-call vice-action-alink-prg-if-local-call-nested-do-if-else vice-action-alink-prg-if-else-local-call-nested-do-if-else vice-action-alink-prg-nested-else-local-call-nested-do-if-else vice-action-alink-prg-if-else-local-call-chain-nested-do-if-else vice-action-alink-prg-nested-else-local-call-chain-nested-do-if-else vice-action-alink-launch-word-store vice-action-alink-launch-word-load-store vice-action-actc-alink-launch vice-action-actc-alink-launch-printmath vice-action-actc-alink-launch-if-else-chain vice-action-actc-alink-launch-nested-else-chain vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-copy-root vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: all clean force resident release vice-release vice-action-workspace vice-action-actadd vice-action-actadd-persist vice-action-act2save vice-action-actc vice-action-alink vice-action-alink-prg vice-action-alink-prg-matrix vice-action-alink-prg-fanout vice-action-alink-prg-word-store vice-action-alink-prg-word-load-store vice-action-alink-prg-real-printre-int vice-action-alink-prg-real-printre-byte vice-action-alink-prg-real-printre-fraction vice-action-alink-prg-if-else vice-action-alink-prg-nested-if vice-action-alink-prg-real-do-until vice-action-alink-prg-real-while vice-action-alink-prg-do-until-eq vice-action-alink-prg-do-until-lt vice-action-alink-prg-if-local-call-do-until-eq vice-action-alink-prg-if-else-local-call-do-until-eq vice-action-alink-prg-nested-if-local-call vice-action-alink-prg-nested-else-local-call vice-action-alink-prg-nested-do-local-call vice-action-alink-prg-nested-do-if-else-local-call vice-action-alink-prg-if-local-call-nested-do-if-else vice-action-alink-prg-if-else-local-call-nested-do-if-else vice-action-alink-prg-nested-else-local-call-nested-do-if-else vice-action-alink-prg-if-else-local-call-chain-nested-do-if-else vice-action-alink-prg-nested-else-local-call-chain-nested-do-if-else vice-action-alink-launch-word-store vice-action-alink-launch-word-load-store vice-action-actc-alink-launch vice-action-actc-alink-launch-object-emission-matrix vice-action-actc-alink-launch-printmath vice-action-actc-alink-launch-if-else-chain vice-action-actc-alink-launch-nested-else-chain vice-action-actchk vice-action-actmon-check vice-action-actmon vice-action-actcopy vice-action-copy-root vice-action-actdir vice-action-actfile vice-action-actflow vice-action-actinfo vice-action-actnew vice-action-actnew-prg vice-action-actnew-prg-persist vice-action-actdel vice-action-actmkdir vice-action-actmkdir-persist vice-action-actmove vice-action-actmove-persist vice-action-actrmdir vice-action-actrmdir-persist vice-action-actsrc vice-action-actwork vice-action-actwrite vice-resident vice-launch vice-clobber vice-copy vice-drive vice-real-read vice-real-tree-write vice-real-tree-rename vice-real-tree-wild vice-real-tree-wild-copy vice-real-tree-wild-delete vice-real-tree-dir vice-real-tree-rmdir vice-batch-args vice-batch-stop vice-autoexec vice-selftest-read vice-selftest-copy vice-selftest-rename vice-selftest-delete vice-selftest-dir vice-selftest-batch vice-selftest-stop vice-selftest-launch vice-selftest test
+.PHONY: vice-reu-services
 
 all: resident
 
@@ -226,6 +709,15 @@ $(CLOBBER_TEST_BIN): $(CLOBBER_TEST_OBJ)
 $(CLOBBER_TEST_PRG): $(CLOBBER_TEST_BIN)
 	$(PYTHON) -c "from pathlib import Path; data=Path('$(CLOBBER_TEST_BIN)').read_bytes(); Path('$(CLOBBER_TEST_PRG)').write_bytes(bytes((0x00,0x09))+data)"
 
+$(REU_SERVICE_TEST_OBJ): force $(ASM_DIR)/udos_reu_service_test.asm | $(BUILD_DIR)
+	$(CA65) -g -o $@ $(ASM_DIR)/udos_reu_service_test.asm
+
+$(REU_SERVICE_TEST_BIN): $(REU_SERVICE_TEST_OBJ)
+	$(LD65) -C $(ASM_DIR)/udos_prog.cfg -o $@ $(REU_SERVICE_TEST_OBJ)
+
+$(REU_SERVICE_TEST_PRG): $(REU_SERVICE_TEST_BIN)
+	$(PYTHON) -c "from pathlib import Path; data=Path('$(REU_SERVICE_TEST_BIN)').read_bytes(); Path('$(REU_SERVICE_TEST_PRG)').write_bytes(bytes((0x00,0x09))+data)"
+
 resident: $(RESIDENT_OBJ) $(RESIDENT_BOOT_OBJ)
 	$(LD65) -Ln $(RESIDENT_LABELS) -C $(ASM_DIR)/udos_c64.cfg -m $(RESIDENT_MAP) -o $(RESIDENT_PRG) $(RESIDENT_OBJ)
 	cp $(RESIDENT_PRG) $(RESIDENT_RAW)
@@ -244,6 +736,7 @@ release:
 	bash $(ACTC_OVERLAY_IMPORT_BUILD)
 	bash $(ACTC_OVERLAY_EMIT_BUILD)
 	bash $(ACTC_OVERLAY_BODY_BUILD)
+	bash $(ACTC_OVERLAY_PREALLOC_BUILD)
 	bash $(ACTADD_UDOS_BUILD)
 	bash $(ACT2SAVE_UDOS_BUILD)
 	bash $(ALINK_UDOS_BUILD)
@@ -268,8 +761,14 @@ release:
 	-$(C1541) $(RELEASE_DISK) -delete ACTC_OVL0.BIN
 	-$(C1541) $(RELEASE_DISK) -delete ACTC_OVL1.BIN
 	-$(C1541) $(RELEASE_DISK) -delete ACTC_OVL2.BIN
+	-$(C1541) $(RELEASE_DISK) -delete ACTC_OVL3.BIN
+	-$(C1541) $(RELEASE_DISK) -delete ACTC_OVL4.BIN
+	-$(C1541) $(RELEASE_DISK) -delete ACTC_OVL5.BIN
+	-$(C1541) $(RELEASE_DISK) -delete ACTC_OVL6.BIN
+	-$(C1541) $(RELEASE_DISK) -delete ACTC_OVL7.BIN
 	-$(C1541) $(RELEASE_DISK) -delete ACTADD.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACT2SAVE.PRG
+	-$(C1541) $(RELEASE_DISK) -delete ACTSAVE.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ALINK.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTMON.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTCHK.PRG
@@ -286,7 +785,7 @@ release:
 	-$(C1541) $(RELEASE_DISK) -delete ACTSRC.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTWRITE.PRG
 	-$(C1541) $(RELEASE_DISK) -delete ACTWORK.PRG
-	$(C1541) $(RELEASE_DISK) -write $(ACTC_UDOS_PRG) ACTC.PRG -write $(ACTC_OVERLAY_BIN) ACTC_OVL0.BIN -write $(ACTC_OVERLAY_SOURCE_BIN) ACTC_OVL1.BIN -write $(ACTC_OVERLAY_DECL_BIN) ACTC_OVL2.BIN -write $(ACTC_OVERLAY_LAYOUT_BIN) ACTC_OVL3.BIN -write $(ACTC_OVERLAY_IMPORT_BIN) ACTC_OVL4.BIN -write $(ACTC_OVERLAY_EMIT_BIN) ACTC_OVL5.BIN -write $(ACTC_OVERLAY_BODY_BIN) ACTC_OVL6.BIN -write $(ACTADD_UDOS_PRG) ACTADD.PRG -write $(ACT2SAVE_UDOS_PRG) ACT2SAVE.PRG -write $(ACTMON_UDOS_PRG) ACTMON.PRG -write $(ACTCHK_UDOS_PRG) ACTCHK.PRG -write $(ACTCOPY_UDOS_PRG) ACTCOPY.PRG -write $(ACTDEL_UDOS_PRG) ACTDEL.PRG -write $(ACTEDIT_UDOS_PRG) ACTEDIT.PRG -write $(ACTDIR_UDOS_PRG) ACTDIR.PRG -write $(ACTFILE_UDOS_PRG) ACTFILE.PRG -write $(ACTINFO_UDOS_PRG) ACTINFO.PRG -write $(ACTMKDIR_UDOS_PRG) ACTMKDIR.PRG -write $(ACTMOVE_UDOS_PRG) ACTMOVE.PRG -write $(ACTNEW_UDOS_PRG) ACTNEW.PRG -write $(ACTRMDIR_UDOS_PRG) ACTRMDIR.PRG -write $(ACTSRC_UDOS_PRG) ACTSRC.PRG -write $(ACTWRITE_UDOS_PRG) ACTWRITE.PRG -write $(ACTWORK_UDOS_PRG) ACTWORK.PRG
+	$(C1541) $(RELEASE_DISK) -write $(ACTC_UDOS_PRG) ACTC.PRG -write $(ACTC_OVERLAY_BIN) ACTC_OVL0.BIN -write $(ACTC_OVERLAY_SOURCE_BIN) ACTC_OVL1.BIN -write $(ACTC_OVERLAY_DECL_BIN) ACTC_OVL2.BIN -write $(ACTC_OVERLAY_LAYOUT_BIN) ACTC_OVL3.BIN -write $(ACTC_OVERLAY_IMPORT_BIN) ACTC_OVL4.BIN -write $(ACTC_OVERLAY_EMIT_BIN) ACTC_OVL5.BIN -write $(ACTC_OVERLAY_BODY_BIN) ACTC_OVL6.BIN -write $(ACTC_OVERLAY_PREALLOC_BIN) ACTC_OVL7.BIN -write $(ACTADD_UDOS_PRG) ACTADD.PRG -write $(ACT2SAVE_UDOS_PRG) ACT2SAVE.PRG -write $(ACT2SAVE_UDOS_PRG) ACTSAVE.PRG -write $(ALINK_UDOS_PRG) ALINK.PRG -write $(ACTMON_UDOS_PRG) ACTMON.PRG -write $(ACTCHK_UDOS_PRG) ACTCHK.PRG -write $(ACTCOPY_UDOS_PRG) ACTCOPY.PRG -write $(ACTDEL_UDOS_PRG) ACTDEL.PRG -write $(ACTEDIT_UDOS_PRG) ACTEDIT.PRG -write $(ACTDIR_UDOS_PRG) ACTDIR.PRG -write $(ACTFILE_UDOS_PRG) ACTFILE.PRG -write $(ACTINFO_UDOS_PRG) ACTINFO.PRG -write $(ACTMKDIR_UDOS_PRG) ACTMKDIR.PRG -write $(ACTMOVE_UDOS_PRG) ACTMOVE.PRG -write $(ACTNEW_UDOS_PRG) ACTNEW.PRG -write $(ACTRMDIR_UDOS_PRG) ACTRMDIR.PRG -write $(ACTSRC_UDOS_PRG) ACTSRC.PRG -write $(ACTWRITE_UDOS_PRG) ACTWRITE.PRG -write $(ACTWORK_UDOS_PRG) ACTWORK.PRG
 
 vice-release: $(RELEASE_DEPS)
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RELEASE_DISK) \
@@ -314,11 +813,21 @@ vice-action-actadd: $(RELEASE_DEPS)
 		$(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/obj
 	printf 'ACTION PROJECT READY\n' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
 	printf 'ACTION PROJECT\rMAIN.ACT\r' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	printf 'D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/UDOSDIR.TXT
+	printf 'F MAIN.ACT\n' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/UDOSDIR.TXT
+	printf '' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/bin/UDOSDIR.TXT
+	printf '' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/obj/UDOSDIR.TXT
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
+	ln -s PROJ3 $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/proj3
+	ln -s ACTION.PROJ $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/action.proj
+	ln -s UDOSDIR.TXT $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/udosdir.txt
+	ln -s UDOSDIR.TXT $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/udosdir.txt
+	ln -s UDOSDIR.TXT $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/bin/udosdir.txt
+	ln -s UDOSDIR.TXT $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/obj/udosdir.txt
 	sleep 2
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTADD_FS) \
 		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
-		--command "ACTADD HELPER" --run-marker "RUN ACTADD.PRG" --done-fragment "ACTADD OK" --skip-command-prompt \
+		--command "ACTADD HELPER" --run-marker "RUN ACTADD.PRG" --done-fragment "ACTADD OK" \
 		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
 		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTADD.PRG" --contains "ACTADD OK" --contains "B:DNP/PROJ3>"
@@ -349,8 +858,23 @@ vice-action-actsrc: $(RELEASE_DEPS)
 		$(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/obj
 	printf 'ACTION PROJECT READY\n' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
 	printf 'ACTION PROJECT\rMAIN.ACT\rHELPER.ACT\r' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	printf 'D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/UDOSDIR.TXT
+	printf 'F MAIN.ACT\nF HELPER.ACT\n' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/src/UDOSDIR.TXT
+	printf '' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/bin/UDOSDIR.TXT
+	printf '' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/obj/UDOSDIR.TXT
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	ln -s PROJ3 $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/proj3
+	ln -s ACTION.PROJ $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/action.proj
+	ln -s UDOSDIR.TXT $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/udosdir.txt
+	ln -s src $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/SRC
+	ln -s bin $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/BIN
+	ln -s obj $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/OBJ
+	ln -s UDOSDIR.TXT $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/src/udosdir.txt
+	ln -s main.act $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/src/MAIN.ACT
+	ln -s helper.act $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/src/HELPER.ACT
+	ln -s UDOSDIR.TXT $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/bin/udosdir.txt
+	ln -s UDOSDIR.TXT $(ACTION_ACTSRC_FS)/IMAGES/ACTION.DNP/PROJ3/obj/udosdir.txt
 	sleep 2
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTSRC_FS) \
 		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
@@ -369,8 +893,23 @@ vice-action-actfile: $(RELEASE_DEPS)
 		$(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/obj
 	printf 'ACTION PROJECT READY\n' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
 	printf 'ACTION PROJECT\rMAIN.ACT\rHELPER.ACT\r' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	printf 'D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/UDOSDIR.TXT
+	printf 'F MAIN.ACT\nF HELPER.ACT\n' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/src/UDOSDIR.TXT
+	printf '' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/bin/UDOSDIR.TXT
+	printf '' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/obj/UDOSDIR.TXT
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	ln -s PROJ3 $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/proj3
+	ln -s ACTION.PROJ $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/action.proj
+	ln -s UDOSDIR.TXT $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/udosdir.txt
+	ln -s src $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/SRC
+	ln -s bin $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/BIN
+	ln -s obj $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/OBJ
+	ln -s UDOSDIR.TXT $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/src/udosdir.txt
+	ln -s main.act $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/src/MAIN.ACT
+	ln -s helper.act $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/src/HELPER.ACT
+	ln -s UDOSDIR.TXT $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/bin/udosdir.txt
+	ln -s UDOSDIR.TXT $(ACTION_ACTFILE_FS)/IMAGES/ACTION.DNP/PROJ3/obj/udosdir.txt
 	sleep 2
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTFILE_FS) \
 		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
@@ -395,6 +934,17 @@ vice-action-actwork: $(RELEASE_DEPS)
 	printf '' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/obj/UDOSDIR.TXT
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	ln -s PROJ3 $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/proj3
+	ln -s ACTION.PROJ $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/action.proj
+	ln -s UDOSDIR.TXT $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/udosdir.txt
+	ln -s src $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/SRC
+	ln -s bin $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/BIN
+	ln -s obj $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/OBJ
+	ln -s UDOSDIR.TXT $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/src/udosdir.txt
+	ln -s main.act $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/src/MAIN.ACT
+	ln -s helper.act $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/src/HELPER.ACT
+	ln -s UDOSDIR.TXT $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/bin/udosdir.txt
+	ln -s UDOSDIR.TXT $(ACTION_ACTWORK_FS)/IMAGES/ACTION.DNP/PROJ3/obj/udosdir.txt
 	sleep 2
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTWORK_FS) \
 		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
@@ -413,34 +963,46 @@ vice-action-actnew-prg: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo
 	sleep 2
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTNEW_PRG_FS) \
-		--command "ACTNEW DEMO" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" --skip-command-prompt \
-		--connect-delay 10.0 --attempts 4 --attempt-delay 2.0 --shell-timeout 60 \
+		--command "ACTNEW DEMO" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" \
+		--connect-delay 10.0 --attempts 4 --attempt-delay 2.0 --shell-timeout 180 --skip-command-prompt \
+		--host-exists IMAGES/ACTION.DNP/DEMO/BIN \
+		--host-exists IMAGES/ACTION.DNP/DEMO/OBJ \
+		--host-exists IMAGES/ACTION.DNP/DEMO/SRC \
+		--host-exists IMAGES/ACTION.DNP/DEMO/ACTION.PROJ \
+		--host-exists IMAGES/ACTION.DNP/DEMO/README.TXT \
+		--host-exists IMAGES/ACTION.DNP/DEMO/SRC/MAIN.ACT \
 		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK"
-	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/bin
-	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/obj
-	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/src
-	test -f $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/action.proj
-	grep -q "MAIN.ACT" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/action.proj
-	grep -q "ACTION PROJECT READY" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/readme.txt
-	grep -q "PROC MAIN()" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/demo/src/main.act
+	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/BIN
+	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/OBJ
+	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/SRC
+	test -f $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/ACTION.PROJ
+	grep -q "MAIN.ACT" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/ACTION.PROJ
+	grep -q "ACTION PROJECT READY" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/README.TXT
+	grep -q "PROC MAIN()" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/SRC/MAIN.ACT
 
 vice-action-actnew-prg-persist: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTNEW_PRG_PERSIST_FS)
 	mkdir -p $(ACTION_ACTNEW_PRG_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTNEW_PRG_PERSIST_FS)/
-	rm -rf $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ2 $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2
+	rm -rf $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proja
 	sleep 2
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTNEW_PRG_PERSIST_FS) \
-		--command "ACTNEW PROJ2" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" --skip-command-prompt \
-		--connect-delay 10.0 --attempts 4 --attempt-delay 2.0 --shell-timeout 60 \
+		--command "ACTNEW PROJA" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" \
+		--connect-delay 20.0 --attempts 4 --attempt-delay 2.0 --shell-timeout 180 --skip-command-prompt \
+		--host-exists IMAGES/ACTION.DNP/PROJA/BIN \
+		--host-exists IMAGES/ACTION.DNP/PROJA/OBJ \
+		--host-exists IMAGES/ACTION.DNP/PROJA/SRC \
+		--host-exists IMAGES/ACTION.DNP/PROJA/ACTION.PROJ \
+		--host-exists IMAGES/ACTION.DNP/PROJA/README.TXT \
+		--host-exists IMAGES/ACTION.DNP/PROJA/SRC/MAIN.ACT \
 		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK"
-	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/bin
-	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/obj
-	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/src
-	test -f $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/action.proj
-	grep -q "MAIN.ACT" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/action.proj
-	grep -q "ACTION PROJECT READY" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/readme.txt
-	grep -q "PROC MAIN()" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/proj2/src/main.act
+	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/BIN
+	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/OBJ
+	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/SRC
+	test -f $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/ACTION.PROJ
+	grep -q "MAIN.ACT" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/ACTION.PROJ
+	grep -q "ACTION PROJECT READY" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/README.TXT
+	grep -q "PROC MAIN()" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/SRC/MAIN.ACT
 
 vice-action-actadd-persist: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTADD_PERSIST_FS)
@@ -452,8 +1014,23 @@ vice-action-actadd-persist: $(RELEASE_DEPS)
 		$(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/obj
 	printf 'ACTION PROJECT READY\n' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt
 	printf 'ACTION PROJECT\rMAIN.ACT\r' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	printf 'D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/UDOSDIR.TXT
+	printf 'F MAIN.ACT\nF HELPER.ACT\n' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/UDOSDIR.TXT
+	printf '' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/bin/UDOSDIR.TXT
+	printf '' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/obj/UDOSDIR.TXT
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	printf 'PROC OLDHELPER()\rENDPROC\r' > $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	ln -s PROJ3 $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/proj3
+	ln -s ACTION.PROJ $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/action.proj
+	ln -s UDOSDIR.TXT $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/udosdir.txt
+	ln -s src $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/SRC
+	ln -s bin $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/BIN
+	ln -s obj $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/OBJ
+	ln -s UDOSDIR.TXT $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/udosdir.txt
+	ln -s main.act $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/MAIN.ACT
+	ln -s helper.act $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src/HELPER.ACT
+	ln -s UDOSDIR.TXT $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/bin/udosdir.txt
+	ln -s UDOSDIR.TXT $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/obj/udosdir.txt
 	sleep 2
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTADD_PERSIST_FS) \
 		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
@@ -487,7 +1064,7 @@ vice-action-actc: $(RELEASE_DEPS)
 		--attempts 3 --attempt-delay 4.0
 
 vice-action-alink: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_FS)
 	mkdir -p $(ACTION_ALINK_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_FS)/
@@ -495,8 +1072,8 @@ vice-action-alink: $(RELEASE_DEPS)
 		--attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -504,9 +1081,9 @@ vice-action-alink-prg: $(RELEASE_DEPS)
 		--shape word_store --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-matrix: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -515,10 +1092,154 @@ vice-action-alink-prg-matrix: $(RELEASE_DEPS)
 		$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) --shape "$$shape" --skip-launch --attempts 1 || exit $$?; \
 	done
 
-vice-action-alink-prg-fanout: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+.PHONY: vice-action-alink-prg-object-code-graph-launch-matrix
+vice-action-alink-prg-object-code-graph-launch-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+		for shape in $(ACTION_ALINK_PRG_OBJECT_CODE_GRAPH_SHAPES); do \
+			echo "=== $$shape ==="; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			for attempt in $$(seq 1 $(ACTION_ALINK_PRG_OBJECT_CODE_PROBE_ATTEMPTS)); do \
+				timeout $(ACTION_ALINK_PRG_OBJECT_CODE_PROBE_TIMEOUT) $(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) --shape "$$shape" --attempts 1 --attempt-delay 4.0 --shell-timeout $(ACTION_ALINK_PRG_OBJECT_CODE_SHELL_TIMEOUT) && break; \
+				status=$$?; \
+				echo "shape $$shape attempt $$attempt failed with status $$status"; \
+				PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+				if [ $$attempt -eq $(ACTION_ALINK_PRG_OBJECT_CODE_PROBE_ATTEMPTS) ]; then exit $$status; fi; \
+				sleep 4; \
+			done; \
+		done
+
+.PHONY: vice-action-alink-prg-object-code-core-launch-matrix
+vice-action-alink-prg-object-code-core-launch-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+		for shape in $(ACTION_ALINK_PRG_OBJECT_CODE_CORE_SHAPES); do \
+			echo "=== $$shape ==="; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			for attempt in $$(seq 1 $(ACTION_ALINK_PRG_OBJECT_CODE_PROBE_ATTEMPTS)); do \
+				timeout $(ACTION_ALINK_PRG_OBJECT_CODE_PROBE_TIMEOUT) $(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) --shape "$$shape" --attempts 1 --attempt-delay 4.0 --shell-timeout $(ACTION_ALINK_PRG_OBJECT_CODE_SHELL_TIMEOUT) && break; \
+				status=$$?; \
+				echo "shape $$shape attempt $$attempt failed with status $$status"; \
+				PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+				if [ $$attempt -eq $(ACTION_ALINK_PRG_OBJECT_CODE_PROBE_ATTEMPTS) ]; then exit $$status; fi; \
+				sleep 4; \
+			done; \
+		done
+
+.PHONY: vice-action-alink-prg-object-code-rejection-matrix
+vice-action-alink-prg-object-code-rejection-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	for shape in $(ACTION_ALINK_PRG_OBJECT_CODE_REJECTION_CASES); do \
+		echo "=== $$shape ==="; \
+		$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) --shape "$$shape" --skip-launch --attempts 1 || exit $$?; \
+	done
+
+.PHONY: vice-action-alink-prg-object-code-matrices
+vice-action-alink-prg-object-code-matrices:
+	$(MAKE) vice-action-alink-prg-object-code-graph-launch-matrix
+	$(MAKE) vice-action-alink-prg-object-code-core-launch-matrix
+	$(MAKE) vice-action-alink-prg-object-code-rejection-matrix
+
+vice-action-alink-prg-selective-runtime-libs: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape actc_runtime_selective_hardware_helpers_linked --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-helper-sequence: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape actc_runtime_reordered_hardware_helpers_linked --attempts 3 --attempt-delay 4.0
+
+.PHONY: vice-action-alink-prg-mixed-helper-sequence
+vice-action-alink-prg-mixed-helper-sequence: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape actc_runtime_mixed_hardware_helpers_linked --attempts 3 --attempt-delay 4.0
+
+.PHONY: vice-action-alink-prg-variable-mixed-helper-sequence
+vice-action-alink-prg-variable-mixed-helper-sequence: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape actc_runtime_variable_mixed_gfx_sprite_helpers_linked --attempts 3 --attempt-delay 4.0
+
+.PHONY: vice-action-alink-prg-no-arg-helper-sequence
+vice-action-alink-prg-no-arg-helper-sequence: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape actc_runtime_no_arg_hardware_helpers_linked --attempts 3 --attempt-delay 4.0
+
+.PHONY: vice-action-alink-prg-stateful-byte-helper-sequence
+vice-action-alink-prg-stateful-byte-helper-sequence: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape actc_runtime_stateful_byte_hardware_helpers_linked --attempts 3 --attempt-delay 4.0
+
+.PHONY: vice-action-alink-prg-word-copy-fill-helper-sequence
+vice-action-alink-prg-word-copy-fill-helper-sequence: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape actc_runtime_word_copy_fill_helpers_linked --attempts 3 --attempt-delay 4.0
+
+.PHONY: vice-action-alink-prg-cell-helper-sequence
+vice-action-alink-prg-cell-helper-sequence: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape actc_runtime_cell_helpers_linked --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-fanout: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -526,8 +1247,8 @@ vice-action-alink-prg-fanout: $(RELEASE_DEPS)
 		--shape fanout --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-word-store: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -535,9 +1256,9 @@ vice-action-alink-prg-word-store: $(RELEASE_DEPS)
 		--shape word_store --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-word-load-store: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -545,9 +1266,9 @@ vice-action-alink-prg-word-load-store: $(RELEASE_DEPS)
 		--shape word_load_store --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-real-printre-int: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -555,9 +1276,9 @@ vice-action-alink-prg-real-printre-int: $(RELEASE_DEPS)
 		--shape real_printre_int --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-real-printre-byte: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -565,19 +1286,199 @@ vice-action-alink-prg-real-printre-byte: $(RELEASE_DEPS)
 		--shape real_printre_byte --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-real-printre-fraction: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
 	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
 		--shape real_printre_fraction --attempts 3 --attempt-delay 4.0
 
-vice-action-alink-prg-if-else: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+vice-action-alink-prg-real-printre-add: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape real_printre_add --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-real-printre-sub: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape real_printre_sub --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-real-printre-mul: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape real_printre_mul --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-real-if-gt: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape real_if_gt --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-real-if-gt-false: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape real_if_gt_false --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-real-if-lt: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape real_if_lt --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-real-if-ge: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape real_if_ge --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-real-if-le: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape real_if_le --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-real-if-eq: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape real_if_eq --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-real-if-ne: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+		--shape real_if_ne --attempts 3 --attempt-delay 4.0
+
+vice-action-alink-prg-real-if-false: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	for shape in real_if_gt_false real_if_lt_false real_if_ge_false real_if_le_false real_if_eq_false real_if_ne_false; do \
+		$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+			--shape "$$shape" --attempts 3 --attempt-delay 4.0 || exit $$?; \
+	done
+
+vice-action-alink-prg-real-if-else: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	for shape in real_if_else_true real_if_else_false \
+		real_if_lt_else_true real_if_lt_else_false \
+		real_if_ge_else_true real_if_ge_else_false \
+		real_if_le_else_true real_if_le_else_false \
+		real_if_eq_else_true real_if_eq_else_false \
+		real_if_ne_else_true real_if_ne_else_false; do \
+		$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+			--shape "$$shape" --attempts 3 --attempt-delay 4.0 || exit $$?; \
+	done
+
+vice-action-alink-prg-real-nested-if: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	for shape in real_nested_if_gt real_nested_if_gt_false \
+		real_nested_if_lt real_nested_if_lt_false \
+		real_nested_if_ge real_nested_if_ge_false \
+		real_nested_if_le real_nested_if_le_false \
+		real_nested_if_eq real_nested_if_eq_false \
+		real_nested_if_ne real_nested_if_ne_false; do \
+		$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+			--shape "$$shape" --attempts 3 --attempt-delay 4.0 || exit $$?; \
+	done
+
+vice-action-alink-prg-real-do-until: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	for shape in real_do_until_eq real_do_until_gt real_do_until_lt real_do_until_ge real_do_until_le real_do_until_ne \
+		real_do_until_gt_real_add_loop real_do_until_ge_real_add_loop \
+		real_do_until_lt_real_add_loop real_do_until_le_real_add_loop \
+		real_do_until_gt_real_sub_loop real_do_until_ge_real_sub_loop \
+		real_do_until_lt_real_sub_loop real_do_until_le_real_sub_loop; do \
+		$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+			--shape "$$shape" --attempts 3 --attempt-delay 4.0 || exit $$?; \
+	done
+
+vice-action-alink-prg-real-while: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ALINK_PRG_FS)
+	mkdir -p $(ACTION_ALINK_PRG_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
+	for shape in real_while_gt_once real_while_ge_once real_while_lt_once real_while_le_once \
+		real_while_gt_update_nonzero_once real_while_ge_update_nonzero_once \
+		real_while_lt_update_nonzero_once real_while_le_update_nonzero_once \
+		real_while_gt_real_sub_loop real_while_ge_real_sub_loop \
+		real_while_lt_real_add_loop real_while_le_real_add_loop \
+		real_while_gt_real_add_skip real_while_ge_real_add_skip \
+		real_while_lt_real_sub_skip real_while_le_real_sub_skip; do \
+		$(PYTHON) tools/run_action_alink_prg_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ALINK_PRG_FS) \
+			--shape "$$shape" --attempts 3 --attempt-delay 4.0 || exit $$?; \
+	done
+
+vice-action-alink-prg-if-else: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTC_HARNESS_UDOS_BUILD)
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -585,9 +1486,9 @@ vice-action-alink-prg-if-else: $(RELEASE_DEPS)
 		--shape if_else --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-nested-if: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -595,9 +1496,9 @@ vice-action-alink-prg-nested-if: $(RELEASE_DEPS)
 		--shape nested_if --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-nested-else: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -605,9 +1506,9 @@ vice-action-alink-prg-nested-else: $(RELEASE_DEPS)
 		--shape nested_else --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-nested-do-until-eq: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -615,9 +1516,9 @@ vice-action-alink-prg-nested-do-until-eq: $(RELEASE_DEPS)
 		--shape nested_do_until_eq --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-do-if-until-eq: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -625,9 +1526,9 @@ vice-action-alink-prg-do-if-until-eq: $(RELEASE_DEPS)
 		--shape do_if_until_eq --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-do-if-else-until-eq: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -635,9 +1536,9 @@ vice-action-alink-prg-do-if-else-until-eq: $(RELEASE_DEPS)
 		--shape do_if_else_until_eq --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-if-do-until-eq: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -645,9 +1546,9 @@ vice-action-alink-prg-if-do-until-eq: $(RELEASE_DEPS)
 		--shape if_do_until_eq --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-if-else-do-until-eq: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -655,9 +1556,9 @@ vice-action-alink-prg-if-else-do-until-eq: $(RELEASE_DEPS)
 		--shape if_else_do_until_eq --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-if-local-call-do-until-eq: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -665,9 +1566,9 @@ vice-action-alink-prg-if-local-call-do-until-eq: $(RELEASE_DEPS)
 		--shape if_local_call_do_until_eq --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-if-else-local-call-do-until-eq: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -675,9 +1576,9 @@ vice-action-alink-prg-if-else-local-call-do-until-eq: $(RELEASE_DEPS)
 		--shape if_else_local_call_do_until_eq --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-nested-if-local-call: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -685,9 +1586,9 @@ vice-action-alink-prg-nested-if-local-call: $(RELEASE_DEPS)
 		--shape nested_if_local_call --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-nested-else-local-call: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -695,9 +1596,9 @@ vice-action-alink-prg-nested-else-local-call: $(RELEASE_DEPS)
 		--shape nested_else_local_call --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-nested-do-local-call: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -705,9 +1606,9 @@ vice-action-alink-prg-nested-do-local-call: $(RELEASE_DEPS)
 		--shape nested_do_local_call --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-nested-do-if-else-local-call: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -715,9 +1616,9 @@ vice-action-alink-prg-nested-do-if-else-local-call: $(RELEASE_DEPS)
 		--shape nested_do_if_else_local_call --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-if-local-call-nested-do-if-else: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -725,9 +1626,9 @@ vice-action-alink-prg-if-local-call-nested-do-if-else: $(RELEASE_DEPS)
 		--shape if_local_call_nested_do_if_else --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-if-else-local-call-nested-do-if-else: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -735,9 +1636,9 @@ vice-action-alink-prg-if-else-local-call-nested-do-if-else: $(RELEASE_DEPS)
 		--shape if_else_local_call_nested_do_if_else --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-nested-else-local-call-nested-do-if-else: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -745,9 +1646,9 @@ vice-action-alink-prg-nested-else-local-call-nested-do-if-else: $(RELEASE_DEPS)
 		--shape nested_else_local_call_nested_do_if_else --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-if-else-local-call-chain-nested-do-if-else: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -755,9 +1656,9 @@ vice-action-alink-prg-if-else-local-call-chain-nested-do-if-else: $(RELEASE_DEPS
 		--shape if_else_local_call_chain_nested_do_if_else --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-nested-else-local-call-chain-nested-do-if-else: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -765,9 +1666,9 @@ vice-action-alink-prg-nested-else-local-call-chain-nested-do-if-else: $(RELEASE_
 		--shape nested_else_local_call_chain_nested_do_if_else --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-if-ne: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -775,9 +1676,9 @@ vice-action-alink-prg-if-ne: $(RELEASE_DEPS)
 		--shape if_ne --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-if-ge: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -785,9 +1686,9 @@ vice-action-alink-prg-if-ge: $(RELEASE_DEPS)
 		--shape if_ge --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-do-until-eq: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -795,9 +1696,9 @@ vice-action-alink-prg-do-until-eq: $(RELEASE_DEPS)
 		--shape do_until_eq --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-prg-do-until-lt: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
 	bash $(ACTC_HARNESS_UDOS_BUILD)
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -805,8 +1706,8 @@ vice-action-alink-prg-do-until-lt: $(RELEASE_DEPS)
 		--shape do_until_lt --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-launch-word-store: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -814,8 +1715,8 @@ vice-action-alink-launch-word-store: $(RELEASE_DEPS)
 		--shape word_store --attempts 3 --attempt-delay 4.0
 
 vice-action-alink-launch-word-load-store: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ALINK_PRG_FS)
 	mkdir -p $(ACTION_ALINK_PRG_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ALINK_PRG_FS)/
@@ -826,20 +1727,336 @@ vice-action-actc-alink-launch-printmath: $(RELEASE_DEPS)
 	$(MAKE) vice-action-actc-alink-launch ACTION_ACTC_ALINK_LAUNCH_SHAPE=printmath
 
 vice-action-actc-alink-launch: $(RELEASE_DEPS)
-	bash /mnt/c/test/action/actionc64u/tools/build_tool_abi_harness.sh
-	bash /mnt/c/test/action/actionc64u/tools/build_actc_udos.sh
-	bash /mnt/c/test/action/actionc64u/tools/build_alink_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
 	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
 	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
 	$(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) \
 		$(if $(ACTION_ACTC_ALINK_LAUNCH_SHAPE),--shape $(ACTION_ACTC_ALINK_LAUNCH_SHAPE),)
 
+vice-action-actc-alink-launch-object-emission-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	for shape in $(ACTION_ACTC_ALINK_OBJECT_EMISSION_SHAPES); do \
+		echo "=== $$shape ==="; \
+		timeout $(ACTION_ACTC_ALINK_PROBE_TIMEOUT) $(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) --shape "$$shape" --attempts $(ACTION_ACTC_ALINK_PROBE_ATTEMPTS) --attempt-delay 4.0 || { \
+			status=$$?; \
+			echo "runtime shape $$shape failed with status $$status"; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			exit $$status; \
+		}; \
+	done
+
 vice-action-actc-alink-launch-if-else-chain: $(RELEASE_DEPS)
 	$(MAKE) vice-action-actc-alink-launch ACTION_ACTC_ALINK_LAUNCH_SHAPE=if_else_local_call_chain_nested_do_if_else
 
 vice-action-actc-alink-launch-nested-else-chain: $(RELEASE_DEPS)
 	$(MAKE) vice-action-actc-alink-launch ACTION_ACTC_ALINK_LAUNCH_SHAPE=nested_else_local_call_chain_nested_do_if_else
+
+.PHONY: vice-action-actc-alink-launch-selective-runtime-libs
+vice-action-actc-alink-launch-selective-runtime-libs:
+	$(MAKE) vice-action-actc-alink-launch ACTION_ACTC_ALINK_LAUNCH_SHAPE=actc_runtime_selective_hardware_helpers_linked
+
+.PHONY: vice-action-actc-alink-launch-runtime-matrices
+vice-action-actc-alink-launch-runtime-matrices:
+	$(MAKE) vice-action-actc-alink-launch-runtime-matrix
+	$(MAKE) vice-action-actc-alink-launch-card-variable-runtime-matrix
+	$(MAKE) vice-action-actc-alink-launch-math-runtime-matrix
+	$(MAKE) vice-action-actc-alink-launch-gfx-runtime-matrix
+	$(MAKE) vice-action-actc-alink-launch-variable-gfx-runtime-matrix
+	$(MAKE) vice-action-actc-alink-launch-sid-runtime-matrix
+	$(MAKE) vice-action-actc-alink-launch-variable-sid-runtime-matrix
+	$(MAKE) vice-action-actc-alink-launch-sprite-runtime-matrix
+	$(MAKE) vice-action-actc-alink-launch-variable-sprite-runtime-matrix
+	$(MAKE) vice-action-actc-alink-launch-input-runtime-matrix
+	$(MAKE) vice-action-actc-alink-launch-dbf-runtime-matrix
+	$(MAKE) vice-action-actc-alink-launch-misc-runtime-matrix
+	$(MAKE) vice-action-actc-alink-launch-helper-demos
+
+.PHONY: vice-action-actc-alink-launch-runtime-matrix
+vice-action-actc-alink-launch-runtime-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	for shape in $(ACTION_ACTC_ALINK_RUNTIME_SHAPES); do \
+		echo "=== $$shape ==="; \
+		timeout $(ACTION_ACTC_ALINK_PROBE_TIMEOUT) $(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) --shape "$$shape" --attempts $(ACTION_ACTC_ALINK_PROBE_ATTEMPTS) --attempt-delay 4.0 || { \
+			status=$$?; \
+			echo "runtime shape $$shape failed with status $$status"; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			exit $$status; \
+		}; \
+	done
+
+.PHONY: vice-action-actc-alink-launch-card-variable-runtime-matrix
+vice-action-actc-alink-launch-card-variable-runtime-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	for shape in $(ACTION_ACTC_ALINK_CARD_VARIABLE_RUNTIME_SHAPES); do \
+		echo "=== $$shape ==="; \
+		timeout $(ACTION_ACTC_ALINK_PROBE_TIMEOUT) $(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) --shape "$$shape" --attempts $(ACTION_ACTC_ALINK_PROBE_ATTEMPTS) --attempt-delay 4.0 || { \
+			status=$$?; \
+			echo "runtime shape $$shape failed with status $$status"; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			exit $$status; \
+		}; \
+	done
+
+.PHONY: vice-action-actc-alink-launch-math-runtime-matrix
+vice-action-actc-alink-launch-math-runtime-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	for shape in $(ACTION_ACTC_ALINK_MATH_RUNTIME_SHAPES); do \
+		echo "=== $$shape ==="; \
+		timeout $(ACTION_ACTC_ALINK_PROBE_TIMEOUT) $(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) --shape "$$shape" --attempts $(ACTION_ACTC_ALINK_PROBE_ATTEMPTS) --attempt-delay 4.0 || { \
+			status=$$?; \
+			echo "runtime shape $$shape failed with status $$status"; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			exit $$status; \
+		}; \
+	done
+
+.PHONY: vice-action-actc-alink-launch-gfx-runtime-matrix
+vice-action-actc-alink-launch-gfx-runtime-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	for shape in $(ACTION_ACTC_ALINK_GFX_RUNTIME_SHAPES); do \
+		echo "=== $$shape ==="; \
+		timeout $(ACTION_ACTC_ALINK_PROBE_TIMEOUT) $(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) --shape "$$shape" --attempts $(ACTION_ACTC_ALINK_PROBE_ATTEMPTS) --attempt-delay 4.0 || { \
+			status=$$?; \
+			echo "runtime shape $$shape failed with status $$status"; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			exit $$status; \
+		}; \
+	done
+
+.PHONY: vice-action-actc-alink-launch-variable-gfx-runtime-matrix
+vice-action-actc-alink-launch-variable-gfx-runtime-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	for shape in $(ACTION_ACTC_ALINK_VARIABLE_GFX_RUNTIME_SHAPES); do \
+		echo "=== $$shape ==="; \
+		timeout $(ACTION_ACTC_ALINK_PROBE_TIMEOUT) $(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) --shape "$$shape" --attempts $(ACTION_ACTC_ALINK_PROBE_ATTEMPTS) --attempt-delay 4.0 || { \
+			status=$$?; \
+			echo "runtime shape $$shape failed with status $$status"; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			exit $$status; \
+		}; \
+	done
+
+.PHONY: vice-action-actc-alink-launch-sid-runtime-matrix
+vice-action-actc-alink-launch-sid-runtime-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	for shape in $(ACTION_ACTC_ALINK_SID_RUNTIME_SHAPES); do \
+		echo "=== $$shape ==="; \
+		timeout $(ACTION_ACTC_ALINK_PROBE_TIMEOUT) $(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) --shape "$$shape" --attempts $(ACTION_ACTC_ALINK_PROBE_ATTEMPTS) --attempt-delay 4.0 || { \
+			status=$$?; \
+			echo "runtime shape $$shape failed with status $$status"; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			exit $$status; \
+		}; \
+	done
+
+.PHONY: vice-action-actc-alink-launch-variable-sid-runtime-matrix
+vice-action-actc-alink-launch-variable-sid-runtime-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	for shape in $(ACTION_ACTC_ALINK_VARIABLE_SID_RUNTIME_SHAPES); do \
+		echo "=== $$shape ==="; \
+		timeout $(ACTION_ACTC_ALINK_PROBE_TIMEOUT) $(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) --shape "$$shape" --attempts $(ACTION_ACTC_ALINK_PROBE_ATTEMPTS) --attempt-delay 4.0 || { \
+			status=$$?; \
+			echo "runtime shape $$shape failed with status $$status"; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			exit $$status; \
+		}; \
+	done
+
+.PHONY: vice-action-actc-alink-launch-sprite-runtime-matrix
+vice-action-actc-alink-launch-sprite-runtime-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	for shape in $(ACTION_ACTC_ALINK_SPRITE_RUNTIME_SHAPES); do \
+		echo "=== $$shape ==="; \
+		timeout $(ACTION_ACTC_ALINK_PROBE_TIMEOUT) $(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) --shape "$$shape" --attempts $(ACTION_ACTC_ALINK_PROBE_ATTEMPTS) --attempt-delay 4.0 || { \
+			status=$$?; \
+			echo "runtime shape $$shape failed with status $$status"; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			exit $$status; \
+		}; \
+	done
+
+.PHONY: vice-action-actc-alink-launch-variable-sprite-runtime-matrix
+vice-action-actc-alink-launch-variable-sprite-runtime-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	for shape in $(ACTION_ACTC_ALINK_VARIABLE_SPRITE_RUNTIME_SHAPES); do \
+		echo "=== $$shape ==="; \
+		timeout $(ACTION_ACTC_ALINK_PROBE_TIMEOUT) $(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) --shape "$$shape" --attempts $(ACTION_ACTC_ALINK_PROBE_ATTEMPTS) --attempt-delay 4.0 || { \
+			status=$$?; \
+			echo "runtime shape $$shape failed with status $$status"; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			exit $$status; \
+		}; \
+	done
+
+.PHONY: vice-action-actc-alink-launch-input-runtime-matrix
+vice-action-actc-alink-launch-input-runtime-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	for shape in $(ACTION_ACTC_ALINK_INPUT_RUNTIME_SHAPES); do \
+		echo "=== $$shape ==="; \
+		timeout $(ACTION_ACTC_ALINK_PROBE_TIMEOUT) $(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) --shape "$$shape" --attempts $(ACTION_ACTC_ALINK_INPUT_PROBE_ATTEMPTS) --attempt-delay 4.0 || { \
+			status=$$?; \
+			echo "runtime shape $$shape failed with status $$status"; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			exit $$status; \
+		}; \
+	done
+
+.PHONY: vice-action-actc-alink-launch-dbf-runtime-matrix
+vice-action-actc-alink-launch-dbf-runtime-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	for shape in $(ACTION_ACTC_ALINK_DBF_RUNTIME_SHAPES); do \
+		echo "=== $$shape ==="; \
+		timeout $(ACTION_ACTC_ALINK_PROBE_TIMEOUT) $(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) --shape "$$shape" --attempts $(ACTION_ACTC_ALINK_PROBE_ATTEMPTS) --attempt-delay 4.0 || { \
+			status=$$?; \
+			echo "runtime shape $$shape failed with status $$status"; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			exit $$status; \
+		}; \
+	done
+
+.PHONY: vice-action-actc-alink-launch-input1-demo
+vice-action-actc-alink-launch-input1-demo: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	$(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) \
+		--shape actc_runtime_input1_export_sample_linked --source-from /IMAGES/ACTION.DNP/SRC/INPUT1_DEMO.ACT
+
+.PHONY: vice-action-actc-alink-launch-dbf1-demo
+vice-action-actc-alink-launch-dbf1-demo: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	$(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) \
+		--shape actc_runtime_dbf1_export_sample_linked --source-from /IMAGES/ACTION.DNP/SRC/DBF1_DEMO.ACT
+
+.PHONY: vice-action-actc-alink-launch-gfx1-demo
+vice-action-actc-alink-launch-gfx1-demo: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	$(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) \
+		--shape actc_runtime_gfx1_export_sample_linked --source-from /IMAGES/ACTION.DNP/SRC/GFX1_DEMO.ACT
+
+.PHONY: vice-action-actc-alink-launch-math1-demo
+vice-action-actc-alink-launch-math1-demo: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	$(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) \
+		--shape actc_runtime_math1_export_sample_linked --source-from /IMAGES/ACTION.DNP/SRC/MATH1_DEMO.ACT
+
+.PHONY: vice-action-actc-alink-launch-sidspr1-demo
+vice-action-actc-alink-launch-sidspr1-demo: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	$(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) \
+		--shape actc_runtime_sidspr1_export_sample_linked --source-from /IMAGES/ACTION.DNP/SRC/SIDSPR1_DEMO.ACT
+
+.PHONY: vice-action-actc-alink-launch-helper-demos
+vice-action-actc-alink-launch-helper-demos:
+	$(MAKE) vice-action-actc-alink-launch-input1-demo
+	$(MAKE) vice-action-actc-alink-launch-dbf1-demo
+	$(MAKE) vice-action-actc-alink-launch-gfx1-demo
+	$(MAKE) vice-action-actc-alink-launch-math1-demo
+	$(MAKE) vice-action-actc-alink-launch-sidspr1-demo
+
+.PHONY: vice-action-actc-alink-launch-misc-runtime-matrix
+vice-action-actc-alink-launch-misc-runtime-matrix: $(RELEASE_DEPS)
+	bash $(ACTIONC64U_DIR)/tools/build_tool_abi_harness.sh
+	bash $(ACTIONC64U_DIR)/tools/build_actc_udos.sh
+	bash $(ACTIONC64U_DIR)/tools/build_alink_udos.sh
+	rm -rf $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	mkdir -p $(ACTION_ACTC_ALINK_LAUNCH_FS)
+	cp -a $(RELEASE_FS)/. $(ACTION_ACTC_ALINK_LAUNCH_FS)/
+	for shape in $(ACTION_ACTC_ALINK_MISC_RUNTIME_SHAPES); do \
+		echo "=== $$shape ==="; \
+		timeout $(ACTION_ACTC_ALINK_PROBE_TIMEOUT) $(PYTHON) tools/run_action_actc_alink_launch_probe_direct.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTC_ALINK_LAUNCH_FS) --shape "$$shape" --attempts $(ACTION_ACTC_ALINK_PROBE_ATTEMPTS) --attempt-delay 4.0 || { \
+			status=$$?; \
+			echo "runtime shape $$shape failed with status $$status"; \
+			PYTHONPATH=tools $(PYTHON) -c 'import vice_prg_probe as vp; vp.cleanup_stale_vice(settle_seconds=1.0)' || true; \
+			exit $$status; \
+		}; \
+	done
 
 vice-action-actchk: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTCHK_FS)
@@ -858,6 +2075,18 @@ vice-action-actchk: $(RELEASE_DEPS)
 	printf 'PROC MAIN()\rENDPROC\r' > $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/src/main.act
 	printf 'PROC HELPER()\rENDPROC\r' > $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
 	cp $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/ACTCHK.PRG $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/ACTCHK.PRG
+	ln -s PROJ3 $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/proj3
+	ln -s ACTCHK.PRG $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/actchk.prg
+	ln -s ACTION.PROJ $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/action.proj
+	ln -s UDOSDIR.TXT $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/udosdir.txt
+	ln -s src $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/SRC
+	ln -s bin $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/BIN
+	ln -s obj $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/OBJ
+	ln -s UDOSDIR.TXT $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/src/udosdir.txt
+	ln -s main.act $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/src/MAIN.ACT
+	ln -s helper.act $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/src/HELPER.ACT
+	ln -s UDOSDIR.TXT $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/bin/udosdir.txt
+	ln -s UDOSDIR.TXT $(ACTION_ACTCHK_FS)/IMAGES/ACTION.DNP/PROJ3/obj/udosdir.txt
 	sleep 2
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTCHK_FS) \
 		--command "ACTCHK" --run-marker "RUN ACTCHK.PRG" --done-fragment "ACTCHK OK" \
@@ -896,25 +2125,46 @@ vice-action-actflow: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTFLOW_FS)
 	mkdir -p $(ACTION_ACTFLOW_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTFLOW_FS)/
-	rm -f $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/OUT.TXT $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/COPY.TXT $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/NEXT.TXT
+	rm -rf $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/proj3
+	mkdir -p $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3
+	printf 'D PROJ3\n' > $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/UDOSDIR.TXT
+	printf 'F ACTWRITE.PRG\nF ACTCOPY.PRG\nF ACTMOVE.PRG\nF ACTDEL.PRG\n' > $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/UDOSDIR.TXT
+	cp $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/ACTWRITE.PRG $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/ACTWRITE.PRG
+	cp $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/ACTCOPY.PRG $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/ACTCOPY.PRG
+	cp $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/ACTMOVE.PRG $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/ACTMOVE.PRG
+	cp $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/ACTDEL.PRG $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/ACTDEL.PRG
+	ln -s PROJ3 $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/proj3
+	ln -s UDOSDIR.TXT $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/udosdir.txt
+	ln -s ACTWRITE.PRG $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/actwrite.prg
+	ln -s ACTCOPY.PRG $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/actcopy.prg
+	ln -s ACTMOVE.PRG $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/actmove.prg
+	ln -s ACTDEL.PRG $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/actdel.prg
 	sleep 2
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTFLOW_FS) \
 		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" --prompt-count 2 \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
 		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTWRITE.PRG" \
 		--contains "ACTWRITE OK"
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTFLOW_FS) \
 		--command "ACTCOPY OUT.TXT COPY.TXT" --run-marker "RUN ACTCOPY.PRG" --done-fragment "" --prompt-count 1 \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
 		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTCOPY.PRG" \
 		--not-contains "COPY FAIL"
-	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/COPY.TXT
+	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/COPY.TXT
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTFLOW_FS) \
-		--command "ACTMOVE COPY.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --done-fragment "" --skip-command-prompt \
+		--command "ACTMOVE COPY.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --done-fragment "" \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
 		--attempts 4 --attempt-delay 2.0 --shell-timeout 20 \
 		--contains "RUN ACTMOVE.PRG"
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTFLOW_FS) \
 		--command "ACTDEL NEXT.TXT" --run-marker "RUN ACTDEL.PRG" --done-fragment "ACTDEL OK" --prompt-count 2 \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
 		--attempts 4 --attempt-delay 2.0 \
 		--post-command "TYPE NEXT.TXT" --post-done-fragment "NO SUCH FILE" \
 		--contains "RUN ACTDEL.PRG" \
@@ -922,28 +2172,43 @@ vice-action-actflow: $(RELEASE_DEPS)
 		--contains "NO SUCH FILE"
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTFLOW_FS) \
 		--command "ECHO ACTFLOW OK" --run-marker "" --done-fragment "ACTFLOW OK" --prompt-count 2 \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
 		--attempts 4 --attempt-delay 2.0 \
 		--contains "ACTFLOW OK"
-	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/OUT.TXT
-	test ! -e $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/COPY.TXT
-	test ! -e $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/NEXT.TXT
+	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/OUT.TXT
+	test ! -e $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/COPY.TXT
+	test ! -e $(ACTION_ACTFLOW_FS)/IMAGES/ACTION.DNP/PROJ3/NEXT.TXT
 
 vice-action-actcopy: $(RELEASE_DEPS)
 	sleep 2
 	rm -rf $(ACTION_ACTCOPY_FS)
 	mkdir -p $(ACTION_ACTCOPY_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTCOPY_FS)/
-	rm -f $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/COPY.TXT
+	rm -rf $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/proj3
+	mkdir -p $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/PROJ3
+	printf 'D PROJ3\n' > $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/UDOSDIR.TXT
+	printf 'F ACTWRITE.PRG\nF ACTCOPY.PRG\n' > $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/PROJ3/UDOSDIR.TXT
+	cp $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/ACTWRITE.PRG $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/PROJ3/ACTWRITE.PRG
+	cp $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/ACTCOPY.PRG $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/PROJ3/ACTCOPY.PRG
+	ln -s PROJ3 $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/proj3
+	ln -s UDOSDIR.TXT $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/PROJ3/udosdir.txt
+	ln -s ACTWRITE.PRG $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/PROJ3/actwrite.prg
+	ln -s ACTCOPY.PRG $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/PROJ3/actcopy.prg
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTCOPY_FS) \
 		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" --prompt-count 2 \
-		--attempts 3 --attempt-delay 2.0 \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
+		--connect-delay 10.0 --attempts 4 --attempt-delay 3.0 \
 		--contains "RUN ACTWRITE.PRG" \
 		--contains "ACTWRITE OK"
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTCOPY_FS) \
-		--command "ACTCOPY OUT.TXT COPY.TXT" --run-marker "RUN ACTCOPY.PRG" --done-fragment "" --skip-command-prompt \
-		--attempts 3 --attempt-delay 2.0 --shell-timeout 20 \
+		--command "ACTCOPY OUT.TXT COPY.TXT" --run-marker "RUN ACTCOPY.PRG" --done-fragment "" \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
+		--attempts 4 --attempt-delay 3.0 --shell-timeout 60 \
 		--contains "RUN ACTCOPY.PRG"
-	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/COPY.TXT
+	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTCOPY_FS)/IMAGES/ACTION.DNP/PROJ3/COPY.TXT
 
 vice-action-copy-root: $(RELEASE_DEPS)
 	rm -rf $(ACTION_COPY_ROOT_FS)
@@ -965,14 +2230,31 @@ vice-action-actdel: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTDEL_FS)
 	mkdir -p $(ACTION_ACTDEL_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTDEL_FS)/
-	rm -f $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/OUT.TXT
+	rm -rf $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/proj3
+	mkdir -p $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/PROJ3
+	printf 'D PROJ3\n' > $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/UDOSDIR.TXT
+	printf 'F ACTWRITE.PRG\nF ACTDEL.PRG\n' > $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/PROJ3/UDOSDIR.TXT
+	cp $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/ACTWRITE.PRG $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/PROJ3/ACTWRITE.PRG
+	cp $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/ACTDEL.PRG $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/PROJ3/ACTDEL.PRG
+	ln -s PROJ3 $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/proj3
+	ln -s UDOSDIR.TXT $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/PROJ3/udosdir.txt
+	ln -s ACTWRITE.PRG $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/PROJ3/actwrite.prg
+	ln -s ACTDEL.PRG $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/PROJ3/actdel.prg
 	sleep 2
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTDEL_FS) \
-		--pre-command "ACTWRITE OUT.TXT" \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" --prompt-count 2 \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
+		--contains "RUN ACTWRITE.PRG" \
+		--contains "ACTWRITE OK"
+	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTDEL_FS) \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
 		--command "ACTDEL OUT.TXT" --run-marker "RUN ACTDEL.PRG" --done-fragment "ACTDEL OK" --prompt-count 2 \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
 		--contains "RUN ACTDEL.PRG" \
 		--contains "ACTDEL OK"
-	test ! -e $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/OUT.TXT
+	test ! -e $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/PROJ3/OUT.TXT
+	! grep -q "OUT.TXT" $(ACTION_ACTDEL_FS)/IMAGES/ACTION.DNP/PROJ3/UDOSDIR.TXT
 
 vice-action-actmkdir: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTMKDIR_FS)
@@ -981,10 +2263,10 @@ vice-action-actmkdir: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTMKDIR_FS)/IMAGES/ACTION.DNP/OBJ $(ACTION_ACTMKDIR_FS)/IMAGES/ACTION.DNP/obj
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMKDIR_FS) \
 		--command "ACTMKDIR OBJ" --run-marker "RUN ACTMKDIR.PRG" --done-fragment "ACTMKDIR OK" \
-		--skip-command-prompt --connect-delay 10.0 --attempts 4 --attempt-delay 2.0 \
+		--connect-delay 10.0 --attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTMKDIR.PRG" \
 		--contains "ACTMKDIR OK"
-	test -d $(ACTION_ACTMKDIR_FS)/IMAGES/ACTION.DNP/obj
+	test -d $(ACTION_ACTMKDIR_FS)/IMAGES/ACTION.DNP/OBJ
 
 vice-action-actmkdir-persist: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTMKDIR_PERSIST_FS)
@@ -993,39 +2275,71 @@ vice-action-actmkdir-persist: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTMKDIR_PERSIST_FS)/IMAGES/ACTION.DNP/OBJ $(ACTION_ACTMKDIR_PERSIST_FS)/IMAGES/ACTION.DNP/obj
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMKDIR_PERSIST_FS) \
 		--command "ACTMKDIR OBJ" --run-marker "RUN ACTMKDIR.PRG" --done-fragment "ACTMKDIR OK" \
-		--skip-command-prompt --connect-delay 10.0 --attempts 4 --attempt-delay 2.0 \
+		--connect-delay 10.0 --attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTMKDIR.PRG" \
 		--contains "ACTMKDIR OK"
-	test -d $(ACTION_ACTMKDIR_PERSIST_FS)/IMAGES/ACTION.DNP/obj
+	test -d $(ACTION_ACTMKDIR_PERSIST_FS)/IMAGES/ACTION.DNP/OBJ
 
 vice-action-actmove: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTMOVE_FS)
 	mkdir -p $(ACTION_ACTMOVE_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMOVE_FS)/
+	rm -rf $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/proj3
+	mkdir -p $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/PROJ3
+	printf 'D PROJ3\n' > $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/UDOSDIR.TXT
+	printf 'F ACTWRITE.PRG\nF ACTMOVE.PRG\n' > $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/PROJ3/UDOSDIR.TXT
+	cp $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/ACTWRITE.PRG $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/PROJ3/ACTWRITE.PRG
+	cp $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/ACTMOVE.PRG $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/PROJ3/ACTMOVE.PRG
+	ln -s PROJ3 $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/proj3
+	ln -s UDOSDIR.TXT $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/PROJ3/udosdir.txt
+	ln -s ACTWRITE.PRG $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/PROJ3/actwrite.prg
+	ln -s ACTMOVE.PRG $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/PROJ3/actmove.prg
+	sleep 2
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMOVE_FS) \
-		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" --skip-command-prompt \
-		--attempts 3 --attempt-delay 2.0 \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
+		--connect-delay 10.0 --attempts 6 --attempt-delay 3.0 --shell-timeout 60 \
 		--contains "RUN ACTWRITE.PRG" \
 		--contains "ACTWRITE OK"
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMOVE_FS) \
-		--command "ACTMOVE OUT.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --done-fragment "" --skip-command-prompt \
-		--connect-delay 10.0 --attempts 4 --attempt-delay 3.0 --shell-timeout 30 \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--command "ACTMOVE OUT.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --done-fragment "" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
+		--connect-delay 10.0 --attempts 4 --attempt-delay 3.0 --shell-timeout 60 \
 		--contains "RUN ACTMOVE.PRG"
-	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/NEXT.TXT
-	test ! -e $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/OUT.TXT
+	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/PROJ3/NEXT.TXT
+	test ! -e $(ACTION_ACTMOVE_FS)/IMAGES/ACTION.DNP/PROJ3/OUT.TXT
 
 vice-action-actmove-persist: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTMOVE_PERSIST_FS)
 	mkdir -p $(ACTION_ACTMOVE_PERSIST_FS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTMOVE_PERSIST_FS)/
+	rm -rf $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3 $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/proj3
+	mkdir -p $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3
+	printf 'D PROJ3\n' > $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/UDOSDIR.TXT
+	printf 'F ACTWRITE.PRG\nF ACTMOVE.PRG\n' > $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/UDOSDIR.TXT
+	cp $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/ACTWRITE.PRG $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTWRITE.PRG
+	cp $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/ACTMOVE.PRG $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTMOVE.PRG
+	ln -s PROJ3 $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/proj3
+	ln -s UDOSDIR.TXT $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/udosdir.txt
+	ln -s ACTWRITE.PRG $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/actwrite.prg
+	ln -s ACTMOVE.PRG $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/actmove.prg
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMOVE_PERSIST_FS) \
-		--pre-command "ACTWRITE OUT.TXT" --pre-prompt "B:DNP/>" --pre-fragment "ACTWRITE OK" \
-		--command "ACTMOVE OUT.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --done-fragment "" --skip-command-prompt \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
+		--connect-delay 10.0 --attempts 4 --attempt-delay 3.0 --shell-timeout 30 \
+		--contains "RUN ACTWRITE.PRG" \
+		--contains "ACTWRITE OK"
+	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTMOVE_PERSIST_FS) \
+		--pre-command "CD PROJ3" --pre-prompt "B:DNP/PROJ3>" \
+		--command "ACTMOVE OUT.TXT NEXT.TXT" --run-marker "RUN ACTMOVE.PRG" --done-fragment "" \
+		--b-prompt "B:DNP/>" --final-prompt "B:DNP/PROJ3>" \
 		--connect-delay 10.0 --attempts 4 --attempt-delay 3.0 --shell-timeout 30 \
 		--contains "RUN ACTMOVE.PRG"
-	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/NEXT.TXT
-	test ! -e $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/OUT.TXT
-	test ! -e $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/out.txt
+	grep -Fq 'ACTION WRITE OK' $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/NEXT.TXT
+	test ! -e $(ACTION_ACTMOVE_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/OUT.TXT
 
 vice-action-actrmdir: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTRMDIR_PERSIST_FS)
@@ -1035,11 +2349,9 @@ vice-action-actrmdir: $(RELEASE_DEPS)
 	mkdir -p $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/TMPRMDIR
 	printf 'D TMPRMDIR\n' >> $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/UDOSDIR.TXT
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTRMDIR_PERSIST_FS) \
-		--command "ACTRMDIR TMPRMDIR" --run-marker "RUN ACTRMDIR.PRG" --done-fragment "ACTRMDIR OK" --prompt-count 2 \
-		--post-command "CD TMPRMDIR" --post-done-fragment "NO SUCH DIR" \
+		--command "ACTRMDIR TMPRMDIR" --run-marker "RUN ACTRMDIR.PRG" --done-fragment "ACTRMDIR OK" --skip-command-prompt \
 		--contains "RUN ACTRMDIR.PRG" \
-		--contains "ACTRMDIR OK" \
-		--contains "NO SUCH DIR"
+		--contains "ACTRMDIR OK"
 	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/TMPRMDIR
 	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/tmprmdir
 
@@ -1051,7 +2363,7 @@ vice-action-actrmdir-persist: $(RELEASE_DEPS)
 	mkdir -p $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/TMPRMDIR
 	printf 'D TMPRMDIR\n' >> $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/UDOSDIR.TXT
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTRMDIR_PERSIST_FS) \
-		--command "ACTRMDIR TMPRMDIR" --run-marker "RUN ACTRMDIR.PRG" --done-fragment "ACTRMDIR OK" --prompt-count 2 \
+		--command "ACTRMDIR TMPRMDIR" --run-marker "RUN ACTRMDIR.PRG" --done-fragment "ACTRMDIR OK" --skip-command-prompt \
 		--contains "RUN ACTRMDIR.PRG" \
 		--contains "ACTRMDIR OK"
 	test ! -e $(ACTION_ACTRMDIR_PERSIST_FS)/IMAGES/ACTION.DNP/TMPRMDIR
@@ -1063,7 +2375,7 @@ vice-action-actwrite: $(RELEASE_DEPS)
 	cp -a $(RELEASE_FS)/. $(ACTION_ACTWRITE_FS)/
 	rm -f $(ACTION_ACTWRITE_FS)/IMAGES/ACTION.DNP/OUT.TXT
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTWRITE_FS) \
-		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" --skip-command-prompt \
+		--command "ACTWRITE OUT.TXT" --run-marker "RUN ACTWRITE.PRG" --done-fragment "ACTWRITE OK" \
 		--attempts 4 --attempt-delay 2.0 \
 		--contains "RUN ACTWRITE.PRG" \
 		--contains "ACTWRITE OK"
@@ -1075,16 +2387,30 @@ vice-resident: $(RESIDENT_DEPS)
 
 $(VICE_LAUNCH_FS): force $(RETURN_TEST_PRG) $(CLOBBER_TEST_PRG)
 	$(PYTHON) tools/prepare_selftest_fs.py --base $(VICE_FS_ROOT) --output $(VICE_LAUNCH_FS)
-	rm -f $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/RESULT.TXT
-	grep -v 'RESULT.TXT\|RETTEST.PRG\|CLOBBER.PRG' $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/UDOSDIR.TXT > $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/UDOSDIR.BASE
-	cp $(RETURN_TEST_PRG) $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/RETTEST.PRG
-	cp $(CLOBBER_TEST_PRG) $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/CLOBBER.PRG
+	rm -f $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/result.txt
+	grep -v 'RESULT.TXT\|RETTEST.PRG\|CLOBBER.PRG' $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/UDOSDIR.TXT > $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/udosdir.base
+	cp $(RETURN_TEST_PRG) $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/rettest.prg
+	cp $(CLOBBER_TEST_PRG) $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/clobber.prg
 	{ \
 		printf 'F CLOBBER.PRG\n'; \
 		printf 'F RETTEST.PRG\n'; \
-		cat $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/UDOSDIR.BASE; \
+		cat $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/udosdir.base; \
 	} > $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/UDOSDIR.TXT
-	rm -f $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/UDOSDIR.BASE
+	cp $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/UDOSDIR.TXT $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/udosdir.txt
+	rm -f $(VICE_LAUNCH_FS)/IMAGES/WORK.DNP/SRC/udosdir.base
+
+$(VICE_REU_SERVICE_FS): force $(REU_SERVICE_TEST_PRG)
+	$(PYTHON) tools/prepare_selftest_fs.py --base $(VICE_FS_ROOT) --output $(VICE_REU_SERVICE_FS)
+	grep -v 'REUTEST.PRG\|REU_STG.TXT' $(VICE_REU_SERVICE_FS)/IMAGES/WORK.DNP/SRC/UDOSDIR.TXT > $(VICE_REU_SERVICE_FS)/IMAGES/WORK.DNP/SRC/udosdir.base
+	cp $(REU_SERVICE_TEST_PRG) $(VICE_REU_SERVICE_FS)/IMAGES/WORK.DNP/SRC/reutest.prg
+	$(PYTHON) -c "from pathlib import Path; Path('$(VICE_REU_SERVICE_FS)/IMAGES/WORK.DNP/SRC/reu_stg.txt').write_bytes(bytes(65 + (i % 26) for i in range(600)))"
+	{ \
+		printf 'F REUTEST.PRG\n'; \
+		printf 'F REU_STG.TXT\n'; \
+		cat $(VICE_REU_SERVICE_FS)/IMAGES/WORK.DNP/SRC/udosdir.base; \
+	} > $(VICE_REU_SERVICE_FS)/IMAGES/WORK.DNP/SRC/UDOSDIR.TXT
+	cp $(VICE_REU_SERVICE_FS)/IMAGES/WORK.DNP/SRC/UDOSDIR.TXT $(VICE_REU_SERVICE_FS)/IMAGES/WORK.DNP/SRC/udosdir.txt
+	rm -f $(VICE_REU_SERVICE_FS)/IMAGES/WORK.DNP/SRC/udosdir.base
 
 $(VICE_TREE_FS): force
 	$(PYTHON) tools/prepare_selftest_fs.py --base $(VICE_FS_ROOT) --output $(VICE_TREE_FS)
@@ -1122,6 +2448,19 @@ vice-clobber: $(RESIDENT_DEPS) $(VICE_LAUNCH_FS)
 		--timeout 120 --attempts 2 --attempt-delay 2.0 \
 		--expected "B:DNP/SRC>" --contains "RUN CLOBBER.PRG" --contains "ARGS DIR" \
 		--check-byte 0xCFF6=0x02 --check-byte 0xCFF7=0x24
+
+vice-reu-services: $(RESIDENT_DEPS) $(VICE_REU_SERVICE_FS)
+	sleep 2
+	$(PYTHON) tools/vice_prg_probe.py --disk $(abspath $(RESIDENT_DISK)) \
+		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(abspath $(BUILD_DIR)) \
+		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(VICE_REU_SERVICE_FS)) \
+		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 2.0 \
+		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
+		--feed-step "B:\r" \
+		--feed-step "CD SRC\r" \
+		--feed-step "REUTEST\r" \
+		--timeout 120 --attempts 3 --attempt-delay 2.0 \
+		--expected "B:DNP/SRC>" --contains "RUN REUTEST.PRG" --contains "REU OK"
 
 vice-copy: $(RESIDENT_DEPS) $(VICE_TREE_COPY_FS)
 	sleep 2
@@ -1176,13 +2515,26 @@ vice-real-tree-write: $(RESIDENT_DEPS) $(VICE_TREE_FS)
 		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 2.0 \
 		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
 		--feed-step "B:\r" \
+		--feed-step "DEL /WORK/BOOT2.ASM\r" \
+		--feed-step "DEL /WORK/BOOT3.PRG\r" \
 		--feed-step "CD SRC\r" \
 		--feed-step "COPY BOOT.ASM /WORK/BOOT2.ASM\r" \
 		--feed-step "CD /WORK\r" \
 		--feed-step "REN BOOT2.ASM BOOT3.PRG\r" \
 		--feed-step "DEL BOOT3.PRG\r" \
 		--feed-step "TYPE BOOT3.PRG\r" \
-		--connect-delay 10 --timeout 120 --attempts 2 --attempt-delay 2.0 \
+		--feed-step-after "B:WORK DNP" \
+		--feed-step-after "B:DNP/>" \
+		--feed-step-after "B:DNP/>" \
+		--feed-step-after "B:DNP/>" \
+		--feed-step-after "B:DNP/SRC" \
+		--feed-step-after "COPIED" \
+		--feed-step-after "B:DNP/WORK" \
+		--feed-step-after "RENAMED" \
+		--feed-step-after "DELETED" \
+		--feed-step-after "NO SUCH FILE" \
+		--feed-step-after-settle 0.5 \
+		--connect-delay 10.0 --timeout 180 --attempts 4 --attempt-delay 3.0 \
 		--expected "NO SUCH FILE" --contains "COPIED" --contains "RENAMED" --contains "DELETED"
 
 vice-real-tree-rename: $(RESIDENT_DEPS) $(VICE_TREE_FS)
@@ -1240,6 +2592,7 @@ vice-real-tree-wild-delete: $(RESIDENT_DEPS) $(VICE_TREE_WILD_FS)
 vice-real-tree-wild: vice-real-tree-wild-copy vice-real-tree-wild-delete
 
 vice-real-tree-dir: $(RESIDENT_DEPS) $(VICE_TREE_FS)
+	sleep 2
 	$(PYTHON) tools/vice_prg_probe.py --disk $(RESIDENT_DISK) \
 		--vice-arg=-iecdevice8 --vice-arg=-device8 --vice-arg=1 --vice-arg=-fs8 --vice-arg=$(BUILD_DIR) \
 		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(VICE_TREE_FS) \
@@ -1251,6 +2604,15 @@ vice-real-tree-dir: $(RESIDENT_DEPS) $(VICE_TREE_FS)
 		--feed-step "CD /\r" \
 		--feed-step "RD NEW\r" \
 		--feed-step "CD NEW\r" \
+		--feed-step-after "B:WORK DNP" \
+		--feed-step-after "B:DNP/>" \
+		--feed-step-after "CREATED" \
+		--feed-step-after "B:DNP/NEW" \
+		--feed-step-after "B:DNP/>" \
+		--feed-step-after "REMOVED" \
+		--feed-step-after "NO SUCH DIR" \
+		--feed-step-after-settle 0.5 \
+		--connect-delay 10.0 --timeout 120 --attempts 4 --attempt-delay 3.0 \
 		--expected "NO SUCH DIR" --contains "CREATED" --contains "B:DNP/NEW" --contains "REMOVED"
 
 vice-real-tree-rmdir: $(RESIDENT_DEPS) $(VICE_TREE_FS)
@@ -1315,13 +2677,14 @@ $(SELFTEST_STOP_FS): force
 
 $(SELFTEST_LAUNCH_FS): force $(RETURN_TEST_PRG)
 	$(PYTHON) tools/prepare_selftest_fs.py --base $(VICE_FS_ROOT) --output $@
-	grep -v 'RETTEST.PRG' $@/IMAGES/WORK.DNP/SRC/UDOSDIR.TXT > $@/IMAGES/WORK.DNP/SRC/UDOSDIR.BASE
-	cp $(RETURN_TEST_PRG) $@/IMAGES/WORK.DNP/SRC/RETTEST.PRG
+	grep -v 'RETTEST.PRG' $@/IMAGES/WORK.DNP/SRC/UDOSDIR.TXT > $@/IMAGES/WORK.DNP/SRC/udosdir.base
+	cp $(RETURN_TEST_PRG) $@/IMAGES/WORK.DNP/SRC/rettest.prg
 	{ \
 		printf 'F RETTEST.PRG\n'; \
-		cat $@/IMAGES/WORK.DNP/SRC/UDOSDIR.BASE; \
+		cat $@/IMAGES/WORK.DNP/SRC/udosdir.base; \
 	} > $@/IMAGES/WORK.DNP/SRC/UDOSDIR.TXT
-	rm -f $@/IMAGES/WORK.DNP/SRC/UDOSDIR.BASE
+	cp $@/IMAGES/WORK.DNP/SRC/UDOSDIR.TXT $@/IMAGES/WORK.DNP/SRC/udosdir.txt
+	rm -f $@/IMAGES/WORK.DNP/SRC/udosdir.base
 
 vice-selftest-read: $(SELFTEST_READ_FS)
 	$(MAKE) BUILD_DIR=$(SELFTEST_READ_BUILD) RESIDENT_DEFINES="-D UDOS_INCLUDE_AUTOEXEC=0" resident
@@ -1365,13 +2728,19 @@ vice-selftest-rename: $(SELFTEST_RENAME_FS)
 		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(SELFTEST_RENAME_FS)) \
 		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 2.0 \
 		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
+		--feed-step-after "b:work dnp" \
 		--feed-step "B:\r" \
+		--feed-step-after "b:dnp/" \
 		--feed-step "CD SRC\r" \
+		--feed-step-after "b:dnp/src" \
 		--feed-step "COPY HELLO.PRG /WORK/HELLO2.PRG\r" \
+		--feed-step-after "copied" \
 		--feed-step "CD /WORK\r" \
+		--feed-step-after "b:dnp/work" \
 		--feed-step "REN HELLO2.PRG HELLO3.PRG\r" \
+		--feed-step-after "renamed" \
 		--feed-step "ECHO RENAME OK\r" \
-		--expected "RENAME OK" --settle 2.0 --timeout 120 --connect-delay 10.0 --attempts 4 --attempt-delay 3.0 --output $(SELFTEST_RENAME_ACTUAL)
+		--expected "RENAME OK" --settle 2.0 --timeout 180 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --attempt-delay 3.0 --output $(SELFTEST_RENAME_ACTUAL)
 	diff -u $(SELFTEST_RENAME_EXPECTED) $(SELFTEST_RENAME_ACTUAL)
 
 vice-selftest-delete: $(SELFTEST_DELETE_FS)
@@ -1383,14 +2752,20 @@ vice-selftest-delete: $(SELFTEST_DELETE_FS)
 		--vice-arg=-iecdevice9 --vice-arg=-fs9 --vice-arg=$(abspath $(SELFTEST_DELETE_FS)) \
 		--vice-arg=-fslongnames --feed-after "A:D64/>" --feed-step-settle 2.0 \
 		--feed-step "MOUNT B: /IMAGES/WORK.DNP\r" \
+		--feed-step-after "b:work dnp" \
 		--feed-step "B:\r" \
+		--feed-step-after "b:dnp/" \
 		--feed-step "CD SRC\r" \
+		--feed-step-after "b:dnp/src" \
 		--feed-step "COPY HELLO.PRG /WORK/HELLO2.PRG\r" \
+		--feed-step-after "copied" \
 		--feed-step "CD /WORK\r" \
+		--feed-step-after "b:dnp/work" \
 		--feed-step "DEL HELLO2.PRG\r" \
+		--feed-step-after "deleted" \
 		--feed-step "DIR\r" \
 		--feed-step "ECHO DELETE OK\r" \
-		--expected "DELETE OK" --settle 2.0 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_DELETE_ACTUAL)
+		--expected "DELETE OK" --settle 2.0 --timeout 180 --connect-delay 10.0 --attempts $(SELFTEST_ATTEMPTS) --output $(SELFTEST_DELETE_ACTUAL)
 	diff -u $(SELFTEST_DELETE_EXPECTED) $(SELFTEST_DELETE_ACTUAL)
 
 vice-selftest-dir: $(SELFTEST_DIR_FS)
@@ -1459,4 +2834,4 @@ vice-selftest-launch: $(SELFTEST_LAUNCH_FS)
 vice-selftest:
 	$(PYTHON) tools/run_selftests.py
 
-test: vice-resident vice-drive vice-selftest
+test: vice-resident vice-drive vice-selftest vice-reu-services

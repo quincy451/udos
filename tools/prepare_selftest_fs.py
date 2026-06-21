@@ -6,6 +6,8 @@ import os
 import shutil
 from pathlib import Path
 
+import run_action_probe_fs as pfs
+
 
 def ensure_manifest_entry(path: Path, entry: str) -> None:
     lines = path.read_text(encoding="ascii").splitlines()
@@ -14,20 +16,30 @@ def ensure_manifest_entry(path: Path, entry: str) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="ascii")
 
 
-def copytree_lowercase(source: Path, dest: Path) -> None:
+def map_directory_parts(parts: tuple[str, ...]) -> tuple[str, ...]:
+    return parts
+
+
+def copytree_vice_host_case(source: Path, dest: Path) -> None:
     dest.mkdir(parents=True, exist_ok=True)
     for root, dirs, files in os.walk(source):
         root_path = Path(root)
         rel = root_path.relative_to(source)
         if rel.parts:
-            dest_root = dest.joinpath(*[part.lower() for part in rel.parts])
+            dest_root = dest.joinpath(*map_directory_parts(rel.parts))
         else:
             dest_root = dest
         dest_root.mkdir(parents=True, exist_ok=True)
         for dirname in dirs:
-            (dest_root / dirname.lower()).mkdir(parents=True, exist_ok=True)
+            (dest_root / dirname).mkdir(parents=True, exist_ok=True)
         for filename in files:
-            shutil.copy2(root_path / filename, dest_root / filename.lower())
+            dest_name = "UDOSDIR.TXT" if filename.upper() == "UDOSDIR.TXT" else filename.lower()
+            shutil.copy2(root_path / filename, dest_root / dest_name)
+
+
+def mirror_manifest_case(root: Path) -> None:
+    for manifest in root.rglob("UDOSDIR.TXT"):
+        shutil.copy2(manifest, manifest.with_name("udosdir.txt"))
 
 
 def main() -> int:
@@ -40,20 +52,23 @@ def main() -> int:
     output = Path(args.output)
     if output.exists():
         shutil.rmtree(output)
-    copytree_lowercase(base, output)
+    copytree_vice_host_case(base, output)
+    mirror_manifest_case(output)
 
-    src_dir = output / "images" / "work.dnp" / "src"
-    work_dir = output / "images" / "work.dnp" / "work"
+    src_dir = output / "IMAGES" / "WORK.DNP" / "SRC"
+    work_dir = output / "IMAGES" / "WORK.DNP" / "WORK"
     src_dir.mkdir(parents=True, exist_ok=True)
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    (src_dir / "RESULT.TXT").write_text("UDOS SELFTEST RESULT\n", encoding="ascii")
+    (src_dir / "result.txt").write_text("UDOS SELFTEST RESULT\n", encoding="ascii")
     ensure_manifest_entry(src_dir / "UDOSDIR.TXT", "F RESULT.TXT")
     (work_dir / "UDOSDIR.TXT").write_text("", encoding="ascii")
+    mirror_manifest_case(output)
     for stale in ("SUCCESS.TXT", "FAIL.TXT", "BOOT2.PRG", "BOOT3.PRG", "HELLO2.PRG", "HELLO3.PRG"):
-        candidate = work_dir / stale
+        candidate = work_dir / stale.lower()
         if candidate.exists():
             candidate.unlink()
+    pfs.add_case_aliases(output / "IMAGES" / "WORK.DNP")
     return 0
 
 

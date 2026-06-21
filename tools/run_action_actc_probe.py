@@ -10,6 +10,7 @@ from pathlib import Path
 
 import run_action_alink_seeded_runtime_probe as seeded
 import run_action_command_probe as avp
+import run_action_probe_fs as pfs
 import vice_prg_probe as vp
 
 
@@ -62,29 +63,21 @@ VICE_DIR_DYNAMIC_MAX = 6
 VICE_DIR_NAME_STRIDE = 21
 
 
-def write_ascii(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(text.encode("ascii"))
+write_ascii = pfs.write_ascii
+ensure_catalog_entries = pfs.ensure_catalog_entries
+case_insensitive_child = pfs.case_insensitive_child
+detect_lowercase_workspace = pfs.detect_lowercase_workspace
+host_name = pfs.host_name
+case_name_variants = pfs.case_name_variants
+copy_file_alias = pfs.copy_file_alias
+sync_case_siblings = pfs.sync_case_siblings
+add_case_aliases = pfs.add_case_aliases
+project_output_path = pfs.project_output_path
 
 
-def ensure_catalog_entries(path: Path, entries: list[str]) -> None:
-    directory_lines: list[str] = []
-    file_lines: list[str] = []
-    if path.is_file():
-        for line in path.read_text(encoding="ascii", errors="ignore").splitlines():
-            entry = line.strip()
-            if not entry:
-                continue
-            if entry.startswith("D "):
-                directory_lines.append(entry)
-            else:
-                file_lines.append(entry)
-    for entry in entries:
-        target = directory_lines if entry.startswith("D ") else file_lines
-        if entry not in target:
-            target.append(entry)
-    lines = directory_lines + file_lines
-    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="ascii")
+def log_progress(verbose: bool, payload: dict[str, object]) -> None:
+    if verbose:
+        print(payload, flush=True)
 
 
 def source_text() -> str:
@@ -99,58 +92,43 @@ def source_text() -> str:
     )
 
 
-def case_insensitive_child(parent: Path, name: str) -> Path:
-    target_name = name.lower()
-    for child in parent.iterdir():
-        if child.name.lower() == target_name:
-            return child
-    return parent / name
-
-
-def detect_lowercase_workspace(fs_root: Path) -> bool:
-    images = case_insensitive_child(fs_root, "IMAGES")
-    action_dnp = case_insensitive_child(images, "ACTION.DNP")
-    return images.name.islower() or action_dnp.name.islower()
-
-
-def host_name(name: str, lowercase_workspace: bool) -> str:
-    return name.lower() if lowercase_workspace else name
-
-
 def prepare_workspace(fs_root: Path, project_name: str) -> Path:
     lowercase_workspace = detect_lowercase_workspace(fs_root)
     images_root = case_insensitive_child(fs_root, host_name("IMAGES", lowercase_workspace))
     action_root = case_insensitive_child(images_root, host_name("ACTION.DNP", lowercase_workspace))
-    project_root = action_root / host_name(project_name.upper(), lowercase_workspace)
+    project_root = action_root / project_name.upper()
     lower_project_root = project_root.parent / project_root.name.lower()
     shutil.rmtree(project_root, ignore_errors=True)
     shutil.rmtree(lower_project_root, ignore_errors=True)
-    src_root = project_root / host_name("SRC", lowercase_workspace)
-    project_bin_root = project_root / host_name("BIN", lowercase_workspace)
-    obj_root = project_root / host_name("OBJ", lowercase_workspace)
+    src_root = project_root / "SRC"
+    project_bin_root = project_root / "BIN"
+    obj_root = project_root / "OBJ"
     src_root.mkdir(parents=True, exist_ok=True)
     project_bin_root.mkdir(exist_ok=True)
     obj_root.mkdir(exist_ok=True)
 
-    write_ascii(project_root / host_name("README.TXT", lowercase_workspace), "ACTION PROJECT READY\n")
-    write_ascii(project_root / host_name("ACTION.PROJ", lowercase_workspace), "ACTION PROJECT\rMAIN.ACT\r")
-    write_ascii(project_root / host_name("UDOSDIR.TXT", lowercase_workspace), "D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n")
-    write_ascii(src_root / host_name("UDOSDIR.TXT", lowercase_workspace), "F MAIN.ACT\n")
-    write_ascii(project_bin_root / host_name("UDOSDIR.TXT", lowercase_workspace), "")
-    write_ascii(obj_root / host_name("UDOSDIR.TXT", lowercase_workspace), "")
-    write_ascii(src_root / host_name("MAIN.ACT", lowercase_workspace), source_text())
+    write_ascii(project_root / "README.TXT", "ACTION PROJECT READY\n")
+    write_ascii(project_root / "ACTION.PROJ", "ACTION PROJECT\rMAIN.ACT\r")
+    write_ascii(project_root / "UDOSDIR.TXT", "D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n")
+    write_ascii(src_root / "UDOSDIR.TXT", "F MAIN.ACT\n")
+    write_ascii(project_bin_root / "UDOSDIR.TXT", "")
+    write_ascii(obj_root / "UDOSDIR.TXT", "")
+    write_ascii(src_root / "MAIN.ACT", source_text())
 
     if ACTION_ACTC_BUILD.is_file():
         root_target = action_root / host_name("ACTC.PRG", lowercase_workspace)
         shutil.copy2(ACTION_ACTC_BUILD, root_target)
+        sync_case_siblings(root_target)
         ensure_catalog_entries(action_root / host_name("UDOSDIR.TXT", lowercase_workspace), [f"D {project_name.upper()}", "F ACTC.PRG"])
 
+    add_case_aliases(project_root)
+    if lower_project_root != project_root and not lower_project_root.exists():
+        lower_project_root.symlink_to(project_root.name, target_is_directory=True)
     return project_root
 
 
 def verify_host_output(project_root: Path) -> None:
-    lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
-    output_path = project_root / host_name("OBJ", lowercase_workspace) / host_name("MAIN.OBJ", lowercase_workspace)
+    output_path = project_output_path(project_root, "OBJ", "MAIN.OBJ")
     if not output_path.is_file():
         raise RuntimeError(f"expected host file {output_path} to exist")
     text = output_path.read_text(encoding="ascii", errors="ignore")
@@ -608,7 +586,14 @@ def wait_for_shell_prompt(client: vp.BinaryMonitorClient, process, timeout: floa
     avp.wait_for_screen_fragment(client, "A:D64/>", timeout, poll_interval=0.2)
 
 
-def run_once(image: Path, work_root: Path, project_name: str, connect_delay: float, command_timeout: float) -> Path:
+def run_once(
+    image: Path,
+    work_root: Path,
+    project_name: str,
+    connect_delay: float,
+    command_timeout: float,
+    verbose: bool = False,
+) -> Path:
     port = vp.reserve_tcp_port()
     process = vp.launch_vice(
         image,
@@ -630,49 +615,47 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
 
         wait_for_shell_prompt(client, process, 30.0)
         time.sleep(3.0)
-        print({"phase": "prompt_ready"}, flush=True)
+        log_progress(verbose, {"phase": "prompt_ready"})
         project_root = prepare_workspace(work_root, project_name)
-        print({"phase": "workspace_ready", "project": project_name}, flush=True)
+        log_progress(verbose, {"phase": "workspace_ready", "project": project_name})
         time.sleep(5.0)
 
         mount_command = "MOUNT B: /IMAGES/ACTION.DNP"
-        print({"phase": "mount_send_start", "command": mount_command}, flush=True)
+        log_progress(verbose, {"phase": "mount_send_start", "command": mount_command})
         avp.type_command(client, mount_command, 5.0)
-        print({"phase": "mount_send_done"}, flush=True)
+        log_progress(verbose, {"phase": "mount_send_done"})
         try:
-            print({"phase": "mount_wait_start"}, flush=True)
+            log_progress(verbose, {"phase": "mount_wait_start"})
             avp.wait_for_mount_completion(client, 90.0, retry_echo=mount_command)
         except vp.ViceError:
-            print({"phase": "mount_wait_retry"}, flush=True)
+            log_progress(verbose, {"phase": "mount_wait_retry"})
             avp.type_command(client, mount_command, 5.0)
             avp.wait_for_mount_completion(client, 90.0, retry_echo=mount_command)
-        print({"phase": "mounted"}, flush=True)
+        log_progress(verbose, {"phase": "mounted"})
 
-        print({"phase": "drive_b_send_start"}, flush=True)
+        log_progress(verbose, {"phase": "drive_b_send_start"})
         avp.type_command(client, "B:", 5.0)
-        print({"phase": "drive_b_send_done"}, flush=True)
+        log_progress(verbose, {"phase": "drive_b_send_done"})
         avp.wait_for_screen_fragment(client, "B:DNP/", 90.0, retry_echo="B:")
-        print({"phase": "drive_b"}, flush=True)
+        log_progress(verbose, {"phase": "drive_b"})
         time.sleep(5.0)
 
         cd_command = f"CD {project_name}"
-        print({"phase": "cd_send_start", "command": cd_command}, flush=True)
+        log_progress(verbose, {"phase": "cd_send_start", "command": cd_command})
         avp.type_command(client, cd_command, 5.0)
-        print({"phase": "cd_send_done"}, flush=True)
+        log_progress(verbose, {"phase": "cd_send_done"})
         avp.wait_for_screen_fragment(client, f"B:DNP/{project_name}", 90.0, retry_echo=cd_command)
-        print({"phase": "in_project", "project": project_name}, flush=True)
+        log_progress(verbose, {"phase": "in_project", "project": project_name})
         time.sleep(5.0)
 
-        print({"phase": "actc_send_start"}, flush=True)
+        log_progress(verbose, {"phase": "actc_send_start"})
         avp.send_text(client, "ACTC MAIN\r", 5.0)
-        print({"phase": "actc_send_done"}, flush=True)
-        print({"phase": "actc_sent"}, flush=True)
+        log_progress(verbose, {"phase": "actc_send_done"})
+        log_progress(verbose, {"phase": "actc_sent"})
         deadline = time.monotonic() + command_timeout
         screen = ""
         saw_run = False
         retry_count = 0
-        lowercase_workspace = project_root.name.islower() or project_root.parent.name.islower()
-        output_path = project_root / host_name("OBJ", lowercase_workspace) / host_name("MAIN.OBJ", lowercase_workspace)
         stage_d_snapshot: dict[str, object] | None = None
         prelaunch_snapshot: dict[str, object] | None = None
         live_tool_snapshot: dict[str, object] | None = None
@@ -686,6 +669,11 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
         first_file_complete_snapshot: dict[str, object] | None = None
         while time.monotonic() < deadline:
             screen, _d018, _dd00 = vp.read_active_screen_text(client)
+            actual_output_path = project_output_path(project_root, "OBJ", "MAIN.OBJ")
+            if actual_output_path.is_file():
+                size = actual_output_path.stat().st_size
+                if size > 0:
+                    break
             try:
                 stage = client.memory_get(0xC59E, 0xC59E)[0]
                 if stage_d_snapshot is None and stage == ord("d"):
@@ -769,10 +757,6 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
                 pass
             if vp.screen_contains(screen, "ACTC OK"):
                 break
-            if output_path.is_file():
-                size = output_path.stat().st_size
-                if size > 0:
-                    break
             if saw_run and vp.screen_contains(screen, "READY."):
                 extra = f"\nSTAGE_D_SNAPSHOT: {stage_d_snapshot!r}" if stage_d_snapshot is not None else ""
                 if prelaunch_snapshot is not None:
@@ -892,7 +876,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run a focused ACTC proof through the generic Action VICE runner")
+    parser = argparse.ArgumentParser(description="Run a focused ACTC proof through the UDOS VICE probe harness")
     parser.add_argument("--disk", required=True)
     parser.add_argument("--fs-root", required=True)
     parser.add_argument("--project", default="PROJ3")
@@ -901,6 +885,7 @@ def main() -> int:
     parser.add_argument("--connect-delay", type=float, default=None)
     parser.add_argument("--command-timeout", type=float, default=90.0)
     parser.add_argument("--copy-fs-root", action="store_true")
+    parser.add_argument("--verbose", action="store_true", help="print progress payloads")
     args = parser.parse_args()
 
     image = Path(args.disk).resolve()
@@ -912,7 +897,8 @@ def main() -> int:
     for attempt in range(1, args.attempts + 1):
         connect_delay = connect_delays[(attempt - 1) % len(connect_delays)]
         try:
-            print(
+            log_progress(
+                args.verbose,
                 {
                     "attempt": attempt,
                     "attempts": args.attempts,
@@ -920,7 +906,6 @@ def main() -> int:
                     "command_timeout": args.command_timeout,
                     "copy_fs_root": args.copy_fs_root,
                 },
-                flush=True,
             )
             work_root = fs_root
             temp_root = None
@@ -930,13 +915,13 @@ def main() -> int:
                 shutil.copytree(fs_root, work_root)
             try:
                 vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, args.attempt_delay)))
-                run_once(image, work_root, project_name, connect_delay, args.command_timeout)
+                run_once(image, work_root, project_name, connect_delay, args.command_timeout, args.verbose)
             finally:
                 if temp_root is not None:
                     temp_root.cleanup()
             return 0
         except vp.ViceError as exc:
-            print({"attempt": attempt, "connect_delay": connect_delay, "error": str(exc)}, flush=True)
+            log_progress(args.verbose, {"attempt": attempt, "connect_delay": connect_delay, "error": str(exc)})
             if attempt == args.attempts:
                 print(exc, file=sys.stderr)
                 return 1
