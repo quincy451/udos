@@ -35,6 +35,7 @@ DIRECT_PRG_EXIT_MARKER_ADDR = 0x03D0
 DIRECT_PRG_EXIT_MARKER_VALUE = 0xA5
 DBF_FIXTURE_NAME_ADDR = 0x3000
 DBF_FIXTURE_NAME = "!TEST.DBF"
+DBF_MISSING_NAME = "!MISSING.DBF"
 DBF_FIXTURE_STAGE_PATH = "BIN/TEST.DBF"
 
 _DIRECT_PRG_EXIT_MARKER = bytes.fromhex("A9A58DD003A90085028503A2024C0FCF")
@@ -13029,6 +13030,58 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         ),
         "store_check_addr": 0x101F,
         "store_check_value": 0x01,
+        "store_check_hi_addr": 0x1020,
+        "store_check_hi_value": 0x00,
+        "expected_alink_loads": [
+            "LIB/RT_DBF_OPEN.OBJ",
+            "LIB/RT_DBF_STATE.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_DBF_CLOSE.OBJ",
+            "LIB/RT_DBF_GO.OBJ",
+            "LIB/RT_DBF_FIELDCOUNT.OBJ",
+            "LIB/RT_DBF_FIELDLEN.OBJ",
+            "LIB/RT_DBF_READBYTE.OBJ",
+            "LIB/RT_DBF_TOTALRECS.OBJ",
+            "LIB/RT_DBF_CURRRECNO.OBJ",
+            "LIB/RT_JOY.OBJ",
+        ],
+    },
+    "actc_runtime_dbf1_open_missing_file_linked": {
+        "source": (
+            "MODULE main\r"
+            "BYTE handle\r"
+            "PROC main()\r"
+            "handle=DbfOpen(12288)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "pre_run_memory": _pre_run_memory_bytes(
+            DBF_FIXTURE_NAME_ADDR,
+            DBF_MISSING_NAME.encode("ascii") + b"\x00",
+        ),
+        "runtime_library_objects": [
+            "rt_dbf_open",
+            "rt_dbf_close",
+            "rt_dbf_go",
+            "rt_dbf_fieldcount",
+            "rt_dbf_fieldlen",
+            "rt_dbf_readbyte",
+            "rt_dbf_totalrecs",
+            "rt_dbf_currrecno",
+            "rt_dbf_state",
+            "rt_joy",
+        ],
+        "expected_object_fragments": [
+            "u rt_dbf_open\n",
+            "i 12288\n",
+            "v handle 0\n",
+        ],
+        "expected_tail": _actc_xy_word_readback_store_runtime_tail(
+            "rt_dbf_open", DBF_FIXTURE_NAME_ADDR
+        ),
+        "store_check_addr": 0x101F,
+        "store_check_value": 0x00,
         "store_check_hi_addr": 0x1020,
         "store_check_hi_value": 0x00,
         "expected_alink_loads": [
