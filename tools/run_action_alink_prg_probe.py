@@ -2561,6 +2561,95 @@ def _actc_dbf1_close_state_reset_runtime_tail() -> bytes:
     )
 
 
+def _actc_dbf1_invalid_record_field_runtime_tail() -> bytes:
+    variable_count = 4
+    root_len = 15 + 16 + 14 + 16 + len(_DIRECT_PRG_EXIT_MARKER) + (2 * variable_count)
+    store_base = DIRECT_PRG_LOAD_ADDR + root_len - (2 * variable_count)
+    handle_store = store_base
+    moved_store = store_base + 2
+    recno_store = store_base + 4
+    fieldlen_store = store_base + 6
+    filename_addr = DBF_FIXTURE_NAME_ADDR
+    modules = _runtime_module_closure(
+        ["rt_dbf_open", "rt_dbf_go", "rt_dbf_currrecno", "rt_dbf_fieldlen"]
+    )
+    module_addrs = _runtime_module_addrs(modules, DIRECT_PRG_LOAD_ADDR + root_len)
+    code = bytearray()
+    code.extend([0xA2, filename_addr & 0xFF, 0xA0, filename_addr >> 8])
+    code.extend(_jsr(module_addrs["rt_dbf_open"]))
+    code.extend(
+        [
+            0x8D,
+            handle_store & 0xFF,
+            handle_store >> 8,
+            0xA9,
+            0x00,
+            0x8D,
+            (handle_store + 1) & 0xFF,
+            (handle_store + 1) >> 8,
+            0xAD,
+            handle_store & 0xFF,
+            handle_store >> 8,
+            0xA0,
+            0x04,
+        ]
+    )
+    code.extend(_jsr(module_addrs["rt_dbf_go"]))
+    code.extend(
+        [
+            0x8D,
+            moved_store & 0xFF,
+            moved_store >> 8,
+            0xA9,
+            0x00,
+            0x8D,
+            (moved_store + 1) & 0xFF,
+            (moved_store + 1) >> 8,
+            0xAD,
+            handle_store & 0xFF,
+            handle_store >> 8,
+        ]
+    )
+    code.extend(_jsr(module_addrs["rt_dbf_currrecno"]))
+    code.extend(
+        [
+            0x8D,
+            recno_store & 0xFF,
+            recno_store >> 8,
+            0xA9,
+            0x00,
+            0x8D,
+            (recno_store + 1) & 0xFF,
+            (recno_store + 1) >> 8,
+            0xAD,
+            handle_store & 0xFF,
+            handle_store >> 8,
+            0xA0,
+            0x02,
+        ]
+    )
+    code.extend(_jsr(module_addrs["rt_dbf_fieldlen"]))
+    code.extend(
+        [
+            0x8D,
+            fieldlen_store & 0xFF,
+            fieldlen_store >> 8,
+            0xA9,
+            0x00,
+            0x8D,
+            (fieldlen_store + 1) & 0xFF,
+            (fieldlen_store + 1) >> 8,
+        ]
+    )
+    code.extend(_DIRECT_PRG_EXIT_MARKER)
+    code.extend(bytes(2 * variable_count))
+    if len(code) != root_len:
+        raise RuntimeError(f"unexpected DBF1 invalid record/field runtime root size: {len(code)}")
+    return bytes(code) + b"".join(
+        _linked_runtime_module_bytes(module, module_addrs) for module in modules
+    )
+
+
 def _actc_dbf1_read_byte_joystick_offset_runtime_tail() -> bytes:
     variable_count = 3
     root_len = 15 + 13 + 17 + len(_DIRECT_PRG_EXIT_MARKER) + (2 * variable_count)
@@ -13131,6 +13220,87 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_DBF_FIELDCOUNT.OBJ",
             "LIB/RT_DBF_FIELDLEN.OBJ",
             "LIB/RT_DBF_READBYTE.OBJ",
+            "LIB/RT_DBF_TOTALRECS.OBJ",
+            "LIB/RT_JOY.OBJ",
+        ],
+    },
+    "actc_runtime_dbf1_invalid_record_field_linked": {
+        "source": (
+            "MODULE main\r"
+            "BYTE handle\r"
+            "BYTE moved\r"
+            "BYTE recno\r"
+            "BYTE fieldlen\r"
+            "PROC main()\r"
+            "handle=DbfOpen(12288)\r"
+            "moved=DbfGo(handle,4)\r"
+            "recno=DbfCurrRecNo(handle)\r"
+            "fieldlen=DbfFieldLen(handle,2)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "extra_files": {
+            DBF_FIXTURE_STAGE_PATH: _dbf_fixture_bytes(),
+        },
+        "pre_run_memory": _pre_run_memory_bytes(
+            DBF_FIXTURE_NAME_ADDR,
+            DBF_FIXTURE_NAME.encode("ascii") + b"\x00",
+        ),
+        "runtime_library_objects": [
+            "rt_dbf_open",
+            "rt_dbf_go",
+            "rt_dbf_currrecno",
+            "rt_dbf_fieldlen",
+            "rt_dbf_state",
+            "rt_dbf_close",
+            "rt_dbf_fieldcount",
+            "rt_dbf_readbyte",
+            "rt_dbf_deleted",
+            "rt_dbf_headerlen",
+            "rt_dbf_recordlen",
+            "rt_dbf_totalrecs",
+            "rt_joy",
+        ],
+        "expected_object_fragments": [
+            "u rt_dbf_open\n",
+            "u rt_dbf_go\n",
+            "u rt_dbf_currrecno\n",
+            "u rt_dbf_fieldlen\n",
+            "i 12288\n",
+            "i 4\n",
+            "i 2\n",
+            "v handle 0\n",
+            "v moved 0\n",
+            "v recno 0\n",
+            "v fieldlen 0\n",
+        ],
+        "expected_tail": _actc_dbf1_invalid_record_field_runtime_tail(),
+        "store_check_addr": 0x104F,
+        "store_check_value": 0x00,
+        "store_check_hi_addr": 0x1050,
+        "store_check_hi_value": 0x00,
+        "extra_store_checks": [
+            {"addr": 0x104D, "value": 0x01},
+            {"addr": 0x104E, "value": 0x00},
+            {"addr": 0x1051, "value": 0x01},
+            {"addr": 0x1052, "value": 0x00},
+            {"addr": 0x1053, "value": 0x00},
+            {"addr": 0x1054, "value": 0x00},
+        ],
+        "expected_alink_loads": [
+            "LIB/RT_DBF_OPEN.OBJ",
+            "LIB/RT_DBF_GO.OBJ",
+            "LIB/RT_DBF_CURRRECNO.OBJ",
+            "LIB/RT_DBF_FIELDLEN.OBJ",
+            "LIB/RT_DBF_STATE.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_DBF_CLOSE.OBJ",
+            "LIB/RT_DBF_FIELDCOUNT.OBJ",
+            "LIB/RT_DBF_READBYTE.OBJ",
+            "LIB/RT_DBF_DELETED.OBJ",
+            "LIB/RT_DBF_HEADERLEN.OBJ",
+            "LIB/RT_DBF_RECORDLEN.OBJ",
             "LIB/RT_DBF_TOTALRECS.OBJ",
             "LIB/RT_JOY.OBJ",
         ],
