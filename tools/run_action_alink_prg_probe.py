@@ -2314,9 +2314,12 @@ def _actc_dbf1_field_len_runtime_tail() -> bytes:
     )
 
 
-def _actc_dbf1_read_byte_runtime_tail(go_record: int = 2, read_offset: int = 1) -> bytes:
+def _actc_dbf1_read_byte_runtime_tail(
+    go_record: int = 2, read_offset: int = 1, read_handle: int | None = None
+) -> bytes:
     variable_count = 3
-    root_len = 15 + 16 + 16 + len(_DIRECT_PRG_EXIT_MARKER) + (2 * variable_count)
+    read_call_len = (5 if read_handle is None else 4) + 3 + 8
+    root_len = 15 + 16 + read_call_len + len(_DIRECT_PRG_EXIT_MARKER) + (2 * variable_count)
     store_base = DIRECT_PRG_LOAD_ADDR + root_len - (2 * variable_count)
     handle_store = store_base
     moved_store = store_base + 2
@@ -2355,13 +2358,13 @@ def _actc_dbf1_read_byte_runtime_tail(go_record: int = 2, read_offset: int = 1) 
             0x8D,
             (moved_store + 1) & 0xFF,
             (moved_store + 1) >> 8,
-            0xAD,
-            handle_store & 0xFF,
-            handle_store >> 8,
-            0xA0,
-            read_offset & 0xFF,
         ]
     )
+    if read_handle is None:
+        code.extend([0xAD, handle_store & 0xFF, handle_store >> 8])
+    else:
+        code.extend([0xA9, read_handle & 0xFF])
+    code.extend([0xA0, read_offset & 0xFF])
     code.extend(_jsr(module_addrs["rt_dbf_readbyte"]))
     code.extend(
         [
@@ -13603,6 +13606,75 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             {"addr": 0x1040, "value": 0x00},
             {"addr": 0x1041, "value": 0x01},
             {"addr": 0x1042, "value": 0x00},
+        ],
+        "expected_alink_loads": [
+            "LIB/RT_DBF_OPEN.OBJ",
+            "LIB/RT_DBF_GO.OBJ",
+            "LIB/RT_DBF_READBYTE.OBJ",
+            "LIB/RT_DBF_STATE.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_DBF_CLOSE.OBJ",
+            "LIB/RT_DBF_FIELDCOUNT.OBJ",
+            "LIB/RT_DBF_FIELDLEN.OBJ",
+            "LIB/RT_DBF_TOTALRECS.OBJ",
+            "LIB/RT_DBF_CURRRECNO.OBJ",
+            "LIB/RT_JOY.OBJ",
+        ],
+    },
+    "actc_runtime_dbf1_read_byte_invalid_handle_linked": {
+        "source": (
+            "MODULE main\r"
+            "BYTE handle\r"
+            "BYTE moved\r"
+            "BYTE value\r"
+            "PROC main()\r"
+            "handle=DbfOpen(12288)\r"
+            "moved=DbfGo(handle,2)\r"
+            "value=DbfReadByte(2,1)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "extra_files": {
+            DBF_FIXTURE_STAGE_PATH: _dbf_fixture_bytes(),
+        },
+        "pre_run_memory": _pre_run_memory_bytes(
+            DBF_FIXTURE_NAME_ADDR,
+            DBF_FIXTURE_NAME.encode("ascii") + b"\x00",
+        ),
+        "runtime_library_objects": [
+            "rt_dbf_open",
+            "rt_dbf_go",
+            "rt_dbf_fieldcount",
+            "rt_dbf_fieldlen",
+            "rt_dbf_readbyte",
+            "rt_dbf_currrecno",
+            "rt_dbf_close",
+            "rt_dbf_totalrecs",
+            "rt_dbf_state",
+            "rt_joy",
+        ],
+        "expected_object_fragments": [
+            "u rt_dbf_open\n",
+            "u rt_dbf_go\n",
+            "u rt_dbf_readbyte\n",
+            "i 12288\n",
+            "i 2\n",
+            "i 1\n",
+            "v handle 0\n",
+            "v moved 0\n",
+            "v value 0\n",
+        ],
+        "expected_tail": _actc_dbf1_read_byte_runtime_tail(read_handle=2),
+        "store_check_addr": 0x1042,
+        "store_check_value": 0x00,
+        "store_check_hi_addr": 0x1043,
+        "store_check_hi_value": 0x00,
+        "extra_store_checks": [
+            {"addr": 0x103E, "value": 0x01},
+            {"addr": 0x103F, "value": 0x00},
+            {"addr": 0x1040, "value": 0x01},
+            {"addr": 0x1041, "value": 0x00},
         ],
         "expected_alink_loads": [
             "LIB/RT_DBF_OPEN.OBJ",
