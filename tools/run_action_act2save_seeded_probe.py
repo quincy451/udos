@@ -18,6 +18,7 @@ import vice_prg_probe as vp
 ROOT = Path(__file__).resolve().parent
 ACTION_ROOT = ROOT.parent.parent / "actionc64u"
 ACT2SAVE_CURRENT_LABELS = ACTION_ROOT / "build/udos_tools/act2save.current.labels"
+UDOS_RESIDENT_LABELS = ROOT.parent / "build/release/udos-resident.labels"
 PROMPT_TIMEOUT = 30.0
 FINAL_TIMEOUT = 30.0
 SETTLE_SECONDS = 2.0
@@ -68,8 +69,28 @@ def load_selected_act2save_labels() -> dict[str, int]:
     return out
 
 
+def load_resident_labels() -> dict[str, int]:
+    out: dict[str, int] = {}
+    if not UDOS_RESIDENT_LABELS.is_file():
+        return out
+    for line in UDOS_RESIDENT_LABELS.read_text(encoding="utf-8", errors="replace").splitlines():
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        try:
+            out[parts[2].lstrip(".")] = int(parts[1], 16)
+        except ValueError:
+            continue
+    return out
+
+
+def resident_label(labels: dict[str, int], name: str, fallback: int) -> int:
+    return labels.get(name, fallback)
+
+
 def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
     data: dict[str, object] = {}
+    resident_labels = load_resident_labels()
     debug_addrs = [
         (0x03D0, "POSTLOAD_MARKER"),
         (0x03E8, "RETURN0"),
@@ -88,11 +109,11 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         (0x03FD, "TOOL_QUEUE_TRACE2"),
         (0x03FE, "TOOL_QUEUE_TRACE3"),
         (0x03FF, "TOOL_QUEUE_TRACE4"),
-        (0xC59E, "RES_SAVE_STAGE"),
-        (0xC59F, "OPEN0"),
-        (0xC5A0, "OPEN1"),
-        (0xC5A1, "OPEN2"),
-        (0xC5A2, "OPEN3"),
+        (resident_label(resident_labels, "save_debug_stage_byte", 0xC59E), "RES_SAVE_STAGE"),
+        (resident_label(resident_labels, "save_debug_open_status0", 0xC59F), "OPEN0"),
+        (resident_label(resident_labels, "save_debug_open_status1", 0xC5A0), "OPEN1"),
+        (resident_label(resident_labels, "save_debug_open_status2", 0xC5A1), "OPEN2"),
+        (resident_label(resident_labels, "save_debug_open_status3", 0xC5A2), "OPEN3"),
         (0xCFF8, "PROGRAM_DRIVE_SNAPSHOT"),
         (0xCFF9, "PROGRAM_DIR_SNAPSHOT"),
         (0xCDC1, "RES_SAVE_ENTRY_STAGE"),
@@ -141,7 +162,7 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
             data["PRESAVE_STACK_WINDOW"] = []
         data["CURRENT_PATH"] = seeded.read_cstr(client, 0xCD00, 64)
         data["OPEN_PATH"] = seeded.read_cstr(client, 0xCD40, 96)
-        data["SAVE_PATH"] = seeded.read_cstr(client, 0xC5A3, 96)
+        data["SAVE_PATH"] = seeded.read_cstr(client, resident_label(resident_labels, "save_debug_write_path_buffer", 0xCD40), 96)
         data["TOOL_ABI_SAVE_BLOCK"] = list(client.memory_get(0xCDC6, 0xCDCB))
         data["SAVE_CALL_BLOCK"] = list(client.memory_get(0x03E8, 0x03F1))
         data["TOOL_ABI_FILE_DEST_PTR"] = list(client.memory_get(0xCDC8, 0xCDC9))
@@ -150,6 +171,7 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         data["TOOL_ABI_FILE_LEN"] = list(client.memory_get(0xCDC4, 0xCDC5))
         data["TOOL_ABI_FILE_REMAIN"] = list(client.memory_get(0xCDC2, 0xCDC3))
         data["TOOL_ABI_FILE_LIMIT"] = list(client.memory_get(0xCDCA, 0xCDCB))
+        data["UDOS_SERVICE_BLOCK_CF00"] = list(client.memory_get(0xCF00, 0xCF3F))
     except Exception as exc:  # pragma: no cover - debug only
         data["CURRENT_PATH"] = f"ERR:{exc!r}"
         data["OPEN_PATH"] = f"ERR:{exc!r}"
@@ -283,6 +305,8 @@ def run_once(
         launch_command = run_command
         deadline = time.monotonic() + FINAL_TIMEOUT
         screen = ""
+        resident_labels = load_resident_labels()
+        stage_addr = resident_label(resident_labels, "save_debug_stage_byte", 0xC59E)
         stage_b_snapshot: dict[str, object] | None = None
         stage_d_snapshot: dict[str, object] | None = None
         stage_snapshots: dict[str, dict[str, object]] = {}
@@ -322,7 +346,7 @@ def run_once(
                         debug["STAGE_D_SNAPSHOT"] = stage_d_snapshot
                     return screen, debug
             try:
-                stage = client.memory_get(0xC59E, 0xC59E)[0]
+                stage = client.memory_get(stage_addr, stage_addr)[0]
                 if stage:
                     stage_char = chr(stage) if 32 <= stage <= 126 else f"0x{stage:02x}"
                     if not stage_history or stage_history[-1] != stage_char:

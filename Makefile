@@ -535,6 +535,7 @@ ACTION_ACTC_ALINK_INPUT_RUNTIME_SHAPES := \
 	actc_runtime_input1_mouse_button_state_split_linked
 ACTION_ACTC_ALINK_DBF_RUNTIME_SHAPES := \
 	actc_runtime_dbf1_export_sample_linked \
+	actc_runtime_dbf1_create_split_linked \
 	actc_runtime_dbf1_open_split_linked \
 	actc_runtime_dbf1_open_missing_file_linked \
 	actc_runtime_dbf1_close_split_linked \
@@ -544,8 +545,18 @@ ACTION_ACTC_ALINK_DBF_RUNTIME_SHAPES := \
 	actc_runtime_dbf1_field_count_split_linked \
 	actc_runtime_dbf1_field_len_split_linked \
 	actc_runtime_dbf1_read_byte_split_linked \
+	actc_runtime_dbf1_large_file_read_byte_linked \
+	actc_runtime_dbf1_read_field_byte_split_linked \
+	actc_runtime_dbf1_write_field_byte_split_linked \
+	actc_runtime_dbf1_write_byte_split_linked \
+	actc_runtime_dbf1_save_split_linked \
+	actc_runtime_dbf1_large_file_save_linked \
+	actc_runtime_dbf1_save_invalid_handle_linked \
 	actc_runtime_dbf1_read_byte_invalid_offset_linked \
 	actc_runtime_dbf1_read_byte_invalid_handle_linked \
+	actc_runtime_dbf1_delete_undelete_split_linked \
+	actc_runtime_dbf1_append_split_linked \
+	actc_runtime_dbf1_pack_split_linked \
 	actc_runtime_dbf1_deleted_split_linked \
 	actc_runtime_dbf1_header_record_len_split_linked \
 	actc_runtime_dbf1_read_byte_result_sprite_arg_linked \
@@ -827,7 +838,12 @@ vice-action-actadd: $(RELEASE_DEPS)
 	ln -s PROJ3 $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/proj3
 	ln -s ACTION.PROJ $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/action.proj
 	ln -s UDOSDIR.TXT $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/udosdir.txt
+	ln -s src $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/SRC
+	ln -s bin $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/BIN
+	ln -s obj $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/OBJ
+	ln -s readme.txt $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/README.TXT
 	ln -s UDOSDIR.TXT $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/udosdir.txt
+	ln -s main.act $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/MAIN.ACT
 	ln -s UDOSDIR.TXT $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/bin/udosdir.txt
 	ln -s UDOSDIR.TXT $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/obj/udosdir.txt
 	sleep 2
@@ -841,10 +857,13 @@ vice-action-actadd: $(RELEASE_DEPS)
 	test -d $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/obj
 	test -d $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src
 	test -f $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	grep -q "ACTION PROJECT" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	grep -q "MAIN.ACT" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	grep -q "HELPER.ACT" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
-	grep -q "PROC HELPER()" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
-	grep -q "ENDPROC" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/src/helper.act
+	grep -q "D SRC" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/UDOSDIR.TXT
+	grep -q "F HELPER.ACT" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/SRC/UDOSDIR.TXT
+	grep -q "PROC HELPER()" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/SRC/HELPER.ACT
+	grep -q "ENDPROC" $(ACTION_ACTADD_FS)/IMAGES/ACTION.DNP/PROJ3/SRC/HELPER.ACT
 
 vice-action-actdir: $(RELEASE_DEPS)
 	sleep 2
@@ -970,13 +989,18 @@ vice-action-actnew-prg: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTNEW_PRG_FS) \
 		--command "ACTNEW DEMO" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" \
-		--connect-delay 10.0 --attempts 4 --attempt-delay 2.0 --shell-timeout 180 --skip-command-prompt \
+		--connect-delay 20.0 --attempts 4 --attempt-delay 2.0 --shell-timeout 180 --skip-command-prompt --host-timeout 300 \
+		--clean-host-path IMAGES/ACTION.DNP/DEMO --clean-host-path IMAGES/ACTION.DNP/demo \
 		--host-exists IMAGES/ACTION.DNP/DEMO/BIN \
 		--host-exists IMAGES/ACTION.DNP/DEMO/OBJ \
 		--host-exists IMAGES/ACTION.DNP/DEMO/SRC \
 		--host-exists IMAGES/ACTION.DNP/DEMO/ACTION.PROJ \
 		--host-exists IMAGES/ACTION.DNP/DEMO/README.TXT \
 		--host-exists IMAGES/ACTION.DNP/DEMO/SRC/MAIN.ACT \
+		--host-exists IMAGES/ACTION.DNP/DEMO/UDOSDIR.TXT \
+		--host-exists IMAGES/ACTION.DNP/DEMO/SRC/UDOSDIR.TXT \
+		--host-contains "IMAGES/ACTION.DNP/DEMO/UDOSDIR.TXT=D SRC" \
+		--host-contains "IMAGES/ACTION.DNP/DEMO/SRC/UDOSDIR.TXT=F MAIN.ACT" \
 		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK"
 	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/BIN
 	test -d $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/OBJ
@@ -985,6 +1009,8 @@ vice-action-actnew-prg: $(RELEASE_DEPS)
 	grep -q "MAIN.ACT" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/ACTION.PROJ
 	grep -q "ACTION PROJECT READY" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/README.TXT
 	grep -q "PROC MAIN()" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/SRC/MAIN.ACT
+	grep -q "D SRC" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/UDOSDIR.TXT
+	grep -q "F MAIN.ACT" $(ACTION_ACTNEW_PRG_FS)/IMAGES/ACTION.DNP/DEMO/SRC/UDOSDIR.TXT
 
 vice-action-actnew-prg-persist: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTNEW_PRG_PERSIST_FS)
@@ -994,13 +1020,18 @@ vice-action-actnew-prg-persist: $(RELEASE_DEPS)
 	sleep 2
 	$(PYTHON) tools/run_action_command_probe.py --disk $(RELEASE_DISK) --fs-root $(ACTION_ACTNEW_PRG_PERSIST_FS) \
 		--command "ACTNEW PROJA" --run-marker "RUN ACTNEW.PRG" --done-fragment "ACTNEW OK" \
-		--connect-delay 20.0 --attempts 4 --attempt-delay 2.0 --shell-timeout 180 --skip-command-prompt \
+		--connect-delay 20.0 --attempts 4 --attempt-delay 2.0 --shell-timeout 180 --skip-command-prompt --host-timeout 300 \
+		--clean-host-path IMAGES/ACTION.DNP/PROJA --clean-host-path IMAGES/ACTION.DNP/proja \
 		--host-exists IMAGES/ACTION.DNP/PROJA/BIN \
 		--host-exists IMAGES/ACTION.DNP/PROJA/OBJ \
 		--host-exists IMAGES/ACTION.DNP/PROJA/SRC \
 		--host-exists IMAGES/ACTION.DNP/PROJA/ACTION.PROJ \
 		--host-exists IMAGES/ACTION.DNP/PROJA/README.TXT \
 		--host-exists IMAGES/ACTION.DNP/PROJA/SRC/MAIN.ACT \
+		--host-exists IMAGES/ACTION.DNP/PROJA/UDOSDIR.TXT \
+		--host-exists IMAGES/ACTION.DNP/PROJA/SRC/UDOSDIR.TXT \
+		--host-contains "IMAGES/ACTION.DNP/PROJA/UDOSDIR.TXT=D SRC" \
+		--host-contains "IMAGES/ACTION.DNP/PROJA/SRC/UDOSDIR.TXT=F MAIN.ACT" \
 		--contains "RUN ACTNEW.PRG" --contains "ACTNEW OK"
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/BIN
 	test -d $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/OBJ
@@ -1009,6 +1040,8 @@ vice-action-actnew-prg-persist: $(RELEASE_DEPS)
 	grep -q "MAIN.ACT" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/ACTION.PROJ
 	grep -q "ACTION PROJECT READY" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/README.TXT
 	grep -q "PROC MAIN()" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/SRC/MAIN.ACT
+	grep -q "D SRC" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/UDOSDIR.TXT
+	grep -q "F MAIN.ACT" $(ACTION_ACTNEW_PRG_PERSIST_FS)/IMAGES/ACTION.DNP/PROJA/SRC/UDOSDIR.TXT
 
 vice-action-actadd-persist: $(RELEASE_DEPS)
 	rm -rf $(ACTION_ACTADD_PERSIST_FS)
@@ -1048,6 +1081,7 @@ vice-action-actadd-persist: $(RELEASE_DEPS)
 	test -d $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/obj
 	test -d $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/src
 	test -f $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
+	grep -q "ACTION PROJECT" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	grep -q "MAIN.ACT" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	! grep -q "HELPER.ACT" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/ACTION.PROJ
 	grep -q "ACTION PROJECT READY" $(ACTION_ACTADD_PERSIST_FS)/IMAGES/ACTION.DNP/PROJ3/readme.txt

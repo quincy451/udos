@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -287,6 +288,64 @@ def wait_for_host_paths(fs_root: Path, rel_paths: list[str], timeout: float, pol
     raise vp.ViceError(f"expected host paths did not appear:\n{formatted}")
 
 
+def wait_for_host_contains(fs_root: Path, specs: list[str], timeout: float, poll_interval: float) -> None:
+    if not specs:
+        return
+    parsed: list[tuple[Path, str]] = []
+    for spec in specs:
+        rel_path, sep, fragment = spec.partition("=")
+        if not sep or not rel_path:
+            raise vp.ViceError(f"invalid --host-contains value {spec!r}; expected RELPATH=TEXT")
+        path = Path(rel_path)
+        parsed.append((path if path.is_absolute() else fs_root / path, fragment))
+    deadline = time.monotonic() + timeout
+    missing: list[str] = []
+    while time.monotonic() < deadline:
+        missing = []
+        for path, fragment in parsed:
+            if not path.exists():
+                missing.append(f"{path}: missing")
+                continue
+            try:
+                text = path.read_text(encoding="ascii", errors="ignore")
+            except OSError as exc:
+                missing.append(f"{path}: {exc}")
+                continue
+            if fragment not in text:
+                missing.append(f"{path}: missing fragment {fragment!r}")
+        if not missing:
+            return
+        time.sleep(poll_interval)
+    formatted = "\n".join(missing)
+    raise vp.ViceError(f"expected host file contents did not appear:\n{formatted}")
+
+
+def remove_host_paths(fs_root: Path, rel_paths: list[str]) -> None:
+    for rel_path in rel_paths:
+        path = Path(rel_path)
+        candidate = path if path.is_absolute() else fs_root / path
+        if candidate.is_dir() and not candidate.is_symlink():
+            shutil.rmtree(candidate)
+        else:
+            candidate.unlink(missing_ok=True)
+        remove_manifest_entry(candidate)
+
+
+def remove_manifest_entry(path: Path) -> None:
+    manifest = path.parent / "UDOSDIR.TXT"
+    if not manifest.is_file():
+        return
+    target = path.name.upper()
+    lines = manifest.read_text(encoding="ascii").splitlines()
+    kept: list[str] = []
+    for line in lines:
+        parts = line.split(maxsplit=1)
+        if len(parts) == 2 and parts[1].upper() == target:
+            continue
+        kept.append(line)
+    manifest.write_text("".join(f"{line}\n" for line in kept), encoding="ascii")
+
+
 def append_observed_screen(observed_screens: list[str], screen: str) -> None:
     if screen and (not observed_screens or observed_screens[-1] != screen):
         observed_screens.append(screen)
@@ -367,8 +426,15 @@ def send_text(client: vp.BinaryMonitorClient, text: str, timeout: float) -> None
 
 
 def send_return(client: vp.BinaryMonitorClient, timeout: float) -> None:
-    clear_keyboard_buffer(client)
-    client.keyboard_feed("\r")
+    try:
+        client.keyboard_type("\r")
+        try:
+            wait_for_keyboard_idle(client, timeout)
+        except vp.ViceError:
+            pass
+    except vp.ViceError:
+        clear_keyboard_buffer(client)
+        client.keyboard_feed("\r")
     time.sleep(0.1)
 
 
@@ -424,6 +490,8 @@ def main() -> int:
     parser.add_argument("--post-command")
     parser.add_argument("--post-done-fragment")
     parser.add_argument("--host-exists", action="append", default=[])
+    parser.add_argument("--host-contains", action="append", default=[])
+    parser.add_argument("--clean-host-path", action="append", default=[])
     parser.add_argument("--host-timeout", type=float)
     parser.add_argument("--contains", action="append", default=[])
     parser.add_argument("--not-contains", action="append", default=[])
@@ -444,6 +512,7 @@ def main() -> int:
 
     for attempt in range(1, args.attempts + 1):
         observed_screens: list[str] = []
+        remove_host_paths(fs_root, args.clean_host_path)
         vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, attempt_delay)))
         port = vp.reserve_tcp_port()
         process = vp.launch_vice(
@@ -641,6 +710,14 @@ def main() -> int:
                 wait_for_host_paths(
                     fs_root,
                     args.host_exists,
+                    args.host_timeout if args.host_timeout is not None else args.shell_timeout,
+                    args.poll_interval,
+                )
+            if args.host_contains:
+                stage = "wait-host-contains"
+                wait_for_host_contains(
+                    fs_root,
+                    args.host_contains,
                     args.host_timeout if args.host_timeout is not None else args.shell_timeout,
                     args.poll_interval,
                 )

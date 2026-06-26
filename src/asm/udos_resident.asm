@@ -3461,6 +3461,8 @@ store_vice_manifest_host_current:
     bcs store_vice_manifest_host_current_done
     jsr fill_vice_manifest_dir_cache_current
     bcs store_vice_manifest_host_current_fail
+    inc vice_read_length
+    beq store_vice_manifest_host_current_done
     jsr build_vice_manifest_buffer_from_hw_cache
     jsr build_vice_manifest_full_path
     jsr build_vice_delete_command_from_ptr
@@ -6306,11 +6308,15 @@ create_dir_vice_current_store:
     jsr copy_path_name_to_vice_dir_slot_ascii
     lda #VICE_DIR_SLOT_LIVE
     jsr store_vice_dir_state_for_index
+    lda file_index
+    sta vice_tree_slot_index
     jsr create_dir_vice_host_current
     bcc create_dir_vice_current_host_ok
     jsr query_dir_vice_host_current
     bcs create_dir_vice_current_fail
 create_dir_vice_current_host_ok:
+    lda vice_tree_slot_index
+    sta file_index
     clc
     rts
 create_dir_vice_current_found:
@@ -7545,14 +7551,15 @@ tool_writeback_reu_addr_done:
     rts
 
 tool_writeback_transfer_record:
-    pha
+    sta reu_command_temp
     jsr reu_init_preserved
     lda reu_present
     bne :+
-    pla
     sec
     rts
 :
+    php
+    sei
     lda C64_PORT
     sta reu_saved_port
     ora #C64_PORT_CHAREN_ON
@@ -7574,7 +7581,7 @@ tool_writeback_transfer_record:
     sta REU_COUNT_HI
     sta REU_IRQMASK
     sta REU_CONTROL
-    pla
+    lda reu_command_temp
     sta REU_COMMAND
     lda reu_saved_port
     and #$F8
@@ -7583,6 +7590,7 @@ tool_writeback_transfer_record:
     sta REU_TRIGGER
     lda reu_saved_port
     sta C64_PORT
+    plp
     clc
     rts
 
@@ -7766,9 +7774,7 @@ svc_apply_tool_writeback_dir_make:
     lda #$00
     sta path_name_buffer,y
 :
-    jsr create_dir_vice_current
-    bcc svc_apply_tool_writeback_dir_make_map
-    jsr lookup_dynamic_dir_current_from_path_name
+    jsr ensure_dynamic_dir_current_from_path_name
     bcs svc_apply_tool_writeback_dir_make_done
 svc_apply_tool_writeback_dir_make_map:
     lda tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
@@ -7778,7 +7784,6 @@ svc_apply_tool_writeback_dir_make_map:
     lda file_index
     sta tool_writeback_dirmap,x
 svc_apply_tool_writeback_dir_make_done:
-    jsr store_vice_manifest_host_current
     rts
 svc_apply_tool_writeback_dir_remove:
     lda tool_writeback_buffer+TOOL_WRITEBACK_DRIVE_OFFSET
@@ -7831,6 +7836,10 @@ svc_apply_tool_writeback_file_save_path_ready:
     bcc :+
     jmp svc_apply_tool_writeback_pop
 :
+    jsr query_file_vice_host_exact_current
+    lda #$00
+    rol a
+    sta vice_tree_source_state
     lda tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
     sta file_index
     lda tool_writeback_buffer+TOOL_WRITEBACK_STATE_OFFSET
@@ -7854,16 +7863,21 @@ svc_apply_tool_writeback_file_save_have_content:
     bcc :+
     jmp svc_apply_tool_writeback_pop
 :
-    lda file_index
-    sta vice_tree_slot_index
+    lda vice_tree_source_state
+    beq svc_apply_tool_writeback_file_save_skip_manifest
+    lda #<udosdir_manifest_name
+    sta PTR
+    lda #>udosdir_manifest_name
+    sta PTR+1
+    jsr compare_ptr_to_path_name_strict
+    bcc svc_apply_tool_writeback_file_save_skip_manifest
     jsr store_vice_manifest_host_current
-    php
-    lda vice_tree_slot_index
-    sta file_index
-    plp
-    bcc :+
+    bcc svc_apply_tool_writeback_file_save_reload_slot
     jmp svc_apply_tool_writeback_pop
-:
+svc_apply_tool_writeback_file_save_skip_manifest:
+svc_apply_tool_writeback_file_save_reload_slot:
+    lda tool_writeback_buffer+TOOL_WRITEBACK_SLOT_OFFSET
+    sta file_index
     jsr clear_vice_tree_slot
     jmp svc_apply_tool_writeback_pop
 svc_apply_tool_writeback_file_delete:
@@ -14015,6 +14029,8 @@ select_vice_tree_reu_slot_addr_a:
 
 reu_transfer_vice_tree_slot_cache:
     sta reu_command_temp
+    php
+    sei
     lda C64_PORT
     sta reu_saved_port
     ora #C64_PORT_CHAREN_ON
@@ -14046,6 +14062,7 @@ reu_transfer_vice_tree_slot_cache:
     lda reu_saved_port
     sta C64_PORT
     lda REU_STATUS
+    plp
     rts
 
 save_selected_vice_tree_content_slot:
@@ -14176,7 +14193,7 @@ copy_screen_ptr_to_vice_tree_slot_content:
     sta vice_tree_content_src_lo
     lda SCREEN_PTR+1
     sta vice_tree_content_src_hi
-    jsr select_vice_tree_content_slot
+    jsr set_vice_tree_slot_cache_ptr
     lda vice_tree_content_src_lo
     sta SCREEN_PTR
     lda vice_tree_content_src_hi
@@ -14207,7 +14224,8 @@ clear_vice_tree_slot:
     ldy #$00
     lda #$00
     sta (PTR),y
-    jsr select_vice_tree_content_slot
+    jsr set_vice_tree_slot_cache_ptr
+    tya
     sta (PTR),y
     jmp save_selected_vice_tree_content_slot
 
@@ -15808,44 +15826,6 @@ tool_abi_file_save_sc0:
     ldy PROGRAM_DRIVE_SNAPSHOT
     lda dir_state_table,y
     sta save_debug_open_status3
-
-    lda TOOL_ABI_FILE_LIMIT_LO
-    ora TOOL_ABI_FILE_LIMIT_HI
-    beq tool_abi_file_save_resolve_tree_only
-
-    lda PROGRAM_DRIVE_SNAPSHOT
-    sta temp_drive
-    lda PROGRAM_DIR_SNAPSHOT
-    sta temp_dir_id
-    ldy PROGRAM_DRIVE_SNAPSHOT
-    lda PROGRAM_DRIVE_SNAPSHOT
-    sta current_drive
-    lda PROGRAM_DIR_SNAPSHOT
-    sta dir_state_table,y
-    jsr tool_abi_seed_program_mount_snapshot
-    jsr svc_sync_tool_backend_path_shadow
-    ldy temp_drive
-    lda mount_flag_table,y
-    cmp #MOUNT_FLAG_TREE
-    beq :+
-    jmp tool_abi_file_save_fail_mount
-:
-    lda TOOL_ABI_FILE_DEST_LO
-    sta SCREEN_PTR
-    lda TOOL_ABI_FILE_DEST_HI
-    sta SCREEN_PTR+1
-    lda SCREEN_PTR
-    sta vice_tree_content_src_lo
-    lda SCREEN_PTR+1
-    sta vice_tree_content_src_hi
-    jsr tool_abi_build_open_path
-    bcc :+
-    jmp tool_abi_file_save_fail_tree
-:
-    jsr tool_abi_file_save_direct_safe
-    bcs :+
-    jmp tool_abi_file_save_ok
-:   jmp tool_abi_file_save_fail_tree
 
 tool_abi_file_save_resolve_tree_only:
 
@@ -17534,6 +17514,8 @@ header_text:
     .byte "UDOS FOR COMMODORE 64", 0
 autoexec_name:
     .byte 1, 21, 20, 15, 5, 24, 5, 3, ASCII_DOT, 2, 1, 20, 0
+udosdir_manifest_name:
+    .byte CMD_U, CMD_D, CMD_O, CMD_S, CMD_D, CMD_I, CMD_R, ASCII_DOT, CMD_T, CMD_X, CMD_T, 0
 resp_help:
     .byte "HELP VER VOL MEM DIR CD MD RD ECHO MOUNT TYPE COPY REN DEL", 0
 ver_prefix:
@@ -18297,12 +18279,6 @@ tool_abi_seed_program_mount_snapshot_preserved:
 
 tool_abi_build_write_path_from_ptr_safe_preserved:
     ldx #$00
-    lda #'@'
-    sta dest_fullpath_buffer,x
-    inx
-    lda #ASCII_COLON
-    sta dest_fullpath_buffer,x
-    inx
     ldy #$00
 tool_abi_build_write_path_ptr_copy_safe_preserved:
     lda (PTR),y
@@ -18310,9 +18286,15 @@ tool_abi_build_write_path_ptr_copy_safe_preserved:
     sta dest_fullpath_buffer,x
     iny
     inx
-    cpx #FULL_PATH_BUF_LEN-3
+    cpx #FULL_PATH_BUF_LEN-5
     bcc tool_abi_build_write_path_ptr_copy_safe_preserved
 tool_abi_build_write_path_ptr_suffix_safe_preserved:
+    lda #ASCII_COMMA
+    sta dest_fullpath_buffer,x
+    inx
+    lda #'S'
+    sta dest_fullpath_buffer,x
+    inx
     lda #ASCII_COMMA
     sta dest_fullpath_buffer,x
     inx
@@ -18338,10 +18320,23 @@ tool_abi_file_write_begin_sc0_preserved:
     sta TOOL_ABI_FILE_NAME_HI
     lda PROGRAM_DRIVE_SNAPSHOT
     sta temp_drive
+    tay
+    lda PROGRAM_DIR_SNAPSHOT
+    sta temp_dir_id
+    sta dir_state_table,y
+    jsr tool_abi_seed_program_mount_snapshot_preserved
+    lda #$B1
+    sta save_debug_stage_byte
+    lda #$00
+    sta TOOL_ABI_CURRENT_PATH+MAX_LINE_LEN
     jsr tool_abi_build_open_path_preserved
     bcs tool_abi_file_write_begin_fail_preserved
+    lda #$B2
+    sta save_debug_stage_byte
     jsr tool_abi_file_open_write_current_preserved
     bcs tool_abi_file_write_begin_fail_preserved
+    lda #$B3
+    sta save_debug_stage_byte
     ldx saved_rp_x
     lda #TOOL_FILE_STATUS_OK
     sta 2,x
