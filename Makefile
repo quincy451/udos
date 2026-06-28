@@ -185,6 +185,7 @@ ACTION_ALINK_PRG_OBJECT_CODE_GRAPH_SHAPES := \
 	object_code_lettered_import_call \
 	object_code_project_lettered_import_call \
 	object_code_project_dependency_lettered_import_project_helper \
+	object_code_project_dependency_lettered_import_library_helper \
 	object_code_library_dependency_lettered_import_project_helper \
 	object_code_library_dependency_lettered_import_library_helper \
 	object_code_lowercase_z_import_call \
