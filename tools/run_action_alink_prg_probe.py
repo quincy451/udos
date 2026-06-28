@@ -436,6 +436,62 @@ def _object_code_project_dependency_lettered_import_library_helper_case() -> dic
     }
 
 
+def _object_code_project_dependency_dual_lettered_import_mixed_helpers_case() -> dict[str, object]:
+    dummy_names = [f"d{i}" for i in range(10)]
+    import_names = dummy_names + ["projhelper", "libhelper"]
+    extra_library_objects = {
+        f"{name.upper()}.OBJ": f"OBJ1\nx {name} 0 1\nb M\nm EA\nn {name}\n"
+        for name in dummy_names
+    }
+    extra_library_objects.update(
+        {
+            "A.OBJ": "OBJ1\nx a 0 1\nb M\nm EA\nn a\n",
+            "PROJHELPER.OBJ": "OBJ1\nx projhelper 0 1\nb M\nm EA\nn projhelper\n",
+            "LIBHELPER.OBJ": "OBJ1\nx libhelper 0 1\nb M\nm 60\nn libhelper\n",
+        }
+    )
+    return {
+        "seed_object": (
+            "OBJ1\n"
+            "x main 0 19\n"
+            "b u0M\n"
+            "u a\n"
+            "m 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+            "r 1 u0\n"
+            "n main\n"
+        ),
+        "has_stub": False,
+        "extra_objects": {
+            "A.OBJ": (
+                "OBJ1\n"
+                "x a 0 7\n"
+                "b uAuBM\n"
+                + "".join(f"u {name}\n" for name in import_names)
+                + "m 20 00 00 20 00 00 60\n"
+                "r 1 uA\n"
+                "r 4 uB\n"
+                "n a\n"
+            ),
+            "PROJHELPER.OBJ": "OBJ1\nx projhelper 0 1\nb M\nm 60\nn projhelper\n",
+        },
+        "extra_library_objects": extra_library_objects,
+        "expected_tail": bytes.fromhex(
+            "201310A9A58DD003A90085028503A2024C0FCF"
+            "201A10201B10606060"
+        ),
+        "expected_alink_loads": [
+            "OBJ/A.OBJ",
+            "OBJ/PROJHELPER.OBJ",
+            "LIB/LIBHELPER.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/A.OBJ",
+            "LIB/PROJHELPER.OBJ",
+            *[f"LIB/{name.upper()}.OBJ" for name in dummy_names],
+        ],
+    }
+
+
 def _object_code_root_second_export_dependency_dual_lettered_import_mixed_helpers_case() -> dict[str, object]:
     dummy_names = [f"d{i}" for i in range(10)]
     import_names = dummy_names + ["projhelper", "libhelper"]
@@ -21860,6 +21916,9 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
     ),
     "object_code_project_dependency_lettered_import_library_helper": (
         _object_code_project_dependency_lettered_import_library_helper_case()
+    ),
+    "object_code_project_dependency_dual_lettered_import_mixed_helpers": (
+        _object_code_project_dependency_dual_lettered_import_mixed_helpers_case()
     ),
     "object_code_library_dependency_lettered_import_project_helper": (
         _object_code_library_dependency_lettered_import_project_helper_case()
