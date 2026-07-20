@@ -9350,7 +9350,15 @@ _REAL_PRINTRE_BINARY_OBJECT_FRAGMENTS = [
 
 
 def _real_printre_ternary_tail(
-    first: int, second: int, third: int, op_module: str
+    first: int,
+    second: int,
+    third: int,
+    op_module: str,
+    *,
+    initializer_vars: tuple[int, int, int] = (0, 1, 2),
+    argument_vars: tuple[int, int, int] = (0, 1, 2),
+    destination_var: int = 3,
+    print_var: int = 3,
 ) -> bytes:
     modules = _runtime_module_closure(["rt_i_to_f", op_module, "rt_print_f"])
     module_addrs = _runtime_module_addrs(modules, 0x10AB)
@@ -9380,16 +9388,15 @@ def _real_printre_ternary_tail(
         )
 
     code = bytearray()
-    for index, value in ((0, first), (2, second), (4, third)):
-        code.extend(load_zp_from_table(index, 0x02))
+    for variable, value in zip(initializer_vars, (first, second, third)):
+        code.extend(load_zp_from_table(variable * 2, 0x02))
         code.extend((0xA9, value & 0xFF, 0xA2, (value >> 8) & 0xFF))
         code.extend(_jsr(module_addrs["rt_i_to_f"]))
-    code.extend(load_zp_from_table(0, 0x02))
-    code.extend(load_zp_from_table(2, 0x04))
-    code.extend(load_zp_from_table(4, 0x08))
-    code.extend(load_zp_from_table(6, 0x06))
+    for variable, zp in zip(argument_vars, (0x02, 0x04, 0x08)):
+        code.extend(load_zp_from_table(variable * 2, zp))
+    code.extend(load_zp_from_table(destination_var * 2, 0x06))
     code.extend(_jsr(module_addrs[op_module]))
-    code.extend(load_zp_from_table(6, 0x02))
+    code.extend(load_zp_from_table(print_var * 2, 0x02))
     code.extend(_jsr(module_addrs["rt_print_f"]))
     code.extend(_DIRECT_PRG_EXIT_MARKER)
     if len(code) != 147:
@@ -13356,6 +13363,61 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
         "expected_object_fragments": _REAL_PRINTRE_TERNARY_OBJECT_FRAGMENTS,
         "expected_tail": _real_printre_ternary_tail(5, 1, 2, "rt_f_clamp"),
         "screen_fragments": ["2"],
+        "expected_alink_loads": [
+            "LIB/RT_I_TO_F.OBJ",
+            "LIB/RT_F_CLAMP.OBJ",
+            "LIB/RT_F_CMP.OBJ",
+            "LIB/RT_F_SPECIAL.OBJ",
+            "LIB/RT_F_MAX.OBJ",
+            "LIB/RT_F_MIN.OBJ",
+            "LIB/RT_PRINT_F.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_F_SIGN.OBJ",
+            "LIB/RT_F_ABS.OBJ",
+            "LIB/RT_F_SQRT.OBJ",
+        ],
+    },
+    "actc_runtime_math1_fclamp_permuted_split_linked": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL VALUE\r"
+            "REAL HIGH\r"
+            "REAL LOW\r"
+            "REAL RESULT\r"
+            "PROC MAIN()\r"
+            "HIGH=REAL(9)\r"
+            "RESULT=REAL(3)\r"
+            "LOW=REAL(5)\r"
+            "VALUE=FClamp(RESULT,LOW,HIGH)\r"
+            "PrintRE(VALUE)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": [
+            "rt_i_to_f",
+            "rt_f_clamp",
+            "rt_f_cmp",
+            "rt_f_max",
+            "rt_f_min",
+            "rt_f_special",
+            "rt_print_f",
+            "rt_f_sign",
+            "rt_f_abs",
+            "rt_f_sqrt",
+        ],
+        "expected_object_fragments": _REAL_PRINTRE_TERNARY_OBJECT_FRAGMENTS,
+        "expected_tail": _real_printre_ternary_tail(
+            9,
+            3,
+            5,
+            "rt_f_clamp",
+            initializer_vars=(1, 3, 2),
+            argument_vars=(3, 2, 1),
+            destination_var=0,
+            print_var=0,
+        ),
+        "screen_fragments": ["5"],
         "expected_alink_loads": [
             "LIB/RT_I_TO_F.OBJ",
             "LIB/RT_F_CLAMP.OBJ",
@@ -50825,9 +50887,9 @@ for _shape, _case in DIRECT_PRG_CASES.items():
     ):
         _case["expected_tail_from_compiled_object"] = True
         COMPILED_RUNTIME_LINK_ORACLE_SHAPES.append(_shape)
-if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 290:
+if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 291:
     raise RuntimeError(
-        "expected 290 compiled runtime link-oracle cases, found "
+        "expected 291 compiled runtime link-oracle cases, found "
         f"{len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES)}"
     )
 

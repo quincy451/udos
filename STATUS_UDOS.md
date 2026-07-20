@@ -235,7 +235,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     leaf, while carrying child-object integer and string literal pools into the
     linked program image. Project objects are now emitted and documented only as
     `OBJ/*.OBJ`.
-  - `make vice-action-alink-prg-matrix` now enumerates 1331 direct-PRG
+  - `make vice-action-alink-prg-matrix` now enumerates 1332 direct-PRG
     object/link shapes from the probe table and validates ALINK output for each
     shape. The matrix includes object-code graph closure, rejection cases,
     link-selected runtime helper families, and seeded input-helper closure
@@ -304,6 +304,10 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     copies, result 1.0, transitive `RT_F_SPECIAL.OBJ` selection, and pruning of
     unrelated REAL helpers. General REAL function control and MATH1 remain
     compiler work.
+    Pass K also captures every named-storage role in its bounded four-REAL
+    `FClamp` assignment/print root. A direct source-backed PRG permutes the
+    initializer, argument, destination, and print slots, produces 5.0 in VICE,
+    and preserves ordinary ALINK-selected clamp closure.
     Empty-return, single-call, and fanout root programs likewise use native
     machine objects; ALINK no longer carries templates for `r`, `c0r`, or
     `c0c1r`, and those root-body forms are rejection-only fixtures.
