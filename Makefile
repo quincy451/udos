@@ -820,6 +820,7 @@ ACTION_ACTC_ALINK_MATH_RUNTIME_SHAPES := \
 	actc_runtime_math1_export_sample_linked \
 	actc_runtime_math1_fabs_split_linked \
 	actc_runtime_math1_fsqrt_split_linked \
+	actc_runtime_math1_fsign_split_linked \
 	actc_runtime_math1_fmin_split_linked \
 	actc_runtime_math1_fmax_split_linked \
 	actc_runtime_math1_printre_split_linked \

@@ -72,7 +72,7 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1329 shapes and
+Current status docs report the broad ALINK direct-PRG matrix at 1330 shapes and
 the source-backed ACTC object-emission matrix at 171 shapes. Treat those matrix
 counts as status facts to update whenever the probe tables change.
 
@@ -103,7 +103,7 @@ live VICE execution.
 Passes `ACTC_OVLC.BIN` through `ACTC_OVLF.BIN` now emit machine OBJ for REAL
 WHILE, runtime conditions, runtime sequences, and nested readbacks. All 102
 seeded runtime fixtures are machine objects, 194 runtime sequences retain
-static exact-byte coverage, and 288 complex compiled-runtime cases use an
+static exact-byte coverage, and 289 complex compiled-runtime cases use an
 independent object parser/relocator oracle. ALINK has no abstract-body compiler
 or runtime synthesis queues and is now 13,806 bytes.
 Integer `EXIT` statements in DO, WHILE, and FOR loops lower to ordinary named
@@ -165,8 +165,9 @@ reachable conversion and comparison imports, while the function export records
 only comparison. Generic ALINK closure therefore selects `RT_I_TO_F.OBJ`,
 `RT_F_CMP.OBJ`, and transitive `RT_F_SPECIAL.OBJ`, prunes unrelated REAL
 helpers, and launches the self-contained PRG in VICE. Native ACTC now also
-lowers bounded `FMin(A,B)` and `FMax(A,B)` source forms for named REAL operands
-through independently selected `RT_F_MIN.OBJ` and `RT_F_MAX.OBJ`. Their exact
+lowers bounded `FSign(A)`, `FMin(A,B)`, and `FMax(A,B)` source forms for named
+REAL operands. `FSign` selects only dependency-free `RT_F_SIGN.OBJ`; min/max
+select `RT_F_MIN.OBJ` or `RT_F_MAX.OBJ` plus comparison closure. Their exact
 MATH1 NaN/signed-zero policy, sibling pruning, and direct VICE launches pass;
 general REAL expression trees and the remaining MATH1 routines are still
 compiler work.
