@@ -9349,6 +9349,105 @@ _REAL_PRINTRE_BINARY_OBJECT_FRAGMENTS = [
 ]
 
 
+def _real_printre_ternary_tail(
+    first: int, second: int, third: int, op_module: str
+) -> bytes:
+    modules = _runtime_module_closure(["rt_i_to_f", op_module, "rt_print_f"])
+    module_addrs = _runtime_module_addrs(modules, 0x10AB)
+    real_a = 0x1093
+    real_b = 0x1097
+    real_c = 0x109B
+    real_x = 0x109F
+    pointer_table = 0x10A3
+
+    def load_zp_from_table(index: int, zp: int) -> bytes:
+        return bytes(
+            [
+                0xA2,
+                index,
+                0xBD,
+                pointer_table & 0xFF,
+                pointer_table >> 8,
+                0x85,
+                zp,
+                0xE8,
+                0xBD,
+                pointer_table & 0xFF,
+                pointer_table >> 8,
+                0x85,
+                zp + 1,
+            ]
+        )
+
+    code = bytearray()
+    for index, value in ((0, first), (2, second), (4, third)):
+        code.extend(load_zp_from_table(index, 0x02))
+        code.extend((0xA9, value & 0xFF, 0xA2, (value >> 8) & 0xFF))
+        code.extend(_jsr(module_addrs["rt_i_to_f"]))
+    code.extend(load_zp_from_table(0, 0x02))
+    code.extend(load_zp_from_table(2, 0x04))
+    code.extend(load_zp_from_table(4, 0x08))
+    code.extend(load_zp_from_table(6, 0x06))
+    code.extend(_jsr(module_addrs[op_module]))
+    code.extend(load_zp_from_table(6, 0x02))
+    code.extend(_jsr(module_addrs["rt_print_f"]))
+    code.extend(_DIRECT_PRG_EXIT_MARKER)
+    if len(code) != 147:
+        raise RuntimeError(f"unexpected REAL PrintRE ternary root size: {len(code)}")
+    pointer_data = bytes(
+        [
+            real_a & 0xFF,
+            real_a >> 8,
+            real_b & 0xFF,
+            real_b >> 8,
+            real_c & 0xFF,
+            real_c >> 8,
+            real_x & 0xFF,
+            real_x >> 8,
+        ]
+    )
+    return bytes(code) + bytes(16) + pointer_data + b"".join(
+        _linked_runtime_module_bytes(module, module_addrs) for module in modules
+    )
+
+
+_REAL_PRINTRE_TERNARY_OBJECT_FRAGMENTS = [
+    "x main 0 171\n"
+    "x __idata 147 16\n"
+    "x __ireala 147 4\n"
+    "x __irealb 151 4\n"
+    "x __irealc 155 4\n"
+    "x __irealx 159 4\n"
+    "x __iptr 163 8\n",
+    "b u0u1u2M\nb M\nb M\nb M\nb M\nb M\nb M\n",
+    "r 3 x __iptr\n"
+    "r 9 x __iptr\n"
+    "r 18 u0\n"
+    "r 23 x __iptr\n"
+    "r 29 x __iptr\n"
+    "r 38 u0\n"
+    "r 43 x __iptr\n"
+    "r 49 x __iptr\n"
+    "r 58 u0\n"
+    "r 63 x __iptr\n"
+    "r 69 x __iptr\n"
+    "r 76 x __iptr\n"
+    "r 82 x __iptr\n"
+    "r 89 x __iptr\n"
+    "r 95 x __iptr\n"
+    "r 102 x __iptr\n"
+    "r 108 x __iptr\n"
+    "r 113 u1\n"
+    "r 118 x __iptr\n"
+    "r 124 x __iptr\n"
+    "r 129 u2\n"
+    "r 163 x __ireala\n"
+    "r 165 x __irealb\n"
+    "r 167 x __irealc\n"
+    "r 169 x __irealx\n",
+]
+
+
 def _real_printre_unary_tail(value: int, convert_module: str, unary_module: str) -> bytes:
     modules = _runtime_module_closure([convert_module, unary_module, "rt_print_f"])
     module_addrs = _runtime_module_addrs(modules, 0x105D)
@@ -13225,6 +13324,52 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_PRINT_F.OBJ",
         ],
         "unexpected_alink_loads": ["LIB/RT_F_MIN.OBJ"],
+    },
+    "actc_runtime_math1_fclamp_split_linked": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL A\r"
+            "REAL B\r"
+            "REAL C\r"
+            "REAL X\r"
+            "PROC MAIN()\r"
+            "A=REAL(5)\r"
+            "B=REAL(1)\r"
+            "C=REAL(2)\r"
+            "X=FClamp(A,B,C)\r"
+            "PrintRE(X)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": [
+            "rt_i_to_f",
+            "rt_f_clamp",
+            "rt_f_cmp",
+            "rt_f_max",
+            "rt_f_min",
+            "rt_f_special",
+            "rt_print_f",
+            "rt_f_sign",
+            "rt_f_abs",
+            "rt_f_sqrt",
+        ],
+        "expected_object_fragments": _REAL_PRINTRE_TERNARY_OBJECT_FRAGMENTS,
+        "expected_tail": _real_printre_ternary_tail(5, 1, 2, "rt_f_clamp"),
+        "screen_fragments": ["2"],
+        "expected_alink_loads": [
+            "LIB/RT_I_TO_F.OBJ",
+            "LIB/RT_F_CLAMP.OBJ",
+            "LIB/RT_F_CMP.OBJ",
+            "LIB/RT_F_SPECIAL.OBJ",
+            "LIB/RT_F_MAX.OBJ",
+            "LIB/RT_F_MIN.OBJ",
+            "LIB/RT_PRINT_F.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_F_SIGN.OBJ",
+            "LIB/RT_F_ABS.OBJ",
+            "LIB/RT_F_SQRT.OBJ",
+        ],
     },
     "actc_runtime_math1_fsign_split_linked": {
         "source": (
@@ -47646,6 +47791,7 @@ def _add_derived_math1_core_split_case(
         "LIB/RT_F_SIGN.OBJ",
         "LIB/RT_F_MIN.OBJ",
         "LIB/RT_F_MAX.OBJ",
+        "LIB/RT_F_CLAMP.OBJ",
     ]
     DIRECT_PRG_CASES[name] = case
 
@@ -47663,6 +47809,7 @@ _MATH1_ALL_CORE_RUNTIME_OBJECTS = [
     "rt_f_sign",
     "rt_f_min",
     "rt_f_max",
+    "rt_f_clamp",
     "rt_f_abs",
     "rt_f_sqrt",
     "rt_print_f",
@@ -50678,9 +50825,9 @@ for _shape, _case in DIRECT_PRG_CASES.items():
     ):
         _case["expected_tail_from_compiled_object"] = True
         COMPILED_RUNTIME_LINK_ORACLE_SHAPES.append(_shape)
-if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 289:
+if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 290:
     raise RuntimeError(
-        "expected 289 compiled runtime link-oracle cases, found "
+        "expected 290 compiled runtime link-oracle cases, found "
         f"{len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES)}"
     )
 

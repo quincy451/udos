@@ -823,6 +823,7 @@ ACTION_ACTC_ALINK_MATH_RUNTIME_SHAPES := \
 	actc_runtime_math1_fsign_split_linked \
 	actc_runtime_math1_fmin_split_linked \
 	actc_runtime_math1_fmax_split_linked \
+	actc_runtime_math1_fclamp_split_linked \
 	actc_runtime_math1_printre_split_linked \
 	actc_runtime_math1_printr_split_linked \
 	actc_runtime_math1_real_int_split_linked \

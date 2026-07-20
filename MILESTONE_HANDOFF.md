@@ -72,7 +72,7 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1330 shapes and
+Current status docs report the broad ALINK direct-PRG matrix at 1331 shapes and
 the source-backed ACTC object-emission matrix at 171 shapes. Treat those matrix
 counts as status facts to update whenever the probe tables change.
 
@@ -91,8 +91,8 @@ Native REAL bridge, REAL-to-INT, straight-line two-literal REAL arithmetic,
 unary FAbs/FSqrt print, and helper-prefixed REAL print machine OBJ generation use base-36 pass
 `ACTC_OVLA.BIN`; generic `ACTC_OVL5.BIN` no longer contains that generator.
 ALINK's matching REAL binary and unary compact-body compilers and fixed-address
-layouts are retired. OVLA is 5,756 bytes with 2,436 bytes free in its 8 KiB
-execution window.
+layouts are retired. OVLA is 7,406 bytes with 786 bytes free in its 8 KiB
+execution window, above its enforced 768-byte growth reserve.
 Plain, ELSE, and nested REAL IF machine OBJ generation uses pass
 `ACTC_OVLB.BIN`; all 36 variants now use generic ALINK closure and relocation.
 All six simple REAL `DO ... UNTIL` comparisons and eight add/sub update loops
@@ -103,7 +103,7 @@ live VICE execution.
 Passes `ACTC_OVLC.BIN` through `ACTC_OVLF.BIN` now emit machine OBJ for REAL
 WHILE, runtime conditions, runtime sequences, and nested readbacks. All 102
 seeded runtime fixtures are machine objects, 194 runtime sequences retain
-static exact-byte coverage, and 289 complex compiled-runtime cases use an
+static exact-byte coverage, and 290 complex compiled-runtime cases use an
 independent object parser/relocator oracle. ALINK has no abstract-body compiler
 or runtime synthesis queues and is now 13,806 bytes.
 Integer `EXIT` statements in DO, WHILE, and FOR loops lower to ordinary named
@@ -168,9 +168,13 @@ helpers, and launches the self-contained PRG in VICE. Native ACTC now also
 lowers bounded `FSign(A)`, `FMin(A,B)`, and `FMax(A,B)` source forms for named
 REAL operands. `FSign` selects only dependency-free `RT_F_SIGN.OBJ`; min/max
 select `RT_F_MIN.OBJ` or `RT_F_MAX.OBJ` plus comparison closure. Their exact
-MATH1 NaN/signed-zero policy, sibling pruning, and direct VICE launches pass;
-general REAL expression trees and the remaining MATH1 routines are still
-compiler work.
+MATH1 NaN/signed-zero policy, sibling pruning, and direct VICE launches pass.
+Pass K additionally emits the exact three-initializer
+`X=FClamp(A,B,C); PrintRE(X)` root. `RT_F_CLAMP.OBJ` selects comparison,
+minimum, and maximum only when reachable, canonicalizes invalid clamp inputs,
+and preserves valid selected operands. Pass K is 4,208 bytes with 3,984 bytes
+free. General REAL expression trees and the remaining 35 MATH1 routines are
+still compiler work.
 The complete `ACTION.DNP` includes all compiler passes, ACTEDIT, ACTDBG, and all
 tools. The capacity-limited D64 retains ACTC passes 0 through H, ALINK, resident
 `COPY`, and compact delete/directory/tree tools. The redundant `ACTCOPY.PRG`
