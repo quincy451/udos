@@ -174,6 +174,7 @@ class TestReleaseFs(unittest.TestCase):
             self.assertIn("REAL FUNC FSqrt(REAL value)", math1_contents)
             self.assertIn("REAL FUNC FTrunc(REAL value)", math1_contents)
             self.assertIn("REAL FUNC FFloor(REAL value)", math1_contents)
+            self.assertIn("REAL FUNC FCeil(REAL value)", math1_contents)
             self.assertIn("REAL CONST MATH_PI=3.14159265358979323846", math1_contents)
             self.assertIn("REAL CONST MATH_SQRT2=1.41421356237309504880", math1_contents)
             self.assertNotIn("MODULE MATH1", math1_contents)
