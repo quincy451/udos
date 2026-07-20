@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1332 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 171 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1333 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 172 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The current matrix includes source-backed dynamic integer multiplication and
@@ -165,6 +165,9 @@ reachable conversion and comparison imports, while the function export records
 only comparison. Generic ALINK closure therefore selects `RT_I_TO_F.OBJ`,
 `RT_F_CMP.OBJ`, and transitive `RT_F_SPECIAL.OBJ`, prunes unrelated REAL
 helpers, and launches the self-contained PRG in VICE. Native ACTC now also
+captures reordered initializer, call, result, parameter-bind, comparison, and
+return storage in this bounded function. Canonical and permuted shared fixtures
+both return 1.0 and verify all five REAL cells. Native ACTC also
 lowers bounded `FSign(A)`, `FMin(A,B)`, and `FMax(A,B)` source forms for named
 REAL operands. `FSign` selects only dependency-free `RT_F_SIGN.OBJ`; min/max
 select `RT_F_MIN.OBJ` or `RT_F_MAX.OBJ` plus comparison closure. Their exact
@@ -174,8 +177,8 @@ print root. Its matcher captures the three initializer destinations, three
 arguments, result destination, and printed value, so storage roles can be
 permuted without changing the fixed statement skeleton. `RT_F_CLAMP.OBJ`
 selects comparison, minimum, and maximum only when reachable, canonicalizes
-invalid clamp inputs, and preserves valid selected operands. Pass K is 4,359
-bytes with 3,833 bytes free. General REAL expression trees and the remaining
+invalid clamp inputs, and preserves valid selected operands. Pass K is 4,594
+bytes with 3,598 bytes free. General REAL expression trees and the remaining
 35 MATH1 routines are still compiler work.
 The complete `ACTION.DNP` includes all compiler passes, ACTEDIT, ACTDBG, and all
 tools. The capacity-limited D64 retains ACTC passes 0 through H, ALINK, resident
