@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1333 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 172 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1334 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 173 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The current matrix includes source-backed dynamic integer multiplication and
@@ -91,7 +91,7 @@ Native REAL bridge, REAL-to-INT, straight-line two-literal REAL arithmetic,
 unary FAbs/FSqrt print, and helper-prefixed REAL print machine OBJ generation use base-36 pass
 `ACTC_OVLA.BIN`; generic `ACTC_OVL5.BIN` no longer contains that generator.
 ALINK's matching REAL binary and unary compact-body compilers and fixed-address
-layouts are retired. OVLA is 7,406 bytes with 786 bytes free in its 8 KiB
+layouts are retired. OVLA is 7,418 bytes with 774 bytes free in its 8 KiB
 execution window, above its enforced 768-byte growth reserve.
 Plain, ELSE, and nested REAL IF machine OBJ generation uses pass
 `ACTC_OVLB.BIN`; all 36 variants now use generic ALINK closure and relocation.
@@ -159,6 +159,11 @@ the scalar stack ABI, converts it with `REAL(parameter)`, returns the named REAL
 storage pointer in A/X, and lets the caller copy all four bytes. Both live cases
 return binary32 42.0 while ALINK selects only the ordinary reachable conversion
 object.
+The bounded two-REAL-parameter pass-A form now keeps its named return selector
+independent from caller argument storage. A reordered shared fixture binds
+`LEFT/RIGHT` to `B/A`, returns the second parameter, and writes 2.0 while VICE
+checks both caller values and both reverse-bound parameter copies. Its generic
+157-byte OBJ still selects only `RT_I_TO_F.OBJ`.
 Pass K, `ACTC_OVLK.BIN`, adds a bounded two-REAL-parameter finite
 comparison/select function. The enclosing root records the union of its
 reachable conversion and comparison imports, while the function export records

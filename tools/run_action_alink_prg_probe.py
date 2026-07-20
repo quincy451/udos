@@ -49517,6 +49517,54 @@ DIRECT_PRG_CASES["actc_real_function_two_real_params_linked"] = {
     ],
 }
 
+DIRECT_PRG_CASES["actc_real_function_two_real_params_second_return_linked"] = {
+    "source": (
+        "MODULE MAIN\r"
+        "REAL RESULT\r"
+        "REAL RIGHT\r"
+        "REAL LEFT\r"
+        "REAL FUNC SECOND(REAL B,A)\r"
+        "RETURN(A)\r"
+        "PROC MAIN()\r"
+        "LEFT=REAL(1)\r"
+        "RIGHT=REAL(2)\r"
+        "RESULT=SECOND(LEFT,RIGHT)\r"
+        "RETURN\r"
+    ),
+    "has_stub": False,
+    "runtime_library_objects": ["rt_i_to_f"],
+    "expected_object_fragments": [
+        "x main 0 157\nx second 88 47\nx __v0 135 4\nx __v1 139 4\n"
+        "x __v2 143 4\nx __v3 147 4\nx __v4 151 4\n"
+        "x __idata 135 20\nx __iptr 155 2\n",
+        "b u0M\nb u0M\nb M\nb M\nb M\nb M\nb M\nb M\nb M\n",
+        "r 14 l x __v2\nr 18 h x __v2\nr 26 u0\n",
+        "r 29 l x __v1\nr 33 h x __v1\nr 41 u0\n",
+        "r 44 l x __v2\nr 47 h x __v2\n"
+        "r 50 l x __v1\nr 53 h x __v1\nr 56 x second\n",
+        "r 67 x __v0\nr 104 x __v4\nr 120 x __v3\n"
+        "r 131 l x __v4\nr 133 h x __v4\nr 155 x __idata\n",
+        "u rt_i_to_f\ni 0\ni 1\ni 0\ni 2\n",
+        "v result 0 4\nv right 0 4\nv left 0 4\nv b 0 4\nv a 0 4\n",
+    ],
+    "expected_tail_from_compiled_object": True,
+    "expected_alink_loads": ["LIB/RT_I_TO_F.OBJ"],
+    "store_check_addr": 0x1089,
+    "store_check_value": 0x00,
+    "store_check_hi_addr": 0x108A,
+    "store_check_hi_value": 0x40,
+    "extra_store_checks": [
+        {"addr": 0x108D, "value": 0x00},
+        {"addr": 0x108E, "value": 0x40},
+        {"addr": 0x1091, "value": 0x80},
+        {"addr": 0x1092, "value": 0x3F},
+        {"addr": 0x1095, "value": 0x80},
+        {"addr": 0x1096, "value": 0x3F},
+        {"addr": 0x1099, "value": 0x00},
+        {"addr": 0x109A, "value": 0x40},
+    ],
+}
+
 DIRECT_PRG_CASES["actc_real_function_finite_min_linked"] = {
     "source": (
         "MODULE MAIN\r"

@@ -178,6 +178,7 @@ ACTION_ACTC_ALINK_OBJECT_EMISSION_SHAPES := \
 	actc_real_function_variable_word_param_linked \
 	actc_real_function_real_param_linked \
 	actc_real_function_two_real_params_linked \
+	actc_real_function_two_real_params_second_return_linked \
 	actc_real_function_finite_min_linked \
 	actc_real_function_finite_min_permuted_linked \
 	actc_asmblock_symbol_byte_relocations_linked \

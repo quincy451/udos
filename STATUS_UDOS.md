@@ -235,7 +235,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     leaf, while carrying child-object integer and string literal pools into the
     linked program image. Project objects are now emitted and documented only as
     `OBJ/*.OBJ`.
-  - `make vice-action-alink-prg-matrix` now enumerates 1333 direct-PRG
+  - `make vice-action-alink-prg-matrix` now enumerates 1334 direct-PRG
     object/link shapes from the probe table and validates ALINK output for each
     shape. The matrix includes object-code graph closure, rejection cases,
     link-selected runtime helper families, and seeded input-helper closure
@@ -297,6 +297,11 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     named REAL storage, returns that pointer, and copies 42.0 into the caller
     destination through the same generic OBJ/ALINK path. The named-storage case
     emits ordinary relocations for all argument stores and loads.
+    The bounded two-REAL-parameter pass-A form now captures return storage
+    independently from caller argument storage. A reordered shared fixture
+    returns its second parameter as 2.0 and verifies all five caller/callee REAL
+    cells through the unchanged generic OBJ/ALINK path. Pass A is 7,418 bytes
+    with 774 bytes free under its 768-byte reserve.
     Pass K extends the two-REAL-parameter ABI with one bounded finite
     comparison/select body. Its root closure includes integer conversion and
     comparison; its function export remains comparison-only. The rebuilt
