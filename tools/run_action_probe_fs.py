@@ -31,6 +31,20 @@ def host_name(name: str, lowercase_workspace: bool) -> str:
     return name.lower() if lowercase_workspace else name
 
 
+def ensure_relative_symlink(alias: Path, target_name: str, *, is_dir: bool = False) -> None:
+    if alias.exists() or alias.is_symlink():
+        try:
+            if alias.is_symlink() and alias.readlink() == Path(target_name):
+                return
+        except OSError:
+            pass
+        if alias.is_dir() and not alias.is_symlink():
+            shutil.rmtree(alias)
+        else:
+            alias.unlink()
+    alias.symlink_to(target_name, target_is_directory=is_dir)
+
+
 def case_name_variants(name: str) -> list[str]:
     variants: list[str] = []
     for candidate in (name, name.lower(), name.upper()):
@@ -63,6 +77,17 @@ def sync_case_siblings(path: Path) -> None:
         copy_file_alias(path, path.with_name(alias_name))
 
 
+def sync_case_path_variants(root: Path, path: Path) -> None:
+    """Copy one authoritative file across every path-component case variant."""
+    if not path.is_file():
+        return
+    rel_parts = path.relative_to(root).parts
+    for variant_parts in itertools.product(
+        *(case_name_variants(part) for part in rel_parts)
+    ):
+        copy_file_alias(path, root.joinpath(*variant_parts))
+
+
 def add_case_aliases(root: Path) -> None:
     """Materialize upper/lower path variants for VICE fsdevice on Linux."""
     paths = [path for path in root.rglob("*") if not path.is_symlink()]
@@ -76,9 +101,7 @@ def add_case_aliases(root: Path) -> None:
                 alias_dir.unlink()
             alias_dir.mkdir(parents=True, exist_ok=True)
     for file_path in files:
-        rel_parts = file_path.relative_to(root).parts
-        for variant_parts in itertools.product(*(case_name_variants(part) for part in rel_parts)):
-            copy_file_alias(file_path, root.joinpath(*variant_parts))
+        sync_case_path_variants(root, file_path)
 
 
 def write_ascii(path: Path, text: str, *, sync_case: bool = True) -> None:

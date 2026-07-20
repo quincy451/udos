@@ -10,6 +10,7 @@ from pathlib import Path
 
 import run_action_actc_probe as rcp
 import run_action_alink_prg_probe as rpp
+import run_action_probe_fs as pfs
 import vice_prg_probe as vp
 
 
@@ -193,7 +194,7 @@ def prepare_workspace(
         (bin_root / stale_name).unlink(missing_ok=True)
 
     install_program(fs_root, project_root, ACTION_ALINK_BUILD, "ALINK.PRG")
-    rcp.add_case_aliases(project_root)
+    pfs.add_case_aliases(project_root)
     mount_path = f"/{images_root.name}/{action_root.name}"
     return project_root, mount_path
 
@@ -259,6 +260,8 @@ def verify_alink_dependency_loads(summary: dict[str, object], shape: str) -> Non
     for op in ops:
         if not isinstance(op, dict):
             continue
+        if op.get("kind") != "load" or int(op.get("status", -1)) != 1:
+            continue
         path = op.get("path")
         if isinstance(path, str):
             loaded_paths.add(path.upper())
@@ -298,18 +301,18 @@ def run_once(
     shutil.copytree(fs_root, work_root, symlinks=True, copy_function=shutil.copy)
     project_root, mount_path = prepare_workspace(work_root, project_name, shape, source_from=source_from)
     rpp.stage_case_files(project_root, shape)
-    rcp.add_case_aliases(project_root)
+    pfs.add_case_aliases(project_root)
 
     last_exc: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
             vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, attempt_delay)))
             run_actc_phase(image, work_root, project_name, project_root)
-            rcp.add_case_aliases(project_root)
+            pfs.add_case_aliases(project_root)
             rpp.verify_actc_object_output(project_root, shape)
             stage_case_objects(project_root, shape)
             stage_runtime_module_closure(project_root, shape)
-            rcp.add_case_aliases(project_root)
+            pfs.add_case_aliases(project_root)
             alink_summary = run_alink_phase(project_root)
             verify_alink_dependency_loads(alink_summary, shape)
             prg_path = verify_link_output(project_root, shape)

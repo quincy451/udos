@@ -30,13 +30,45 @@ class TestReleaseFs(unittest.TestCase):
             self.assertTrue((action_root / "ACTINFO.PRG").is_file())
             self.assertTrue((action_root / "ACTSAVE.PRG").is_file())
             self.assertTrue((action_root / "ACTC.PRG").is_file())
-            for overlay_index in range(8):
-                overlay = action_root / f"ACTC_OVL{overlay_index}.BIN"
+            self.assertTrue((action_root / "ACTEDIT.PRG").is_file())
+            self.assertEqual(
+                (action_root / "ACTEDIT_OVL1.BIN").read_bytes()[:5], b"AEOV\x02"
+            )
+            self.assertTrue((action_root / "ACTDBG.PRG").is_file())
+            self.assertEqual(
+                (action_root / "ACTDBG_OVL1.BIN").read_bytes()[:4], b"DGOV"
+            )
+            self.assertEqual(
+                (action_root / "ACTDBG_OVL2.BIN").read_bytes()[:4], b"DGOV"
+            )
+            tree_overlay = (action_root / "TREE.OVL").read_bytes()
+            self.assertEqual(tree_overlay[:6], b"\x00\x09UDOV")
+            self.assertEqual(tree_overlay[6:10], bytes((1, 6, 20, 0)))
+            self.assertEqual(int.from_bytes(tree_overlay[10:12], "little"), 0x0900)
+            self.assertEqual(int.from_bytes(tree_overlay[14:16], "little"), len(tree_overlay) - 2)
+            xcopy_overlay = (action_root / "XCOPY.OVL").read_bytes()
+            self.assertEqual(xcopy_overlay[:6], b"\x00\x09UDOV")
+            self.assertEqual(xcopy_overlay[6:10], bytes((1, 6, 21, 0)))
+            self.assertEqual(int.from_bytes(xcopy_overlay[10:12], "little"), 0x0900)
+            self.assertGreaterEqual(int.from_bytes(xcopy_overlay[12:14], "little"), 0x090E)
+            self.assertEqual(int.from_bytes(xcopy_overlay[14:16], "little"), len(xcopy_overlay) - 2)
+            deltree_overlay = (action_root / "DELTREE.OVL").read_bytes()
+            self.assertEqual(deltree_overlay[:6], b"\x00\x09UDOV")
+            self.assertEqual(deltree_overlay[6:10], bytes((1, 6, 22, 0)))
+            self.assertEqual(int.from_bytes(deltree_overlay[10:12], "little"), 0x0900)
+            self.assertGreaterEqual(int.from_bytes(deltree_overlay[12:14], "little"), 0x090E)
+            self.assertEqual(
+                int.from_bytes(deltree_overlay[14:16], "little"),
+                len(deltree_overlay) - 2,
+            )
+            for overlay_selector in "0123456789ABCDEFGHIJK":
+                overlay = action_root / f"ACTC_OVL{overlay_selector}.BIN"
                 self.assertTrue(overlay.is_file(), str(overlay))
                 self.assertEqual(overlay.read_bytes()[:4], b"ACOV", str(overlay))
             self.assertTrue((action_root / "DOC" / "OPERATOR.TXT").is_file())
             self.assertTrue((action_root / "DOC" / "INPUT1.TXT").is_file())
             self.assertTrue((action_root / "DOC" / "DBF1.TXT").is_file())
+            self.assertTrue((action_root / "DOC" / "DEBUGGER.TXT").is_file())
             self.assertTrue((action_root / "SRC" / "DBF1_DEMO.ACT").is_file())
             self.assertTrue((action_root / "SRC" / "GFX1_DEMO.ACT").is_file())
             self.assertTrue((action_root / "SRC" / "HELLO.ACT").is_file())
@@ -95,6 +127,7 @@ class TestReleaseFs(unittest.TestCase):
             self.assertTrue((action_root / "LIB" / "MATH1.ACT").is_file())
             self.assertTrue((action_root / "LIB" / "RT_F_ABS.OBJ").is_file())
             self.assertTrue((action_root / "LIB" / "RT_F_SQRT.OBJ").is_file())
+            self.assertTrue((action_root / "LIB" / "RT_F_SPECIAL.OBJ").is_file())
             self.assertTrue((action_root / "LIB" / "SIDSPR1.ACT").is_file())
             self.assertTrue((action_root / "LIB" / "RT_SID_FREQ.OBJ").is_file())
             self.assertTrue((action_root / "LIB" / "RT_SID_STATE.OBJ").is_file())
@@ -173,13 +206,15 @@ class TestReleaseFs(unittest.TestCase):
             self.assertFalse(list(action_root.rglob("*.AVT")))
             old_vm_prefix = "A" + "VM"
             old_runner = old_vm_prefix + "RUN"
+            self.assertTrue((action_root / "ACTDBG.PRG").is_file())
+            self.assertEqual((action_root / "ACTDBG_OVL1.BIN").read_bytes()[:4], b"DGOV")
+            self.assertEqual((action_root / "ACTDBG_OVL2.BIN").read_bytes()[:4], b"DGOV")
+            self.assertTrue((action_root / "ACTEDIT.PRG").is_file())
+            self.assertEqual((action_root / "ACTEDIT_OVL1.BIN").read_bytes()[:5], b"AEOV\x02")
             for name in (
                 old_vm_prefix + "INFO.PRG",
                 old_runner + ".PRG",
                 old_runner + "C.PRG",
-                "ACTDBG.PRG",
-                "ACTDBG_OVL1.BIN",
-                "ACTDBG_OVL2.BIN",
             ):
                 self.assertFalse((action_root / name).exists(), name)
             self.assertFalse(list(action_root.glob("RT_*_HELPER.BIN")))

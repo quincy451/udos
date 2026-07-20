@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import inspect
 import tempfile
 import unittest
 from unittest import mock
@@ -12,9 +13,83 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import vice_prg_probe as vp
+import run_action_command_probe as command_probe
+import run_action_alink_seeded_runtime_probe as seeded_alink_probe
 
 
 class TestViceProbeArgNormalization(unittest.TestCase):
+    def test_seeded_alink_probe_allows_slow_host_completion(self) -> None:
+        self.assertGreaterEqual(seeded_alink_probe.FINAL_TIMEOUT, 90.0)
+        self.assertIn("final_timeout", inspect.signature(seeded_alink_probe.run_once).parameters)
+        makefile = (ROOT / "Makefile").read_text(encoding="ascii")
+        target = makefile.split("vice-action-alink:", 1)[1].split("vice-action-alink-prg:", 1)[0]
+        self.assertIn("--final-timeout 120", target)
+
+    def test_direct_tool_workflow_allows_slow_compile_link_chain(self) -> None:
+        makefile = (ROOT / "Makefile").read_text(encoding="ascii")
+        target = makefile.split("vice-action-tool-workflow:", 1)[1].split(
+            "vice-action-actedit-overlay:", 1
+        )[0]
+        self.assertIn("--shell-timeout 300", target)
+
+    def test_command_probe_allows_transient_ready_during_autostart(self) -> None:
+        client = mock.Mock()
+        screens = ["READY.\n", "A:D64/>\n"]
+        with mock.patch.object(command_probe, "screen_text_for_fragment", side_effect=screens):
+            with mock.patch.object(command_probe.time, "monotonic", side_effect=(0.0, 0.0, 0.1)):
+                with mock.patch.object(command_probe.time, "sleep"):
+                    screen = command_probe.wait_for_active_prompt(
+                        client,
+                        "A:D64/>",
+                        1.0,
+                        allow_transient_ready=True,
+                    )
+
+        self.assertEqual(screen, "A:D64/>\n")
+
+    def test_command_probe_still_rejects_ready_after_launch(self) -> None:
+        client = mock.Mock()
+        with mock.patch.object(command_probe, "screen_text_for_fragment", return_value="READY.\n"):
+            with mock.patch.object(command_probe.time, "monotonic", side_effect=(0.0, 0.0)):
+                with self.assertRaisesRegex(vp.ViceError, "escaped to READY"):
+                    command_probe.wait_for_active_prompt(client, "A:D64/>", 1.0)
+
+    def test_command_probe_waits_for_live_prompt_with_reused_fragment(self) -> None:
+        client = mock.Mock()
+        screens = [
+            "COPIED\n  B:DNP/> COPY MAIN.ACT BIG1.ACT\n",
+            "COPIED\n  B:DNP/>\n",
+        ]
+        with mock.patch.object(command_probe, "screen_text_for_fragment", side_effect=screens):
+            with mock.patch.object(command_probe.time, "monotonic", side_effect=(0.0, 0.0, 0.1)):
+                with mock.patch.object(command_probe.time, "sleep"):
+                    screen = command_probe.wait_for_active_prompt_and_fragments(
+                        client,
+                        "B:DNP/>",
+                        ["COPIED"],
+                        1.0,
+                    )
+
+        self.assertEqual(screen, screens[-1])
+
+    def test_command_probe_parses_raw_key_code_sequences(self) -> None:
+        self.assertEqual(
+            command_probe.parse_key_codes("0x58, 0x11, 0x85, 3"),
+            [0x58, 0x11, 0x85, 0x03],
+        )
+
+    def test_command_probe_sends_high_raw_key_codes_without_ascii_encoding(self) -> None:
+        client = mock.Mock()
+        with mock.patch.object(command_probe, "wait_for_keyboard_idle"):
+            with mock.patch.object(command_probe.time, "sleep"):
+                command_probe.send_key_codes(client, [0x58, 0x85, 0x03], 1.0)
+
+        self.assertIn(mock.call(vp.KEYBUF_DATA, b"\x85"), client.memory_set.call_args_list)
+        self.assertEqual(client.memory_set.call_args_list[-2:], [
+            mock.call(vp.KEYBUF_DATA, b"\x03"),
+            mock.call(vp.KEYBUF_COUNT, b"\x01"),
+        ])
+
     def write_probe_binary(self, text: str) -> Path:
         tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(tmpdir.cleanup)
@@ -145,6 +220,66 @@ class TestViceProbeArgNormalization(unittest.TestCase):
                         rc = vp.main(["--disk", str(disk), "--expected", "A:D64/>", "--attempt-delay", "2.5"])
         self.assertEqual(rc, 0)
         cleanup_mock.assert_called_once_with(settle_seconds=2.5)
+
+    def test_wait_for_screen_reports_fragment_and_last_screen_on_early_exit(self) -> None:
+        process = mock.Mock()
+        process.poll.side_effect = [None, 1]
+        process.communicate.return_value = ("out text", "err text")
+        client = mock.Mock()
+
+        with mock.patch.object(
+            vp,
+            "read_screen_text_for_fragment",
+            return_value=("last visible screen", 0x18, 0x17),
+        ):
+            with mock.patch.object(vp.time, "sleep", return_value=None):
+                with self.assertRaises(vp.ViceError) as raised:
+                    vp.wait_for_screen_and_state(
+                        client,
+                        process,
+                        "READY>",
+                        marker_addr=None,
+                        marker_value=None,
+                        extra_checks=[],
+                        timeout=1.0,
+                    )
+
+        message = str(raised.exception)
+        self.assertIn("screen text 'READY>'", message)
+        self.assertIn("last VIC state: D018=0x18 DD00=0x17", message)
+        self.assertIn("last visible screen", message)
+        self.assertIn("out text", message)
+        self.assertIn("err text", message)
+
+    def test_wait_for_screen_reports_state_byte_mismatches_on_timeout(self) -> None:
+        process = mock.Mock()
+        process.poll.return_value = None
+        client = mock.Mock()
+        client.memory_get.return_value = b"\x03"
+        client.registers_get.return_value = {}
+
+        with mock.patch.object(
+            vp,
+            "read_screen_text_for_fragment",
+            return_value=("READY>", 0x18, 0x17),
+        ):
+            with mock.patch.object(vp.time, "monotonic", side_effect=(0.0, 0.0, 2.0)):
+                with mock.patch.object(vp.time, "sleep", return_value=None):
+                    with self.assertRaises(vp.ViceError) as raised:
+                        vp.wait_for_screen_and_state(
+                            client,
+                            process,
+                            "READY>",
+                            marker_addr=None,
+                            marker_value=None,
+                            extra_checks=[(0x1234, 0x02)],
+                            timeout=1.0,
+                        )
+
+        self.assertIn(
+            "State mismatches: 0x1234: expected 0x02, got 0x03",
+            str(raised.exception),
+        )
 
     def test_format_udos_launch_trace_reads_expected_bytes(self) -> None:
         client = mock.Mock()

@@ -85,9 +85,37 @@ Current milestone:
     that mounts the exported Action workspace, lists its root entries, and reads
     `README.TXT` from the shell
   - `make vice-action-actdir` now uses an autoexec-backed Action test image on
-    top of the release workspace, launches `ACTDIR.PRG`,
-    enumerates the current directory through the preserved external-tool
+    top of the release workspace, launches `ACTDIR.PRG SRC`,
+    enumerates a selected directory through the path-scoped external-tool
     directory ABI, and returns to the UDOS prompt
+  - `make vice-action-tree-overlay` now proves the resident `TREE SRC` command
+    resolves and validates `TREE.OVL`, then reaches
+    `SRC/NEST/DEEP/FINAL.ACT`
+  - `make vice-action-tree-overlay-invalid` corrupts the module container and
+    proves UDOS uses the one-level resident fallback without entering it
+  - `make vice-action-xcopy-overlay` proves `XCOPY XCSRC XCDST` loads the
+    validated `XCOPY.OVL` module and recursively copies eleven files across
+    three tree levels
+  - `make vice-action-xcopy-overlay-invalid` proves an invalid module reports
+    `OVERLAY INVALID` without entry or destination mutation
+  - `make vice-action-xcopy-overlay-flat` proves recursive copy reports
+    `FLAT IMAGE` on the release `D64`
+  - `make vice-action-deltree-overlay` proves validated `DELTREE.OVL` removes
+    eleven files and three directories in bounded post-order
+  - invalid-module, flat-image, and current-directory safety are covered by
+    `vice-action-deltree-overlay-invalid`, `vice-action-deltree-overlay-flat`,
+    and `vice-action-deltree-overlay-busy`
+  - hardware tree-file launch now uses `FILE_STAT`, `OPEN_FILE`, repeated
+    `READ_DATA`, and `CLOSE_FILE` to stream direct PRGs and `UDOV` modules into
+    the shared REU launch area; this path is implemented but not hardware-validated
+  - hardware recursive Tool ABI paths now use nested UCI directory enumeration,
+    `CREATE_DIR`, same-drive `COPY_FILE` or cross-drive read/write streaming,
+    and `DELETE_FILE` for files and empty directories; these paths are
+    implemented but not hardware-validated
+  - fixed external-tool file load now uses `FILE_STAT`, bounded repeated
+    `READ_DATA`, and `CLOSE_FILE`, including existence-only probes, `!` paths
+    relative to the launched tool, and exact too-large prefix semantics; this
+    path is implemented but not hardware-validated
   - `make vice-action-actadd` now uses the release image with deterministic
     typed input on top of the release workspace, seeds a project root marked
     by `ACTION.PROJ`, changes into that project, runs `ACTADD.PRG`, writes
@@ -115,9 +143,9 @@ Current milestone:
     comparisons,
     current source-inferred runtime-import metadata, and explicit
     `payload_bytes`;
-    the focused proof keeps verification host-side because
-    `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough for a stable
-    shell-side `TYPE OBJ/...` readback
+    the focused proof verifies the host-side object and `OBJ/UDOSDIR.TXT`
+    catalog, then shell-reads `TYPE OBJ/MAIN.OBJ` to prove the object is visible
+    through UDOS
   - `make vice-action-alink` now uses the release image with deterministic
     typed input on top of a copied Action workspace, seeds a project root
     marked by `ACTION.PROJ` plus deterministic `OBJ/*.OBJ` fixtures, launches
@@ -131,6 +159,9 @@ Current milestone:
     It launches `ACTC.PRG MAIN`, then `ALINK.PRG MAIN`, then direct
     `BIN/MAIN.PRG`, and proves the live screen reaches `hello`, `tool7`, and
     `5459` before returning to the UDOS prompt
+  - `make vice-action-actc-alink-launch-object-emission-matrix` now covers all
+    171 source-backed non-runtime, non-object-code ACTC object-emission launch
+    shapes from `tools/run_action_alink_prg_probe.py`
   - `make vice-action-actc-alink-launch` is now the helper-free higher-level
     default. It uses the release image with deterministic typed input on top
     of a copied Action workspace, launches `ACTC.PRG MAIN`, then
@@ -238,20 +269,32 @@ Current command parser rule:
   - `NAME.*`
 - `COPY` now also supports the same limited wildcard forms
 - wildcard `COPY` preserves each matched source filename and expects the destination to resolve to a directory target
+- VICE tree mutations stream `UDOSDIR.TXT` line by line, so catalogs larger than
+  255 bytes persist without truncating unrelated entries
 - `MEM` now reports launch-capable RAM when REU is present:
   - `RAM USED` is treated as the preserved lower-RAM footprint after an aggressive spill
   - `RAM FREE` is treated as launch-available lower RAM
   - `REU USED` includes the current VICE tree cache reservation plus the spill
-    reservation for the resident image and HIRAM workspace
+    reservation for the resident image and HIRAM workspace, mutation replay,
+    and the streamed-write filename shadow
 - the VICE backend now spills VICE tree content payloads into REU and keeps only a
   single slot cache in RAM
 - UDOS-aware external launch now returns through a resident trampoline under VICE
 - the current launch/return validation includes a clobber test that overwrites
   resident code and still returns to the shell through REU-backed restore
 - current direct `MEM` probe:
-  - `RAM USED 0 FREE 65535 REU USED 35377 FREE 16741839`
+  - `RAM USED 0 FREE 65535 REU USED 47872 FREE 16729344`
+- the linked resident image ends at `$AA45`; processor-port value `$36` exposes its
+  RAM under BASIC ROM while retaining KERNAL and I/O
+- tool-callable resident code ends at `$9FCE`; the `$A000-$BFFF` Action overlay
+  window may overwrite only post-return resident code that is restored from REU
+- backend-generic Tool ABI paths use the preserved transport snapshot instead
+  of low resident probe code, so large tools such as `ACTMON.PRG` may overwrite
+  `$1810-$18FE` and still call resident services safely
 
 See:
+- `OPERATOR_GUIDE.md`
+- `FILESYSTEM_BEHAVIOR.md`
 - `PIVOT_PLAN.md`
 - `ARCHITECTURE.md`
 - `BUILDING.md`

@@ -60,35 +60,41 @@ def write_project_state(project_root: Path, modules: list[tuple[str, str]], lowe
     lower_project_root = project_root.parent / project_root.name.lower()
     shutil.rmtree(project_root, ignore_errors=True)
     shutil.rmtree(lower_project_root, ignore_errors=True)
-    src_root = project_root / "SRC"
-    bin_root = project_root / "BIN"
-    obj_root = project_root / "OBJ"
+    src_root = project_root / "src"
+    bin_root = project_root / "bin"
+    obj_root = project_root / "obj"
     src_root.mkdir(parents=True, exist_ok=True)
     bin_root.mkdir(exist_ok=True)
     obj_root.mkdir(exist_ok=True)
+    ensure_relative_symlink(project_root / "SRC", "src", is_dir=True)
+    ensure_relative_symlink(project_root / "BIN", "bin", is_dir=True)
+    ensure_relative_symlink(project_root / "OBJ", "obj", is_dir=True)
 
-    write_ascii(project_root / "README.TXT", "ACTION PROJECT READY\n")
+    write_ascii(project_root / "readme.txt", "ACTION PROJECT READY\n")
+    ensure_relative_symlink(project_root / "README.TXT", "readme.txt")
     write_ascii(
         project_root / "UDOSDIR.TXT",
         "D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n",
     )
+    ensure_relative_symlink(project_root / "udosdir.txt", "UDOSDIR.TXT")
     write_ascii(bin_root / "UDOSDIR.TXT", "")
+    ensure_relative_symlink(bin_root / "udosdir.txt", "UDOSDIR.TXT")
     write_ascii(obj_root / "UDOSDIR.TXT", "")
+    ensure_relative_symlink(obj_root / "udosdir.txt", "UDOSDIR.TXT")
 
     manifest_lines = ["ACTION PROJECT", *[f"{module}.ACT" for module, _body in modules]]
-    write_ascii(project_root / "ACTION.PROJ", "\r".join(manifest_lines) + "\r")
-    ensure_relative_symlink(project_root / "action.proj", "ACTION.PROJ")
+    write_ascii(project_root / "action.proj", "\r".join(manifest_lines) + "\r")
+    ensure_relative_symlink(project_root / "ACTION.PROJ", "action.proj")
     write_ascii(
         src_root / "UDOSDIR.TXT",
         "".join(f"F {module}.ACT\n" for module, _body in modules),
     )
+    ensure_relative_symlink(src_root / "udosdir.txt", "UDOSDIR.TXT")
 
-    expected = {f"{module}.ACT" for module, _body in modules}
-    for path in src_root.iterdir():
-        if path.is_file() and path.name.lower().endswith(".act") and path.name not in expected:
-            path.unlink()
     for module, body in modules:
-        write_ascii(src_root / f"{module}.ACT", body)
+        filename = f"{module.lower()}.act"
+        write_ascii(src_root / filename, body)
+        ensure_relative_symlink(src_root / f"{module}.ACT", filename)
     if lower_project_root != project_root and not lower_project_root.exists():
         lower_project_root.symlink_to(project_root.name, target_is_directory=True)
     return project_root

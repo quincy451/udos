@@ -115,6 +115,7 @@ def main() -> int:
     parser.add_argument("--attempt-delay", type=float, default=2.0)
     parser.add_argument("--initial-settle", type=float, default=4.0)
     parser.add_argument("--command-settle", type=float, default=8.0)
+    parser.add_argument("--verbose", action="store_true", help="print the final successful screen")
     args = parser.parse_args()
 
     image = Path(args.disk).resolve()
@@ -176,7 +177,8 @@ def main() -> int:
             final_screen = wait_for_prompt_count(client, "B:DNP/>", prompt_count, 20.0)
             if not all(fragment in final_screen for fragment in fragments):
                 final_screen = wait_for_fragments(client, fragments, 20.0)
-            print(final_screen)
+            if args.verbose:
+                print(final_screen)
             break
         except Exception as exc:
             last_error = exc

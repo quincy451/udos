@@ -74,6 +74,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `CD`
   - `MD`
   - `RD`
+  - `TREE`
   - `MOUNT`
   - `TYPE`
   - `COPY`
@@ -83,6 +84,76 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `MD` now creates tree directories on the VICE backend
   - `RD` now removes empty tree directories on the VICE backend
   - `RD` now rejects non-empty tree directories on the VICE backend
+- added a first one-level resident `TREE` scaffold
+  - flat images are rejected explicitly
+  - root child directories are expanded one level on tree-capable mounts
+  - selected non-root tree directories reuse the current directory enumeration path
+  - this remains the fallback when no valid recursive module can be loaded
+- added the first recursive-overlay traversal prerequisite to the fixed Tool ABI
+  - `svc_dir_begin_sc0` enumerates a selected tree path without changing the
+    visible shell prompt
+  - fixed service include generation now exposes `svc_dir_begin_sc0` at `$CF3F`
+  - `ACTDIR.PRG` can use the service through `ACTDIR <path>`, while bare
+    `ACTDIR` still lists the current directory
+- added the general native command-overlay loader and first recursive payload
+  - module names are derived from parsed command tokens as `<COMMAND>.OVL`
+  - version-1 modules carry a `UDOV` header with format version, minimum Tool
+    ABI, command ID, load address, entry address, and exact image length
+  - the loader stages the complete module in REU and validates its header,
+    bounds, entry, and length before spilling the resident or transferring control
+  - `TREE.OVL` uses a bounded path stack plus `svc_dir_begin_sc0` /
+    `svc_dir_next` to walk nested tree-capable directories
+  - missing and malformed modules retain the one-level resident fallback
+  - the batch command scratch buffer moved from the main resident payload to
+    high-RAM BSS to reduce the loadable resident footprint
+  - additional mutable directory state moved to high-RAM BSS, guarded by a
+    link-time assertion against the fixed `$CF00` Tool ABI page
+  - `make vice-action-tree-overlay` proves `TREE SRC` loads `TREE.OVL` and
+    reaches `SRC/NEST/DEEP/FINAL.ACT`
+  - `make vice-action-tree-overlay-invalid` proves a truncated invalid module
+    is rejected before entry and falls back safely
+- added bounded recursive `XCOPY.OVL` through the same validated loader
+  - command ID `21` is validated before entry
+  - source/destination path pairs use a bounded depth-first stack
+  - destination directories are created or merged and files are copied through
+    the fixed Tool ABI
+  - nested file resolution now consumes every directory component
+  - VICE file copies persist immediately and release their transient cache slot,
+    allowing the focused gate to copy eleven files across three levels
+  - invalid modules report `OVERLAY INVALID`; flat images report `FLAT IMAGE`
+  - `make vice-action-xcopy-overlay`,
+    `make vice-action-xcopy-overlay-invalid`, and
+    `make vice-action-xcopy-overlay-flat` cover those paths
+- added bounded recursive `DELTREE.OVL` through the validated loader
+  - command ID `22` is validated before entry
+  - one path is traversed in post-order with 31-character paths, 6-entry
+    snapshots, a 16-entry stack, and a 48-mutation limit
+  - nested directory remove now uses component-wise path resolution and
+    preserves directory cache slots across host path construction
+  - host-backed file delete persists immediately and releases transient cache
+    slots, allowing eleven files and three directories in the focused gate
+  - `/`, `.`, drive roots, and the current directory are protected; current
+    directory preflight occurs before child mutation
+  - invalid modules report `OVERLAY INVALID`; flat images report `FLAT IMAGE`
+  - focused valid, invalid, flat-image, and busy VICE gates are present
+- removed the 255-byte VICE catalog rewrite ceiling
+  - `UDOSDIR.TXT` mutations now filter existing catalogs one line at a time
+    through `UDOSDIR.TMP` and stream the completed catalog back
+  - missing catalogs are created directly, unrelated lines beyond byte 255 are
+    preserved exactly, and unterminated final lines remain valid
+  - VICE deferred file-not-found status is checked on the first read so newly
+    created files are not misclassified as pre-existing hidden entries
+  - the oversized gate covers directory create/remove, first-file catalog
+    creation, copy, rename, delete, and recursive `DELTREE` with exact catalog
+    comparison and no temporary residue
+- removed the matching 255-byte VICE catalog enumeration ceiling
+  - `UDOSDIR.TXT` enumeration now consumes the complete IEC stream one logical
+    line at a time while retaining the six-entry resident snapshot limit
+  - a later directory displaces a cached file when the snapshot is full, and
+    exact file probes retain a physical-host fallback
+  - nested dynamic names are normalized before IEC path emission so generated
+    data paths remain lowercase host artifacts while catalog records remain
+    uppercase and metadata remains `UDOSDIR.TXT`
 - added a first resident program ABI slice for implicit program launch:
   - prepare program handoff
   - expose resolved target pointer
@@ -105,6 +176,11 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `build/udos-release.d64`
   - `build/udos-release-fs`
   - release boot now reaches `A:D64/>` without a resident `AUTOEXEC.BAT`
+  - the D64 keeps ACTC, passes 0 through H, ALINK, resident `COPY`, and compact
+    delete/directory/tree commands. The redundant `ACTCOPY.PRG` wrapper,
+    project creation/mutation commands, and larger development tools remain
+    workspace-only. The full-capacity D64 has zero blocks free; the exported
+    Action workspace retains every tool and is the complete development set
   - when the sibling Action exporter is present, the staged release workspace
     also includes `build/udos-release-fs/IMAGES/ACTION.DNP`
   - `make vice-action-workspace` now builds an autoexec-backed Action test
@@ -114,6 +190,9 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     top of the release workspace, launches `ACTDIR.PRG`, enumerates the current mounted
     directory through the preserved external-tool directory ABI, and returns to
     the UDOS prompt
+  - `make vice-action-tree-overlay` now uses the release image with a nested
+    Action workspace, loads the validated native `TREE.OVL` module, and proves
+    recursive traversal reaches `SRC/NEST/DEEP/FINAL.ACT`
   - `make vice-action-actadd` now uses the release image with deterministic
     typed input on top of the release workspace, seeds a project root marked
     by `ACTION.PROJ`, runs `ACTADD.PRG`, writes `SRC/HELPER.ACT` through the
@@ -141,9 +220,9 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     comparisons,
     current source-inferred runtime-import metadata, and explicit
     `payload_bytes`;
-    the current focused proof verifies the host-side object
-    directly because `OBJ/UDOSDIR.TXT` is not yet refreshed reliably enough
-    for a stable shell-side `TYPE OBJ/...` readback
+    the current focused proof verifies the host-side object and
+    `OBJ/UDOSDIR.TXT` catalog, then shell-reads `TYPE OBJ/MAIN.OBJ` to prove
+    the object is visible through UDOS
   - `make vice-action-alink` now uses the release image with deterministic
     typed input on top of a copied Action workspace, seeds a project root
     marked by `ACTION.PROJ` plus deterministic `OBJ/*.OBJ` fixtures, launches
@@ -156,6 +235,104 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     leaf, while carrying child-object integer and string literal pools into the
     linked program image. Project objects are now emitted and documented only as
     `OBJ/*.OBJ`.
+  - `make vice-action-alink-prg-matrix` now enumerates 1329 direct-PRG
+    object/link shapes from the probe table and validates ALINK output for each
+    shape. The matrix includes object-code graph closure, rejection cases,
+    link-selected runtime helper families, and seeded input-helper closure
+    cases such as joystick state plus joystick button 1 and 2 state feeding
+    graphics, SID volume, SID frequency, SID pulse, SID cutoff, SID wave,
+    SID attack/decay, SID sustain/release, and sprite helpers, joystick state
+    plus joystick button 1 and 2 state feeding source-emitted stored-result and
+    nested graphics, sprite color, SID volume, SID frequency, SID pulse,
+    SID cutoff, SID wave, SID attack/decay, and SID sustain/release helpers,
+    joystick and mouse presence state feeding source-emitted stored-result and
+    nested graphics, SID volume, SID frequency, SID pulse, SID cutoff,
+    SID wave, SID attack/decay, SID sustain/release, and sprite color helpers,
+    mouse button state
+    plus mouse button 1 and 2 state feeding source-emitted and nested graphics,
+    source-emitted and nested sprite color, source-emitted and nested SID
+    frequency, SID pulse, SID cutoff, SID wave, SID attack/decay, and
+    SID sustain/release helpers, source-emitted SID volume helpers, direct
+    SID volume, SID frequency, SID pulse, SID cutoff, SID wave,
+    SID attack/decay, and SID sustain/release helpers, mouse button state feeding sprite color helpers,
+    mouse button 1 and 2 state feeding direct sprite helpers, and mouse button 1
+    and 2 state feeding direct graphics helpers
+    without unrelated input modules.
+    The added integer product cases compile dynamic `*` and `/` with normal
+    precedence. ACTC lowers them to native OBJ1 machine records with generic
+    local-data and helper relocations; ALINK links those records without a
+    dedicated integer compiler and selects `RT_I_MUL.OBJ`, `RT_I_DIV.OBJ`, and
+    `RT_PRINT_I.OBJ` only when referenced. Live VICE probes prove assignment
+    store/readback and divide-by-zero behavior, while unsupported legacy bodies
+    still reject without emitting a PRG.
+    Plain word assignments and load/store copies now use the same compiler-owned
+    native object path; ALINK no longer carries templates for `p0S0r` or
+    `p0S0L0S1r`, and those compact forms are rejection-only fixtures.
+    Dynamic word add/subtract updates inside WHILE control now use
+    `ACTC_OVL9.BIN` machine records with ordinary loop, nested branch, EXIT,
+    data, and pointer relocations. The live proof exits with both state words
+    equal to three and links no unused integer helper object.
+    `PrintI` and `PrintIE` inside the same native WHILE path now emit ordinary
+    `rt_print_i` call relocations. Live coverage prints `1` and `2`, finishes
+    with the loop variable equal to four, links print and multiply, and prunes
+    the available divide module.
+    Core `ASMBLOCK [ ... ]` source now assembles official NMOS 6502 code in
+    pass 4 and emits it through pass 9 as ordinary OBJ machine bytes and named
+    relocations. A direct launch case executes block-local JMP labels and
+    references current globals, PROC parameters, and locals without adding an
+    assembler path to ALINK.
+    Typed word functions may combine ASMBLOCK with one-word runtime calls through
+    `ACTC_OVLH.BIN`. The live direct PRG returns 42, stores trace value 41, and
+    writes SID volume 8 while ALINK selects only the referenced SID closure.
+    ASMBLOCK-visible REAL globals and locals now retain four-byte exports and
+    data allocation. A helper-free live direct PRG writes and reads offsets zero
+    and three and observes `$033C-$033F` as `$11,$44,$22,$55`.
+    Local no-argument `REAL FUNC` direct returns now derive source, destination,
+    each two- or four-byte module-global export, aggregate data size, and pointer
+    placement from declarations instead of fixed first/second REAL slots. Live
+    direct PRGs return 42.0 from the second slot into the third for both all-REAL
+    and leading-CARD layouts while ALINK selects only `RT_I_TO_F.OBJ`. A
+    one-parameter extension binds either a direct literal or an immediately
+    initialized named module word scalar to a typed parameter, converts it into
+    named REAL storage, returns that pointer, and copies 42.0 into the caller
+    destination through the same generic OBJ/ALINK path. The named-storage case
+    emits ordinary relocations for all argument stores and loads.
+    Pass K extends the two-REAL-parameter ABI with one bounded finite
+    comparison/select body. Its root closure includes integer conversion and
+    comparison; its function export remains comparison-only. The rebuilt
+    release and live VICE probe verify 2.0/1.0 caller values, matching callee
+    copies, result 1.0, transitive `RT_F_SPECIAL.OBJ` selection, and pruning of
+    unrelated REAL helpers. General REAL function control and MATH1 remain
+    compiler work.
+    Empty-return, single-call, and fanout root programs likewise use native
+    machine objects; ALINK no longer carries templates for `r`, `c0r`, or
+    `c0c1r`, and those root-body forms are rejection-only fixtures.
+    Simple equality `IF/ELSE` now uses ACTC-emitted `__if0` and `__if1` local
+    branch targets. ALINK no longer carries that compact-body template, and
+    live probes cover both the true and false paths through the shared join.
+    Plain, ELSE, and nested REAL comparisons now use relocatable machine OBJ
+    from `ACTC_OVLB.BIN`. ALINK's fixed-address REAL IF strategy is gone; all
+    36 variants pass exact compile/link checks and representative layouts run
+    successfully under VICE.
+    REAL `DO ... UNTIL` now uses the same compiler pass for all six comparisons
+    and eight REAL add/sub update loops. ALINK's matching fixed-address strategy
+    and compact signatures are gone; all 14 exact compile/link and live VICE
+    cases pass. `ACTC_OVLB.BIN` is 5,655 bytes with 2,537 bytes free,
+    Pass H adds mixed ASMBLOCK/runtime-function ownership, and the release D64
+    retains all compiler passes at zero free blocks while omitting only the
+    redundant `ACTCOPY.PRG` wrapper from the flat-image subset.
+    REAL `WHILE`, runtime conditions, runtime call sequences, and nested
+    readbacks now use compiler passes C through F. One-word byte-in-A and
+    word-in-X/Y runtime calls inside integer control use pass G; mixed ASMBLOCK/
+    runtime units use pass H. Source-backed
+    `SidVol(I+10)` and `SidCutoff(I+300)` WHILE cases prove ABI-specific setup,
+    loop-variable value one, transitive SID selection, and unrelated-helper
+    pruning. The final 102 seeded runtime
+    fixtures are machine objects, and ALINK's runtime recognizers, compact-body
+    compiler, fixed-address templates, and synthesis queues are gone.
+    Production `ALINK.PRG` is 13,806 bytes; all accepted bodies are OBJ1 machine
+    records, and all helper code is selected through reachable `RT_*.OBJ`
+    imports and relocations.
   - `make vice-action-actc-alink-launch-printmath` is green again as the
     named higher-level direct-launch proof for the imported `printmath` shape.
     It uses the release image with deterministic typed input on top of a copied
@@ -326,6 +503,8 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - flat-image root mounts now first issue `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA`
   - tree-capable mounts still issue `OPEN_DIR` / `READ_DIR` into a small resident cache
   - current cache budget is `6` entries with names capped at `20` bytes plus terminator
+  - VICE catalog input is line-streamed without a 255-byte ceiling; when the
+    bounded snapshot is full, later directories take priority over cached files
   - VICE now also validates a real tree read path for `DNP` mounts through the manifest-backed backend
 - hardware-backed file read is now wired behind `TYPE`:
   - flat-image hardware mode first issues raw root-directory lookup plus image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA`
@@ -345,6 +524,39 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - tree-only cross-drive hardware mode issues source `OPEN_FILE` / `READ_DATA` and destination `OPEN_FILE` / `WRITE_DATA`
   - flat-image hardware mode now first attempts raw root-directory lookup, chained sector reads, BAM allocation, and direct directory-entry creation through image `OPEN_FILE` / repeated `FILE_SEEK` / repeated `READ_DATA` / repeated `WRITE_DATA`
   - VICE now also validates the tree-backed copy path through the fsdevice-backed overlay model
+- hardware-backed fixed Tool ABI operations are now wired behind Action tools,
+  native overlays, and resident directory commands:
+  - `svc_file_load_sc0` resolves normal and launch-directory (`!`) paths, uses
+    `FILE_STAT` for probe/size, streams the bounded prefix through repeated
+    `READ_DATA`, and distinguishes OK, too-large, missing, and failed results
+  - `svc_file_save_sc0` resolves tree destinations from the program snapshot,
+    opens with write/create/overwrite flags, streams explicit 16-bit lengths in
+    repeated `WRITE_DATA` chunks, retains the bounded zero-length text fallback
+    used by `ACTWRITE`, and closes before restoring resolver state
+  - `svc_file_write_begin_sc0`, `svc_file_write_chunk_sc0`, and
+    `svc_file_write_close_sc0` retain one hardware stream's drive/open state in
+    fixed HIRAM, write exact 16-bit chunks through repeated `WRITE_DATA`, and
+    report open/write/close failures without backend fallback
+  - `svc_file_stage_reu_sc0` validates the 32-bit `FILE_STAT` size against its
+    24-bit destination, streams repeated `READ_DATA` chunks into REU, verifies
+    the exact final count, and distinguishes missing files from failures
+  - nested path resolution and enumeration use UCI `OPEN_DIR` / `READ_DIR`
+  - `MD` and `svc_dir_make_sc0` probe with `FILE_STAT` and issue `CREATE_DIR`
+  - `RD` and `svc_dir_remove_sc0` reject non-empty targets and issue
+    `DELETE_FILE` for empty directories
+  - `svc_file_copy_sc0` uses same-drive `COPY_FILE` or cross-drive
+    `OPEN_FILE` / `READ_DATA` / `WRITE_DATA` / `CLOSE_FILE`
+  - `svc_file_delete_sc0` probes with `FILE_STAT` and issues `DELETE_FILE`
+  - `svc_file_rename_sc0` probes source and destination with `FILE_STAT`, uses
+    same-directory `RENAME_FILE`, and falls back to copy/delete for moves across
+    directories or drives
+  - all of these hardware paths remain unvalidated on a real Ultimate target
+- backend-generic Tool ABI paths select hardware from the preserved
+  `TRANSPORT_SNAPSHOT` rather than calling low resident `uci_probe` code:
+  - this keeps service calls valid when a large launched tool overwrites the
+    resident start at `$1810`
+  - focused `ACTMON.PRG CHECK` and multi-phase ACTMON mutation gates cover a
+    4,095-byte tool spanning `$0900-$18FE`
 - flat-image header-label import is now wired behind `VOL` for hardware `D64` / `D71` / `D81` mounts:
   - hardware mode issues `OPEN_FILE` / `FILE_SEEK` / `READ_DATA` / `CLOSE_FILE` against the mounted image path
   - current flat-image label offsets are `$00016590` for `D64` / `D71` and `$00061804` for `D81`
@@ -459,9 +671,19 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
   - `$CFFA = $16` -> loaded image length low byte (`22`)
   - `$CFFB = $00` -> loaded image length high byte
 - resident `MEM` now reports:
-  - `RAM USED 0 FREE 65535 REU USED 40862 FREE 16736354`
-- resident core code footprint: `$87AA`
-- resident load window in `udos_c64.cfg`: `$87F0`
+  - `RAM USED 0 FREE 65535 REU USED 47872 FREE 16729344`
+- resident core code footprint: `$9235` bytes, ending at `$AA44`
+- resident image end: `$AA45`, leaving `$15BB` bytes before `$C000`
+- fixed tool-callable preservation begins at `$9800`; tool-callable resident
+  code ends at `$9FCE`, leaving `$0032` bytes before the
+  `$A000-$BFFF` Action compiler overlay window; post-return catalog rewrite code
+  occupies the overlap-prone tail and is restored from REU before use
+- resident-private REU state uses bank `$FF`, the temporary low-resident/tool
+  swap uses `$FE`, and bounded fixed-tool file loads use `$FD`; the unused
+  240-byte streamed-content mirror has been removed
+- resident load window in `udos_c64.cfg`: `$A7F0`
+- processor port `$36` exposes resident RAM under BASIC ROM while retaining
+  KERNAL and I/O; high-RAM BSS still ends at `$CEFB`, four bytes below `$CF00`
 
 ## What Works
 
@@ -483,6 +705,8 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
 - flat-image raw file-copy seam for `COPY` with chained sector reads, BAM allocation, and direct directory-entry creation
 - real `MOUNT` syntax with image-path parsing and flat-image header-label import plus basename fallback
 - flat-image rejection for directory-tree semantics
+- first one-level resident `TREE` scaffold with flat-image rejection, root child
+  expansion, and bounded selected-directory listing
 - prompt rendering from live drive/kind/path state
 - direct drive-token switching for `A:` and `B:`
 - resident file-oriented mock workflow:
@@ -515,10 +739,25 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
 - no hardware-validated image-backed file copy yet
 - no hardware-validated flat-image raw copy path yet
 - no hardware-validated program-image loading yet behind implicit program launch
-- no overlay command loader yet
+- no real-hardware validation of the UCI tree-file direct-PRG/command-overlay
+  REU staging backend yet
+- recursive `TREE.OVL` has no real-hardware validation yet
+- recursive `XCOPY.OVL` has no real-hardware validation yet
+- recursive `DELTREE.OVL` has no real-hardware validation yet
 
 ## Next Concrete Step
 
-- extend the REU-backed resident spill/restore beyond the VICE tree content cache
-- keep the release boot package stable while preparing the next milestone
-- then resume the Action development tools work on top of the UDOS resident/runtime base
+- keep the release boot package and root `make test` gate stable while Action
+  linker/runtime changes are being prepared
+- keep the all-source-backed `ACTC.PRG` object-emission matrix green and
+  continue widening `ALINK.PRG` direct-PRG object/helper closure around
+  remaining edge shapes
+- complete bounded native constants/includes and external/fixed address
+  expressions around the now-implemented ASMBLOCK/raw A/X/Y/`$A3` register
+  ABI, then generalize REAL calls and returns enough to compile dependency-
+  sized MATH1 modules
+- preserve compiler-owned relocatable OBJ emission for REAL control flow and
+  runtime condition/sequence/nested-call overlays; ALINK must remain a generic
+  object linker rather than regaining body synthesis
+- hardware-validate the UCI overlay stager and recursive Tool ABI operations,
+  then fix any target-specific failures found by the runbook

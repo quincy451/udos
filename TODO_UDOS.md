@@ -1,66 +1,92 @@
 # UDOS TODO
 
-## Phase 2
+This file tracks remaining work only. Completed milestone history lives in
+`STATUS_UDOS.md`, and the handoff summary lives in `MILESTONE_HANDOFF.md`.
 
-- define bootstrap image layout
-- define resident ABI entry numbering and register conventions
-- implement and keep the native resident service table stable
-- keep the native resident shell loop small enough to stay below `$A000`
+Current behavior contracts are documented in `FILESYSTEM_BEHAVIOR.md` and
+`OPERATOR_GUIDE.md`. Real hardware validation procedure and result-recording
+rules are documented in `HARDWARE_VALIDATION.md`.
 
-## Phase 3
+## Active Baseline
 
-- document C64 Ultimate UCI assumptions and unknowns
-- implement native UCI transport primitives
-- add resident service wrappers and a host-side seam where possible
+- UDOS is the maintained native shell/runtime path.
+- Action tooling runs as UDOS-aware `.PRG` programs.
+- The maintained Action build path is direct object/link output:
+  `ACTC.PRG -> OBJ/<MODULE>.OBJ -> ALINK.PRG -> BIN/<MODULE>.PRG`.
+- Linked Action programs are direct 6502 `.PRG` files; there is no separate
+  runtime runner in the maintained path.
+- `D64`, `D71`, and `D81` are flat images.
+- `DNP` is tree-capable.
 
-## Phase 4
+## Phase 5 Remaining Resident Work
 
-- implement mounted-image model for `A:` and `B:`
-- add flat-filesystem enforcement for D64/D71/D81
-- add DNP directory semantics and explicit flat-image errors
-- define path parser and canonical drive/path rules
+- Hardware-validate and harden the existing UCI-backed paths on real C64
+  Ultimate hardware before changing any `Hardware/UCI` status to `Yes`:
+  - `MOUNT_DISK`
+  - `CHANGE_DIR` / `GET_PATH`
+  - `OPEN_DIR` / `READ_DIR`
+  - `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE`
+  - raw flat-image `FILE_SEEK` / `READ_DATA` traversal
+  - raw flat-image `WRITE_DATA` mutation paths
+  - `CREATE_DIR`, `DELETE_FILE`, `RENAME_FILE`, and `COPY_FILE`
+  - implicit program-image loads
+  - fixed external-tool file probe/load, including bounded too-large results
+  - fixed external-tool file save, including explicit-length, empty, and
+    zero-length text-compatibility writes
+  - external-tool streamed write begin/chunk/close, including binary payloads
+    and close-error handling
+  - fixed external-tool file stage-to-REU, including 24-bit capacity and exact
+    final-count validation
+- Extend `VOL` from flat-image header import and mount-derived tree metadata to
+  true mounted-image metadata across the remaining formats.
+- Keep the REU-backed resident spill/restore path measured as command and
+  program-launch headroom changes.
 
-## Phase 5
+## Phase 6 Overlay Commands
 
-- keep the current resident `HELP`, `VER`, `VOL`, `DIR`, `CD`, `MOUNT`, and `MEM` loop working while moving them toward real filesystem/state services
-- implement resident commands:
-  - real `VOL`
-  - real `HELP`
-  - real `VER`
-- hardware-validate the current `svc_fs_enum_*` Ultimate DOS path and harden its end-of-directory/error handling on target
-- hardware-validate and harden the new flat-image raw root-directory path on target
-- hardware-validate and harden the current tree-capable `TYPE` Ultimate DOS read path on target
-- hardware-validate and harden the new flat-image raw `TYPE` path on target
-- hardware-validate and harden the current tree-capable `DEL` Ultimate DOS delete path on target
-- hardware-validate and harden the new flat-image raw `DEL` path on target
-- hardware-validate and harden the current tree-capable `REN` Ultimate DOS rename path on target
-- hardware-validate and harden the new flat-image raw `REN` path on target
-- hardware-validate and harden the current `COPY` Ultimate DOS copy path on target
-- hardware-validate and harden the new flat-image raw `COPY` path on target
-- hardware-validate and harden the current `COPY` wildcard path on target:
-  - `*`
-  - `*.*`
-  - `*.EXT`
-  - `NAME.*`
-- extend the current REU-backed resident spill/restore beyond the VICE tree content cache for later command/program launch headroom
-- hardware-validate and harden the current `MOUNT_DISK` path on target
-- hardware-validate and harden the current flat-image header-label import path on target
-- extend `VOL` from flat-image header import to true mounted-image metadata across the remaining formats
-- hardware-validate and harden the current tree-capable implicit program-image load path on target
-- hardware-validate and harden the new flat-image raw implicit program-image load path on target
-- define how the resident parser exposes argument buffers to later overlay code without growing resident glue unnecessarily
+- Hardware-validate the native `UDOV` loader's UCI tree-file staging path plus
+  the implemented hardware Tool ABI operations used by `TREE`, `XCOPY`, and
+  `DELTREE`, then fix any target-specific failures.
+- Keep flat-image behavior explicit: recursive commands must reject flat images
+  clearly instead of pretending flat images have directories.
+- Evaluate REU cache/workspace policy with measurements after overlay commands
+  have real payloads.
 
-## Phase 6
+## Action Toolchain Work
 
-- implement overlay loader
-- implement `XCOPY`
-- implement `DELTREE`
-- implement `TREE`
-- evaluate REU cache/workspace policy with measurements
+- Keep `ACTC.PRG` emitting `.OBJ` records for `ALINK.PRG`.
+- Keep `ALINK.PRG` producing direct `BIN/<MODULE>.PRG` output.
+- Continue widening ACTC source coverage and source-backed object emission.
+- The fixed register-entry ABI is implemented for ASMBLOCK and core raw
+  machine bodies. Decimal/hexadecimal/binary calls, character/signed/sum raw
+  constants, local-routine/current-address/storage relocations, and explicit
+  signature/16-byte rejection are covered. Complete named compiler constants
+  and external/fixed-address expressions next.
+- Use `actionc64u/docs/idun_feature_parity.md` as the ordered cross-product
+  backlog. General REAL calls/returns and multi-function MATH1 come next;
+  arrays/pointers/records and recursive typed frames remain separate bounded
+  native compiler work rather than assumptions inherited from the Linux host.
+- Continue widening ALINK object closure, relocation, and helper-selection edge
+  cases.
+- Keep optional runtime/library helpers as link-selected `.OBJ` modules that are
+  included only when referenced.
+- Continue moving large ACTC and ALINK lookup payloads into REU-backed tables as
+  capacity pressure appears.
+- Implement the imported `actionc64u/docs/new_math_func.txt` contract in
+  dependency order: general REAL function ABI and constants first, then the
+  portable utility, exponential/logarithmic, trigonometric, hyperbolic, and
+  angle-conversion source families with target-known-value coverage.
+- Implement the imported `actionc64u/docs/new_gfx_func.txt` contract: validated
+  global graphics resources and relocatable asset exports, ACTSPRITE/
+  ACTBITMAP plus ACTEDIT F8 dispatch, and the tracked high-level GFX1 source
+  surface. Generated programs must keep graphics code/data link-selected and
+  must not depend on resident UDOS calls.
 
-## Phase 7
+## Documentation And Release Hygiene
 
-- add operator guide
-- add detailed filesystem behavior guide
-- add hardware runbook for real C64 Ultimate testing
-- write milestone handoff before resuming Action development tools work
+- Maintain `OPERATOR_GUIDE.md` as the user-facing command and launch guide.
+- Maintain `FILESYSTEM_BEHAVIOR.md` as the detailed filesystem behavior guide.
+- Maintain `HARDWARE_VALIDATION.md` as the real-hardware runbook and update
+  status files only after recorded target runs.
+- Maintain `MILESTONE_HANDOFF.md` before resuming major Action development
+  batches or moving the project to another machine.

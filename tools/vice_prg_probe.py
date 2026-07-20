@@ -931,15 +931,27 @@ def wait_for_screen_and_state(
     global _SCREEN_BASE_HINT
     deadline = time.monotonic() + timeout
     last_screen = ""
+    last_d018: int | None = None
+    last_dd00: int | None = None
     saw_fragment = False
+    last_marker_mismatch = ""
+    last_check_mismatches: list[str] = []
     dead_start_polls = 0
     blank_start_polls = 0
     startup_reconnects = 0
     while time.monotonic() < deadline:
         if process.poll() is not None:
             stdout, stderr = process.communicate()
-            raise ViceError(f"x64sc exited early while waiting for screen text\nstdout:\n{stdout}\nstderr:\n{stderr}")
+            context = [f"x64sc exited early while waiting for screen text {fragment!r}"]
+            if last_d018 is not None and last_dd00 is not None:
+                context.append(f"last VIC state: D018=0x{last_d018:02X} DD00=0x{last_dd00:02X}")
+            context.append(f"last screen was:\n{last_screen}" if last_screen else "last screen was empty")
+            context.append(f"stdout:\n{stdout}")
+            context.append(f"stderr:\n{stderr}")
+            raise ViceError("\n".join(context))
         last_screen, d018, dd00 = read_screen_text_for_fragment(client, fragment)
+        last_d018 = d018
+        last_dd00 = dd00
         if not last_screen:
             blank_start_polls += 1
         else:
@@ -970,20 +982,44 @@ def wait_for_screen_and_state(
             saw_fragment = True
         if saw_fragment:
             marker_ok = True
+            last_marker_mismatch = ""
             if marker_addr is not None and marker_value is not None:
                 marker = client.memory_get(marker_addr, marker_addr)[0]
                 marker_ok = marker == marker_value
+                if not marker_ok:
+                    last_marker_mismatch = (
+                        f"marker 0x{marker_addr:04X}: expected 0x{marker_value:02X}, "
+                        f"got 0x{marker:02X}"
+                    )
             if marker_ok:
-                checks_ok = True
+                last_check_mismatches = []
                 for addr, value in extra_checks:
                     actual = client.memory_get(addr, addr)[0]
                     if actual != value:
-                        checks_ok = False
-                        break
-                if checks_ok:
+                        last_check_mismatches.append(
+                            f"0x{addr:04X}: expected 0x{value:02X}, got 0x{actual:02X}"
+                        )
+                if not last_check_mismatches:
                     return last_screen
         time.sleep(0.2)
-    raise ViceError(f"timed out waiting for screen text {fragment!r}; last screen was:\n{last_screen}")
+    debug = ""
+    try:
+        registers = client.registers_get()
+        pc = registers.get("PC")
+        sp = registers.get("SP")
+        if pc is not None:
+            code = client.memory_get(pc, min(0xFFFF, pc + 7))
+            exit_status = client.memory_get(0xCFF7, 0xCFF7)[0]
+            debug = (
+                f"\nVICE CPU: PC=0x{pc:04X} SP=0x{(sp or 0):02X} code={code.hex()}"
+                f" EXIT=0x{exit_status:02X}"
+            )
+    except Exception:
+        pass
+    state_mismatches = [item for item in (last_marker_mismatch, *last_check_mismatches) if item]
+    if saw_fragment and state_mismatches:
+        debug += "\nState mismatches: " + "; ".join(state_mismatches)
+    raise ViceError(f"timed out waiting for screen text {fragment!r}; last screen was:\n{last_screen}{debug}")
 
 
 def run_probe(args: argparse.Namespace) -> str:

@@ -497,7 +497,8 @@ def main() -> int:
             )
             if args.screen_only_success:
                 print(screen)
-                print(json.dumps(debug, indent=2))
+                if args.verbose_success:
+                    print(json.dumps(debug, indent=2), file=sys.stderr)
                 return 0
             output_bytes = bytes(debug.get("OUTPUT_BYTES") or [])
             if output_bytes != EXPECTED_BYTES:

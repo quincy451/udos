@@ -13,6 +13,7 @@ WORKSPACE_CONNECT_DELAYS = (10.0,) + tuple(delay for delay in vp.default_connect
 PATH_DEBUG_ADDRS = {
     "TOOL_ABI_CURRENT_PATH": 0xCD00,
     "TOOL_ABI_OPEN_PATH": 0xCD40,
+    "TRANSPORT_SNAPSHOT": 0xCFF0,
 }
 FATAL_SCREEN_FRAGMENTS = (
     "LOAD FAILED",
@@ -66,6 +67,7 @@ def wait_for_active_prompt(
     prompt: str,
     timeout: float,
     *,
+    allow_transient_ready: bool = False,
     retry_echo: str | None = None,
     poll_interval: float = 0.2,
 ) -> str:
@@ -75,7 +77,7 @@ def wait_for_active_prompt(
     while time.monotonic() < deadline:
         last_screen = screen_text_for_fragment(client, prompt)
         last_line = last_nonempty_line(last_screen)
-        if vp.screen_contains(last_screen, "READY."):
+        if not allow_transient_ready and vp.screen_contains(last_screen, "READY."):
             raise vp.ViceError(f"escaped to READY instead of returning to {prompt!r}:\n{last_screen}")
         if vp.screen_contains(last_line, prompt):
             return last_screen
@@ -200,6 +202,37 @@ def wait_for_screen_fragments(
         time.sleep(poll_interval)
     missing = [fragment for fragment in fragments if not vp.screen_contains(last_screen, fragment)]
     raise vp.ViceError(f"expected screen fragments {missing!r} were not present in final screen:\n{last_screen}")
+
+
+def wait_for_active_prompt_and_fragments(
+    client: vp.BinaryMonitorClient,
+    prompt: str,
+    fragments: list[str],
+    timeout: float,
+    *,
+    retry_echo: str | None = None,
+    poll_interval: float = 0.2,
+) -> str:
+    deadline = time.monotonic() + timeout
+    last_screen = ""
+    retry_count = 0
+    while time.monotonic() < deadline:
+        last_screen = screen_text_for_fragment(client, prompt)
+        if live_prompt_visible(last_screen, prompt) and all(
+            vp.screen_contains(last_screen, fragment) for fragment in fragments
+        ):
+            return last_screen
+        retry_count = maybe_retry_command_enter(
+            client,
+            last_screen=last_screen,
+            retry_echo=retry_echo,
+            retry_count=retry_count,
+        )
+        time.sleep(poll_interval)
+    missing = [fragment for fragment in fragments if not vp.screen_contains(last_screen, fragment)]
+    raise vp.ViceError(
+        f"expected active prompt {prompt!r} and screen fragments {missing!r}:\n{last_screen}"
+    )
 
 
 def wait_for_prompt_count(
@@ -425,6 +458,19 @@ def send_text(client: vp.BinaryMonitorClient, text: str, timeout: float) -> None
     time.sleep(0.1)
 
 
+def send_key_codes(client: vp.BinaryMonitorClient, codes: list[int], timeout: float) -> None:
+    clear_keyboard_buffer(client)
+    for index, code in enumerate(codes):
+        if index:
+            try:
+                wait_for_keyboard_idle(client, timeout)
+            except vp.ViceError:
+                clear_keyboard_buffer(client)
+        client.memory_set(vp.KEYBUF_DATA, bytes((code,)))
+        client.memory_set(vp.KEYBUF_COUNT, b"\x01")
+    time.sleep(0.1)
+
+
 def send_return(client: vp.BinaryMonitorClient, timeout: float) -> None:
     try:
         client.keyboard_type("\r")
@@ -461,7 +507,20 @@ def read_screen_string(client: vp.BinaryMonitorClient, addr: int, max_len: int =
     return "".join(chars)
 
 
-def main() -> int:
+def parse_key_codes(value: str) -> list[int]:
+    parts = [part.strip() for part in value.split(",")]
+    if not parts or any(not part for part in parts):
+        raise argparse.ArgumentTypeError("key-code sequence must be a comma-separated list")
+    try:
+        codes = [int(part, 0) for part in parts]
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("key codes must be integers") from exc
+    if any(not 0 <= code <= 0xFF for code in codes):
+        raise argparse.ArgumentTypeError("key codes must be in the range 0..255")
+    return codes
+
+
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run a focused Action workspace command probe in VICE")
     parser.add_argument("--disk", required=True)
     parser.add_argument("--fs-root", required=True)
@@ -471,6 +530,59 @@ def main() -> int:
     parser.add_argument("--b-prompt", default="B:DNP/>")
     parser.add_argument("--final-prompt")
     parser.add_argument("--run-marker", default="")
+    parser.add_argument(
+        "--active-fragment",
+        default="",
+        help="interactive-tool screen fragment to wait for before sending --active-key",
+    )
+    parser.add_argument(
+        "--active-key",
+        default="",
+        help="key text to feed after --active-fragment appears",
+    )
+    parser.add_argument(
+        "--active-key-code",
+        type=lambda value: int(value, 0),
+        help="raw C64 key-buffer byte to send after --active-fragment appears",
+    )
+    parser.add_argument(
+        "--active-key-codes",
+        type=parse_key_codes,
+        help="comma-separated raw C64 key-buffer bytes sent in order after --active-fragment",
+    )
+    parser.add_argument(
+        "--active-key-mode",
+        choices=("type", "feed"),
+        default="type",
+        help="transport used for --active-key",
+    )
+    parser.add_argument(
+        "--active-settle",
+        type=float,
+        default=1.0,
+        help="seconds to wait after --active-fragment before sending --active-key",
+    )
+    parser.add_argument(
+        "--next-active-fragment",
+        default="",
+        help="second interactive-tool fragment to wait for after the first active key",
+    )
+    parser.add_argument(
+        "--next-active-key",
+        default="",
+        help="key text to feed after --next-active-fragment appears",
+    )
+    parser.add_argument(
+        "--next-active-key-code",
+        type=lambda value: int(value, 0),
+        help="raw C64 key-buffer byte to send after --next-active-fragment appears",
+    )
+    parser.add_argument(
+        "--next-active-settle",
+        type=float,
+        default=1.0,
+        help="seconds to wait after --next-active-fragment before sending its key",
+    )
     parser.add_argument("--done-fragment", default="ACTIONC64U FOR UDOS")
     parser.add_argument("--prompt-count", type=int, default=2)
     parser.add_argument("--skip-command-prompt", action="store_true")
@@ -496,10 +608,27 @@ def main() -> int:
     parser.add_argument("--contains", action="append", default=[])
     parser.add_argument("--not-contains", action="append", default=[])
     parser.add_argument("--labels")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.skip_command_prompt and args.post_command:
         parser.error("--skip-command-prompt cannot be used with --post-command")
+    if (args.active_key or args.active_key_code is not None or args.active_key_codes) and not args.active_fragment:
+        parser.error("active keys require --active-fragment")
+    active_key_modes = sum(
+        (bool(args.active_key), args.active_key_code is not None, bool(args.active_key_codes))
+    )
+    if active_key_modes > 1:
+        parser.error("--active-key, --active-key-code, and --active-key-codes are mutually exclusive")
+    if args.active_key_code is not None and not 0 <= args.active_key_code <= 0xFF:
+        parser.error("--active-key-code must be in the range 0..255")
+    if (args.next_active_key or args.next_active_key_code is not None) and not args.next_active_fragment:
+        parser.error("next active keys require --next-active-fragment")
+    if args.next_active_fragment and not args.active_fragment:
+        parser.error("--next-active-fragment requires --active-fragment")
+    if args.next_active_key and args.next_active_key_code is not None:
+        parser.error("--next-active-key and --next-active-key-code are mutually exclusive")
+    if args.next_active_key_code is not None and not 0 <= args.next_active_key_code <= 0xFF:
+        parser.error("--next-active-key-code must be in the range 0..255")
 
     image = Path(args.disk).resolve()
     fs_root = Path(args.fs_root).resolve()
@@ -544,7 +673,13 @@ def main() -> int:
                 time.sleep(args.boot_settle)
 
             stage = "wait-a-prompt"
-            screen = wait_for_active_prompt(client, "A:D64/>", args.boot_timeout, poll_interval=args.poll_interval)
+            screen = wait_for_active_prompt(
+                client,
+                "A:D64/>",
+                args.boot_timeout,
+                allow_transient_ready=True,
+                poll_interval=args.poll_interval,
+            )
             append_observed_screen(observed_screens, screen)
             stage = "initial-settle"
             time.sleep(args.initial_settle)
@@ -592,15 +727,22 @@ def main() -> int:
             for index, pre_command in enumerate(args.pre_command):
                 stage = f"pre-command-type[{index}]"
                 type_command(client, pre_command, args.shell_timeout)
+                # Give UDOS time to consume RETURN before looking for a prompt
+                # that may still be visible from the preceding command.
+                stage = f"pre-command-dispatch-settle[{index}]"
+                time.sleep(args.command_settle)
                 pre_fragments: list[str] = []
                 if index < len(args.pre_prompt) and args.pre_prompt[index]:
-                    pre_fragments.append(args.pre_prompt[index])
+                    pre_prompt = args.pre_prompt[index]
+                else:
+                    pre_prompt = args.b_prompt
                 if index < len(args.pre_fragment) and args.pre_fragment[index]:
                     pre_fragments.append(args.pre_fragment[index])
                 if pre_fragments:
                     stage = f"pre-command-wait-fragments[{index}]"
-                    screen = wait_for_screen_fragments(
+                    screen = wait_for_active_prompt_and_fragments(
                         client,
+                        pre_prompt,
                         pre_fragments,
                         args.shell_timeout,
                         retry_echo=pre_command,
@@ -609,12 +751,10 @@ def main() -> int:
                     append_observed_screen(observed_screens, screen)
                     prompt_count = max(prompt_count, vp.screen_count(screen, final_prompt))
                 else:
-                    prompt_count += 1
-                    stage = f"pre-command-wait-prompt[{index}]"
-                    screen = wait_for_prompt_count(
+                    stage = f"pre-command-wait-active-prompt[{index}]"
+                    screen = wait_for_active_prompt(
                         client,
-                        args.b_prompt,
-                        prompt_count,
+                        pre_prompt,
                         args.shell_timeout,
                         retry_echo=pre_command,
                         poll_interval=args.poll_interval,
@@ -637,6 +777,48 @@ def main() -> int:
                     poll_interval=args.poll_interval,
                 )
                 append_observed_screen(observed_screens, screen)
+            if args.active_fragment:
+                stage = "wait-active-fragment"
+                screen = wait_for_screen_fragment(
+                    client,
+                    args.active_fragment,
+                    args.shell_timeout,
+                    poll_interval=args.poll_interval,
+                )
+                append_observed_screen(observed_screens, screen)
+                if args.active_key or args.active_key_code is not None or args.active_key_codes:
+                    if args.active_settle > 0.0:
+                        stage = "active-key-settle"
+                        time.sleep(args.active_settle)
+                    stage = "send-active-key"
+                    if args.active_key_codes:
+                        send_key_codes(client, args.active_key_codes, args.shell_timeout)
+                    elif args.active_key_code is not None:
+                        send_key_codes(client, [args.active_key_code], args.shell_timeout)
+                    elif args.active_key_mode == "type":
+                        send_text(client, args.active_key, args.shell_timeout)
+                    else:
+                        client.keyboard_feed(args.active_key)
+                    time.sleep(args.command_settle)
+            if args.next_active_fragment:
+                stage = "wait-next-active-fragment"
+                screen = wait_for_screen_fragment(
+                    client,
+                    args.next_active_fragment,
+                    args.shell_timeout,
+                    poll_interval=args.poll_interval,
+                )
+                append_observed_screen(observed_screens, screen)
+                if args.next_active_key or args.next_active_key_code is not None:
+                    if args.next_active_settle > 0.0:
+                        stage = "next-active-key-settle"
+                        time.sleep(args.next_active_settle)
+                    stage = "send-next-active-key"
+                    if args.next_active_key_code is not None:
+                        send_key_codes(client, [args.next_active_key_code], args.shell_timeout)
+                    else:
+                        send_text(client, args.next_active_key, args.shell_timeout)
+                    time.sleep(args.command_settle)
             if args.skip_command_prompt:
                 fragments: list[str] = []
                 if args.done_fragment:
@@ -759,8 +941,19 @@ def main() -> int:
                     except Exception:
                         continue
                     path_parts.append(f"{label_name}={value!r}")
-                for label_name in ("temp_drive", "temp_dir_id", "source_drive", "source_dir_id", "dest_drive", "dest_dir_id"):
-                    addr = labels.get(label_name) or labels.get(f".{label_name}")
+                for label_name in (
+                    "TRANSPORT_SNAPSHOT",
+                    "temp_drive",
+                    "temp_dir_id",
+                    "source_drive",
+                    "source_dir_id",
+                    "dest_drive",
+                    "dest_dir_id",
+                    "vice_lfn",
+                    "vice_secondary",
+                    "enum_count",
+                ):
+                    addr = labels.get(label_name) or labels.get(f".{label_name}") or PATH_DEBUG_ADDRS.get(label_name)
                     if addr is None:
                         continue
                     try:

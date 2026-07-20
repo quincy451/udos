@@ -28,20 +28,21 @@ ACTC_RESIDENT_DEBUG = (
     ("RETURN1", 0x03E9),
     ("RETURN2", 0x03EA),
     ("RETURN3", 0x03EB),
-    ("RETURN4", 0x03EC),
-    ("RETURN5", 0x03ED),
-    ("RETURN6", 0x03EE),
-    ("RETURN7", 0x03EF),
+    ("QUEUE1", 0xCFF1),
+    ("QUEUE2", 0xCFF2),
+    ("QUEUE3", 0xCFF3),
+    ("QUEUE4", 0xCFF4),
+    ("REU_COPY0", 0x03E0),
+    ("REU_COPY1", 0x03E1),
+    ("REU_COPY2", 0x03E2),
+    ("REU_COPY3", 0x03E3),
     ("RETURN8", 0x03F0),
     ("RETURN9", 0x03F1),
     ("LAUNCH_STAGE", 0x03F2),
     ("LAUNCH_CODE", 0x03F3),
     ("WRITEBACK_STAGE", 0x03F4),
-    ("QUEUE0", 0x03FB),
-    ("QUEUE1", 0x03FC),
-    ("QUEUE2", 0x03FD),
-    ("QUEUE3", 0x03FE),
-    ("QUEUE4", 0x03FF),
+    ("WRITEBACK_COUNT", 0x03F5),
+    ("WRITEBACK_KIND", 0x03F6),
     ("SAVE_STAGE", 0xC59E),
     ("SAVE_OPEN0", 0xC59F),
     ("SAVE_OPEN1", 0xC5A0),
@@ -55,12 +56,16 @@ LAUNCH_DIR_SNAPSHOT_ADDR = 0xCFFE
 TOOL_ABI_OPEN_PATH = 0xCD40
 TOOL_ABI_LAUNCH_PATH = 0xCD20
 TOOL_WRITEBACK_NAME_MAX = 32
-TOOL_WRITEBACK_MAX_RECORDS = 7
+TOOL_WRITEBACK_MAX_RECORDS = 10
 TOOL_WRITEBACK_RECORD_SIZE = 71
 TOOL_WRITEBACK_COUNT_ADDR = TOOL_ABI_OPEN_PATH + (TOOL_WRITEBACK_MAX_RECORDS * TOOL_WRITEBACK_RECORD_SIZE)
 TOOL_WRITEBACK_DIRMAP_ADDR = TOOL_WRITEBACK_COUNT_ADDR + 1
+TOOL_WRITEBACK_COUNT_SHADOW_ADDR = 0x03E6
+TOOL_STREAM_SHADOW_BUF_ADDR = 0xCDD0
 VICE_DIR_DYNAMIC_MAX = 6
 VICE_DIR_NAME_STRIDE = 21
+VICE_TREE_DYNAMIC_MAX = 6
+HW_DIR_CACHE_MAX = 6
 
 
 write_ascii = pfs.write_ascii
@@ -68,11 +73,9 @@ ensure_catalog_entries = pfs.ensure_catalog_entries
 case_insensitive_child = pfs.case_insensitive_child
 detect_lowercase_workspace = pfs.detect_lowercase_workspace
 host_name = pfs.host_name
-case_name_variants = pfs.case_name_variants
-copy_file_alias = pfs.copy_file_alias
 sync_case_siblings = pfs.sync_case_siblings
-add_case_aliases = pfs.add_case_aliases
 project_output_path = pfs.project_output_path
+ensure_relative_symlink = pfs.ensure_relative_symlink
 
 
 def log_progress(verbose: bool, payload: dict[str, object]) -> None:
@@ -83,11 +86,16 @@ def log_progress(verbose: bool, payload: dict[str, object]) -> None:
 def source_text() -> str:
     return (
         'MODULE MAIN\r'
+        'CARD X\r'
         'PROC MAIN()\r'
         'PrintE("HELLO")\r'
         'W()\r'
-        'PrintI(50 + 7 - 3)\r'
-        'PrintIE(60 - 3 + 2)\r'
+        'X=50\r'
+        'X=X + 7 - 3\r'
+        'PrintI(X)\r'
+        'X=60\r'
+        'X=X - 3 + 2\r'
+        'PrintIE(X)\r'
         'RETURN\r'
     )
 
@@ -100,20 +108,34 @@ def prepare_workspace(fs_root: Path, project_name: str) -> Path:
     lower_project_root = project_root.parent / project_root.name.lower()
     shutil.rmtree(project_root, ignore_errors=True)
     shutil.rmtree(lower_project_root, ignore_errors=True)
-    src_root = project_root / "SRC"
-    project_bin_root = project_root / "BIN"
-    obj_root = project_root / "OBJ"
+    src_root = project_root / "src"
+    project_bin_root = project_root / "bin"
+    obj_root = project_root / "obj"
     src_root.mkdir(parents=True, exist_ok=True)
     project_bin_root.mkdir(exist_ok=True)
     obj_root.mkdir(exist_ok=True)
+    ensure_relative_symlink(project_root / "SRC", "src", is_dir=True)
+    ensure_relative_symlink(project_root / "BIN", "bin", is_dir=True)
+    ensure_relative_symlink(project_root / "OBJ", "obj", is_dir=True)
 
-    write_ascii(project_root / "README.TXT", "ACTION PROJECT READY\n")
-    write_ascii(project_root / "ACTION.PROJ", "ACTION PROJECT\rMAIN.ACT\r")
-    write_ascii(project_root / "UDOSDIR.TXT", "D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n")
-    write_ascii(src_root / "UDOSDIR.TXT", "F MAIN.ACT\n")
-    write_ascii(project_bin_root / "UDOSDIR.TXT", "")
-    write_ascii(obj_root / "UDOSDIR.TXT", "")
-    write_ascii(src_root / "MAIN.ACT", source_text())
+    write_ascii(project_root / "readme.txt", "ACTION PROJECT READY\n", sync_case=False)
+    ensure_relative_symlink(project_root / "README.TXT", "readme.txt")
+    write_ascii(project_root / "action.proj", "ACTION PROJECT\rMAIN.ACT\r", sync_case=False)
+    ensure_relative_symlink(project_root / "ACTION.PROJ", "action.proj")
+    write_ascii(
+        project_root / "UDOSDIR.TXT",
+        "D BIN\nD OBJ\nD SRC\nF ACTION.PROJ\nF README.TXT\n",
+        sync_case=False,
+    )
+    ensure_relative_symlink(project_root / "udosdir.txt", "UDOSDIR.TXT")
+    write_ascii(src_root / "UDOSDIR.TXT", "F MAIN.ACT\n", sync_case=False)
+    ensure_relative_symlink(src_root / "udosdir.txt", "UDOSDIR.TXT")
+    write_ascii(project_bin_root / "UDOSDIR.TXT", "", sync_case=False)
+    ensure_relative_symlink(project_bin_root / "udosdir.txt", "UDOSDIR.TXT")
+    write_ascii(obj_root / "UDOSDIR.TXT", "", sync_case=False)
+    ensure_relative_symlink(obj_root / "udosdir.txt", "UDOSDIR.TXT")
+    write_ascii(src_root / "main.act", source_text(), sync_case=False)
+    ensure_relative_symlink(src_root / "MAIN.ACT", "main.act")
 
     if ACTION_ACTC_BUILD.is_file():
         root_target = action_root / host_name("ACTC.PRG", lowercase_workspace)
@@ -121,7 +143,6 @@ def prepare_workspace(fs_root: Path, project_name: str) -> Path:
         sync_case_siblings(root_target)
         ensure_catalog_entries(action_root / host_name("UDOSDIR.TXT", lowercase_workspace), [f"D {project_name.upper()}", "F ACTC.PRG"])
 
-    add_case_aliases(project_root)
     if lower_project_root != project_root and not lower_project_root.exists():
         lower_project_root.symlink_to(project_root.name, target_is_directory=True)
     return project_root
@@ -134,17 +155,57 @@ def verify_host_output(project_root: Path) -> None:
     text = output_path.read_text(encoding="ascii", errors="ignore")
     required = [
         "OBJ1",
-        "x main 0 22",
-        "b e0u0j0i1r",
+        "x main 0 272",
+        "x __idata 262 8",
+        "x __iptr 270 2",
+        "b u0u1M",
         "u w",
+        "u rt_print_i",
+        "m A2 00 BD 00 00 85 06 E8 BD 00 00 85 07 ",
+        "68 18 65 04 48 A5 03 65 05 48",
+        "68 38 E5 04 48 A5 03 E5 05 48",
+        "A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF",
+        "r 3 x __iptr\nr 9 x __iptr\nr 35 u0\nr 137 u1\nr 239 u1\nr 270 x __idata",
         "s HELLO",
-        "i 54\ni 59",
-        "k 7",
+        "v x 0",
         "n main",
     ]
     missing = [fragment for fragment in required if fragment not in text]
     if missing:
         raise RuntimeError(f"expected host object {output_path} to contain {missing!r}")
+
+
+def verify_output_catalog(project_root: Path) -> None:
+    obj_root = case_insensitive_child(project_root, "OBJ")
+    catalog_path = case_insensitive_child(obj_root, "UDOSDIR.TXT")
+    if not catalog_path.is_file():
+        raise RuntimeError(f"expected object catalog {catalog_path} to exist")
+    catalog_text = catalog_path.read_text(encoding="ascii", errors="ignore")
+    if catalog_text != "F MAIN.OBJ\n":
+        raise RuntimeError(
+            f"expected object catalog {catalog_path} to equal F MAIN.OBJ\\n, "
+            f"got {catalog_text!r}"
+        )
+
+
+def verify_project_output(project_root: Path) -> None:
+    verify_host_output(project_root)
+    verify_output_catalog(project_root)
+
+
+def wait_for_project_output(project_root: Path, timeout: float, poll_interval: float = 0.2) -> None:
+    deadline = time.monotonic() + timeout
+    last_error: RuntimeError | None = None
+    while time.monotonic() < deadline:
+        try:
+            verify_project_output(project_root)
+            return
+        except RuntimeError as exc:
+            last_error = exc
+            time.sleep(poll_interval)
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("timed out waiting for ACTC project output")
 
 
 def read_cstr(client: vp.BinaryMonitorClient, addr: int, limit: int) -> str:
@@ -262,6 +323,8 @@ def read_actc_trace(client: vp.BinaryMonitorClient) -> str:
         dest_fullpath_addr = resident_labels.get("dest_fullpath_buffer")
         if dest_fullpath_addr is not None:
             extras.append(f"DEST_FULLPATH={read_cstr(client, dest_fullpath_addr, 96)!r}")
+        extras.append(f"STREAM_SHADOW={read_cstr(client, TOOL_STREAM_SHADOW_BUF_ADDR, 64)!r}")
+        extras.append(f"STREAM_SHADOW_HEAD={list(client.memory_get(TOOL_STREAM_SHADOW_BUF_ADDR, TOOL_STREAM_SHADOW_BUF_ADDR + 31))!r}")
         extras.append(f"CURRENT_PATH={read_cstr(client, 0xCD00, 64)!r}")
         extras.append(f"LAUNCH_PATH={read_cstr(client, TOOL_ABI_LAUNCH_PATH, 64)!r}")
         extras.append(f"OPEN_PATH={read_cstr(client, 0xCD40, 96)!r}")
@@ -340,7 +403,17 @@ def collect_actc_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
             data["ACTC_TRACE"] = "<missing>"
         data["LAUNCH_STAGE"] = client.memory_get(0x03F2, 0x03F2)[0]
         data["LAUNCH_CODE"] = client.memory_get(0x03F3, 0x03F3)[0]
-        data["QUEUE4"] = client.memory_get(0x03FF, 0x03FF)[0]
+        data["WRITEBACK_STAGE"] = client.memory_get(0x03F4, 0x03F4)[0]
+        data["WRITEBACK_COUNT"] = client.memory_get(0x03F5, 0x03F5)[0]
+        data["WRITEBACK_KIND"] = client.memory_get(0x03F6, 0x03F6)[0]
+        data["STREAM_SHADOW"] = read_cstr(client, TOOL_STREAM_SHADOW_BUF_ADDR, 64)
+        data["STREAM_SHADOW_HEAD"] = list(
+            client.memory_get(TOOL_STREAM_SHADOW_BUF_ADDR, TOOL_STREAM_SHADOW_BUF_ADDR + 31)
+        )
+        data["QUEUE1"] = client.memory_get(0xCFF1, 0xCFF1)[0]
+        data["QUEUE2"] = client.memory_get(0xCFF2, 0xCFF2)[0]
+        data["QUEUE3"] = client.memory_get(0xCFF3, 0xCFF3)[0]
+        data["QUEUE4"] = client.memory_get(0xCFF4, 0xCFF4)[0]
         data["SAVE_STAGE"] = client.memory_get(0xC59E, 0xC59E)[0]
         save_stage_char = printable_byte(data["SAVE_STAGE"])
         if save_stage_char is not None:
@@ -369,6 +442,11 @@ def collect_actc_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         data["ACTC_TRACE"] = f"ERR:{exc!r}"
         data["LAUNCH_STAGE"] = f"ERR:{exc!r}"
         data["LAUNCH_CODE"] = f"ERR:{exc!r}"
+        data["WRITEBACK_STAGE"] = f"ERR:{exc!r}"
+        data["WRITEBACK_COUNT"] = f"ERR:{exc!r}"
+        data["WRITEBACK_KIND"] = f"ERR:{exc!r}"
+        data["STREAM_SHADOW"] = f"ERR:{exc!r}"
+        data["STREAM_SHADOW_HEAD"] = f"ERR:{exc!r}"
         data["QUEUE4"] = f"ERR:{exc!r}"
         data["SAVE_STAGE"] = f"ERR:{exc!r}"
         data["SAVE_OPEN0"] = f"ERR:{exc!r}"
@@ -432,6 +510,19 @@ def collect_actc_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         data["CURRENT_PATH"] = read_cstr(client, 0xCD00, 64)
         data["LAUNCH_PATH"] = read_cstr(client, TOOL_ABI_LAUNCH_PATH, 64)
         data["OPEN_PATH"] = read_cstr(client, 0xCD40, 96)
+        data["STREAM_SHADOW"] = read_cstr(client, TOOL_STREAM_SHADOW_BUF_ADDR, 64)
+        data["STREAM_SHADOW_HEAD"] = list(
+            client.memory_get(TOOL_STREAM_SHADOW_BUF_ADDR, TOOL_STREAM_SHADOW_BUF_ADDR + 31)
+        )
+        stream_lo_addr = resident_labels.get("tool_abi_stream_name_lo")
+        stream_hi_addr = resident_labels.get("tool_abi_stream_name_hi")
+        if stream_lo_addr is not None and stream_hi_addr is not None:
+            stream_lo = client.memory_get(stream_lo_addr, stream_lo_addr)[0]
+            stream_hi = client.memory_get(stream_hi_addr, stream_hi_addr)[0]
+            stream_addr = stream_lo | (stream_hi << 8)
+            data["TOOL_STREAM_NAME_PTR"] = stream_addr
+            if stream_addr:
+                data["TOOL_STREAM_NAME_PTR_STR"] = read_cstr(client, stream_addr, 64)
         desired_path_addr = resident_labels.get("desired_path_buffer")
         if desired_path_addr is not None:
             data["DESIRED_PATH"] = read_cstr(client, desired_path_addr, 96)
@@ -445,6 +536,10 @@ def collect_actc_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         data["TOOL_ABI_FILE_LEN"] = f"ERR:{exc!r}"
         data["CURRENT_PATH"] = f"ERR:{exc!r}"
         data["OPEN_PATH"] = f"ERR:{exc!r}"
+        data["STREAM_SHADOW"] = f"ERR:{exc!r}"
+        data["STREAM_SHADOW_HEAD"] = f"ERR:{exc!r}"
+        data["TOOL_STREAM_NAME_PTR"] = f"ERR:{exc!r}"
+        data["TOOL_STREAM_NAME_PTR_STR"] = f"ERR:{exc!r}"
         data["DESIRED_PATH"] = f"ERR:{exc!r}"
         data["DEST_FULLPATH"] = f"ERR:{exc!r}"
     try:
@@ -529,6 +624,9 @@ def collect_actc_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         except Exception as exc:
             data["SAVE_DEBUG_PATH"] = f"ERR:{exc!r}"
     try:
+        data["TOOL_WRITEBACK_COUNT_SHADOW"] = client.memory_get(
+            TOOL_WRITEBACK_COUNT_SHADOW_ADDR, TOOL_WRITEBACK_COUNT_SHADOW_ADDR
+        )[0]
         data["TOOL_WRITEBACK_COUNT"] = client.memory_get(TOOL_WRITEBACK_COUNT_ADDR, TOOL_WRITEBACK_COUNT_ADDR)[0]
         data["TOOL_WRITEBACK_DIRMAP"] = list(
             client.memory_get(TOOL_WRITEBACK_DIRMAP_ADDR, TOOL_WRITEBACK_DIRMAP_ADDR + VICE_DIR_DYNAMIC_MAX - 1)
@@ -548,6 +646,7 @@ def collect_actc_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         )[0]
         data["TOOL_WRITEBACK_SECOND_NAME"] = second_name_raw.decode("ascii", errors="replace")
     except Exception as exc:
+        data["TOOL_WRITEBACK_COUNT_SHADOW"] = f"ERR:{exc!r}"
         data["TOOL_WRITEBACK_COUNT"] = f"ERR:{exc!r}"
         data["TOOL_WRITEBACK_DIRMAP"] = f"ERR:{exc!r}"
         data["TOOL_WRITEBACK_RECORD_HEAD"] = f"ERR:{exc!r}"
@@ -579,6 +678,58 @@ def collect_actc_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
             ]
         except Exception as exc:
             data["VICE_DIR_NAMES_B"] = f"ERR:{exc!r}"
+    base = resident_labels.get("vice_tree_state_b")
+    if base is not None:
+        try:
+            data["VICE_TREE_STATE_B"] = list(client.memory_get(base, base + VICE_TREE_DYNAMIC_MAX - 1))
+        except Exception as exc:
+            data["VICE_TREE_STATE_B"] = f"ERR:{exc!r}"
+    base = resident_labels.get("vice_tree_dir_b")
+    if base is not None:
+        try:
+            data["VICE_TREE_DIR_B"] = list(client.memory_get(base, base + VICE_TREE_DYNAMIC_MAX - 1))
+        except Exception as exc:
+            data["VICE_TREE_DIR_B"] = f"ERR:{exc!r}"
+    base = resident_labels.get("vice_tree_names_b")
+    if base is not None:
+        try:
+            data["VICE_TREE_NAMES_B"] = [
+                read_cstr(client, base + (VICE_DIR_NAME_STRIDE * index), VICE_DIR_NAME_STRIDE)
+                for index in range(VICE_TREE_DYNAMIC_MAX)
+            ]
+        except Exception as exc:
+            data["VICE_TREE_NAMES_B"] = f"ERR:{exc!r}"
+    base = resident_labels.get("hw_dir_count_table")
+    if base is not None:
+        try:
+            data["HW_DIR_COUNT_TABLE"] = list(client.memory_get(base, base + 1))
+        except Exception as exc:
+            data["HW_DIR_COUNT_TABLE"] = f"ERR:{exc!r}"
+    base = resident_labels.get("hw_dir_names_b")
+    if base is not None:
+        try:
+            data["HW_DIR_NAMES_B"] = [
+                read_cstr(client, base + (VICE_DIR_NAME_STRIDE * index), VICE_DIR_NAME_STRIDE)
+                for index in range(HW_DIR_CACHE_MAX)
+            ]
+        except Exception as exc:
+            data["HW_DIR_NAMES_B"] = f"ERR:{exc!r}"
+    base = resident_labels.get("flat_dir_sector_buffer")
+    if base is not None:
+        try:
+            data["FLAT_DIR_SECTOR_BUFFER"] = read_cstr(client, base, 128)
+            data["FLAT_DIR_SECTOR_HEAD"] = list(client.memory_get(base, base + 31))
+        except Exception as exc:
+            data["FLAT_DIR_SECTOR_BUFFER"] = f"ERR:{exc!r}"
+            data["FLAT_DIR_SECTOR_HEAD"] = f"ERR:{exc!r}"
+    for name in ("enum_count", "file_index", "temp_dir_id"):
+        addr = resident_labels.get(name)
+        if addr is None:
+            continue
+        try:
+            data[name.upper()] = client.memory_get(addr, addr)[0]
+        except Exception as exc:
+            data[name.upper()] = f"ERR:{exc!r}"
     return data
 
 
@@ -669,11 +820,6 @@ def run_once(
         first_file_complete_snapshot: dict[str, object] | None = None
         while time.monotonic() < deadline:
             screen, _d018, _dd00 = vp.read_active_screen_text(client)
-            actual_output_path = project_output_path(project_root, "OBJ", "MAIN.OBJ")
-            if actual_output_path.is_file():
-                size = actual_output_path.stat().st_size
-                if size > 0:
-                    break
             try:
                 stage = client.memory_get(0xC59E, 0xC59E)[0]
                 if stage_d_snapshot is None and stage == ord("d"):
@@ -838,7 +984,19 @@ def run_once(
             raise vp.ViceError(f"timed out waiting for ACTC OK ({read_actc_trace(client)}){extra}; last screen was:\n{screen}")
 
         try:
-            verify_host_output(project_root)
+            log_progress(verbose, {"phase": "actc_ok_wait_prompt_start"})
+            avp.wait_for_screen_fragment(client, f"B:DNP/{project_name}", 30.0)
+            log_progress(verbose, {"phase": "actc_returned_to_prompt"})
+            wait_for_project_output(project_root, 30.0)
+            log_progress(verbose, {"phase": "host_output_ready"})
+            avp.type_command(client, "TYPE OBJ/MAIN.OBJ", 5.0)
+            avp.wait_for_screen_fragments(
+                client,
+                ["obj1", "f 0 src/main.act", f"B:DNP/{project_name}"],
+                45.0,
+                retry_echo="TYPE OBJ/MAIN.OBJ",
+            )
+            log_progress(verbose, {"phase": "shell_readback_ready"})
         except RuntimeError as exc:
             extra = f"\nSTAGE_D_SNAPSHOT: {stage_d_snapshot!r}" if stage_d_snapshot is not None else ""
             if prelaunch_snapshot is not None:

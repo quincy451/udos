@@ -21,9 +21,15 @@ ALINK_CURRENT_LABELS = ACTION_ROOT / "build/udos_tools/alink.current.labels"
 ALINK_DIAG_LABELS = ACTION_ROOT / "build/udos_tools/alink.diag.labels"
 RESIDENT_LABELS = ROOT.parent / "build/release/udos-resident.labels"
 PROMPT_TIMEOUT = 30.0
-FINAL_TIMEOUT = 30.0
+FINAL_TIMEOUT = 90.0
 SETTLE_SECONDS = 2.0
 SEND_TIMEOUT = 5.0
+EXPECTED_PRG = bytes.fromhex(
+    "0010"
+    "201310"
+    "A9A58DD003A90085028503A2024C0FCF"
+    "60"
+)
 
 
 def log_progress(verbose: bool, payload: dict[str, object]) -> None:
@@ -34,15 +40,11 @@ def log_progress(verbose: bool, payload: dict[str, object]) -> None:
 def seeded_main_object_text() -> str:
     return (
         "OBJ1\n"
-        "x main 0 30\n"
-        "b e0u0p0p1ayp2p3gzr\n"
+        "x main 0 19\n"
+        "b u0M\n"
         "u w\n"
-        "s HELLO\n"
-        "i 120\n"
-        "i 4\n"
-        "i 57\n"
-        "i 57\n"
-        "k 7\n"
+        "m 20 00 00 A9 A5 8D D0 03 A9 00 85 02 85 03 A2 02 4C 0F CF\n"
+        "r 1 u0\n"
         "n main\n"
     )
 
@@ -50,10 +52,9 @@ def seeded_main_object_text() -> str:
 def seeded_work_object_text() -> str:
     return (
         "OBJ1\n"
-        "x w 0 13\n"
-        "b s0i0r\n"
-        "s TOOL\n"
-        "i 7\n"
+        "x w 0 1\n"
+        "b M\n"
+        "m 60\n"
         "n w\n"
     )
 
@@ -159,53 +160,65 @@ def load_selected_alink_labels() -> dict[str, int]:
 
 def load_selected_resident_labels() -> dict[str, int]:
     wanted = {
-        "save_debug_stage_byte",
+        "arg_buffer",
+        "cmd_length",
+        "command_status",
+        "current_drive",
+        "dest_fullpath_buffer",
+        "desired_path_buffer",
+        "dir_ptr_save_hi",
+        "dir_ptr_save_lo",
+        "dir_state_table",
+        "dir_walk_bytes",
+        "dir_walk_count",
+        "dir_walk_id",
+        "enum_count",
+        "file_index",
+        "flat_dir_sector_buffer",
+        "hw_dir_count_table",
+        "hw_dir_names_b",
+        "input_mode",
+        "launch_load_cache_hi",
+        "launch_load_cache_lo",
+        "mount_flag_table",
+        "parse_scan_index",
+        "path_name_buffer",
+        "program_image_buffer",
+        "program_image_len_hi",
+        "program_image_len_lo",
+        "program_return_resume",
+        "response_buffer",
+        "reu_init",
         "save_debug_open_status0",
         "save_debug_open_status1",
         "save_debug_open_status2",
         "save_debug_open_status3",
-        "uci_cmd_buffer",
-        "vice_tree_content_src_lo",
-        "vice_tree_content_src_hi",
-        "vice_lfn",
-        "vice_secondary",
-        "file_index",
-        "temp_dir_id",
-        "mount_flag_table",
-        "current_drive",
-        "temp_drive",
-        "dir_state_table",
+        "save_debug_stage_byte",
         "save_debug_write_path_buffer",
-        "path_name_buffer",
-        "arg_buffer",
-        "program_image_buffer",
-        "launch_load_cache_lo",
-        "launch_load_cache_hi",
-        "vice_read_length",
-        "program_image_len_lo",
-        "program_image_len_hi",
-        "parse_scan_index",
-        "cmd_length",
-        "dir_walk_count",
-        "dir_walk_id",
-        "dir_walk_bytes",
-        "dir_ptr_save_lo",
-        "dir_ptr_save_hi",
         "source_fullpath_buffer",
-        "dest_fullpath_buffer",
-        "desired_path_buffer",
-        "flat_dir_sector_buffer",
+        "temp_dir_id",
+        "temp_drive",
+        "tool_abi_file_stage_reu_sc0",
+        "tool_abi_file_write_chunk_current",
+        "tool_abi_file_write_chunk_sc0",
+        "tool_abi_fixed_template",
+        "tool_abi_open_program_read_path",
+        "tool_abi_seed_program_mount_snapshot",
+        "tool_abi_stream_name_hi",
+        "tool_abi_stream_name_lo",
+        "uci_cmd_buffer",
         "vice_dir_names_b",
         "vice_dir_parent_b",
         "vice_dir_state_b",
-        "reu_init",
-        "tool_abi_open_program_read_path",
-        "tool_abi_seed_program_mount_snapshot",
-        "tool_abi_fixed_template",
-        "tool_abi_file_stage_reu_sc0",
-        "tool_abi_file_write_chunk_sc0",
-        "tool_abi_file_write_chunk_current",
+        "vice_lfn",
         "vice_open_read_from_ptr",
+        "vice_read_length",
+        "vice_secondary",
+        "vice_tree_content_src_hi",
+        "vice_tree_content_src_lo",
+        "vice_tree_dir_b",
+        "vice_tree_names_b",
+        "vice_tree_state_b",
     }
     out: dict[str, int] = {}
     if not RESIDENT_LABELS.is_file():
@@ -568,6 +581,15 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
             data[name] = client.memory_get(addr, addr)[0]
         except Exception as exc:  # pragma: no cover - debug only
             data[name] = f"ERR:{exc!r}"
+    try:
+        active_screen, active_d018, active_dd00 = vp.read_active_screen_text(client)
+        data["ACTIVE_D018"] = active_d018
+        data["ACTIVE_DD00"] = active_dd00
+        data["ACTIVE_SCREEN_HEAD"] = active_screen[:240]
+        data["SCREEN_0400_HEAD"] = vp.screen_ram_to_text(client.memory_get(0x0400, 0x04EF))[:240]
+        data["SCREEN_0800_HEAD"] = vp.screen_ram_to_text(client.memory_get(0x0800, 0x08EF))[:240]
+    except Exception as exc:  # pragma: no cover - debug only
+        data["ACTIVE_SCREEN_HEAD"] = f"ERR:{exc!r}"
     for name, addr in load_selected_alink_labels().items():
         key = f"ALINK_{name.upper()}"
         try:
@@ -690,11 +712,33 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         data["SERVICE_STAGE_SNAPSHOT"] = client.memory_get(0xCFF1, 0xCFF1)[0]
         data["SERVICE_STAGE_SP_SNAPSHOT"] = client.memory_get(0xCFF3, 0xCFF3)[0]
         data["SERVICE_STAGE_X_SNAPSHOT"] = client.memory_get(0xCFF5, 0xCFF5)[0]
-        data["CURRENT_DRIVE_STATE"] = client.memory_get(0x9580, 0x9580)[0]
-        data["MOUNT_FLAGS"] = list(client.memory_get(0x9614, 0x9615))
-        data["DIR_STATES"] = list(client.memory_get(0x9616, 0x9617))
+        current_drive_addr = resident_labels.get("current_drive")
+        mount_flags_addr = resident_labels.get("mount_flag_table")
+        dir_states_addr = resident_labels.get("dir_state_table")
+        temp_drive_addr = resident_labels.get("temp_drive")
+        temp_dir_id_addr = resident_labels.get("temp_dir_id")
+        input_mode_addr = resident_labels.get("input_mode")
+        command_status_addr = resident_labels.get("command_status")
+        response_buffer_addr = resident_labels.get("response_buffer")
+        if current_drive_addr is not None:
+            data["CURRENT_DRIVE_STATE"] = client.memory_get(current_drive_addr, current_drive_addr)[0]
+        if mount_flags_addr is not None:
+            data["MOUNT_FLAGS"] = list(client.memory_get(mount_flags_addr, mount_flags_addr + 1))
+        if dir_states_addr is not None:
+            data["DIR_STATES"] = list(client.memory_get(dir_states_addr, dir_states_addr + 1))
+        if temp_drive_addr is not None:
+            data["TEMP_DRIVE"] = client.memory_get(temp_drive_addr, temp_drive_addr)[0]
+        if temp_dir_id_addr is not None:
+            data["TEMP_DIR_ID"] = client.memory_get(temp_dir_id_addr, temp_dir_id_addr)[0]
+        data["RES_CURSOR"] = list(client.memory_get(0xCFE0, 0xCFE1))
         data["RES_SCREEN_PTR"] = list(client.memory_get(0x00F9, 0x00FA))
         data["RES_PTR"] = list(client.memory_get(0x00FB, 0x00FC))
+        if input_mode_addr is not None:
+            data["INPUT_MODE"] = client.memory_get(input_mode_addr, input_mode_addr)[0]
+        if command_status_addr is not None:
+            data["COMMAND_STATUS"] = client.memory_get(command_status_addr, command_status_addr)[0]
+        if response_buffer_addr is not None:
+            data["RESPONSE_BUFFER"] = read_cstr(client, response_buffer_addr, 96)
         data["TOOL_ABI_SAVE_BLOCK"] = list(client.memory_get(0xCDC6, 0xCDCB))
         data["RES_SAVE_ENTRY_STAGE"] = client.memory_get(0xCDC1, 0xCDC1)[0]
         data["RES_SAVE_RESOLVE_STAGE"] = client.memory_get(0xCDC2, 0xCDC2)[0]
@@ -834,10 +878,18 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
         data["UDOS_SERVICE_BLOCK_CF00"] = list(client.memory_get(0xCF00, 0xCF3F))
         data["UDOS_SERVICE_FILE_LOAD_CF12"] = list(client.memory_get(0xCF12, 0xCF1A))
         data["UDOS_SERVICE_FILE_STAGE_REU_CF36"] = list(client.memory_get(0xCF36, 0xCF3E))
+        data["LAUNCH_RETURN_STUB_033C"] = list(client.memory_get(0x033C, 0x035B))
+        data["LAUNCH_RESTORE_STUB_CE10"] = list(client.memory_get(0xCE10, 0xCE2F))
+        return_resume_addr = resident_labels.get("program_return_resume")
+        if return_resume_addr is not None:
+            data["PROGRAM_RETURN_RESUME"] = list(client.memory_get(return_resume_addr, return_resume_addr + 63))
     except Exception as exc:  # pragma: no cover - debug only
         data["UDOS_SERVICE_BLOCK_CF00"] = f"ERR:{exc!r}"
         data["UDOS_SERVICE_FILE_LOAD_CF12"] = f"ERR:{exc!r}"
         data["UDOS_SERVICE_FILE_STAGE_REU_CF36"] = f"ERR:{exc!r}"
+        data["LAUNCH_RETURN_STUB_033C"] = f"ERR:{exc!r}"
+        data["LAUNCH_RESTORE_STUB_CE10"] = f"ERR:{exc!r}"
+        data["PROGRAM_RETURN_RESUME"] = f"ERR:{exc!r}"
     try:
         data["ALINK_LOADED_OBJECT_STATUS"] = client.memory_get(0xCF9E, 0xCF9E)[0]
     except Exception as exc:  # pragma: no cover - debug only
@@ -909,7 +961,13 @@ def collect_debug(client: vp.BinaryMonitorClient) -> dict[str, object]:
     return data
 
 
-def run_once(image: Path, work_root: Path, project_name: str, connect_delay: float) -> tuple[str, dict[str, object]]:
+def run_once(
+    image: Path,
+    work_root: Path,
+    project_name: str,
+    connect_delay: float,
+    final_timeout: float,
+) -> tuple[str, dict[str, object]]:
     port = vp.reserve_tcp_port()
     process = vp.launch_vice(
         image,
@@ -971,7 +1029,7 @@ def run_once(image: Path, work_root: Path, project_name: str, connect_delay: flo
             raise vp.ViceError(
                 f"expected screen fragment 'RUN ALINK.PRG' was not present in final screen:\n{screen}\nDEBUG: {json.dumps(debug, indent=2)}"
             )
-        deadline = time.monotonic() + FINAL_TIMEOUT
+        deadline = time.monotonic() + final_timeout
         screen = ""
         stage_b_snapshot: dict[str, object] | None = None
         stage_c_snapshot: dict[str, object] | None = None
@@ -1090,6 +1148,7 @@ def main() -> int:
     parser.add_argument("--attempts", type=int, default=6)
     parser.add_argument("--attempt-delay", type=float, default=2.0)
     parser.add_argument("--connect-delay", type=float)
+    parser.add_argument("--final-timeout", type=float, default=FINAL_TIMEOUT)
     parser.add_argument("--verbose", action="store_true", help="print progress payloads")
     args = parser.parse_args()
 
@@ -1107,16 +1166,23 @@ def main() -> int:
             shutil.copytree(fs_root, work_root, symlinks=True)
             project_root = prepare_workspace(work_root, project_name)
             vp.cleanup_stale_vice(settle_seconds=max(1.0, min(5.0, args.attempt_delay)))
-            screen, debug = run_once(image, work_root, project_name, connect_delay)
+            screen, debug = run_once(
+                image,
+                work_root,
+                project_name,
+                connect_delay,
+                args.final_timeout,
+            )
             output_path = pfs.project_output_path(project_root, "BIN", "MAIN.PRG")
             if not output_path.is_file():
                 raise vp.ViceError(
                     f"expected host file {output_path} to exist after ALINK returned\n"
                     f"SCREEN:\n{screen}\nDEBUG: {json.dumps(debug, indent=2)}"
                 )
-            if output_path.stat().st_size <= 2:
+            output = output_path.read_bytes()
+            if output != EXPECTED_PRG:
                 raise vp.ViceError(
-                    f"expected direct PRG {output_path} to contain payload bytes after ALINK returned\n"
+                    f"unexpected direct PRG payload in {output_path}: {output.hex()}\n"
                     f"SCREEN:\n{screen}\nDEBUG: {json.dumps(debug, indent=2)}"
                 )
             log_progress(

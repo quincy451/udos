@@ -1,102 +1,317 @@
 # UDOS Milestone Handoff
 
-## Milestone
+## Current Milestone
 
-The first credible UDOS resident milestone is complete.
-
-Completed baseline:
-- native resident shell/runtime
-- resident service ABI
-- native UCI transport seam
-- filesystem abstraction seam
-- shell prompt and live line input
-- resident `DIR`
-- resident `CD`
-- resident `COPY`
-
-The resident shell currently also validates:
-- `HELP`
-- `VER`
-- `VOL`
-- `MEM`
-- `MOUNT`
-- `TYPE`
-- `REN`
-- `DEL`
-- direct `A:` / `B:` drive switching
-- implicit program launch
-- resident image load before program handoff
-
-## What Works
-
-Validated in VICE:
-- resident bootstrap enters the native shell
-- prompt reflects drive/kind/path state
-- `A:` flat semantics and `B:` DNP tree semantics are enforced
-- writable `WORK` flow works through the current mock backend:
-  - copy
-  - rename
-  - implicit launch
-  - delete
-
-Current validated transcript:
+UDOS is now the active native shell/runtime path for ActionC64U. The maintained
+Action execution path is:
 
 ```text
-UDOS FOR COMMODORE 64
-  A:D64/> MOUNT B: /IMAGES/ALT.D81
-  A:D64/> VOL
-A:SYSTEM D64 B:ALT D81
-  A:D64/> MOUNT B: /IMAGES/WORK.DNP
-  A:D64/> VOL
-A:SYSTEM D64 B:WORK DNP
-  A:D64/> B:
-B:DNP/
-  B:DNP/> CD SRC
-B:DNP/SRC
-  B:DNP/SRC> COPY BOOT.ASM WORK/BOOT2.PRG
-COPIED
-  B:DNP/SRC> CD WORK
-B:DNP/WORK
-  B:DNP/WORK> REN BOOT2.PRG BOOT3.PRG
-RENAMED
-  B:DNP/WORK> DELBOOT3
-PROGRAM NOT FOUND
-  B:DNP/WORK> BOOT3 DIR
-RUN BOOT3.PRG
-ARGS DIR
-  B:DNP/WORK> DEL BOOT3.PRG
-DELETED
+ACTC.PRG -> OBJ/<MODULE>.OBJ -> ALINK.PRG -> BIN/<MODULE>.PRG
 ```
 
-## What Is Unverified
+The final product is a direct linked 6502 `.PRG`. There is no separate runtime
+runner in the maintained path; `ALINK.PRG` owns all bytes that enter the final
+runnable program, including any referenced runtime helper objects.
 
-- no real C64 Ultimate hardware run
-- no hardware-validated UCI command/data path
-- no real mounted-image enumeration yet
-- no real image-backed file mutation yet
-- no hardware-validated mounted-image bind yet
-- no hardware-validated program-image load yet
-- no overlay command loader yet
+## Completed Baseline
 
-## Resume Point
+Resident UDOS now provides the always-present shell and service environment:
 
-The first credible resident milestone is complete and the Action resume point is
-still preserved.
+- native resident shell and live command input
+- resident service ABI
+- UCI transport detection seam
+- logical drive state for `A:` and `B:`
+- flat-vs-tree mounted-image policy
+- command dispatch with built-in commands before implicit launch
+- implicit `.PRG` launch and `.BAT` fallback
+- resident program handoff and return path
+- REU-backed resident restore after launched programs return
 
-Resume target repo when UDOS is ready to host those tools:
+The resident command surface currently includes:
+
+- `HELP`
+- `VER`
+- `MEM`
+- `VOL`
+- `MOUNT`
+- `DIR`
+- `CD`
+- `MD`
+- `RD`
+- `TREE`
+- `XCOPY`
+- `DELTREE`
+- `TYPE`
+- `COPY`
+- `REN`
+- `DEL`
+- direct `A:` and `B:` drive switching
+- reserved `C:` and `D:` drive tokens that return `DRIVE NOT PRESENT`
+
+Filesystem behavior is documented in `FILESYSTEM_BEHAVIOR.md`. User-facing
+command examples are documented in `OPERATOR_GUIDE.md`.
+
+## Current Validation State
+
+Host and VICE validation cover the active development path:
+
+- root `make test` runs the UDOS and ActionC64U host suites
+- `make -C udos test` runs the UDOS build/test target
+- `python3 -m unittest discover -v -s udos/tests -p 'test*.py'` covers UDOS host tests
+- `python3 -m unittest discover -v -s actionc64u/tests -p 'test*.py'` covers ActionC64U host tests
+- `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc`
+  validates `ACTC.PRG` object creation through UDOS
+- `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-alink`
+  validates `ALINK.PRG` direct `BIN/MAIN.PRG` output through UDOS
+- `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch`
+  validates the helper-free `ACTC -> ALINK -> MAIN.PRG` launch path
+- `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-alink-prg-matrix`
+  validates the broad direct-PRG object/link matrix
+- `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-object-emission-matrix`
+  validates source-backed ACTC object-emission launch shapes
+- `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
+  validates link-selected helper-family runtime paths
+
+Current status docs report the broad ALINK direct-PRG matrix at 1329 shapes and
+the source-backed ACTC object-emission matrix at 171 shapes. Treat those matrix
+counts as status facts to update whenever the probe tables change.
+
+The current matrix includes source-backed dynamic integer multiplication and
+division, assignment/store/readback, divide-by-zero, missing-helper, and stack
+underflow coverage. ACTC emits ordinary native OBJ1 machine and relocation
+records for those expressions; ALINK resolves them through its generic object
+path and selects the integer helper OBJ modules only when referenced.
+Plain word assignments and load/store copies also use compiler-emitted native
+OBJ records; the corresponding ALINK compact-body templates are retired.
+Multi-procedure local calls and nested integer control flow now use
+`ACTC_OVL9.BIN` machine OBJ records, and ALINK's final generic compact-body
+candidate/template table has been removed. The separate seeded ALINK smoke uses
+an ordinary external machine-code relocation.
+Native REAL bridge, REAL-to-INT, straight-line two-literal REAL arithmetic,
+unary FAbs/FSqrt print, and helper-prefixed REAL print machine OBJ generation use base-36 pass
+`ACTC_OVLA.BIN`; generic `ACTC_OVL5.BIN` no longer contains that generator.
+ALINK's matching REAL binary and unary compact-body compilers and fixed-address
+layouts are retired. OVLA is 5,756 bytes with 2,436 bytes free in its 8 KiB
+execution window.
+Plain, ELSE, and nested REAL IF machine OBJ generation uses pass
+`ACTC_OVLB.BIN`; all 36 variants now use generic ALINK closure and relocation.
+All six simple REAL `DO ... UNTIL` comparisons and eight add/sub update loops
+also use compiler-emitted machine OBJ from this pass. OVLB is 5,655 bytes with
+2,537 bytes free, and ALINK's matching REAL IF and REAL DO/UNTIL fixed-address
+strategies are retired. All 14 DO/UNTIL forms pass exact compile/link checks and
+live VICE execution.
+Passes `ACTC_OVLC.BIN` through `ACTC_OVLF.BIN` now emit machine OBJ for REAL
+WHILE, runtime conditions, runtime sequences, and nested readbacks. All 102
+seeded runtime fixtures are machine objects, 194 runtime sequences retain
+static exact-byte coverage, and 288 complex compiled-runtime cases use an
+independent object parser/relocator oracle. ALINK has no abstract-body compiler
+or runtime synthesis queues and is now 13,806 bytes.
+Integer `EXIT` statements in DO, WHILE, and FOR loops lower to ordinary named
+machine-code relocations; live coverage includes an inner-FOR exit that leaves
+the outer loop active and a plain infinite `DO ... OD` that can terminate only
+through EXIT, plus pruning checks for unused integer runtime objects.
+Pass 8 also owns plain and post-test DO/EXIT bodies that contain dynamic word
+arithmetic. Its 6,953-byte image leaves 1,751 bytes free under the 1 KiB
+reserve; exact OBJ and live VICE coverage prove `I=I+1` reaches the selected
+EXIT value, stores the result, and does not pull unreferenced
+print/multiply/divide objects into the final PRG. FOR debug mappings are checked
+across both the `$00FF` and `$01FF` boundaries, and post-test control tokens map
+to the exact post-condition machine offset.
+Pass 9 also owns dynamic word arithmetic, integer printing, stack-neutral
+no-argument external calls inside WHILE control, and ASMBLOCK insertion,
+including nested IF and nearest-loop EXIT. Add/subtract is inline;
+multiply/divide/print and external procedures use ordinary link-selected
+imports. Its 8,065-byte image leaves 639 bytes free under a dedicated 128-byte
+minimum reserve. Exact OBJ and live VICE
+coverage verifies per-procedure transitive import markers, the helper-free result
+of three, the multiply/divide result of six, a printing loop that emits `1` and
+`2` before ending at four, and a `SidRst()` loop that clears prefilled SID state
+and ends at one while unrelated runtime objects remain pruned.
+Pass G, `ACTC_OVLG.BIN`, owns one-word byte-in-A and word-in-X/Y runtime calls
+inside integer control. Its 7,110-byte image leaves 1,594 bytes free under a
+512-byte minimum reserve. Source-backed `SidVol(I+10)` and
+`SidCutoff(I+300)` WHILE cases prove both ABIs, loop-variable value one, and
+selection of only the referenced SID closure. Core `ASMBLOCK [ ... ]` assembly
+is performed in pass 4 and emitted through pass 9 as ordinary OBJ machine bytes,
+block-local targets, and relocations to current globals, PROC parameters, and
+locals. REAL globals and locals retain four-byte exports and can be indexed at
+offsets zero through three; a live direct PRG observes `$033C-$033F` as
+`$11,$44,$22,$55` without loading runtime helper objects. Pass H,
+`ACTC_OVLH.BIN`, composes ASMBLOCK, runtime calls, `=*(...)`, and numeric
+absolute-address declarations in one typed unit;
+its 8,535-byte image leaves 169 bytes free under a 128-byte reserve. A live
+direct PRG returns 42, stores trace value 41, and writes SID volume 8.
+Pass J, `ACTC_OVLJ.BIN`, owns compact bodyless numeric absolute-address routine
+declarations and emits direct JSR instructions through the shared register ABI.
+Its 7,554-byte image leaves 1,150 bytes free; it emits no wrapper, export,
+import, or runtime object. The focused `$FFD2` CHROUT case passes exact OBJ,
+ALINK closure, and live VICE checks. Composed fixed-address units decline J and
+fall through to pass H before any output is opened.
+Forward/backward local routine aliases accept a checked signed 16-bit constant
+expression on either side of the symbol and emit ordinary named OBJ1
+relocations. The focused `WORKERALIAS=(1-1)+WORKER()` direct PRG prints `!`
+after generic ALINK placement and selects no library object; the numeric case
+uses grouped `$FFD0+2` and still emits a direct `$FFD2` call.
+Local core `REAL FUNC` lowering supports direct named-storage returns with no
+arguments and a constrained one-word-parameter form. The latter binds one
+direct literal or an immediately initialized named module word scalar through
+the scalar stack ABI, converts it with `REAL(parameter)`, returns the named REAL
+storage pointer in A/X, and lets the caller copy all four bytes. Both live cases
+return binary32 42.0 while ALINK selects only the ordinary reachable conversion
+object.
+Pass K, `ACTC_OVLK.BIN`, adds a bounded two-REAL-parameter finite
+comparison/select function. The enclosing root records the union of its
+reachable conversion and comparison imports, while the function export records
+only comparison. Generic ALINK closure therefore selects `RT_I_TO_F.OBJ`,
+`RT_F_CMP.OBJ`, and transitive `RT_F_SPECIAL.OBJ`, prunes unrelated REAL
+helpers, and launches the self-contained PRG in VICE. Native ACTC now also
+lowers bounded `FMin(A,B)` and `FMax(A,B)` source forms for named REAL operands
+through independently selected `RT_F_MIN.OBJ` and `RT_F_MAX.OBJ`. Their exact
+MATH1 NaN/signed-zero policy, sibling pruning, and direct VICE launches pass;
+general REAL expression trees and the remaining MATH1 routines are still
+compiler work.
+The complete `ACTION.DNP` includes all compiler passes, ACTEDIT, ACTDBG, and all
+tools. The capacity-limited D64 retains ACTC passes 0 through H, ALINK, resident
+`COPY`, and compact delete/directory/tree tools. The redundant `ACTCOPY.PRG`
+wrapper, project mutation, and larger tools are workspace-only; the D64 has zero
+blocks free.
+Empty-return, single-call, and fanout root programs use the same native object
+path; their former compact root-body templates are retired from ALINK.
+Simple integer equality, inequality, and all four unsigned ordered `IF`
+comparisons now use an ACTC-emitted `__if0` local export and named branch
+relocation; all six former ALINK templates are rejection-only.
+Simple equality `IF/ELSE` also uses compiler-emitted native code, with `__if0`
+for the else entry and `__if1` for the join; its former ALINK template is
+rejection-only and both branch outcomes have live VICE coverage.
+
+The focused documentation guards are:
+
+```sh
+python3 -m unittest discover -v -s udos/tests -p 'test_*docs.py'
+```
+
+## Filesystem State
+
+Current behavior contract:
+
+- `D64`, `D71`, and `D81` are flat images.
+- `DNP` is tree-capable.
+- tree commands on flat images must fail explicitly.
+- `TREE` has a first one-level resident scaffold that expands root child
+  directories, lists selected tree-capable directories, and rejects flat images.
+- `TREE` resolves the native `TREE.OVL` module from the parsed command token and
+  validates its `UDOV` header before recursive traversal, while
+  preserving the resident scaffold as fallback.
+- `XCOPY` resolves and validates `XCOPY.OVL`, then performs bounded recursive
+  merge-copy through path-scoped directory and file-copy Tool ABI services.
+- `DELTREE` resolves and validates `DELTREE.OVL`, then performs bounded
+  post-order removal through nested directory-remove and file-delete Tool ABI
+  services while protecting the current directory before mutation.
+- `COPY` and `DEL` support only the documented limited wildcard forms.
+- `REN` is same-directory behavior.
+- full recursive `TREE`, bounded recursive `XCOPY`, and bounded recursive
+  `DELTREE` are VICE-validated. Hardware/UCI overlay staging is implemented but
+  not hardware-validated; hardware Tool ABI mutations for nested enumeration,
+  directory creation, file copy/delete, and empty-directory removal are
+  implemented but not hardware-validated.
+- fixed external-tool file load/probe is implemented for hardware/UCI tree
+  files with bounded too-large semantics, but is not hardware-validated.
+- fixed external-tool file save is implemented for hardware/UCI tree files with
+  exact explicit-length writes and the bounded null-terminated compatibility
+  path used by `ACTWRITE`, but is not hardware-validated.
+- external-tool streamed write begin/chunk/close is implemented for
+  hardware/UCI tree files with exact binary lengths and persistent target-drive
+  state, but is not hardware-validated.
+- fixed external-tool file stage-to-REU is implemented for hardware/UCI tree
+  files with 24-bit capacity checks and exact final-count validation, but is
+  not hardware-validated.
+- VICE catalog enumeration streams the complete `UDOSDIR.TXT` rather than a
+  255-byte prefix while retaining a bounded six-entry snapshot; later
+  directories displace cached files so recursive traversal remains possible.
+- VICE-created data paths are lowercase physical host artifacts while logical
+  catalog records remain uppercase; catalog metadata is physically
+  `UDOSDIR.TXT`.
+
+Current linked memory boundary facts:
+
+- resident image end: `$AA45`
+- fixed Tool ABI preservation start: `$9800`
+- exclusive tool-callable safe end: `$9FCE`, leaving 50 bytes before `$A000`
+- resident-private REU bank: `$FF`
+- temporary low-resident/tool swap bank: `$FE`
+- bounded fixed-tool file-load bank: `$FD`
+- current `MEM` result: `REU USED 47872 FREE 16729344`
+
+VICE validates the tree-capable `DNP` path used by the current release workspace.
+Flat-image code paths exist for raw directory/file handling, but real hardware
+validation remains a separate requirement.
+
+## Hardware Boundary
+
+No real C64 Ultimate hardware validation has been completed from this
+environment. VICE validation is necessary, but it does not prove the
+`Hardware/UCI` column in `COMMAND_MATRIX.md` because VICE does not provide the
+Ultimate UCI block.
+
+Before changing any `Hardware/UCI` command status to `Yes`, run and record the
+matching sequence in `HARDWARE_VALIDATION.md` on real hardware.
+
+Known hardware-facing areas that remain unverified on target:
+
+- `MOUNT_DISK` image binding
+- `CHANGE_DIR` / `GET_PATH` synchronization
+- `OPEN_DIR` / `READ_DIR` tree enumeration
+- `OPEN_FILE` / `READ_DATA` / `CLOSE_FILE` file reads
+- fixed external-tool `svc_file_load_sc0` probe and bounded file loads
+- fixed external-tool `svc_file_save_sc0` create/overwrite and chunked writes
+- fixed external-tool streamed binary write begin/chunk/close
+- fixed external-tool `svc_file_stage_reu_sc0` UCI read-to-REU transfers
+- raw flat-image `FILE_SEEK` / `READ_DATA` traversal
+- raw flat-image `WRITE_DATA` mutation paths
+- `DELETE_FILE`, `RENAME_FILE`, and `COPY_FILE` tree mutation paths
+- implicit program-image loads through the hardware backend
+- direct-PRG and native `UDOV` tree-file staging through repeated `READ_DATA`
+  transfers into REU
+- recursive overlay Tool ABI behavior and return to the resident shell
+
+## ActionC64U Resume Point
+
+Resume ActionC64U work in the sibling repo:
+
 - [actionc64u](../actionc64u)
 
-Preserved Action repo state at pivot:
-- linker/runtime bootstrap work already present
-- older interpreter-first direction preserved as historical context
-- open items remained around:
-  - runtime file services
-  - tool/runtime split
-  - reducing reliance on oversized C on-target tools
+The active Action direction is not VM/interpreter execution. Continue widening
+the direct object/link path:
 
-## Next Concrete Step
+- keep `ACTC.PRG` emitting `.OBJ` records for `ALINK.PRG`
+- keep `ALINK.PRG` producing direct `BIN/<MODULE>.PRG` output
+- keep optional library/runtime helper families selected only when referenced
+- keep final linked programs runnable without any separate runtime runner
+- keep the direct-PRG matrix green as new object-code and helper-family cases are added
 
-Keep UDOS on the standalone path, hardware-validate the new `MOUNT_DISK` and
-program-image load paths, then continue replacing descriptor-backed metadata
-with real image-backed services before resuming the Action Development System
-tools against that resident ABI.
+High-value next Action work:
+
+- widen ACTC source coverage and object emission
+- continue ALINK object closure and helper selection edge cases
+- keep large ACTC and ALINK lookup payloads moving into REU-backed storage
+- add remaining library/runtime helper families through link-selected `.OBJ` modules
+- keep root `make test` and the focused UDOS VICE gates green after each slice
+
+## Safe Handoff Checklist
+
+Before moving to a new machine or handing off to another session:
+
+1. Run `make clean` from the workspace root.
+2. Confirm no generated `build`, `__pycache__`, or `.pytest_cache` trees remain.
+3. Check `git -C actionc64u status --short` and `git -C udos status --short`.
+4. Run cached and unstaged whitespace checks:
+
+```sh
+git -C actionc64u diff --check --cached
+git -C udos diff --check --cached
+git -C actionc64u diff --check
+git -C udos diff --check
+```
+
+5. Archive the whole `~/action` tree, including hidden files and nested `.git`
+   directories, if preserving staged work without committing.
