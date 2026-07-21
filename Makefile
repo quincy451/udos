@@ -180,6 +180,8 @@ ACTION_ACTC_ALINK_OBJECT_EMISSION_SHAPES := \
 	actc_real_function_two_real_params_linked \
 	actc_real_function_two_real_params_second_return_linked \
 	actc_real_function_binary_hypot_linked \
+	actc_real_postfix_nested_binary_linked \
+	actc_real_postfix_nested_clamp_linked \
 	actc_real_function_finite_min_linked \
 	actc_real_function_finite_min_permuted_linked \
 	actc_asmblock_symbol_byte_relocations_linked \
@@ -1397,6 +1399,7 @@ ACTC_OVERLAY_NATIVE_RUNTIME_SEQUENCE_EMIT_BUILD := $(ACTIONC64U_DIR)/tools/build
 ACTC_OVERLAY_NATIVE_RUNTIME_NESTED_EMIT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_emit_native_runtime_nested_object.sh
 ACTC_OVERLAY_NATIVE_LOCAL_RUNTIME_EMIT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_emit_native_local_runtime_object.sh
 ACTC_OVERLAY_NATIVE_LOCAL_MIXED_EMIT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_emit_native_local_mixed_object.sh
+ACTC_OVERLAY_NATIVE_REAL_POSTFIX_EMIT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_emit_native_real_postfix_object.sh
 ACTC_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTC.PRG
 ACTC_OVERLAY_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL0.BIN
 ACTC_OVERLAY_SOURCE_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL1.BIN
@@ -1416,6 +1419,7 @@ ACTC_OVERLAY_NATIVE_RUNTIME_SEQUENCE_EMIT_BIN := $(ACTIONC64U_DIR)/build/udos_to
 ACTC_OVERLAY_NATIVE_RUNTIME_NESTED_EMIT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVLF.BIN
 ACTC_OVERLAY_NATIVE_LOCAL_RUNTIME_EMIT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVLG.BIN
 ACTC_OVERLAY_NATIVE_LOCAL_MIXED_EMIT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVLH.BIN
+ACTC_OVERLAY_NATIVE_REAL_POSTFIX_EMIT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVLL.BIN
 ACTADD_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTADD.PRG
 ACT2SAVE_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACT2SAVE.PRG
 ALINK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ALINK.PRG
@@ -1544,6 +1548,7 @@ release:
 	bash $(ACTC_OVERLAY_NATIVE_RUNTIME_NESTED_EMIT_BUILD)
 	bash $(ACTC_OVERLAY_NATIVE_LOCAL_RUNTIME_EMIT_BUILD)
 	bash $(ACTC_OVERLAY_NATIVE_LOCAL_MIXED_EMIT_BUILD)
+	bash $(ACTC_OVERLAY_NATIVE_REAL_POSTFIX_EMIT_BUILD)
 	bash $(ACTADD_UDOS_BUILD)
 	bash $(ACT2SAVE_UDOS_BUILD)
 	bash $(ALINK_UDOS_BUILD)

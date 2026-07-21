@@ -50171,6 +50171,116 @@ DIRECT_PRG_CASES["actc_real_function_finite_min_permuted_linked"] = {
     ],
 }
 
+DIRECT_PRG_CASES["actc_real_postfix_nested_binary_linked"] = {
+    "source": (
+        "MODULE MAIN\r"
+        "REAL A\r"
+        "REAL B\r"
+        "REAL C\r"
+        "REAL X\r"
+        "PROC MAIN()\r"
+        "A=REAL(1)\r"
+        "B=REAL(2)\r"
+        "C=REAL(3)\r"
+        "X=FMin(FMax(A,B),C)\r"
+        "PrintRE(X)\r"
+        "RETURN\r"
+    ),
+    "has_stub": False,
+    "runtime_library_objects": [
+        "rt_i_to_f",
+        "rt_f_max",
+        "rt_f_min",
+        "rt_f_cmp",
+        "rt_f_special",
+        "rt_print_f",
+        "rt_f_abs",
+        "rt_f_sqrt",
+        "rt_f_clamp",
+    ],
+    "expected_object_fragments": [
+        "x main 0 206\nx __idata 170 16\nx __rv0 170 4\nx __rv1 174 4\n"
+        "x __rv2 178 4\nx __rv3 182 4\n",
+        "x __rt0 186 4\nx __rt1 190 4\nx __rt2 194 4\n"
+        "x __rt3 198 4\nx __rt4 202 4\n",
+        "b u0u1u2u3M\n",
+        "r 95 l x __rt3\nr 99 h x __rt3\nr 103 u1\n",
+        "r 122 l x __rt4\nr 126 h x __rt4\nr 130 u2\n",
+        "u rt_i_to_f\nu rt_f_max\nu rt_f_min\nu rt_print_f\n",
+    ],
+    "expected_tail_from_compiled_object": True,
+    "screen_fragments": ["2"],
+    "expected_alink_loads": [
+        "LIB/RT_I_TO_F.OBJ",
+        "LIB/RT_F_MAX.OBJ",
+        "LIB/RT_F_CMP.OBJ",
+        "LIB/RT_F_SPECIAL.OBJ",
+        "LIB/RT_F_MIN.OBJ",
+        "LIB/RT_PRINT_F.OBJ",
+    ],
+    "unexpected_alink_loads": [
+        "LIB/RT_F_ABS.OBJ",
+        "LIB/RT_F_SQRT.OBJ",
+        "LIB/RT_F_CLAMP.OBJ",
+    ],
+}
+
+DIRECT_PRG_CASES["actc_real_postfix_nested_clamp_linked"] = {
+    "source": (
+        "MODULE MAIN\r"
+        "REAL A\r"
+        "REAL B\r"
+        "REAL C\r"
+        "REAL X\r"
+        "PROC MAIN()\r"
+        "A=REAL(1)\r"
+        "B=REAL(2)\r"
+        "C=REAL(3)\r"
+        "X=FClamp(FAbs(A),FMin(B,C),FMax(A,C))\r"
+        "PrintRE(X)\r"
+        "RETURN\r"
+    ),
+    "has_stub": False,
+    "runtime_library_objects": [
+        "rt_i_to_f",
+        "rt_f_abs",
+        "rt_f_min",
+        "rt_f_max",
+        "rt_f_clamp",
+        "rt_f_cmp",
+        "rt_f_special",
+        "rt_print_f",
+        "rt_f_sqrt",
+        "rt_f_sign",
+    ],
+    "expected_object_fragments": [
+        "x main 0 268\nx __idata 224 16\nx __rv0 224 4\nx __rv1 228 4\n"
+        "x __rv2 232 4\nx __rv3 236 4\n",
+        "x __rt3 252 4\nx __rt4 256 4\nx __rt5 260 4\nx __rt6 264 4\n",
+        "b u0u1u2u3u4u5M\n",
+        "r 168 l x __rt5\nr 172 h x __rt5\n"
+        "r 176 l x __rt6\nr 180 h x __rt6\nr 184 u4\n",
+        "u rt_i_to_f\nu rt_f_abs\nu rt_f_min\nu rt_f_max\n"
+        "u rt_f_clamp\nu rt_print_f\n",
+    ],
+    "expected_tail_from_compiled_object": True,
+    "screen_fragments": ["2"],
+    "expected_alink_loads": [
+        "LIB/RT_I_TO_F.OBJ",
+        "LIB/RT_F_ABS.OBJ",
+        "LIB/RT_F_MIN.OBJ",
+        "LIB/RT_F_CMP.OBJ",
+        "LIB/RT_F_SPECIAL.OBJ",
+        "LIB/RT_F_MAX.OBJ",
+        "LIB/RT_F_CLAMP.OBJ",
+        "LIB/RT_PRINT_F.OBJ",
+    ],
+    "unexpected_alink_loads": [
+        "LIB/RT_F_SQRT.OBJ",
+        "LIB/RT_F_SIGN.OBJ",
+    ],
+}
+
 DIRECT_PRG_CASES["actc_asmblock_symbol_byte_relocations_linked"] = {
     "source": (
         "MODULE MAIN\r"

@@ -66,8 +66,8 @@ class MilestoneHandoffDocsTests(unittest.TestCase):
         ):
             self.assertIn(gate, handoff)
 
-        self.assertIn("1342 shapes", handoff)
-        self.assertIn("174 shapes", handoff)
+        self.assertIn("1344 shapes", handoff)
+        self.assertIn("176 shapes", handoff)
         self.assertIn("298 complex compiled-runtime cases", handoff)
         self.assertIn("RT_F_SIGN.OBJ", handoff)
         self.assertIn("RT_F_MIN.OBJ", handoff)
