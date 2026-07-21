@@ -185,7 +185,7 @@ Separate VICE smoke targets:
 - `make vice-action-alink-prg-matrix`
   - rebuilds the release Action workspace and runs every direct-PRG probe shape
     from `tools/run_action_alink_prg_probe.py`
-  - currently enumerates 1346 object/link shapes
+  - currently enumerates 1347 object/link shapes
   - validates object-code graph closure, runtime helper link selection,
     rejection cases, and seeded direct-object input-helper dependency closure
   - plain word store and load/store probes now use native machine-code OBJ
@@ -209,7 +209,7 @@ Separate VICE smoke targets:
 - `make vice-action-actc-alink-launch-object-emission-matrix`
   - rebuilds the release Action workspace and runs every source-backed
     ACTC -> ALINK -> direct PRG launch probe shape
-  - currently enumerates all 178 non-runtime, non-object-code source-backed
+  - currently enumerates all 179 non-runtime, non-object-code source-backed
     object-emission shapes from `tools/run_action_alink_prg_probe.py`
   - validates helper-free source, local/external calls, integer control flow,
     word stores, real arithmetic/printing, and real control-flow lowering

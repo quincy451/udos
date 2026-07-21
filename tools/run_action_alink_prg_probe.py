@@ -32,9 +32,9 @@ DIRECT_PRG_STUB_SIZE = 32
 INITIAL_SETTLE = 3.0
 ALINK_PHASE_TIMEOUT = 60.0
 PRG_PHASE_TIMEOUT = 8.0
-# Exact-print plus REAL division closure measures 26.5M emulated instructions.
+# The debug-rich two-function REAL case measures 83.2M emulated instructions.
 # Keep deterministic host-verification headroom without changing target behavior.
-TOOL_ABI_HARNESS_MAX_STEPS = 60_000_000
+TOOL_ABI_HARNESS_MAX_STEPS = 120_000_000
 DIRECT_PRG_EXIT_MARKER_ADDR = 0x03D0
 DIRECT_PRG_EXIT_MARKER_VALUE = 0xA5
 DBF_FIXTURE_NAME_ADDR = 0x3000
@@ -50418,6 +50418,84 @@ DIRECT_PRG_CASES["actc_real_function_local_nested_postfix_linked"] = {
         {"addr": 0x1107, "value": 0x00},
         {"addr": 0x1108, "value": 0x40},
         {"addr": 0x1109, "value": 0x40},
+    ],
+    "expected_alink_loads": list(
+        DIRECT_PRG_CASES["actc_real_function_nested_postfix_linked"][
+            "expected_alink_loads"
+        ]
+    ),
+    "unexpected_alink_loads": list(
+        DIRECT_PRG_CASES["actc_real_function_nested_postfix_linked"][
+            "unexpected_alink_loads"
+        ]
+    ),
+}
+
+DIRECT_PRG_CASES["actc_real_two_function_nested_postfix_linked"] = {
+    "source": (
+        "MODULE MAIN\r"
+        "REAL LEFT\r"
+        "REAL RIGHT\r"
+        "REAL LONGRESULT\r"
+        "REAL SHORTRESULT\r"
+        "REAL FUNC LENGTH(REAL A,B)\r"
+        "REAL ABSLEFT\r"
+        "ABSLEFT=FAbs(A)\r"
+        "RETURN(FHypot(ABSLEFT,FAbs(B)))\r"
+        "REAL FUNC SHORTER(REAL A,B)\r"
+        "REAL ABSRIGHT\r"
+        "ABSRIGHT=FAbs(B)\r"
+        "RETURN(FMin(FAbs(A),ABSRIGHT))\r"
+        "PROC MAIN()\r"
+        "LEFT=REAL(3)\r"
+        "RIGHT=REAL(4)\r"
+        "LONGRESULT=LENGTH(LEFT,RIGHT)\r"
+        "SHORTRESULT=SHORTER(LEFT,RIGHT)\r"
+        "PrintRE(LONGRESULT)\r"
+        "PrintRE(SHORTRESULT)\r"
+        "RETURN\r"
+    ),
+    "has_stub": False,
+    "runtime_library_objects": list(
+        DIRECT_PRG_CASES["actc_real_function_nested_postfix_linked"][
+            "runtime_library_objects"
+        ]
+    ),
+    "expected_object_fragments": [
+        "q 0 0 6 11\nq 1 0 10 11\nq 2 0 14 6\n",
+        "V l r 0 6 0 7 6\nV p r 1 7 0 10 24\n"
+        "V p r 1 8 0 10 26\nV l r 1 9 0 11 6\n",
+        "x main 0 496\nx length 170 123\nx shorter 293 123\n"
+        "x __idata 416 40\n",
+        "b u0u1u2u3u4M\nb u0u1u2u3u4M\nb u0u1u2u3u4M\n",
+        "r 65 x length\n",
+        "r 105 x shorter\n",
+        "r 186 x __rv5\nr 202 x __rv4\n",
+        "r 309 x __rv8\nr 325 x __rv7\n",
+        "r 401 l x __rt9\nr 405 h x __rt9\nr 409 u2\n",
+        "u rt_f_abs\nu rt_f_hypot\nu rt_f_min\n"
+        "u rt_i_to_f\nu rt_print_f\n",
+    ],
+    "expected_tail_from_compiled_object": True,
+    "screen_fragments": ["5", "3"],
+    "store_check_addr": 0x11A8,
+    "store_check_value": 0x00,
+    "extra_store_checks": [
+        {"addr": 0x11A9, "value": 0x00},
+        {"addr": 0x11AA, "value": 0xA0},
+        {"addr": 0x11AB, "value": 0x40},
+        {"addr": 0x11AC, "value": 0x00},
+        {"addr": 0x11AD, "value": 0x00},
+        {"addr": 0x11AE, "value": 0x40},
+        {"addr": 0x11AF, "value": 0x40},
+        {"addr": 0x11B8, "value": 0x00},
+        {"addr": 0x11B9, "value": 0x00},
+        {"addr": 0x11BA, "value": 0x40},
+        {"addr": 0x11BB, "value": 0x40},
+        {"addr": 0x11C4, "value": 0x00},
+        {"addr": 0x11C5, "value": 0x00},
+        {"addr": 0x11C6, "value": 0x80},
+        {"addr": 0x11C7, "value": 0x40},
     ],
     "expected_alink_loads": list(
         DIRECT_PRG_CASES["actc_real_function_nested_postfix_linked"][

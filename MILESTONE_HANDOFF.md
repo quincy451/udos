@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1346 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 178 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1347 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 179 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
@@ -88,6 +88,14 @@ The follow-up `real_function_local_nested_postfix.act` shape adds bounded REAL
 local storage to that same nonrecursive function path. Its direct PRG prints
 `5`, stores binary32 `5.0` in the module result, and stores binary32 `3.0` in
 the function local while retaining the same selected helper closure.
+
+The latest `real_two_function_nested_postfix.act` shape expands that bounded
+path to two independent nonrecursive two-REAL-parameter functions called by
+`MAIN`. Native ACTC emits disjoint parameter/local storage and DBG1 procedure
+banks; ALINK links the ordinary `length` and `shorter` exports, and VICE checks
+printed values `5` and `3`, both result cells, and both function locals. The
+ALINK harness ceiling is 120 million emulated instructions because this
+debug-rich three-export object completes in roughly 83 million instructions.
 
 The current matrix includes source-backed dynamic integer multiplication and
 division, assignment/store/readback, divide-by-zero, missing-helper, and stack
