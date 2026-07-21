@@ -185,7 +185,7 @@ Separate VICE smoke targets:
 - `make vice-action-alink-prg-matrix`
   - rebuilds the release Action workspace and runs every direct-PRG probe shape
     from `tools/run_action_alink_prg_probe.py`
-  - currently enumerates 1338 object/link shapes
+  - currently enumerates 1339 object/link shapes
   - validates object-code graph closure, runtime helper link selection,
     rejection cases, and seeded direct-object input-helper dependency closure
   - plain word store and load/store probes now use native machine-code OBJ

@@ -72,7 +72,7 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1338 shapes and
+Current status docs report the broad ALINK direct-PRG matrix at 1339 shapes and
 the non-runtime source-backed ACTC object-emission matrix at 173 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
@@ -103,7 +103,7 @@ live VICE execution.
 Passes `ACTC_OVLC.BIN` through `ACTC_OVLF.BIN` now emit machine OBJ for REAL
 WHILE, runtime conditions, runtime sequences, and nested readbacks. All 102
 seeded runtime fixtures are machine objects, 194 runtime sequences retain
-static exact-byte coverage, and 295 complex compiled-runtime cases use an
+static exact-byte coverage, and 296 complex compiled-runtime cases use an
 independent object parser/relocator oracle. ALINK has no abstract-body compiler
 or runtime synthesis queues and is now 13,806 bytes.
 Integer `EXIT` statements in DO, WHILE, and FOR loops lower to ordinary named
@@ -194,10 +194,14 @@ the same bit patterns, and rounds finite nonintegers toward positive infinity.
 The 152-byte `RT_F_ROUND.OBJ` helper imports only truncation, rounds nearest
 with halfway cases away from zero, and preserves large integral binary32 values
 without adding or subtracting 0.5.
+The 93-byte `RT_F_FRAC.OBJ` helper imports truncation and subtraction, computes
+the signed fractional part as `value-FTrunc(value)`, and remains safe when its
+source and destination alias.
 Focused ACTC -> ALINK -> direct-PRG launches select only conversion,
-truncation/floor/ceiling/rounding, and REAL printing while proving sibling REAL
-helpers remain absent. Pass 6 is 8,074 bytes with 118 bytes free under its
-enforced 96-byte reserve. General REAL expression trees and the remaining 31
+truncation/floor/ceiling/rounding/fractional-part dependencies, and REAL printing
+while proving sibling REAL helpers remain absent. Pass 6 is
+8,085 bytes with 107 bytes free under its enforced 96-byte reserve. General REAL expression
+trees and the remaining 30
 MATH1 routines are
 still compiler work.
 The complete `ACTION.DNP` includes all compiler passes, ACTEDIT, ACTDBG, and all

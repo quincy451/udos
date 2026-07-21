@@ -827,6 +827,7 @@ ACTION_ACTC_ALINK_MATH_RUNTIME_SHAPES := \
 	actc_runtime_math1_ffloor_split_linked \
 	actc_runtime_math1_fceil_split_linked \
 	actc_runtime_math1_fround_split_linked \
+	actc_runtime_math1_ffrac_split_linked \
 	actc_runtime_math1_fmin_split_linked \
 	actc_runtime_math1_fmax_split_linked \
 	actc_runtime_math1_fclamp_split_linked \
