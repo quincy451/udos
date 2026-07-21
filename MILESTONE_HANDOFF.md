@@ -72,7 +72,7 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1340 shapes and
+Current status docs report the broad ALINK direct-PRG matrix at 1341 shapes and
 the non-runtime source-backed ACTC object-emission matrix at 173 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
@@ -103,9 +103,12 @@ live VICE execution.
 Passes `ACTC_OVLC.BIN` through `ACTC_OVLF.BIN` now emit machine OBJ for REAL
 WHILE, runtime conditions, runtime sequences, and nested readbacks. All 102
 seeded runtime fixtures are machine objects, 194 runtime sequences retain
-static exact-byte coverage, and 297 complex compiled-runtime cases use an
+static exact-byte coverage, and 298 complex compiled-runtime cases use an
 independent object parser/relocator oracle. ALINK has no abstract-body compiler
 or runtime synthesis queues and is now 13,806 bytes.
+ALINK also stabilizes each paged object body selector before recursive import
+lookups can reload the source window; an 11-import regression crosses that
+boundary with the exported body beyond offset 512.
 Integer `EXIT` statements in DO, WHILE, and FOR loops lower to ordinary named
 machine-code relocations; live coverage includes an inner-FOR exit that leaves
 the outer loop active and a plain infinite `DO ... OD` that can terminate only
@@ -202,11 +205,16 @@ multiplication, and subtraction, computes
 `value-FTrunc(value/divisor)*divisor`, and remains safe when either source
 aliases its destination. Invalid inputs return canonical quiet NaN; a finite
 value with an infinite divisor is preserved exactly.
+The 503-byte `RT_F_HYPOT.OBJ` helper is also safe when either source aliases
+its destination. Its scaled maximum/minimum calculation imports absolute
+value, minimum, maximum, division, multiplication, addition, and square root,
+avoids avoidable intermediate overflow and underflow, returns positive zero
+for two zero inputs, and gives infinity precedence when paired with NaN.
 Focused ACTC -> ALINK -> direct-PRG launches select only conversion,
-truncation/floor/ceiling/rounding/fractional-part/remainder dependencies, and REAL printing
+truncation/floor/ceiling/rounding/fractional-part/remainder/hypotenuse dependencies, and REAL printing
 while proving sibling REAL helpers remain absent. Pass 6 is
-8,094 bytes with 98 bytes free under its enforced 96-byte reserve. General REAL expression
-trees and the remaining 29
+8,093 bytes with 99 bytes free under its enforced 96-byte reserve. General REAL expression
+trees and the remaining 28
 MATH1 routines are
 still compiler work.
 The complete `ACTION.DNP` includes all compiler passes, ACTEDIT, ACTDBG, and all

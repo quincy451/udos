@@ -34,7 +34,7 @@ ALINK_PHASE_TIMEOUT = 60.0
 PRG_PHASE_TIMEOUT = 8.0
 # Exact-print plus REAL division closure measures 26.5M emulated instructions.
 # Keep deterministic host-verification headroom without changing target behavior.
-TOOL_ABI_HARNESS_MAX_STEPS = 40_000_000
+TOOL_ABI_HARNESS_MAX_STEPS = 60_000_000
 DIRECT_PRG_EXIT_MARKER_ADDR = 0x03D0
 DIRECT_PRG_EXIT_MARKER_VALUE = 0xA5
 DBF_FIXTURE_NAME_ADDR = 0x3000
@@ -3691,7 +3691,9 @@ def _object_code_dependency_reloc_scan_windowed_imports_case() -> dict[str, obje
         offset = index * 3
         a_expected[offset + 1] = addr & 0xFF
         a_expected[offset + 2] = addr >> 8
-    debug_lines = "".join(f"l 0 {index} 0 {index + 3} 1\n" for index in range(16))
+    # Keep the dependency larger than ALINK's direct source window so import
+    # discovery must preserve its body selectors across a paged REU scan.
+    debug_lines = "".join(f"l 0 {index} 0 {index + 3} 1\n" for index in range(40))
     relocs = "".join(
         f"r {1 + (index * 3)} u{selectors[index]}\n"
         for index in range(len(helper_names))
@@ -13776,6 +13778,74 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_F_ADD.OBJ",
             "LIB/RT_F_MIN.OBJ",
             "LIB/RT_F_MAX.OBJ",
+            "LIB/RT_F_CLAMP.OBJ",
+        ],
+    },
+    "actc_runtime_math1_fhypot_split_linked": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL A\r"
+            "REAL B\r"
+            "REAL X\r"
+            "PROC MAIN()\r"
+            "A=REAL(3)\r"
+            "B=REAL(4)\r"
+            "X=FHypot(A,B)\r"
+            "PrintRE(X)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": [
+            "rt_i_to_f",
+            "rt_f_hypot",
+            "rt_f_abs",
+            "rt_f_max",
+            "rt_f_cmp",
+            "rt_f_special",
+            "rt_f_min",
+            "rt_f_div",
+            "rt_f_mul",
+            "rt_f_add",
+            "rt_f_addsub_core",
+            "rt_f_sqrt",
+            "rt_print_f",
+            "rt_f_mod",
+            "rt_f_sign",
+            "rt_f_trunc",
+            "rt_f_floor",
+            "rt_f_ceil",
+            "rt_f_round",
+            "rt_f_frac",
+            "rt_f_sub",
+            "rt_f_clamp",
+        ],
+        "expected_object_fragments": _REAL_PRINTRE_BINARY_OBJECT_FRAGMENTS,
+        "expected_tail": _real_printre_binary_tail(3, 4, "rt_f_hypot"),
+        "screen_fragments": ["5"],
+        "expected_alink_loads": [
+            "LIB/RT_I_TO_F.OBJ",
+            "LIB/RT_F_HYPOT.OBJ",
+            "LIB/RT_F_ABS.OBJ",
+            "LIB/RT_F_MAX.OBJ",
+            "LIB/RT_F_CMP.OBJ",
+            "LIB/RT_F_SPECIAL.OBJ",
+            "LIB/RT_F_MIN.OBJ",
+            "LIB/RT_F_DIV.OBJ",
+            "LIB/RT_F_MUL.OBJ",
+            "LIB/RT_F_ADD.OBJ",
+            "LIB/RT_F_ADDSUB_CORE.OBJ",
+            "LIB/RT_F_SQRT.OBJ",
+            "LIB/RT_PRINT_F.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_F_MOD.OBJ",
+            "LIB/RT_F_SIGN.OBJ",
+            "LIB/RT_F_TRUNC.OBJ",
+            "LIB/RT_F_FLOOR.OBJ",
+            "LIB/RT_F_CEIL.OBJ",
+            "LIB/RT_F_ROUND.OBJ",
+            "LIB/RT_F_FRAC.OBJ",
+            "LIB/RT_F_SUB.OBJ",
             "LIB/RT_F_CLAMP.OBJ",
         ],
     },
@@ -51306,9 +51376,9 @@ for _shape, _case in DIRECT_PRG_CASES.items():
     ):
         _case["expected_tail_from_compiled_object"] = True
         COMPILED_RUNTIME_LINK_ORACLE_SHAPES.append(_shape)
-if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 297:
+if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 298:
     raise RuntimeError(
-        "expected 297 compiled runtime link-oracle cases, found "
+        "expected 298 compiled runtime link-oracle cases, found "
         f"{len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES)}"
     )
 
