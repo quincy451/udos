@@ -9526,6 +9526,10 @@ def _real_printre_fceil_tail(value: int) -> bytes:
     return _real_printre_unary_tail(value, "rt_i_to_f", "rt_f_ceil")
 
 
+def _real_printre_fround_tail(value: int) -> bytes:
+    return _real_printre_unary_tail(value, "rt_i_to_f", "rt_f_round")
+
+
 _REAL_PRINTRE_UNARY_OBJECT_FRAGMENTS = [
     "x main 0 93\n"
     "x __idata 81 8\n"
@@ -13602,6 +13606,52 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_F_ABS.OBJ",
             "LIB/RT_F_SQRT.OBJ",
             "LIB/RT_F_SIGN.OBJ",
+            "LIB/RT_F_MIN.OBJ",
+            "LIB/RT_F_MAX.OBJ",
+            "LIB/RT_F_CLAMP.OBJ",
+        ],
+    },
+    "actc_runtime_math1_fround_split_linked": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL A\r"
+            "REAL X\r"
+            "PROC MAIN()\r"
+            "A=REAL(7)\r"
+            "X=FRound(A)\r"
+            "PrintRE(X)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": [
+            "rt_i_to_f",
+            "rt_f_round",
+            "rt_f_trunc",
+            "rt_print_f",
+            "rt_f_abs",
+            "rt_f_sqrt",
+            "rt_f_sign",
+            "rt_f_floor",
+            "rt_f_ceil",
+            "rt_f_min",
+            "rt_f_max",
+            "rt_f_clamp",
+        ],
+        "expected_object_fragments": _REAL_PRINTRE_UNARY_OBJECT_FRAGMENTS,
+        "expected_tail": _real_printre_fround_tail(7),
+        "screen_fragments": ["7"],
+        "expected_alink_loads": [
+            "LIB/RT_I_TO_F.OBJ",
+            "LIB/RT_F_ROUND.OBJ",
+            "LIB/RT_F_TRUNC.OBJ",
+            "LIB/RT_PRINT_F.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_F_ABS.OBJ",
+            "LIB/RT_F_SQRT.OBJ",
+            "LIB/RT_F_SIGN.OBJ",
+            "LIB/RT_F_FLOOR.OBJ",
+            "LIB/RT_F_CEIL.OBJ",
             "LIB/RT_F_MIN.OBJ",
             "LIB/RT_F_MAX.OBJ",
             "LIB/RT_F_CLAMP.OBJ",
@@ -51134,9 +51184,9 @@ for _shape, _case in DIRECT_PRG_CASES.items():
     ):
         _case["expected_tail_from_compiled_object"] = True
         COMPILED_RUNTIME_LINK_ORACLE_SHAPES.append(_shape)
-if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 294:
+if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 295:
     raise RuntimeError(
-        "expected 294 compiled runtime link-oracle cases, found "
+        "expected 295 compiled runtime link-oracle cases, found "
         f"{len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES)}"
     )
 

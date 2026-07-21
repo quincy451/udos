@@ -72,7 +72,7 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1337 shapes and
+Current status docs report the broad ALINK direct-PRG matrix at 1338 shapes and
 the non-runtime source-backed ACTC object-emission matrix at 173 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
@@ -103,7 +103,7 @@ live VICE execution.
 Passes `ACTC_OVLC.BIN` through `ACTC_OVLF.BIN` now emit machine OBJ for REAL
 WHILE, runtime conditions, runtime sequences, and nested readbacks. All 102
 seeded runtime fixtures are machine objects, 194 runtime sequences retain
-static exact-byte coverage, and 294 complex compiled-runtime cases use an
+static exact-byte coverage, and 295 complex compiled-runtime cases use an
 independent object parser/relocator oracle. ALINK has no abstract-body compiler
 or runtime synthesis queues and is now 13,806 bytes.
 Integer `EXIT` statements in DO, WHILE, and FOR loops lower to ordinary named
@@ -184,18 +184,21 @@ permuted without changing the fixed statement skeleton. `RT_F_CLAMP.OBJ`
 selects comparison, minimum, and maximum only when reachable, canonicalizes
 invalid clamp inputs, and preserves valid selected operands. Pass K is 4,594
 bytes with 3,598 bytes free. Native unary lowering now also recognizes
-`FTrunc(A)`, `FFloor(A)`, and `FCeil(A)`. Truncation imports dependency-free
+`FTrunc(A)`, `FFloor(A)`, `FCeil(A)`, and `FRound(A)`. Truncation imports dependency-free
 `RT_F_TRUNC.OBJ`; floor imports `RT_F_FLOOR.OBJ` plus that truncation dependency
 transitively. The 107-byte truncation helper preserves infinities, NaN payloads,
 signed zero, and integral values. The 135-byte floor helper rounds finite
 nonintegers toward negative infinity while preserving those same bit patterns.
 The 42-byte `RT_F_CEIL.OBJ` helper imports floor and transitively truncation, preserves
 the same bit patterns, and rounds finite nonintegers toward positive infinity.
+The 152-byte `RT_F_ROUND.OBJ` helper imports only truncation, rounds nearest
+with halfway cases away from zero, and preserves large integral binary32 values
+without adding or subtracting 0.5.
 Focused ACTC -> ALINK -> direct-PRG launches select only conversion,
-truncation/floor/ceiling, and REAL printing while proving sibling REAL helpers
-remain absent. Compact unary dispatch reduces pass 6 to
-8,062 bytes with 130 bytes free under its enforced 96-byte reserve. General REAL expression trees
-and the remaining 32 MATH1 routines are
+truncation/floor/ceiling/rounding, and REAL printing while proving sibling REAL
+helpers remain absent. Pass 6 is 8,074 bytes with 118 bytes free under its
+enforced 96-byte reserve. General REAL expression trees and the remaining 31
+MATH1 routines are
 still compiler work.
 The complete `ACTION.DNP` includes all compiler passes, ACTEDIT, ACTDBG, and all
 tools. The capacity-limited D64 retains ACTC passes 0 through H, ALINK, resident
