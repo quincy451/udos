@@ -66,9 +66,9 @@ class MilestoneHandoffDocsTests(unittest.TestCase):
         ):
             self.assertIn(gate, handoff)
 
-        self.assertIn("1339 shapes", handoff)
+        self.assertIn("1340 shapes", handoff)
         self.assertIn("173 shapes", handoff)
-        self.assertIn("296 complex compiled-runtime cases", handoff)
+        self.assertIn("297 complex compiled-runtime cases", handoff)
         self.assertIn("RT_F_SIGN.OBJ", handoff)
         self.assertIn("RT_F_MIN.OBJ", handoff)
         self.assertIn("RT_F_MAX.OBJ", handoff)
@@ -78,8 +78,9 @@ class MilestoneHandoffDocsTests(unittest.TestCase):
         self.assertIn("RT_F_CEIL.OBJ", handoff)
         self.assertIn("RT_F_ROUND.OBJ", handoff)
         self.assertIn("RT_F_FRAC.OBJ", handoff)
-        self.assertIn("8,085 bytes with 107 bytes free", handoff)
-        self.assertIn("remaining 30", handoff)
+        self.assertIn("RT_F_MOD.OBJ", handoff)
+        self.assertIn("8,094 bytes with 98 bytes free", handoff)
+        self.assertIn("remaining 29", handoff)
         self.assertIn("8,065-byte image leaves 639", handoff)
         self.assertIn("7,110-byte image leaves 1,594", handoff)
         self.assertIn("ACTC_OVLH.BIN", handoff)
