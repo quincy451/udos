@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1348 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 180 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1349 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 181 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
@@ -96,6 +96,16 @@ banks; ALINK links the ordinary `length` and `shorter` exports, and VICE checks
 printed values `5` and `3`, both result cells, and both function locals. The
 ALINK harness ceiling is 120 million emulated instructions because this
 debug-rich three-export object completes in roughly 83 million instructions.
+
+`real_function_call_chain_postfix.act` adds a declaration-order
+`MAIN -> CHAIN -> LENGTH` edge through ordinary OBJ1 export relocations. The
+follow-up `real_function_nested_local_call_postfix.act` removes the intermediate
+source local and returns `FMax(LENGTH(A,B),FAbs(A))`. Its direct PRG prints `5`,
+stores binary32 `5.0` in the module result and nested-call temporary, and loads
+only the `FAbs`/`FHypot`/`FMax` closure. Pass 7 recognizes `LENGTH` as a local
+function while traversing the intrinsic tree, so no unresolved `fmax` import is
+introduced. Pass 7 is 6,678 bytes with 1,514 bytes free in its 8 KiB window.
+Forward, self, and cyclic static-frame edges remain hard errors.
 
 The current matrix includes source-backed dynamic integer multiplication and
 division, assignment/store/readback, divide-by-zero, missing-helper, and stack
@@ -237,7 +247,7 @@ for two zero inputs, and gives infinity precedence when paired with NaN.
 Focused ACTC -> ALINK -> direct-PRG launches select only conversion,
 truncation/floor/ceiling/rounding/fractional-part/remainder/hypotenuse dependencies, and REAL printing
 while proving sibling REAL helpers remain absent. Pass 6 is
-8,093 bytes with 99 bytes free under its enforced 96-byte reserve. General REAL expression
+8,094 bytes with 98 bytes free under its enforced 96-byte reserve. General REAL expression
 trees and the remaining 28
 MATH1 routines are
 still compiler work.
