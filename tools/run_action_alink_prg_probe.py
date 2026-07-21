@@ -50509,6 +50509,68 @@ DIRECT_PRG_CASES["actc_real_two_function_nested_postfix_linked"] = {
     ),
 }
 
+DIRECT_PRG_CASES["actc_real_function_call_chain_postfix_linked"] = {
+    "source": (
+        "MODULE MAIN\r"
+        "REAL LEFT\r"
+        "REAL RIGHT\r"
+        "REAL RESULT\r"
+        "REAL FUNC LENGTH(REAL A,B)\r"
+        "RETURN(FHypot(FAbs(A),FAbs(B)))\r"
+        "REAL FUNC CHAIN(REAL A,B)\r"
+        "REAL BASE\r"
+        "BASE=LENGTH(A,B)\r"
+        "RETURN(FMax(BASE,FAbs(A)))\r"
+        "PROC MAIN()\r"
+        "LEFT=REAL(3)\r"
+        "RIGHT=REAL(4)\r"
+        "RESULT=CHAIN(LEFT,RIGHT)\r"
+        "PrintRE(RESULT)\r"
+        "RETURN\r"
+    ),
+    "has_stub": False,
+    "runtime_library_objects": list(
+        DIRECT_PRG_CASES["actc_real_function_nested_postfix_linked"][
+            "runtime_library_objects"
+        ]
+    ),
+    "expected_object_fragments": [
+        "q 0 0 5 11\nq 1 0 7 11\nq 2 0 11 6\n",
+        "V p r 1 5 0 7 22\nV p r 1 6 0 7 24\nV l r 1 7 0 8 6\n",
+        "x main 0 432\nx length 119 112\nx chain 231 133\n"
+        "x __idata 364 32\n",
+        "b u0u1u2u3u4M\nb u0u1u2u3u4M\nb u0u1u2u3u4M\n",
+        "r 65 x chain\n",
+        "r 274 l x __rv5\nr 277 h x __rv5\n"
+        "r 280 l x __rv6\nr 283 h x __rv6\nr 286 x length\n",
+        "u rt_f_abs\nu rt_f_hypot\nu rt_f_max\n"
+        "u rt_i_to_f\nu rt_print_f\n",
+    ],
+    "expected_tail_from_compiled_object": True,
+    "screen_fragments": ["5"],
+    "store_check_addr": 0x1174,
+    "store_check_value": 0x00,
+    "extra_store_checks": [
+        {"addr": 0x1175, "value": 0x00},
+        {"addr": 0x1176, "value": 0xA0},
+        {"addr": 0x1177, "value": 0x40},
+        {"addr": 0x1188, "value": 0x00},
+        {"addr": 0x1189, "value": 0x00},
+        {"addr": 0x118A, "value": 0xA0},
+        {"addr": 0x118B, "value": 0x40},
+    ],
+    "expected_alink_loads": list(
+        DIRECT_PRG_CASES["actc_real_function_nested_postfix_linked"][
+            "expected_alink_loads"
+        ]
+    ),
+    "unexpected_alink_loads": list(
+        DIRECT_PRG_CASES["actc_real_function_nested_postfix_linked"][
+            "unexpected_alink_loads"
+        ]
+    ),
+}
+
 DIRECT_PRG_CASES["actc_asmblock_symbol_byte_relocations_linked"] = {
     "source": (
         "MODULE MAIN\r"

@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1347 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 179 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1348 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 180 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
