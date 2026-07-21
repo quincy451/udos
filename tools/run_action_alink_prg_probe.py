@@ -49945,6 +49945,109 @@ DIRECT_PRG_CASES["actc_real_function_two_real_params_second_return_linked"] = {
     ],
 }
 
+DIRECT_PRG_CASES["actc_real_function_binary_hypot_linked"] = {
+    "source": (
+        "MODULE MAIN\r"
+        "REAL LEFT\r"
+        "REAL RIGHT\r"
+        "REAL RESULT\r"
+        "REAL FUNC LENGTH(REAL A,B)\r"
+        "RETURN(FHypot(A,B))\r"
+        "PROC MAIN()\r"
+        "LEFT=REAL(3)\r"
+        "RIGHT=REAL(4)\r"
+        "RESULT=LENGTH(LEFT,RIGHT)\r"
+        "RETURN\r"
+    ),
+    "has_stub": False,
+    "runtime_library_objects": [
+        "rt_i_to_f",
+        "rt_f_hypot",
+        "rt_f_abs",
+        "rt_f_max",
+        "rt_f_cmp",
+        "rt_f_special",
+        "rt_f_min",
+        "rt_f_div",
+        "rt_f_mul",
+        "rt_f_add",
+        "rt_f_addsub_core",
+        "rt_f_sqrt",
+        "rt_print_f",
+        "rt_f_mod",
+        "rt_f_sign",
+        "rt_f_trunc",
+        "rt_f_floor",
+        "rt_f_ceil",
+        "rt_f_round",
+        "rt_f_frac",
+        "rt_f_sub",
+        "rt_f_clamp",
+    ],
+    "expected_object_fragments": [
+        "x main 0 189\nx length 88 75\nx __v0 163 4\nx __v1 167 4\n"
+        "x __v2 171 4\nx __v3 175 4\nx __v4 179 4\n"
+        "x __idata 163 24\nx __fresult 183 4\nx __iptr 187 2\n",
+        "b u0u1M\nb u0M\nb M\nb M\nb M\nb M\nb M\nb M\nb M\nb M\n",
+        "r 14 l x __v0\nr 18 h x __v0\nr 26 u1\n",
+        "r 29 l x __v1\nr 33 h x __v1\nr 41 u1\n",
+        "r 44 l x __v0\nr 47 h x __v0\n"
+        "r 50 l x __v1\nr 53 h x __v1\nr 56 x length\n",
+        "r 67 x __v2\nr 104 x __v4\nr 120 x __v3\n",
+        "r 131 l x __v3\nr 135 h x __v3\n"
+        "r 139 l x __v4\nr 143 h x __v4\n",
+        "r 147 l x __fresult\nr 151 h x __fresult\nr 155 u0\n",
+        "r 158 l x __fresult\nr 160 h x __fresult\nr 187 x __idata\n",
+        "u rt_f_hypot\nu rt_i_to_f\ni 0\ni 3\ni 0\ni 4\n",
+        "v left 0 4\nv right 0 4\nv result 0 4\nv a 0 4\nv b 0 4\n",
+    ],
+    "expected_tail_from_compiled_object": True,
+    "expected_alink_loads": [
+        "LIB/RT_F_HYPOT.OBJ",
+        "LIB/RT_F_ABS.OBJ",
+        "LIB/RT_F_MAX.OBJ",
+        "LIB/RT_F_CMP.OBJ",
+        "LIB/RT_F_SPECIAL.OBJ",
+        "LIB/RT_F_MIN.OBJ",
+        "LIB/RT_F_DIV.OBJ",
+        "LIB/RT_F_MUL.OBJ",
+        "LIB/RT_F_ADD.OBJ",
+        "LIB/RT_F_ADDSUB_CORE.OBJ",
+        "LIB/RT_F_SQRT.OBJ",
+        "LIB/RT_I_TO_F.OBJ",
+    ],
+    "unexpected_alink_loads": [
+        "LIB/RT_PRINT_F.OBJ",
+        "LIB/RT_F_MOD.OBJ",
+        "LIB/RT_F_SIGN.OBJ",
+        "LIB/RT_F_TRUNC.OBJ",
+        "LIB/RT_F_FLOOR.OBJ",
+        "LIB/RT_F_CEIL.OBJ",
+        "LIB/RT_F_ROUND.OBJ",
+        "LIB/RT_F_FRAC.OBJ",
+        "LIB/RT_F_SUB.OBJ",
+        "LIB/RT_F_CLAMP.OBJ",
+    ],
+    "store_check_addr": 0x10AB,
+    "store_check_value": 0x00,
+    "store_check_hi_addr": 0x10AC,
+    "store_check_hi_value": 0x00,
+    "extra_store_checks": [
+        {"addr": 0x10AD, "value": 0xA0},
+        {"addr": 0x10AE, "value": 0x40},
+        {"addr": 0x10A5, "value": 0x40},
+        {"addr": 0x10A6, "value": 0x40},
+        {"addr": 0x10A9, "value": 0x80},
+        {"addr": 0x10AA, "value": 0x40},
+        {"addr": 0x10B1, "value": 0x40},
+        {"addr": 0x10B2, "value": 0x40},
+        {"addr": 0x10B5, "value": 0x80},
+        {"addr": 0x10B6, "value": 0x40},
+        {"addr": 0x10B9, "value": 0xA0},
+        {"addr": 0x10BA, "value": 0x40},
+    ],
+}
+
 DIRECT_PRG_CASES["actc_real_function_finite_min_linked"] = {
     "source": (
         "MODULE MAIN\r"

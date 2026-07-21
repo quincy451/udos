@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1341 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 173 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1342 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 174 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The current matrix includes source-backed dynamic integer multiplication and
@@ -185,8 +185,11 @@ print root. Its matcher captures the three initializer destinations, three
 arguments, result destination, and printed value, so storage roles can be
 permuted without changing the fixed statement skeleton. `RT_F_CLAMP.OBJ`
 selects comparison, minimum, and maximum only when reachable, canonicalizes
-invalid clamp inputs, and preserves valid selected operands. Pass K is 4,594
-bytes with 3,598 bytes free. Native unary lowering now also recognizes
+invalid clamp inputs, and preserves valid selected operands. Pass K also emits
+a bounded two-REAL-parameter function whose sole return is one selected binary
+operation. The shared `RETURN(FHypot(A,B))` fixture uses a hidden non-aliasing
+result cell, loads only the reachable hypotenuse closure, and returns 5.0 in
+VICE. Pass K is 5,877 bytes with 2,315 bytes free. Native unary lowering now also recognizes
 `FTrunc(A)`, `FFloor(A)`, `FCeil(A)`, and `FRound(A)`. Truncation imports dependency-free
 `RT_F_TRUNC.OBJ`; floor imports `RT_F_FLOOR.OBJ` plus that truncation dependency
 transitively. The 107-byte truncation helper preserves infinities, NaN payloads,
