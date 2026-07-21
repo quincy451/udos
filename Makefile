@@ -182,6 +182,8 @@ ACTION_ACTC_ALINK_OBJECT_EMISSION_SHAPES := \
 	actc_real_function_binary_hypot_linked \
 	actc_real_postfix_nested_binary_linked \
 	actc_real_postfix_nested_clamp_linked \
+	actc_real_function_nested_postfix_linked \
+	actc_real_function_local_nested_postfix_linked \
 	actc_real_function_finite_min_linked \
 	actc_real_function_finite_min_permuted_linked \
 	actc_asmblock_symbol_byte_relocations_linked \
