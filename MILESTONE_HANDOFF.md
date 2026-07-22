@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1356 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 188 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1358 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 190 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
@@ -153,6 +153,16 @@ function, sequentially or nested to depth four. The direct PRGs print `43` and
 `RT_I_TO_F`, and `RT_PRINT_F` closure. Pass O is 7,123 bytes with 1,069 bytes
 free under the same 1 KiB gate. Loops, early returns, controls beyond four,
 deeper nesting, and recursive/reentrant frames remain compiler work.
+
+`real_function_early_return_if_postfix.act` and
+`real_function_early_return_four_deep_postfix.act` add pass P
+(`ACTC_OVLP.BIN`, id 25). Pass P permits immediate `RETURN(expr)` exits inside
+the existing four-control/depth-four bound while requiring a terminal fallback
+return. The direct PRGs print `33` and `154`, with exact result-memory checks
+covering early true/else exits and the fallback path. Pass P is 7,147 bytes
+with 1,045 bytes free under the 1 KiB gate. Loops, controls beyond four or
+depth four, unrestricted call-expression trees, and recursive/reentrant frames
+remain compiler work.
 
 The current matrix includes source-backed dynamic integer multiplication and
 division, assignment/store/readback, divide-by-zero, missing-helper, and stack

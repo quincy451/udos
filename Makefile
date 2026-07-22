@@ -194,6 +194,8 @@ ACTION_ACTC_ALINK_OBJECT_EMISSION_SHAPES := \
 	actc_real_function_nested_if_else_postfix_linked \
 	actc_real_function_four_sequential_if_postfix_linked \
 	actc_real_function_four_deep_if_postfix_linked \
+	actc_real_function_early_return_if_postfix_linked \
+	actc_real_function_early_return_four_deep_postfix_linked \
 	actc_real_function_finite_min_linked \
 	actc_real_function_finite_min_permuted_linked \
 	actc_asmblock_symbol_byte_relocations_linked \
