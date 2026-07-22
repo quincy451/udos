@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1360 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 192 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1361 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 193 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
@@ -183,9 +183,19 @@ exports without changing OBJ1. The rebuilt direct PRG exits one plain and one
 guarded loop, prints `43`, and stores FIRST=4.0 and SECOND=3.0; the Idun
 generated-6502 path produces the same values.
 Pass R is 7,334 bytes with 858 bytes free under a dedicated 768-byte gate.
-REAL-function `FOR`, mixed loop/conditional nesting, returns from inside loops,
-more than four loops or deeper loop nesting, unrestricted call-expression
-trees, and recursive/reentrant frames remain compiler work.
+
+`real_function_for_postfix.act` adds pass S (`ACTC_OVLS.BIN`, id 28). Pass S
+accepts up to four nested or sequential local CARD-counter `FOR` loops per
+supported REAL function with constant initial/final values and a nonzero
+constant signed step. Inclusive unsigned comparisons plus carry-based
+overflow/underflow exits prevent wraparound. The rebuilt direct PRG runs an
+ascending default-step loop and descending `STEP -2` loop, prints `47`, and
+stores ASCENDING=4.0 and DESCENDING=7.0; the Idun generated-6502 path produces
+the same values. Pass S is 7,828 bytes with 364 bytes free under a dedicated
+256-byte gate. Dynamic bounds, nested counter-to-REAL body composition, mixed
+loop/conditional nesting, returns from inside loops, more than four loops or
+deeper loop nesting, unrestricted call-expression trees, and
+recursive/reentrant frames remain compiler work.
 
 The current matrix includes source-backed dynamic integer multiplication and
 division, assignment/store/readback, divide-by-zero, missing-helper, and stack

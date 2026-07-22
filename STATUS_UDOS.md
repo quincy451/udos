@@ -235,7 +235,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     leaf, while carrying child-object integer and string literal pools into the
     linked program image. Project objects are now emitted and documented only as
     `OBJ/*.OBJ`.
-  - `make vice-action-alink-prg-matrix` now enumerates 1360 direct-PRG
+  - `make vice-action-alink-prg-matrix` now enumerates 1361 direct-PRG
     object/link shapes from the probe table and validates ALINK output for each
     shape. The matrix includes object-code graph closure, rejection cases,
     link-selected runtime helper families, and seeded input-helper closure
@@ -349,10 +349,16 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     nearest active `DO` or `WHILE`, while retaining the four-loop bound. Its
     direct PRG exits one plain and one guarded loop, prints `43`, and stores
     binary32 4.0 and 3.0; Idun's generated-6502 path matches. The 7,334-byte
-    overlay retains 858 bytes under a dedicated 768-byte gate. REAL-function
-    `FOR`, mixed loop/conditional nesting, returns from inside loops, more than
-    four loops or deeper loop nesting, unrestricted call-expression trees, and
-    reentrant frames remain compiler work.
+    overlay retains 858 bytes under a dedicated 768-byte gate.
+    Pass S adds up to four nested or sequential local CARD-counter `FOR` loops
+    with constant initial/final values and a nonzero constant signed step. Its
+    ascending and descending direct PRG prints `47` and stores binary32 4.0 and
+    7.0; Idun's generated-6502 path matches. The 7,828-byte overlay retains 364
+    bytes under a dedicated 256-byte gate. Dynamic bounds, nested
+    counter-to-REAL body composition, mixed loop/conditional nesting, returns
+    from inside loops, more than four loops or deeper loop nesting,
+    unrestricted call-expression trees, and reentrant frames remain compiler
+    work.
     Empty-return, single-call, and fanout root programs likewise use native
     machine objects; ALINK no longer carries templates for `r`, `c0r`, or
     `c0c1r`, and those root-body forms are rejection-only fixtures.
