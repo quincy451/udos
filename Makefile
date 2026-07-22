@@ -189,6 +189,7 @@ ACTION_ACTC_ALINK_OBJECT_EMISSION_SHAPES := \
 	actc_real_function_nested_local_call_postfix_linked \
 	actc_real_function_user_call_arguments_postfix_linked \
 	actc_real_function_forward_frame_postfix_linked \
+	actc_real_function_if_else_postfix_linked \
 	actc_real_function_finite_min_linked \
 	actc_real_function_finite_min_permuted_linked \
 	actc_asmblock_symbol_byte_relocations_linked \
@@ -1407,6 +1408,7 @@ ACTC_OVERLAY_NATIVE_RUNTIME_NESTED_EMIT_BUILD := $(ACTIONC64U_DIR)/tools/build_a
 ACTC_OVERLAY_NATIVE_LOCAL_RUNTIME_EMIT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_emit_native_local_runtime_object.sh
 ACTC_OVERLAY_NATIVE_LOCAL_MIXED_EMIT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_emit_native_local_mixed_object.sh
 ACTC_OVERLAY_NATIVE_REAL_POSTFIX_EMIT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_emit_native_real_postfix_object.sh
+ACTC_OVERLAY_NATIVE_REAL_POSTFIX_CONTROL_EMIT_BUILD := $(ACTIONC64U_DIR)/tools/build_actc_overlay_emit_native_real_postfix_control_object.sh
 ACTC_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTC.PRG
 ACTC_OVERLAY_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL0.BIN
 ACTC_OVERLAY_SOURCE_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVL1.BIN
@@ -1427,6 +1429,7 @@ ACTC_OVERLAY_NATIVE_RUNTIME_NESTED_EMIT_BIN := $(ACTIONC64U_DIR)/build/udos_tool
 ACTC_OVERLAY_NATIVE_LOCAL_RUNTIME_EMIT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVLG.BIN
 ACTC_OVERLAY_NATIVE_LOCAL_MIXED_EMIT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVLH.BIN
 ACTC_OVERLAY_NATIVE_REAL_POSTFIX_EMIT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVLL.BIN
+ACTC_OVERLAY_NATIVE_REAL_POSTFIX_CONTROL_EMIT_BIN := $(ACTIONC64U_DIR)/build/udos_tools/ACTC_OVLM.BIN
 ACTADD_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACTADD.PRG
 ACT2SAVE_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ACT2SAVE.PRG
 ALINK_UDOS_PRG := $(ACTIONC64U_DIR)/build/udos_tools/ALINK.PRG
@@ -1556,6 +1559,7 @@ release:
 	bash $(ACTC_OVERLAY_NATIVE_LOCAL_RUNTIME_EMIT_BUILD)
 	bash $(ACTC_OVERLAY_NATIVE_LOCAL_MIXED_EMIT_BUILD)
 	bash $(ACTC_OVERLAY_NATIVE_REAL_POSTFIX_EMIT_BUILD)
+	bash $(ACTC_OVERLAY_NATIVE_REAL_POSTFIX_CONTROL_EMIT_BUILD)
 	bash $(ACTADD_UDOS_BUILD)
 	bash $(ACT2SAVE_UDOS_BUILD)
 	bash $(ALINK_UDOS_BUILD)

@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1351 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 183 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1352 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 184 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
@@ -81,8 +81,8 @@ The latest source-backed shape compiles
 two REAL parameters and a nested straight-line REAL return expression. Pass L
 emits ordinary OBJ1 exports and relocations, ALINK selects the referenced
 `FAbs`/`FHypot` closure, and the direct PRG prints `5` in VICE. General call
-graphs, locals, control flow, mixed types, arbitrary signatures, and recursive
-frames remain compiler work.
+graphs, mixed types, arbitrary signatures, and recursive frames remain compiler
+work; the bounded local and control extensions are described below.
 
 The follow-up `real_function_local_nested_postfix.act` shape adds bounded REAL
 local storage to that same nonrecursive function path. Its direct PRG prints
@@ -124,8 +124,16 @@ copies the result to an independent temporary. The rebuilt direct PRG prints
 `3`, VICE verifies binary32 3.0 in the result and preserved temporaries, and
 ALINK selects only the `FAbs`/`FMax`/`FMin`, conversion, and printing closure.
 Pass L is 6,124 bytes with 2,068 bytes free. Recursive/reentrant frames,
-control flow, unrestricted user-call argument trees, arbitrary signatures, and
-recursion remain compiler work.
+unrestricted user-call argument trees, arbitrary signatures, and recursion
+remain compiler work.
+
+`real_function_if_else_postfix.act` adds one nonnested `IF`/`ELSE` in `PICK`.
+Pass M (`ACTC_OVLM.BIN`, id 22) maps `A<B` through `rt_f_cmp` and emits
+relocations to internal `__rf0`/`__re0` code exports. Calling `PICK` with both
+operand orders executes both arms; the rebuilt direct PRG prints `34`. Pass M
+is 6,998 bytes with 1,194 bytes free under its 1 KiB gate, while pass L retains
+its 2 KiB reserve. Sequential/nested function controls, loops, early returns,
+and recursive/reentrant frames remain compiler work.
 
 The current matrix includes source-backed dynamic integer multiplication and
 division, assignment/store/readback, divide-by-zero, missing-helper, and stack
