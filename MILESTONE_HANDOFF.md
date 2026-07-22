@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1359 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 191 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1360 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 192 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
@@ -173,7 +173,19 @@ generated-6502 path produces the same values. Pass Q is 7,151 bytes with 1,041
 bytes free under the 1 KiB gate. Plain infinite `DO`, loop `EXIT`, mixed
 loop/conditional nesting, returns from inside loops, controls beyond four or
 depth four, unrestricted call-expression trees, and recursive/reentrant frames
-remain compiler work.
+remain outside pass Q; plain `DO` and `EXIT` are added by pass R below.
+
+`real_function_loop_exit_postfix.act` adds pass R (`ACTC_OVLR.BIN`, id 27).
+Pass R retains the four-loop bound and adds plain `DO ... OD` plus
+unconditional `EXIT` targeting the nearest active `DO` or `WHILE`. It emits
+ordinary relocations to independent `__rbNN` back-edge and `__rzNN` post-loop
+exports without changing OBJ1. The rebuilt direct PRG exits one plain and one
+guarded loop, prints `43`, and stores FIRST=4.0 and SECOND=3.0; the Idun
+generated-6502 path produces the same values.
+Pass R is 7,334 bytes with 858 bytes free under a dedicated 768-byte gate.
+REAL-function `FOR`, mixed loop/conditional nesting, returns from inside loops,
+more than four loops or deeper loop nesting, unrestricted call-expression
+trees, and recursive/reentrant frames remain compiler work.
 
 The current matrix includes source-backed dynamic integer multiplication and
 division, assignment/store/readback, divide-by-zero, missing-helper, and stack
