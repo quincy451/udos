@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1349 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 181 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1350 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 182 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
@@ -106,6 +106,16 @@ only the `FAbs`/`FHypot`/`FMax` closure. Pass 7 recognizes `LENGTH` as a local
 function while traversing the intrinsic tree, so no unresolved `fmax` import is
 introduced. Pass 7 is 6,678 bytes with 1,514 bytes free in its 8 KiB window.
 Forward, self, and cyclic static-frame edges remain hard errors.
+
+`real_function_user_call_arguments_postfix.act` extends the same bounded
+declaration-order ABI with `LOWER(LOWER(A,A),LOWER(B,B))`. Pass L recognizes
+that local-call temporaries feed another local call and copies each returned A/X
+pointer into distinct storage before evaluating the next argument. The direct
+PRG prints `3`; VICE verifies 3.0 and 4.0 in the inner spills and 3.0 in the
+outer spill and module result while ALINK loads only the `FMin`, conversion, and
+printing closure. Pass L is 5,670 bytes with 2,522 bytes free. Reentrant frames,
+control flow, unrestricted user-call argument trees, arbitrary signatures, and
+recursion remain compiler work.
 
 The current matrix includes source-backed dynamic integer multiplication and
 division, assignment/store/readback, divide-by-zero, missing-helper, and stack
