@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1358 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 190 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1359 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 191 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
@@ -161,6 +161,17 @@ the existing four-control/depth-four bound while requiring a terminal fallback
 return. The direct PRGs print `33` and `154`, with exact result-memory checks
 covering early true/else exits and the fallback path. Pass P is 7,147 bytes
 with 1,045 bytes free under the 1 KiB gate. Loops, controls beyond four or
+depth four, unrestricted call-expression trees, and recursive/reentrant frames
+remain compiler work.
+
+`real_function_loops_postfix.act` adds pass Q (`ACTC_OVLQ.BIN`, id 26). Pass Q
+accepts up to four bounded `DO ... UNTIL ... OD` or
+`WHILE ... DO ... OD` loops per supported REAL function and emits ordinary
+relocatable `__rbNN` back-edge and `__rzNN` while-exit exports. The rebuilt
+direct PRG prints `43`, with exact checks for FIRST=4.0 and SECOND=3.0; the Idun
+generated-6502 path produces the same values. Pass Q is 7,151 bytes with 1,041
+bytes free under the 1 KiB gate. Plain infinite `DO`, loop `EXIT`, mixed
+loop/conditional nesting, returns from inside loops, controls beyond four or
 depth four, unrestricted call-expression trees, and recursive/reentrant frames
 remain compiler work.
 
