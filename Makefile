@@ -188,6 +188,7 @@ ACTION_ACTC_ALINK_OBJECT_EMISSION_SHAPES := \
 	actc_real_function_call_chain_postfix_linked \
 	actc_real_function_nested_local_call_postfix_linked \
 	actc_real_function_user_call_arguments_postfix_linked \
+	actc_real_function_forward_frame_postfix_linked \
 	actc_real_function_finite_min_linked \
 	actc_real_function_finite_min_permuted_linked \
 	actc_asmblock_symbol_byte_relocations_linked \

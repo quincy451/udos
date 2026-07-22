@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1350 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 182 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1351 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 183 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
@@ -105,7 +105,9 @@ stores binary32 `5.0` in the module result and nested-call temporary, and loads
 only the `FAbs`/`FHypot`/`FMax` closure. Pass 7 recognizes `LENGTH` as a local
 function while traversing the intrinsic tree, so no unresolved `fmax` import is
 introduced. Pass 7 is 6,678 bytes with 1,514 bytes free in its 8 KiB window.
-Forward, self, and cyclic static-frame edges remain hard errors.
+Function-to-function calls now stack-preserve caller parameters, locals, and
+live temporaries, so acyclic edges may point in either declaration direction.
+Self and mutual cycles remain hard errors.
 
 `real_function_user_call_arguments_postfix.act` extends the same bounded
 declaration-order ABI with `LOWER(LOWER(A,A),LOWER(B,B))`. Pass L recognizes
@@ -113,7 +115,15 @@ that local-call temporaries feed another local call and copies each returned A/X
 pointer into distinct storage before evaluating the next argument. The direct
 PRG prints `3`; VICE verifies 3.0 and 4.0 in the inner spills and 3.0 in the
 outer spill and module result while ALINK loads only the `FMin`, conversion, and
-printing closure. Pass L is 5,670 bytes with 2,522 bytes free. Reentrant frames,
+printing closure.
+
+`real_function_forward_frame_postfix.act` reverses the declaration direction
+with `FIRST -> SECOND` while keeping `FAbs(A)` live. Pass L saves the caller's
+static cells on the 6502 stack, stages the A/X result, restores those cells, and
+copies the result to an independent temporary. The rebuilt direct PRG prints
+`3`, VICE verifies binary32 3.0 in the result and preserved temporaries, and
+ALINK selects only the `FAbs`/`FMax`/`FMin`, conversion, and printing closure.
+Pass L is 6,124 bytes with 2,068 bytes free. Recursive/reentrant frames,
 control flow, unrestricted user-call argument trees, arbitrary signatures, and
 recursion remain compiler work.
 

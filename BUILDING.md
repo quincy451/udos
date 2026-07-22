@@ -185,7 +185,7 @@ Separate VICE smoke targets:
 - `make vice-action-alink-prg-matrix`
   - rebuilds the release Action workspace and runs every direct-PRG probe shape
     from `tools/run_action_alink_prg_probe.py`
-  - currently enumerates 1350 object/link shapes
+  - currently enumerates 1351 object/link shapes
   - validates object-code graph closure, runtime helper link selection,
     rejection cases, and seeded direct-object input-helper dependency closure
   - plain word store and load/store probes now use native machine-code OBJ
@@ -209,15 +209,18 @@ Separate VICE smoke targets:
 - `make vice-action-actc-alink-launch-object-emission-matrix`
   - rebuilds the release Action workspace and runs every source-backed
     ACTC -> ALINK -> direct PRG launch probe shape
-  - currently enumerates all 182 non-runtime, non-object-code source-backed
+  - currently enumerates all 183 non-runtime, non-object-code source-backed
     object-emission shapes from `tools/run_action_alink_prg_probe.py`
   - validates helper-free source, local/external calls, integer control flow,
     word stores, real arithmetic/printing, and real control-flow lowering
-  - includes a declaration-order REAL call used directly inside an intrinsic
+  - includes an acyclic REAL call used directly inside an intrinsic
     return tree, with exact OBJ1 relocation, helper-pruning, result, and nested
     temporary checks
   - includes nested calls to an earlier REAL function as arguments to another
     call, with independent inner/outer temporary and runtime-result checks
+  - includes a forward REAL call that stack-preserves caller parameters and a
+    live intrinsic temporary, with exact OBJ1 restore relocations, selective
+    helper closure, and binary32 result checks
 - `make vice-action-actc-alink-launch-printmath`
   - uses the release image with deterministic typed input on top of a copied Action workspace
   - launches `ACTC.PRG MAIN` to generate `OBJ/MAIN.OBJ`

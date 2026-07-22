@@ -66,8 +66,8 @@ class MilestoneHandoffDocsTests(unittest.TestCase):
         ):
             self.assertIn(gate, handoff)
 
-        self.assertIn("1350 shapes", handoff)
-        self.assertIn("182 shapes", handoff)
+        self.assertIn("1351 shapes", handoff)
+        self.assertIn("183 shapes", handoff)
         self.assertIn("298 complex compiled-runtime cases", handoff)
         self.assertIn("real_two_function_nested_postfix.act", handoff)
         self.assertIn("real_function_nested_local_call_postfix.act", handoff)
@@ -85,7 +85,7 @@ class MilestoneHandoffDocsTests(unittest.TestCase):
         self.assertIn("RT_F_HYPOT.OBJ", handoff)
         self.assertIn("8,094 bytes with 98 bytes free", handoff)
         self.assertIn("6,678 bytes with 1,514 bytes free", handoff)
-        self.assertIn("5,670 bytes with 2,522 bytes free", handoff)
+        self.assertIn("6,124 bytes with 2,068 bytes free", handoff)
         self.assertIn("remaining 28", handoff)
         self.assertIn("8,065-byte image leaves 639", handoff)
         self.assertIn("7,110-byte image leaves 1,594", handoff)

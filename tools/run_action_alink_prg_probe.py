@@ -50537,27 +50537,30 @@ DIRECT_PRG_CASES["actc_real_function_call_chain_postfix_linked"] = {
     "expected_object_fragments": [
         "q 0 0 5 11\nq 1 0 7 11\nq 2 0 11 6\n",
         "V p r 1 5 0 7 22\nV p r 1 6 0 7 24\nV l r 1 7 0 8 6\n",
-        "x main 0 432\nx length 119 112\nx chain 231 133\n"
-        "x __idata 364 32\n",
+        "x main 0 503\nx length 119 112\nx chain 231 204\n"
+        "x __idata 435 32\n",
         "b u0u1u2u3u4M\nb u0u1u2u3u4M\nb u0u1u2u3u4M\n",
         "r 65 x chain\n",
-        "r 274 l x __rv5\nr 277 h x __rv5\n"
-        "r 280 l x __rv6\nr 283 h x __rv6\nr 286 x length\n",
+        "r 276 x __rv5\nr 285 x __rv6\nr 294 x __rv7\n"
+        "r 301 l x __rv5\nr 304 h x __rv5\n"
+        "r 307 l x __rv6\nr 310 h x __rv6\nr 313 x length\n",
+        "r 333 x __rv7\nr 344 x __rv6\nr 355 x __rv5\n"
+        "r 368 x __rt6\nr 376 x __rt6\nr 379 x __rv7\n",
         "u rt_f_abs\nu rt_f_hypot\nu rt_f_max\n"
         "u rt_i_to_f\nu rt_print_f\n",
     ],
     "expected_tail_from_compiled_object": True,
     "screen_fragments": ["5"],
-    "store_check_addr": 0x1174,
+    "store_check_addr": 0x11BB,
     "store_check_value": 0x00,
     "extra_store_checks": [
-        {"addr": 0x1175, "value": 0x00},
-        {"addr": 0x1176, "value": 0xA0},
-        {"addr": 0x1177, "value": 0x40},
-        {"addr": 0x1188, "value": 0x00},
-        {"addr": 0x1189, "value": 0x00},
-        {"addr": 0x118A, "value": 0xA0},
-        {"addr": 0x118B, "value": 0x40},
+        {"addr": 0x11BC, "value": 0x00},
+        {"addr": 0x11BD, "value": 0xA0},
+        {"addr": 0x11BE, "value": 0x40},
+        {"addr": 0x11CF, "value": 0x00},
+        {"addr": 0x11D0, "value": 0x00},
+        {"addr": 0x11D1, "value": 0xA0},
+        {"addr": 0x11D2, "value": 0x40},
     ],
     "expected_alink_loads": list(
         DIRECT_PRG_CASES["actc_real_function_nested_postfix_linked"][
@@ -50598,30 +50601,30 @@ DIRECT_PRG_CASES["actc_real_function_nested_local_call_postfix_linked"] = {
         "q 0 0 5 11\nq 1 0 7 11\nq 2 0 9 6\n",
         "V p r 0 3 0 5 23\nV p r 0 4 0 5 25\n"
         "V p r 1 5 0 7 22\nV p r 1 6 0 7 24\n",
-        "x main 0 417\nx length 119 112\nx chain 231 122\n"
-        "x __idata 353 28\n",
+        "x main 0 468\nx length 119 112\nx chain 231 173\n"
+        "x __idata 404 28\n",
         "b u0u1u2u3u4M\nb u0u1u2u3u4M\nb u0u1u2u3u4M\n",
         "r 65 x chain\n",
-        "r 274 l x __rv5\nr 277 h x __rv5\n"
-        "r 280 l x __rv6\nr 283 h x __rv6\nr 286 x length\n",
-        "r 322 l x __rt6\nr 326 h x __rt6\n"
-        "r 330 l x __rt7\nr 334 h x __rt7\n"
-        "r 338 l x __rt8\nr 342 h x __rt8\nr 346 u2\n",
+        "r 276 x __rv5\nr 285 x __rv6\n"
+        "r 292 l x __rv5\nr 295 h x __rv5\n"
+        "r 298 l x __rv6\nr 301 h x __rv6\nr 304 x length\n",
+        "r 324 x __rv6\nr 335 x __rv5\nr 348 x __rt6\n",
+        "r 397 u2\n",
         "u rt_f_abs\nu rt_f_hypot\nu rt_f_max\n"
         "u rt_i_to_f\nu rt_print_f\n",
     ],
     "expected_tail_from_compiled_object": True,
     "screen_fragments": ["5"],
-    "store_check_addr": 0x1169,
+    "store_check_addr": 0x119C,
     "store_check_value": 0x00,
     "extra_store_checks": [
-        {"addr": 0x116A, "value": 0x00},
-        {"addr": 0x116B, "value": 0xA0},
-        {"addr": 0x116C, "value": 0x40},
-        {"addr": 0x1195, "value": 0x00},
-        {"addr": 0x1196, "value": 0x00},
-        {"addr": 0x1197, "value": 0xA0},
-        {"addr": 0x1198, "value": 0x40},
+        {"addr": 0x119D, "value": 0x00},
+        {"addr": 0x119E, "value": 0xA0},
+        {"addr": 0x119F, "value": 0x40},
+        {"addr": 0x11C8, "value": 0x00},
+        {"addr": 0x11C9, "value": 0x00},
+        {"addr": 0x11CA, "value": 0xA0},
+        {"addr": 0x11CB, "value": 0x40},
     ],
     "expected_alink_loads": list(
         DIRECT_PRG_CASES["actc_real_function_call_chain_postfix_linked"][
@@ -50662,41 +50665,47 @@ DIRECT_PRG_CASES["actc_real_function_user_call_arguments_postfix_linked"] = {
         "q 0 0 5 11\nq 1 0 7 11\nq 2 0 9 6\n",
         "V p r 0 3 0 5 22\nV p r 0 4 0 5 24\n"
         "V p r 1 5 0 7 22\nV p r 1 6 0 7 24\n",
-        "x main 0 383\nx lower 119 74\nx chain 193 134\n"
-        "x __idata 327 28\n",
+        "x main 0 596\nx lower 119 74\nx chain 193 347\n"
+        "x __idata 540 28\n",
         "b u0u1u2M\nb u0u1u2M\nb u0u1u2M\n",
         "r 65 x chain\n",
-        "r 236 l x __rv5\nr 239 h x __rv5\n"
-        "r 242 l x __rv5\nr 245 h x __rv5\nr 248 x lower\n"
-        "r 259 x __rt4\n",
-        "r 265 l x __rv6\nr 268 h x __rv6\n"
-        "r 271 l x __rv6\nr 274 h x __rv6\nr 277 x lower\n"
-        "r 288 x __rt5\n",
-        "r 294 l x __rt4\nr 297 h x __rt4\n"
-        "r 300 l x __rt5\nr 303 h x __rt5\nr 306 x lower\n"
-        "r 317 x __rt6\n",
+        "r 238 x __rv5\nr 247 x __rv6\n"
+        "r 254 l x __rv5\nr 257 h x __rv5\n"
+        "r 260 l x __rv5\nr 263 h x __rv5\nr 266 x lower\n"
+        "r 286 x __rv6\nr 297 x __rv5\nr 310 x __rt4\n",
+        "r 318 x __rv5\nr 327 x __rv6\nr 336 x __rt4\n"
+        "r 343 l x __rv6\nr 346 h x __rv6\n"
+        "r 349 l x __rv6\nr 352 h x __rv6\n"
+        "r 355 x lower\nr 375 x __rt4\nr 386 x __rv6\n"
+        "r 397 x __rv5\nr 410 x __rt5\n",
+        "r 418 x __rv5\nr 427 x __rv6\nr 436 x __rt4\n"
+        "r 445 x __rt5\nr 452 l x __rt4\nr 455 h x __rt4\n"
+        "r 458 l x __rt5\nr 461 h x __rt5\nr 464 x lower\n"
+        "r 484 x __rt5\n"
+        "r 495 x __rt4\nr 506 x __rv6\nr 517 x __rv5\n"
+        "r 530 x __rt6\n",
         "u rt_f_min\nu rt_i_to_f\nu rt_print_f\n",
     ],
     "expected_tail_from_compiled_object": True,
     "screen_fragments": ["3"],
-    "store_check_addr": 0x114F,
+    "store_check_addr": 0x1224,
     "store_check_value": 0x00,
     "extra_store_checks": [
-        {"addr": 0x1150, "value": 0x00},
-        {"addr": 0x1151, "value": 0x40},
-        {"addr": 0x1152, "value": 0x40},
-        {"addr": 0x1173, "value": 0x00},
-        {"addr": 0x1174, "value": 0x00},
-        {"addr": 0x1175, "value": 0x40},
-        {"addr": 0x1176, "value": 0x40},
-        {"addr": 0x1177, "value": 0x00},
-        {"addr": 0x1178, "value": 0x00},
-        {"addr": 0x1179, "value": 0x80},
-        {"addr": 0x117A, "value": 0x40},
-        {"addr": 0x117B, "value": 0x00},
-        {"addr": 0x117C, "value": 0x00},
-        {"addr": 0x117D, "value": 0x40},
-        {"addr": 0x117E, "value": 0x40},
+        {"addr": 0x1225, "value": 0x00},
+        {"addr": 0x1226, "value": 0x40},
+        {"addr": 0x1227, "value": 0x40},
+        {"addr": 0x1248, "value": 0x00},
+        {"addr": 0x1249, "value": 0x00},
+        {"addr": 0x124A, "value": 0x40},
+        {"addr": 0x124B, "value": 0x40},
+        {"addr": 0x124C, "value": 0x00},
+        {"addr": 0x124D, "value": 0x00},
+        {"addr": 0x124E, "value": 0x80},
+        {"addr": 0x124F, "value": 0x40},
+        {"addr": 0x1250, "value": 0x00},
+        {"addr": 0x1251, "value": 0x00},
+        {"addr": 0x1252, "value": 0x40},
+        {"addr": 0x1253, "value": 0x40},
     ],
     "expected_alink_loads": [
         "LIB/RT_F_MIN.OBJ",
@@ -50709,6 +50718,90 @@ DIRECT_PRG_CASES["actc_real_function_user_call_arguments_postfix_linked"] = {
         "LIB/RT_F_MAX.OBJ",
         "LIB/RT_F_HYPOT.OBJ",
         "LIB/RT_F_ABS.OBJ",
+        "LIB/RT_F_DIV.OBJ",
+        "LIB/RT_F_MUL.OBJ",
+        "LIB/RT_F_ADD.OBJ",
+        "LIB/RT_F_ADDSUB_CORE.OBJ",
+        "LIB/RT_F_SQRT.OBJ",
+        "LIB/RT_F_MOD.OBJ",
+        "LIB/RT_F_SIGN.OBJ",
+        "LIB/RT_F_TRUNC.OBJ",
+        "LIB/RT_F_FLOOR.OBJ",
+        "LIB/RT_F_CEIL.OBJ",
+        "LIB/RT_F_ROUND.OBJ",
+        "LIB/RT_F_FRAC.OBJ",
+        "LIB/RT_F_SUB.OBJ",
+        "LIB/RT_F_CLAMP.OBJ",
+    ],
+}
+
+DIRECT_PRG_CASES["actc_real_function_forward_frame_postfix_linked"] = {
+    "source": (
+        "MODULE MAIN\r"
+        "REAL LEFT\r"
+        "REAL RIGHT\r"
+        "REAL RESULT\r"
+        "REAL FUNC FIRST(REAL A,B)\r"
+        "RETURN(FMax(FAbs(A),SECOND(A,B)))\r"
+        "REAL FUNC SECOND(REAL A,B)\r"
+        "RETURN(FMin(A,B))\r"
+        "PROC MAIN()\r"
+        "LEFT=REAL(3)\r"
+        "RIGHT=REAL(4)\r"
+        "RESULT=FIRST(LEFT,RIGHT)\r"
+        "PrintRE(RESULT)\r"
+        "RETURN\r"
+    ),
+    "has_stub": False,
+    "runtime_library_objects": list(
+        DIRECT_PRG_CASES["actc_real_function_nested_local_call_postfix_linked"][
+            "runtime_library_objects"
+        ]
+    ),
+    "expected_object_fragments": [
+        "q 0 0 5 11\nq 1 0 7 11\nq 2 0 9 6\n",
+        "V p r 0 3 0 5 22\nV p r 0 4 0 5 24\n"
+        "V p r 1 5 0 7 23\nV p r 1 6 0 7 25\n",
+        "x main 0 442\nx first 119 193\nx second 312 74\n"
+        "x __idata 386 28\n",
+        "b u0u1u2u3u4M\nb u0u1u2u3u4M\nb u0u1u2u3u4M\n",
+        "r 65 x first\n",
+        "r 183 x __rv3\nr 192 x __rv4\nr 201 x __rt3\n"
+        "r 208 l x __rv3\nr 211 h x __rv3\n"
+        "r 214 l x __rv4\nr 217 h x __rv4\nr 220 x second\n",
+        "r 240 x __rt3\nr 251 x __rv4\nr 262 x __rv3\n"
+        "r 275 x __rt4\n",
+        "u rt_f_abs\nu rt_f_max\nu rt_f_min\n"
+        "u rt_i_to_f\nu rt_print_f\n",
+    ],
+    "expected_tail_from_compiled_object": True,
+    "screen_fragments": ["3"],
+    "store_check_addr": 0x118A,
+    "store_check_value": 0x00,
+    "extra_store_checks": [
+        {"addr": 0x118B, "value": 0x00},
+        {"addr": 0x118C, "value": 0x40},
+        {"addr": 0x118D, "value": 0x40},
+        {"addr": 0x11AA, "value": 0x00},
+        {"addr": 0x11AB, "value": 0x00},
+        {"addr": 0x11AC, "value": 0x40},
+        {"addr": 0x11AD, "value": 0x40},
+        {"addr": 0x11AE, "value": 0x00},
+        {"addr": 0x11AF, "value": 0x00},
+        {"addr": 0x11B0, "value": 0x40},
+        {"addr": 0x11B1, "value": 0x40},
+    ],
+    "expected_alink_loads": [
+        "LIB/RT_F_ABS.OBJ",
+        "LIB/RT_F_MAX.OBJ",
+        "LIB/RT_F_MIN.OBJ",
+        "LIB/RT_F_CMP.OBJ",
+        "LIB/RT_F_SPECIAL.OBJ",
+        "LIB/RT_I_TO_F.OBJ",
+        "LIB/RT_PRINT_F.OBJ",
+    ],
+    "unexpected_alink_loads": [
+        "LIB/RT_F_HYPOT.OBJ",
         "LIB/RT_F_DIV.OBJ",
         "LIB/RT_F_MUL.OBJ",
         "LIB/RT_F_ADD.OBJ",
