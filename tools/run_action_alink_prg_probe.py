@@ -50912,6 +50912,189 @@ DIRECT_PRG_CASES["actc_real_function_if_else_postfix_linked"] = {
     ],
 }
 
+DIRECT_PRG_CASES["actc_real_function_sequential_if_else_postfix_linked"] = {
+    "source": (
+        "MODULE MAIN\r"
+        "REAL LEFT\r"
+        "REAL RIGHT\r"
+        "REAL FIRST\r"
+        "REAL SECOND\r"
+        "REAL FUNC PICK(REAL A,B)\r"
+        "REAL CHOICE\r"
+        "IF A<B THEN\r"
+        "CHOICE=A\r"
+        "ELSE\r"
+        "CHOICE=B\r"
+        "FI\r"
+        "IF A<B THEN\r"
+        "CHOICE=FMax(CHOICE,B)\r"
+        "ELSE\r"
+        "CHOICE=FMin(CHOICE,A)\r"
+        "FI\r"
+        "RETURN(CHOICE)\r"
+        "PROC MAIN()\r"
+        "LEFT=REAL(3)\r"
+        "RIGHT=REAL(4)\r"
+        "FIRST=PICK(LEFT,RIGHT)\r"
+        "SECOND=PICK(RIGHT,LEFT)\r"
+        "PrintRE(FIRST)\r"
+        "PrintRE(SECOND)\r"
+        "RETURN\r"
+    ),
+    "has_stub": False,
+    "runtime_library_objects": list(
+        DIRECT_PRG_CASES["actc_real_function_nested_local_call_postfix_linked"][
+            "runtime_library_objects"
+        ]
+    ),
+    "expected_object_fragments": [
+        "q 0 0 6 11\nq 1 0 19 6\n",
+        "V p r 0 4 0 6 21\nV p r 0 5 0 6 23\n"
+        "V l r 0 6 0 7 6\n",
+        "x main 0 425\nx pick 170 203\nx __rf00 252 1\n"
+        "x __re00 263 1\nx __rf01 330 1\nx __re01 368 1\n"
+        "x __idata 373 28\n",
+        "b u0u1u2u3u4M\nb u0u1u2u3u4M\n",
+        "r 236 x __rf00\n",
+        "r 250 x __re00\n",
+        "r 287 x __rf01\n",
+        "r 328 x __re01\n",
+        "u rt_f_cmp\nu rt_f_max\nu rt_f_min\nu rt_i_to_f\nu rt_print_f\n",
+    ],
+    "expected_tail_from_compiled_object": True,
+    "screen_fragments": ["43"],
+    "store_check_addr": 0x117D,
+    "store_check_value": 0x00,
+    "extra_store_checks": [
+        {"addr": 0x117F, "value": 0x80},
+        {"addr": 0x1180, "value": 0x40},
+        {"addr": 0x1183, "value": 0x40},
+        {"addr": 0x1184, "value": 0x40},
+        {"addr": 0x118F, "value": 0x40},
+        {"addr": 0x1190, "value": 0x40},
+    ],
+    "expected_alink_loads": [
+        "LIB/RT_F_CMP.OBJ",
+        "LIB/RT_F_MAX.OBJ",
+        "LIB/RT_F_MIN.OBJ",
+        "LIB/RT_I_TO_F.OBJ",
+        "LIB/RT_PRINT_F.OBJ",
+    ],
+    "unexpected_alink_loads": [
+        "LIB/RT_F_ABS.OBJ",
+        "LIB/RT_F_HYPOT.OBJ",
+        "LIB/RT_F_DIV.OBJ",
+        "LIB/RT_F_MUL.OBJ",
+        "LIB/RT_F_ADD.OBJ",
+        "LIB/RT_F_ADDSUB_CORE.OBJ",
+        "LIB/RT_F_SQRT.OBJ",
+        "LIB/RT_F_MOD.OBJ",
+        "LIB/RT_F_SIGN.OBJ",
+        "LIB/RT_F_TRUNC.OBJ",
+        "LIB/RT_F_FLOOR.OBJ",
+        "LIB/RT_F_CEIL.OBJ",
+        "LIB/RT_F_ROUND.OBJ",
+        "LIB/RT_F_FRAC.OBJ",
+        "LIB/RT_F_SUB.OBJ",
+        "LIB/RT_F_CLAMP.OBJ",
+    ],
+}
+
+DIRECT_PRG_CASES["actc_real_function_nested_if_else_postfix_linked"] = {
+    "source": (
+        "MODULE MAIN\r"
+        "REAL LEFT\r"
+        "REAL RIGHT\r"
+        "REAL FIRST\r"
+        "REAL SECOND\r"
+        "REAL THIRD\r"
+        "REAL FUNC PICK(REAL A,B)\r"
+        "REAL CHOICE\r"
+        "IF A<B THEN\r"
+        "IF A<REAL(2) THEN\r"
+        "CHOICE=FMin(A,B)\r"
+        "ELSE\r"
+        "CHOICE=FMax(A,B)\r"
+        "FI\r"
+        "ELSE\r"
+        "CHOICE=FMin(A,B)\r"
+        "FI\r"
+        "RETURN(CHOICE)\r"
+        "PROC MAIN()\r"
+        "LEFT=REAL(1)\r"
+        "RIGHT=REAL(4)\r"
+        "FIRST=PICK(LEFT,RIGHT)\r"
+        "LEFT=REAL(3)\r"
+        "SECOND=PICK(LEFT,RIGHT)\r"
+        "LEFT=REAL(4)\r"
+        "RIGHT=REAL(3)\r"
+        "THIRD=PICK(LEFT,RIGHT)\r"
+        "PrintRE(FIRST)\r"
+        "PrintRE(SECOND)\r"
+        "PrintRE(THIRD)\r"
+        "RETURN\r"
+    ),
+    "has_stub": False,
+    "runtime_library_objects": list(
+        DIRECT_PRG_CASES["actc_real_function_nested_local_call_postfix_linked"][
+            "runtime_library_objects"
+        ]
+    ),
+    "expected_object_fragments": [
+        "q 0 0 7 11\nq 1 0 19 6\n",
+        "V p r 0 5 0 7 21\nV p r 0 6 0 7 23\n"
+        "V l r 0 7 0 8 6\n",
+        "x main 0 613\nx pick 299 234\nx __rf00 490 1\n"
+        "x __re00 528 1\nx __rf01 449 1\nx __re01 487 1\n"
+        "x __idata 533 32\n",
+        "b u0u1u2u3u4M\nb u0u1u2u3u4M\n",
+        "r 365 x __rf00\n",
+        "r 406 x __rf01\n",
+        "r 447 x __re01\n",
+        "r 488 x __re00\n",
+        "u rt_f_cmp\nu rt_i_to_f\nu rt_f_min\nu rt_f_max\nu rt_print_f\n",
+    ],
+    "expected_tail_from_compiled_object": True,
+    "screen_fragments": ["143"],
+    "store_check_addr": 0x121D,
+    "store_check_value": 0x00,
+    "extra_store_checks": [
+        {"addr": 0x121F, "value": 0x80},
+        {"addr": 0x1220, "value": 0x3F},
+        {"addr": 0x1223, "value": 0x80},
+        {"addr": 0x1224, "value": 0x40},
+        {"addr": 0x1227, "value": 0x40},
+        {"addr": 0x1228, "value": 0x40},
+        {"addr": 0x1233, "value": 0x40},
+        {"addr": 0x1234, "value": 0x40},
+    ],
+    "expected_alink_loads": [
+        "LIB/RT_F_CMP.OBJ",
+        "LIB/RT_F_MIN.OBJ",
+        "LIB/RT_F_MAX.OBJ",
+        "LIB/RT_I_TO_F.OBJ",
+        "LIB/RT_PRINT_F.OBJ",
+    ],
+    "unexpected_alink_loads": [
+        "LIB/RT_F_ABS.OBJ",
+        "LIB/RT_F_HYPOT.OBJ",
+        "LIB/RT_F_DIV.OBJ",
+        "LIB/RT_F_MUL.OBJ",
+        "LIB/RT_F_ADD.OBJ",
+        "LIB/RT_F_ADDSUB_CORE.OBJ",
+        "LIB/RT_F_SQRT.OBJ",
+        "LIB/RT_F_MOD.OBJ",
+        "LIB/RT_F_SIGN.OBJ",
+        "LIB/RT_F_TRUNC.OBJ",
+        "LIB/RT_F_FLOOR.OBJ",
+        "LIB/RT_F_CEIL.OBJ",
+        "LIB/RT_F_ROUND.OBJ",
+        "LIB/RT_F_FRAC.OBJ",
+        "LIB/RT_F_SUB.OBJ",
+        "LIB/RT_F_CLAMP.OBJ",
+    ],
+}
+
 DIRECT_PRG_CASES["actc_asmblock_symbol_byte_relocations_linked"] = {
     "source": (
         "MODULE MAIN\r"

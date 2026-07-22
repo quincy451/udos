@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1352 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 184 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1354 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 186 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
@@ -132,8 +132,18 @@ Pass M (`ACTC_OVLM.BIN`, id 22) maps `A<B` through `rt_f_cmp` and emits
 relocations to internal `__rf0`/`__re0` code exports. Calling `PICK` with both
 operand orders executes both arms; the rebuilt direct PRG prints `34`. Pass M
 is 6,998 bytes with 1,194 bytes free under its 1 KiB gate, while pass L retains
-its 2 KiB reserve. Sequential/nested function controls, loops, early returns,
-and recursive/reentrant frames remain compiler work.
+its 2 KiB reserve. Pass M intentionally retains this one-control ownership; the
+separate bounded two-control extension follows.
+
+`real_function_sequential_if_else_postfix.act` and
+`real_function_nested_if_else_postfix.act` add pass N (`ACTC_OVLN.BIN`, id 23).
+Pass N claims at least one second conditional and allows at most two per REAL
+function, either sequentially or nested to depth two. Its independent
+`__rfNN`/`__reNN` export pairs remain ordinary OBJ1 relocation targets. The
+rebuilt direct PRGs print `43` and `143`; the nested case executes inner true,
+inner false, and outer false paths. Pass N is 7,120 bytes with 1,072 bytes free
+under its 1 KiB gate. Loops, early returns, more than two controls, deeper
+nesting, and recursive/reentrant frames remain compiler work.
 
 The current matrix includes source-backed dynamic integer multiplication and
 division, assignment/store/readback, divide-by-zero, missing-helper, and stack

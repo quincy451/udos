@@ -160,7 +160,7 @@ Current milestone:
     `BIN/MAIN.PRG`, and proves the live screen reaches `hello`, `tool7`, and
     `5459` before returning to the UDOS prompt
   - `make vice-action-actc-alink-launch-object-emission-matrix` now covers all
-    184 source-backed non-runtime, non-object-code ACTC object-emission launch
+    186 source-backed non-runtime, non-object-code ACTC object-emission launch
     shapes from `tools/run_action_alink_prg_probe.py`
   - `make vice-action-actc-alink-launch` is now the helper-free higher-level
     default. It uses the release image with deterministic typed input on top
