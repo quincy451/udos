@@ -51813,6 +51813,86 @@ DIRECT_PRG_CASES["actc_real_function_dynamic_for_postfix_linked"] = {
     ],
 }
 
+DIRECT_PRG_CASES["actc_math1_angle_conversions_postfix_linked"] = {
+    "source": (
+        "REAL CONST MATH_PI=3.14159265358979323846\r"
+        "MODULE MAIN\r"
+        "REAL DEGREES\r"
+        "REAL PI_VALUE\r"
+        "REAL RADIANS\r"
+        "REAL RESULT_DEGREES\r"
+        "REAL FUNC DEGTORAD(REAL VALUE)\r"
+        "REAL FORWARD_FACTOR\r"
+        "REAL FORWARD_DIVISOR\r"
+        "FORWARD_FACTOR=MATH_PI\r"
+        "FORWARD_DIVISOR=REAL(180)\r"
+        "FORWARD_FACTOR=FORWARD_FACTOR/FORWARD_DIVISOR\r"
+        "RETURN(VALUE*FORWARD_FACTOR)\r"
+        "REAL FUNC RADTODEG(REAL VALUE)\r"
+        "REAL REVERSE_FACTOR\r"
+        "REAL REVERSE_DIVISOR\r"
+        "REVERSE_FACTOR=REAL(180)\r"
+        "REVERSE_DIVISOR=MATH_PI\r"
+        "REVERSE_FACTOR=REVERSE_FACTOR/REVERSE_DIVISOR\r"
+        "RETURN(VALUE*REVERSE_FACTOR)\r"
+        "PROC MAIN()\r"
+        "DEGREES=REAL(180)\r"
+        "PI_VALUE=MATH_PI\r"
+        "RADIANS=DEGTORAD(DEGREES)\r"
+        "RESULT_DEGREES=RADTODEG(PI_VALUE)\r"
+        "PrintRE(RADIANS)\r"
+        "PrintRE(RESULT_DEGREES)\r"
+        "RETURN\r"
+    ),
+    "has_stub": False,
+    "runtime_library_objects": list(
+        DIRECT_PRG_CASES["actc_real_function_nested_postfix_linked"][
+            "runtime_library_objects"
+        ]
+    ),
+    "expected_object_fragments": [
+        "q 0 0 7 11\nq 1 0 14 11\nq 2 0 21 6\n",
+        "V p r 0 4 0 7 25\nV l r 0 5 0 8 6\nV l r 0 6 0 9 6\n"
+        "V p r 1 7 0 14 25\nV l r 1 8 0 15 6\nV l r 1 9 0 16 6\n",
+        "x main 0 584\nx degtorad 172 162\nx radtodeg 334 162\n"
+        "x __idata 496 40\n",
+        "b u0u1u2u3M\nb u0u1u2u3M\nb u0u1u2u3M\n",
+        "A0 00 A9 DB 91 02 C8 A9 0F 91 02 C8 A9 49 91 02 C8 A9 40 91 02",
+        "r 73 x degtorad\n",
+        "r 107 x radtodeg\n",
+        "u rt_i_to_f\nu rt_f_div\nu rt_f_mul\nu rt_print_f\n",
+        "i 4059\ni 16457\n",
+    ],
+    "expected_tail_from_compiled_object": True,
+    "screen_fragments": ["3.141592", "180"],
+    "expected_alink_loads": [
+        "LIB/RT_I_TO_F.OBJ",
+        "LIB/RT_F_DIV.OBJ",
+        "LIB/RT_F_MUL.OBJ",
+        "LIB/RT_PRINT_F.OBJ",
+        "LIB/RT_F_SPECIAL.OBJ",
+    ],
+    "unexpected_alink_loads": [
+        "LIB/RT_F_MAX.OBJ",
+        "LIB/RT_F_CMP.OBJ",
+        "LIB/RT_F_HYPOT.OBJ",
+        "LIB/RT_F_ABS.OBJ",
+        "LIB/RT_F_MIN.OBJ",
+        "LIB/RT_F_ADD.OBJ",
+        "LIB/RT_F_ADDSUB_CORE.OBJ",
+        "LIB/RT_F_SQRT.OBJ",
+        "LIB/RT_F_MOD.OBJ",
+        "LIB/RT_F_SIGN.OBJ",
+        "LIB/RT_F_TRUNC.OBJ",
+        "LIB/RT_F_FLOOR.OBJ",
+        "LIB/RT_F_CEIL.OBJ",
+        "LIB/RT_F_ROUND.OBJ",
+        "LIB/RT_F_FRAC.OBJ",
+        "LIB/RT_F_SUB.OBJ",
+        "LIB/RT_F_CLAMP.OBJ",
+    ],
+}
+
 DIRECT_PRG_CASES["actc_asmblock_symbol_byte_relocations_linked"] = {
     "source": (
         "MODULE MAIN\r"

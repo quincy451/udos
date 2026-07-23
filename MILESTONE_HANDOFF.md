@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1362 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 194 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1363 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 195 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
@@ -208,6 +208,16 @@ Pass T is 8,147 bytes with 45 bytes free under a dedicated 32-byte gate.
 General bound expressions,
 runtime steps, nested counter-to-REAL body composition, mixed controls, and
 returns inside loops remain compiler work.
+
+`math1_angle_conversions_postfix.act` adds pass U (`ACTC_OVLU.BIN`, id 30).
+Pass U accepts one- or two-REAL-parameter functions and materializes folded
+binary32 constants from ACTC's low-word/high-word literal stream. The shared
+fixture emits project-local `DegToRad` and `RadToDeg`; the rebuilt direct PRG
+prints pi and `180`, while generic ALINK closure loads only `RT_I_TO_F`,
+`RT_F_DIV`, `RT_F_MUL`, `RT_PRINT_F`, and `RT_F_SPECIAL`. Idun's Linux
+ACTC/ALINK compiles and links the byte-identical fixture. Pass U is 6,456 bytes
+with 1,736 bytes free under a dedicated 1,536-byte gate; passes L through T
+remain byte-identical. Public dependency-sized MATH1 packaging remains next.
 
 The current matrix includes source-backed dynamic integer multiplication and
 division, assignment/store/readback, divide-by-zero, missing-helper, and stack

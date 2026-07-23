@@ -200,6 +200,7 @@ ACTION_ACTC_ALINK_OBJECT_EMISSION_SHAPES := \
 	actc_real_function_loop_exit_postfix_linked \
 	actc_real_function_for_postfix_linked \
 	actc_real_function_dynamic_for_postfix_linked \
+	actc_math1_angle_conversions_postfix_linked \
 	actc_real_function_finite_min_linked \
 	actc_real_function_finite_min_permuted_linked \
 	actc_asmblock_symbol_byte_relocations_linked \
@@ -864,6 +865,7 @@ ACTION_ACTC_ALINK_MATH_RUNTIME_SHAPES := \
 	actc_runtime_math1_real_mul_split_linked \
 	actc_runtime_math1_real_div_split_linked \
 	actc_runtime_math1_real_cmp_split_linked \
+	actc_math1_angle_conversions_postfix_linked \
 	real_const_printre_folded \
 	real_printre_fabs \
 	real_printre_fsqrt
