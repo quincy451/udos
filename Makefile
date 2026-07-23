@@ -201,6 +201,7 @@ ACTION_ACTC_ALINK_OBJECT_EMISSION_SHAPES := \
 	actc_real_function_for_postfix_linked \
 	actc_real_function_dynamic_for_postfix_linked \
 	actc_math1_angle_conversions_postfix_linked \
+	actc_real_function_literal_clamp_comma_locals_postfix_linked \
 	actc_real_function_finite_min_linked \
 	actc_real_function_finite_min_permuted_linked \
 	actc_asmblock_symbol_byte_relocations_linked \

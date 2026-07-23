@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1365 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 195 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1366 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 196 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
@@ -216,8 +216,12 @@ fixture emits project-local `LOCALD2R` and `LOCALR2D`; the rebuilt direct PRG
 prints pi and `180`, while generic ALINK closure loads only `RT_I_TO_F`,
 `RT_F_DIV`, `RT_F_MUL`, `RT_PRINT_F`, and `RT_F_SPECIAL`. Idun's Linux
 ACTC/ALINK compiles and links the byte-identical fixture. Pass U now includes
-public angle-builtin dispatch and is 6,514 bytes with 1,678 bytes free under a
-dedicated 1,536-byte gate; passes L through T remain byte-identical.
+public angle-builtin dispatch plus pass-P conditional/early-return lowering.
+`real_function_literal_clamp_comma_locals_postfix.act` adds four
+comma-grouped uninitialized REAL locals, multiplication, three comparisons,
+and three immediate returns; native and Idun generated-6502 execution both
+produce `-1`, `0`, and `1`. Pass U is 7,487 bytes with 705 bytes free under a
+dedicated 640-byte gate; passes L through T remain byte-identical.
 `DegToRad` and `RadToDeg` are separately selected OBJ modules; the remaining
 public MATH1 gap is 26 routines.
 

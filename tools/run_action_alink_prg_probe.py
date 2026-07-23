@@ -51997,6 +51997,95 @@ DIRECT_PRG_CASES["actc_math1_angle_conversions_postfix_linked"] = {
     ],
 }
 
+DIRECT_PRG_CASES["actc_real_function_literal_clamp_comma_locals_postfix_linked"] = {
+    "source": (
+        "REAL CONST NEG_ONE=-1.0\r"
+        "REAL CONST ZERO=0.0\r"
+        "REAL CONST ONE=1.0\r"
+        "MODULE MAIN\r"
+        "REAL INPUT\r"
+        "REAL LOW_RESULT\r"
+        "REAL ZERO_RESULT\r"
+        "REAL HIGH_RESULT\r"
+        "REAL FUNC LIMIT(REAL VALUE)\r"
+        "REAL PRODUCT,LOWER,UPPER,ZEROLOCAL\r"
+        "LOWER=NEG_ONE\r"
+        "UPPER=ONE\r"
+        "ZEROLOCAL=ZERO\r"
+        "PRODUCT=VALUE*UPPER\r"
+        "IF PRODUCT<LOWER THEN\r"
+        "RETURN(LOWER)\r"
+        "FI\r"
+        "IF PRODUCT>UPPER THEN\r"
+        "RETURN(UPPER)\r"
+        "FI\r"
+        "IF PRODUCT=ZEROLOCAL THEN\r"
+        "RETURN(ZEROLOCAL)\r"
+        "FI\r"
+        "RETURN(PRODUCT)\r"
+        "PROC MAIN()\r"
+        "INPUT=REAL(0-2)\r"
+        "LOW_RESULT=LIMIT(INPUT)\r"
+        "INPUT=REAL(0)\r"
+        "ZERO_RESULT=LIMIT(INPUT)\r"
+        "INPUT=REAL(2)\r"
+        "HIGH_RESULT=LIMIT(INPUT)\r"
+        "PrintRE(LOW_RESULT)\r"
+        "PrintRE(ZERO_RESULT)\r"
+        "PrintRE(HIGH_RESULT)\r"
+        "RETURN\r"
+    ),
+    "has_stub": False,
+    "runtime_library_objects": list(
+        DIRECT_PRG_CASES["actc_real_function_nested_local_call_postfix_linked"][
+            "runtime_library_objects"
+        ]
+    ),
+    "expected_object_fragments": [
+        "q 0 0 9 11\nq 1 0 25 6\n",
+        "V g r 0 0 5 6\nV g r 1 0 6 6\nV g r 2 0 7 6\n"
+        "V g r 3 0 8 6\nV p r 0 4 0 9 22\nV l r 0 5 0 10 6\n"
+        "V l r 0 6 0 10 14\nV l r 0 7 0 10 20\n"
+        "V l r 0 8 0 10 26\n",
+        "x main 0 601\nx limit 243 282\nx __rf00 458 1\n"
+        "x __rf01 489 1\nx __rf02 520 1\nx __idata 525 36\n",
+        "r 451 x __rf00\n",
+        "r 482 x __rf01\n",
+        "r 513 x __rf02\n",
+        "u rt_f_mul\nu rt_f_cmp\nu rt_s_to_f\nu rt_i_to_f\nu rt_print_f\n",
+        "v product 0 4\nv lower 0 4\nv upper 0 4\nv zerolocal 0 4\n",
+    ],
+    "expected_tail_from_compiled_object": True,
+    "screen_fragments": ["-1", "0", "1"],
+    "expected_alink_loads": [
+        "LIB/RT_F_MUL.OBJ",
+        "LIB/RT_F_CMP.OBJ",
+        "LIB/RT_S_TO_F.OBJ",
+        "LIB/RT_I_TO_F.OBJ",
+        "LIB/RT_PRINT_F.OBJ",
+        "LIB/RT_F_SPECIAL.OBJ",
+    ],
+    "unexpected_alink_loads": [
+        "LIB/RT_F_ABS.OBJ",
+        "LIB/RT_F_MIN.OBJ",
+        "LIB/RT_F_MAX.OBJ",
+        "LIB/RT_F_HYPOT.OBJ",
+        "LIB/RT_F_DIV.OBJ",
+        "LIB/RT_F_ADD.OBJ",
+        "LIB/RT_F_ADDSUB_CORE.OBJ",
+        "LIB/RT_F_SQRT.OBJ",
+        "LIB/RT_F_MOD.OBJ",
+        "LIB/RT_F_SIGN.OBJ",
+        "LIB/RT_F_TRUNC.OBJ",
+        "LIB/RT_F_FLOOR.OBJ",
+        "LIB/RT_F_CEIL.OBJ",
+        "LIB/RT_F_ROUND.OBJ",
+        "LIB/RT_F_FRAC.OBJ",
+        "LIB/RT_F_SUB.OBJ",
+        "LIB/RT_F_CLAMP.OBJ",
+    ],
+}
+
 DIRECT_PRG_CASES["actc_asmblock_symbol_byte_relocations_linked"] = {
     "source": (
         "MODULE MAIN\r"

@@ -66,8 +66,8 @@ class MilestoneHandoffDocsTests(unittest.TestCase):
         ):
             self.assertIn(gate, handoff)
 
-        self.assertIn("1365 shapes", handoff)
-        self.assertIn("195 shapes", handoff)
+        self.assertIn("1366 shapes", handoff)
+        self.assertIn("196 shapes", handoff)
         self.assertIn("300 complex compiled-runtime cases", handoff)
         self.assertIn("real_two_function_nested_postfix.act", handoff)
         self.assertIn("real_function_nested_local_call_postfix.act", handoff)
@@ -93,6 +93,7 @@ class MilestoneHandoffDocsTests(unittest.TestCase):
         self.assertIn("ACTC_OVLT.BIN", handoff)
         self.assertIn("ACTC_OVLU.BIN", handoff)
         self.assertIn("math1_angle_conversions_postfix.act", handoff)
+        self.assertIn("real_function_literal_clamp_comma_locals_postfix.act", handoff)
         self.assertIn("8,147 bytes with 45 bytes free", handoff)
         self.assertIn("RT_F_SIGN.OBJ", handoff)
         self.assertIn("RT_F_MIN.OBJ", handoff)
