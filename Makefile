@@ -853,6 +853,7 @@ ACTION_ACTC_ALINK_MATH_RUNTIME_SHAPES := \
 	actc_runtime_math1_ffrac_split_linked \
 	actc_runtime_math1_fmod_split_linked \
 	actc_runtime_math1_fhypot_split_linked \
+	actc_runtime_math1_fexp_split_linked \
 	actc_runtime_math1_deg_to_rad_split_linked \
 	actc_runtime_math1_rad_to_deg_split_linked \
 	actc_runtime_math1_fmin_split_linked \

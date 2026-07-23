@@ -66,9 +66,9 @@ class MilestoneHandoffDocsTests(unittest.TestCase):
         ):
             self.assertIn(gate, handoff)
 
-        self.assertIn("1366 shapes", handoff)
+        self.assertIn("1367 shapes", handoff)
         self.assertIn("196 shapes", handoff)
-        self.assertIn("300 complex compiled-runtime cases", handoff)
+        self.assertIn("301 complex compiled-runtime cases", handoff)
         self.assertIn("real_two_function_nested_postfix.act", handoff)
         self.assertIn("real_function_nested_local_call_postfix.act", handoff)
         self.assertIn("real_function_user_call_arguments_postfix.act", handoff)
@@ -106,6 +106,7 @@ class MilestoneHandoffDocsTests(unittest.TestCase):
         self.assertIn("RT_F_FRAC.OBJ", handoff)
         self.assertIn("RT_F_MOD.OBJ", handoff)
         self.assertIn("RT_F_HYPOT.OBJ", handoff)
+        self.assertIn("RT_F_EXP.OBJ", handoff)
         self.assertIn("RT_F_DEG_TO_RAD.OBJ", handoff)
         self.assertIn("RT_F_RAD_TO_DEG.OBJ", handoff)
         self.assertIn("8,094 bytes with 98 bytes free", handoff)
@@ -113,7 +114,7 @@ class MilestoneHandoffDocsTests(unittest.TestCase):
         self.assertIn("6,124 bytes with 2,068 bytes free", handoff)
         self.assertIn("6,998 bytes with 1,194 bytes free", handoff)
         self.assertIn("7,120 bytes with 1,072 bytes free", handoff)
-        self.assertIn("remaining 26", handoff)
+        self.assertIn("remaining 25", handoff)
         self.assertIn("8,065-byte image leaves 639", handoff)
         self.assertIn("7,110-byte image leaves 1,594", handoff)
         self.assertIn("ACTC_OVLH.BIN", handoff)
