@@ -32,10 +32,11 @@ DIRECT_PRG_STUB_SIZE = 32
 INITIAL_SETTLE = 3.0
 ALINK_PHASE_TIMEOUT = 60.0
 PRG_PHASE_TIMEOUT = 8.0
-# The FExp dependency closure measures 220.1M emulated instructions because
-# ALINK resolves 233 relocations across its transitive runtime imports.
-# Keep deterministic host-verification headroom without changing target behavior.
-TOOL_ABI_HARNESS_MAX_STEPS = 260_000_000
+# The FPow dependency closure measures 344.9M emulated instructions because
+# ALINK resolves the combined logarithm, exponential, modulus, and arithmetic
+# imports. Keep deterministic host-verification headroom without changing target
+# behavior.
+TOOL_ABI_HARNESS_MAX_STEPS = 400_000_000
 DIRECT_PRG_EXIT_MARKER_ADDR = 0x03D0
 DIRECT_PRG_EXIT_MARKER_VALUE = 0xA5
 DBF_FIXTURE_NAME_ADDR = 0x3000
@@ -13892,6 +13893,66 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_F_FRAC.OBJ",
             "LIB/RT_F_SUB.OBJ",
             "LIB/RT_F_CLAMP.OBJ",
+        ],
+    },
+    "actc_runtime_math1_fpow_split_linked": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL A\r"
+            "REAL B\r"
+            "REAL X\r"
+            "PROC MAIN()\r"
+            "A=REAL(2)\r"
+            "B=REAL(10)\r"
+            "X=FPow(A,B)\r"
+            "PrintRE(X)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": [
+            "rt_i_to_f",
+            "rt_f_pow",
+            "rt_f_trunc",
+            "rt_f_ln",
+            "rt_f_mul",
+            "rt_f_exp",
+            "rt_f_mod",
+            "rt_f_sub",
+            "rt_f_add",
+            "rt_f_div",
+            "rt_f_special",
+            "rt_f_floor",
+            "rt_f_to_i",
+            "rt_f_addsub_core",
+            "rt_print_f",
+            "rt_f_log2",
+            "rt_f_log10",
+            "rt_f_hypot",
+        ],
+        "expected_object_fragments": _REAL_PRINTRE_BINARY_OBJECT_FRAGMENTS,
+        "expected_tail": _real_printre_binary_tail(2, 10, "rt_f_pow"),
+        "screen_fragments": ["1024"],
+        "expected_alink_loads": [
+            "LIB/RT_I_TO_F.OBJ",
+            "LIB/RT_F_POW.OBJ",
+            "LIB/RT_F_TRUNC.OBJ",
+            "LIB/RT_F_LN.OBJ",
+            "LIB/RT_F_SUB.OBJ",
+            "LIB/RT_F_ADDSUB_CORE.OBJ",
+            "LIB/RT_F_SPECIAL.OBJ",
+            "LIB/RT_F_ADD.OBJ",
+            "LIB/RT_F_DIV.OBJ",
+            "LIB/RT_F_MUL.OBJ",
+            "LIB/RT_F_EXP.OBJ",
+            "LIB/RT_F_FLOOR.OBJ",
+            "LIB/RT_F_TO_I.OBJ",
+            "LIB/RT_F_MOD.OBJ",
+            "LIB/RT_PRINT_F.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_F_LOG2.OBJ",
+            "LIB/RT_F_LOG10.OBJ",
+            "LIB/RT_F_HYPOT.OBJ",
         ],
     },
     "actc_runtime_math1_fexp_split_linked": {
@@ -53609,9 +53670,9 @@ for _shape, _case in DIRECT_PRG_CASES.items():
     ):
         _case["expected_tail_from_compiled_object"] = True
         COMPILED_RUNTIME_LINK_ORACLE_SHAPES.append(_shape)
-if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 304:
+if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 305:
     raise RuntimeError(
-        "expected 304 compiled runtime link-oracle cases, found "
+        "expected 305 compiled runtime link-oracle cases, found "
         f"{len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES)}"
     )
 
