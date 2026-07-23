@@ -9457,6 +9457,34 @@ _REAL_PRINTRE_TERNARY_OBJECT_FRAGMENTS = [
 ]
 
 
+def _real_postfix_angle_object_fragments(unary_module: str) -> list[str]:
+    return [
+        "x main 0 99\n"
+        "x __idata 83 8\n"
+        "x __rv0 83 4\n"
+        "x __rv1 87 4\n"
+        "x __rt0 91 4\n"
+        "x __rt1 95 4\n",
+        "b u0u1u2M\nb M\nb M\nb M\nb M\nb M\n",
+        "r 1 l x __rt0\n"
+        "r 5 h x __rt0\n"
+        "r 13 u0\n"
+        "r 18 x __rt0\n"
+        "r 21 x __rv0\n"
+        "r 27 l x __rv0\n"
+        "r 31 h x __rv0\n"
+        "r 35 l x __rt1\n"
+        "r 39 h x __rt1\n"
+        "r 43 u1\n"
+        "r 48 x __rt1\n"
+        "r 51 x __rv1\n"
+        "r 57 l x __rv1\n"
+        "r 61 h x __rv1\n"
+        "r 65 u2\n",
+        f"u rt_i_to_f\nu {unary_module}\nu rt_print_f\n",
+    ]
+
+
 def _real_printre_unary_tail(value: int, convert_module: str, unary_module: str) -> bytes:
     modules = _runtime_module_closure([convert_module, unary_module, "rt_print_f"])
     module_addrs = _runtime_module_addrs(modules, 0x105D)
@@ -13847,6 +13875,82 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_F_FRAC.OBJ",
             "LIB/RT_F_SUB.OBJ",
             "LIB/RT_F_CLAMP.OBJ",
+        ],
+    },
+    "actc_runtime_math1_deg_to_rad_split_linked": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL A\r"
+            "REAL X\r"
+            "PROC MAIN()\r"
+            "A=REAL(180)\r"
+            "X=DegToRad(A)\r"
+            "PrintRE(X)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": [
+            "rt_i_to_f",
+            "rt_f_deg_to_rad",
+            "rt_f_rad_to_deg",
+            "rt_f_mul",
+            "rt_f_special",
+            "rt_print_f",
+            "rt_f_abs",
+        ],
+        "expected_object_fragments": _real_postfix_angle_object_fragments(
+            "rt_f_deg_to_rad"
+        ),
+        "expected_tail_from_compiled_object": True,
+        "screen_fragments": ["3.141592"],
+        "expected_alink_loads": [
+            "LIB/RT_I_TO_F.OBJ",
+            "LIB/RT_F_DEG_TO_RAD.OBJ",
+            "LIB/RT_F_MUL.OBJ",
+            "LIB/RT_F_SPECIAL.OBJ",
+            "LIB/RT_PRINT_F.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_F_RAD_TO_DEG.OBJ",
+            "LIB/RT_F_ABS.OBJ",
+        ],
+    },
+    "actc_runtime_math1_rad_to_deg_split_linked": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL A\r"
+            "REAL X\r"
+            "PROC MAIN()\r"
+            "A=REAL(1)\r"
+            "X=RadToDeg(A)\r"
+            "PrintRE(X)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": [
+            "rt_i_to_f",
+            "rt_f_deg_to_rad",
+            "rt_f_rad_to_deg",
+            "rt_f_mul",
+            "rt_f_special",
+            "rt_print_f",
+            "rt_f_abs",
+        ],
+        "expected_object_fragments": _real_postfix_angle_object_fragments(
+            "rt_f_rad_to_deg"
+        ),
+        "expected_tail_from_compiled_object": True,
+        "screen_fragments": ["57.2957763671875"],
+        "expected_alink_loads": [
+            "LIB/RT_I_TO_F.OBJ",
+            "LIB/RT_F_RAD_TO_DEG.OBJ",
+            "LIB/RT_F_MUL.OBJ",
+            "LIB/RT_F_SPECIAL.OBJ",
+            "LIB/RT_PRINT_F.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_F_DEG_TO_RAD.OBJ",
+            "LIB/RT_F_ABS.OBJ",
         ],
     },
     "actc_runtime_helper_free_unused_helper_libraries_pruned": {
@@ -51821,14 +51925,14 @@ DIRECT_PRG_CASES["actc_math1_angle_conversions_postfix_linked"] = {
         "REAL PI_VALUE\r"
         "REAL RADIANS\r"
         "REAL RESULT_DEGREES\r"
-        "REAL FUNC DEGTORAD(REAL VALUE)\r"
+        "REAL FUNC LOCALD2R(REAL VALUE)\r"
         "REAL FORWARD_FACTOR\r"
         "REAL FORWARD_DIVISOR\r"
         "FORWARD_FACTOR=MATH_PI\r"
         "FORWARD_DIVISOR=REAL(180)\r"
         "FORWARD_FACTOR=FORWARD_FACTOR/FORWARD_DIVISOR\r"
         "RETURN(VALUE*FORWARD_FACTOR)\r"
-        "REAL FUNC RADTODEG(REAL VALUE)\r"
+        "REAL FUNC LOCALR2D(REAL VALUE)\r"
         "REAL REVERSE_FACTOR\r"
         "REAL REVERSE_DIVISOR\r"
         "REVERSE_FACTOR=REAL(180)\r"
@@ -51838,8 +51942,8 @@ DIRECT_PRG_CASES["actc_math1_angle_conversions_postfix_linked"] = {
         "PROC MAIN()\r"
         "DEGREES=REAL(180)\r"
         "PI_VALUE=MATH_PI\r"
-        "RADIANS=DEGTORAD(DEGREES)\r"
-        "RESULT_DEGREES=RADTODEG(PI_VALUE)\r"
+        "RADIANS=LOCALD2R(DEGREES)\r"
+        "RESULT_DEGREES=LOCALR2D(PI_VALUE)\r"
         "PrintRE(RADIANS)\r"
         "PrintRE(RESULT_DEGREES)\r"
         "RETURN\r"
@@ -51854,12 +51958,12 @@ DIRECT_PRG_CASES["actc_math1_angle_conversions_postfix_linked"] = {
         "q 0 0 7 11\nq 1 0 14 11\nq 2 0 21 6\n",
         "V p r 0 4 0 7 25\nV l r 0 5 0 8 6\nV l r 0 6 0 9 6\n"
         "V p r 1 7 0 14 25\nV l r 1 8 0 15 6\nV l r 1 9 0 16 6\n",
-        "x main 0 584\nx degtorad 172 162\nx radtodeg 334 162\n"
+        "x main 0 584\nx locald2r 172 162\nx localr2d 334 162\n"
         "x __idata 496 40\n",
         "b u0u1u2u3M\nb u0u1u2u3M\nb u0u1u2u3M\n",
         "A0 00 A9 DB 91 02 C8 A9 0F 91 02 C8 A9 49 91 02 C8 A9 40 91 02",
-        "r 73 x degtorad\n",
-        "r 107 x radtodeg\n",
+        "r 73 x locald2r\n",
+        "r 107 x localr2d\n",
         "u rt_i_to_f\nu rt_f_div\nu rt_f_mul\nu rt_print_f\n",
         "i 4059\ni 16457\n",
     ],
@@ -53201,9 +53305,9 @@ for _shape, _case in DIRECT_PRG_CASES.items():
     ):
         _case["expected_tail_from_compiled_object"] = True
         COMPILED_RUNTIME_LINK_ORACLE_SHAPES.append(_shape)
-if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 298:
+if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 300:
     raise RuntimeError(
-        "expected 298 compiled runtime link-oracle cases, found "
+        "expected 300 compiled runtime link-oracle cases, found "
         f"{len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES)}"
     )
 

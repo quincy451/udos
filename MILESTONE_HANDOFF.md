@@ -72,7 +72,7 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1363 shapes and
+Current status docs report the broad ALINK direct-PRG matrix at 1365 shapes and
 the non-runtime source-backed ACTC object-emission matrix at 195 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
@@ -212,12 +212,14 @@ returns inside loops remain compiler work.
 `math1_angle_conversions_postfix.act` adds pass U (`ACTC_OVLU.BIN`, id 30).
 Pass U accepts one- or two-REAL-parameter functions and materializes folded
 binary32 constants from ACTC's low-word/high-word literal stream. The shared
-fixture emits project-local `DegToRad` and `RadToDeg`; the rebuilt direct PRG
+fixture emits project-local `LOCALD2R` and `LOCALR2D`; the rebuilt direct PRG
 prints pi and `180`, while generic ALINK closure loads only `RT_I_TO_F`,
 `RT_F_DIV`, `RT_F_MUL`, `RT_PRINT_F`, and `RT_F_SPECIAL`. Idun's Linux
-ACTC/ALINK compiles and links the byte-identical fixture. Pass U is 6,456 bytes
-with 1,736 bytes free under a dedicated 1,536-byte gate; passes L through T
-remain byte-identical. Public dependency-sized MATH1 packaging remains next.
+ACTC/ALINK compiles and links the byte-identical fixture. Pass U now includes
+public angle-builtin dispatch and is 6,514 bytes with 1,678 bytes free under a
+dedicated 1,536-byte gate; passes L through T remain byte-identical.
+`DegToRad` and `RadToDeg` are separately selected OBJ modules; the remaining
+public MATH1 gap is 26 routines.
 
 The current matrix includes source-backed dynamic integer multiplication and
 division, assignment/store/readback, divide-by-zero, missing-helper, and stack
@@ -246,7 +248,7 @@ live VICE execution.
 Passes `ACTC_OVLC.BIN` through `ACTC_OVLF.BIN` now emit machine OBJ for REAL
 WHILE, runtime conditions, runtime sequences, and nested readbacks. All 102
 seeded runtime fixtures are machine objects, 194 runtime sequences retain
-static exact-byte coverage, and 298 complex compiled-runtime cases use an
+static exact-byte coverage, and 300 complex compiled-runtime cases use an
 independent object parser/relocator oracle. ALINK has no abstract-body compiler
 or runtime synthesis queues and is now 13,806 bytes.
 ALINK also stabilizes each paged object body selector before recursive import
@@ -356,11 +358,16 @@ its destination. Its scaled maximum/minimum calculation imports absolute
 value, minimum, maximum, division, multiplication, addition, and square root,
 avoids avoidable intermediate overflow and underflow, returns positive zero
 for two zero inputs, and gives infinity precedence when paired with NaN.
+The 20-byte `RT_F_DEG_TO_RAD.OBJ` and `RT_F_RAD_TO_DEG.OBJ` wrappers each
+embed one binary32 scale factor and import only `RT_F_MUL.OBJ`; they are
+alias-safe and independently selected. Focused native VICE launches print
+`3.141592...` for 180 degrees and exact binary32 `57.2957763671875` for one
+radian while proving the unused sibling is absent.
 Focused ACTC -> ALINK -> direct-PRG launches select only conversion,
 truncation/floor/ceiling/rounding/fractional-part/remainder/hypotenuse dependencies, and REAL printing
 while proving sibling REAL helpers remain absent. Pass 6 is
 8,094 bytes with 98 bytes free under its enforced 96-byte reserve. General REAL expression
-trees and the remaining 28
+trees and the remaining 26
 MATH1 routines are
 still compiler work.
 The complete `ACTION.DNP` includes all compiler passes, ACTEDIT, ACTDBG, and all
