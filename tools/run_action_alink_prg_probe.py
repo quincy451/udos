@@ -9573,6 +9573,14 @@ def _real_printre_fln_tail(value: int) -> bytes:
     return _real_printre_unary_tail(value, "rt_i_to_f", "rt_f_ln")
 
 
+def _real_printre_flog2_tail(value: int) -> bytes:
+    return _real_printre_unary_tail(value, "rt_i_to_f", "rt_f_log2")
+
+
+def _real_printre_flog10_tail(value: int) -> bytes:
+    return _real_printre_unary_tail(value, "rt_i_to_f", "rt_f_log10")
+
+
 _REAL_PRINTRE_UNARY_OBJECT_FRAGMENTS = [
     "x main 0 93\n"
     "x __idata 81 8\n"
@@ -13979,6 +13987,106 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_PRINT_F.OBJ",
         ],
         "unexpected_alink_loads": [
+            "LIB/RT_F_EXP.OBJ",
+            "LIB/RT_F_HYPOT.OBJ",
+            "LIB/RT_F_DEG_TO_RAD.OBJ",
+        ],
+    },
+    "actc_runtime_math1_flog2_split_linked": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL A\r"
+            "REAL X\r"
+            "PROC MAIN()\r"
+            "A=REAL(8)\r"
+            "X=FLog2(A)\r"
+            "PrintRE(X)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": [
+            "rt_i_to_f",
+            "rt_f_log2",
+            "rt_f_log10",
+            "rt_f_ln",
+            "rt_f_sub",
+            "rt_f_add",
+            "rt_f_div",
+            "rt_f_mul",
+            "rt_f_addsub_core",
+            "rt_f_special",
+            "rt_print_f",
+            "rt_f_exp",
+            "rt_f_hypot",
+            "rt_f_deg_to_rad",
+        ],
+        "expected_object_fragments": _REAL_PRINTRE_UNARY_OBJECT_FRAGMENTS,
+        "expected_tail": _real_printre_flog2_tail(8),
+        "screen_fragments": ["3"],
+        "expected_alink_loads": [
+            "LIB/RT_I_TO_F.OBJ",
+            "LIB/RT_F_LOG2.OBJ",
+            "LIB/RT_F_LN.OBJ",
+            "LIB/RT_F_SUB.OBJ",
+            "LIB/RT_F_ADDSUB_CORE.OBJ",
+            "LIB/RT_F_SPECIAL.OBJ",
+            "LIB/RT_F_ADD.OBJ",
+            "LIB/RT_F_DIV.OBJ",
+            "LIB/RT_F_MUL.OBJ",
+            "LIB/RT_PRINT_F.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_F_LOG10.OBJ",
+            "LIB/RT_F_EXP.OBJ",
+            "LIB/RT_F_HYPOT.OBJ",
+            "LIB/RT_F_DEG_TO_RAD.OBJ",
+        ],
+    },
+    "actc_runtime_math1_flog10_split_linked": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL A\r"
+            "REAL X\r"
+            "PROC MAIN()\r"
+            "A=REAL(1000)\r"
+            "X=FLog10(A)\r"
+            "PrintRE(X)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": [
+            "rt_i_to_f",
+            "rt_f_log10",
+            "rt_f_log2",
+            "rt_f_ln",
+            "rt_f_sub",
+            "rt_f_add",
+            "rt_f_div",
+            "rt_f_mul",
+            "rt_f_addsub_core",
+            "rt_f_special",
+            "rt_print_f",
+            "rt_f_exp",
+            "rt_f_hypot",
+            "rt_f_deg_to_rad",
+        ],
+        "expected_object_fragments": _REAL_PRINTRE_UNARY_OBJECT_FRAGMENTS,
+        "expected_tail": _real_printre_flog10_tail(1000),
+        "screen_fragments": ["3"],
+        "expected_alink_loads": [
+            "LIB/RT_I_TO_F.OBJ",
+            "LIB/RT_F_LOG10.OBJ",
+            "LIB/RT_F_LN.OBJ",
+            "LIB/RT_F_SUB.OBJ",
+            "LIB/RT_F_ADDSUB_CORE.OBJ",
+            "LIB/RT_F_SPECIAL.OBJ",
+            "LIB/RT_F_ADD.OBJ",
+            "LIB/RT_F_DIV.OBJ",
+            "LIB/RT_F_MUL.OBJ",
+            "LIB/RT_PRINT_F.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_F_LOG2.OBJ",
             "LIB/RT_F_EXP.OBJ",
             "LIB/RT_F_HYPOT.OBJ",
             "LIB/RT_F_DEG_TO_RAD.OBJ",
@@ -53501,9 +53609,9 @@ for _shape, _case in DIRECT_PRG_CASES.items():
     ):
         _case["expected_tail_from_compiled_object"] = True
         COMPILED_RUNTIME_LINK_ORACLE_SHAPES.append(_shape)
-if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 302:
+if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 304:
     raise RuntimeError(
-        "expected 302 compiled runtime link-oracle cases, found "
+        "expected 304 compiled runtime link-oracle cases, found "
         f"{len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES)}"
     )
 
