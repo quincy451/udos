@@ -72,8 +72,8 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1361 shapes and
-the non-runtime source-backed ACTC object-emission matrix at 193 shapes. Treat
+Current status docs report the broad ALINK direct-PRG matrix at 1362 shapes and
+the non-runtime source-backed ACTC object-emission matrix at 194 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
 The latest source-backed shape compiles
@@ -192,10 +192,22 @@ overflow/underflow exits prevent wraparound. The rebuilt direct PRG runs an
 ascending default-step loop and descending `STEP -2` loop, prints `47`, and
 stores ASCENDING=4.0 and DESCENDING=7.0; the Idun generated-6502 path produces
 the same values. Pass S is 7,828 bytes with 364 bytes free under a dedicated
-256-byte gate. Dynamic bounds, nested counter-to-REAL body composition, mixed
+256-byte gate. Named CARD bounds are added by pass T below; general bound
+expressions/runtime steps, nested counter-to-REAL body composition, mixed
 loop/conditional nesting, returns from inside loops, more than four loops or
 deeper loop nesting, unrestricted call-expression trees, and
 recursive/reentrant frames remain compiler work.
+
+`real_function_dynamic_for_postfix.act` adds pass T (`ACTC_OVLT.BIN`, id 29).
+Pass T accepts named CARD initial/final bounds in the bounded pass-S form and
+stages each bound once per loop entry. The rebuilt direct PRG nests
+`FOR J=I TO 3` and `FOR L=1 TO K`, prints `77`, and stores LOWER=7.0 and
+UPPER=7.0; Idun's generated-6502 path produces the same values. Complete
+`__rbNN`/`__rzNN` exports keep ALINK source-agnostic.
+Pass T is 8,147 bytes with 45 bytes free under a dedicated 32-byte gate.
+General bound expressions,
+runtime steps, nested counter-to-REAL body composition, mixed controls, and
+returns inside loops remain compiler work.
 
 The current matrix includes source-backed dynamic integer multiplication and
 division, assignment/store/readback, divide-by-zero, missing-helper, and stack

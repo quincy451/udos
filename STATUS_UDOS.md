@@ -235,7 +235,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     leaf, while carrying child-object integer and string literal pools into the
     linked program image. Project objects are now emitted and documented only as
     `OBJ/*.OBJ`.
-  - `make vice-action-alink-prg-matrix` now enumerates 1361 direct-PRG
+  - `make vice-action-alink-prg-matrix` now enumerates 1362 direct-PRG
     object/link shapes from the probe table and validates ALINK output for each
     shape. The matrix includes object-code graph closure, rejection cases,
     link-selected runtime helper families, and seeded input-helper closure
@@ -354,8 +354,12 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     with constant initial/final values and a nonzero constant signed step. Its
     ascending and descending direct PRG prints `47` and stores binary32 4.0 and
     7.0; Idun's generated-6502 path matches. The 7,828-byte overlay retains 364
-    bytes under a dedicated 256-byte gate. Dynamic bounds, nested
-    counter-to-REAL body composition, mixed loop/conditional nesting, returns
+    bytes under a dedicated 256-byte gate.
+    Pass T adds named CARD initial/final bounds and stages them once per loop
+    entry. Its nested-loop direct PRG prints `77` and stores binary32 7.0 twice;
+    Idun's generated-6502 path matches. The 8,147-byte overlay retains 45 bytes
+    under a dedicated 32-byte gate. General bound expressions, runtime steps,
+    nested counter-to-REAL body composition, mixed loop/conditional nesting, returns
     from inside loops, more than four loops or deeper loop nesting,
     unrestricted call-expression trees, and reentrant frames remain compiler
     work.

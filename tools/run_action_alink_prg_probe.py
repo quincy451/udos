@@ -51705,6 +51705,114 @@ DIRECT_PRG_CASES["actc_real_function_for_postfix_linked"] = {
     ],
 }
 
+DIRECT_PRG_CASES["actc_real_function_dynamic_for_postfix_linked"] = {
+    "source": (
+        "MODULE MAIN\r"
+        "REAL START\r"
+        "REAL DELTA\r"
+        "REAL LOWER\r"
+        "REAL UPPER\r"
+        "REAL FUNC FROMOUTER(REAL A,B)\r"
+        "CARD I\r"
+        "CARD J\r"
+        "REAL TOTAL\r"
+        "TOTAL=A\r"
+        "FOR I=1 TO 3\r"
+        "DO\r"
+        "FOR J=I TO 3\r"
+        "DO\r"
+        "TOTAL=TOTAL+B\r"
+        "OD\r"
+        "OD\r"
+        "RETURN(TOTAL)\r"
+        "REAL FUNC TOOUTER(REAL A,B)\r"
+        "CARD K\r"
+        "CARD L\r"
+        "REAL TOTAL2\r"
+        "TOTAL2=A\r"
+        "FOR K=1 TO 3\r"
+        "DO\r"
+        "FOR L=1 TO K\r"
+        "DO\r"
+        "TOTAL2=TOTAL2+B\r"
+        "OD\r"
+        "OD\r"
+        "RETURN(TOTAL2)\r"
+        "PROC MAIN()\r"
+        "START=REAL(1)\r"
+        "DELTA=REAL(1)\r"
+        "LOWER=FROMOUTER(START,DELTA)\r"
+        "UPPER=TOOUTER(START,DELTA)\r"
+        "PrintRE(LOWER)\r"
+        "PrintRE(UPPER)\r"
+        "RETURN\r"
+    ),
+    "has_stub": False,
+    "runtime_library_objects": list(
+        DIRECT_PRG_CASES["actc_real_function_nested_local_call_postfix_linked"][
+            "runtime_library_objects"
+        ]
+    ),
+    "expected_object_fragments": [
+        "x main 0 813\nx fromouter 170 266\nx toouter 436 293\n"
+        "x __rb00 242 1\nx __rz00 431 1\nx __rb01 299 1\n"
+        "x __rz01 399 1\nx __rb10 508 1\nx __rz10 724 1\n"
+        "x __rb11 584 1\nx __rz11 692 1\nx __idata 729 56\n",
+        "r 270 x __rz00\n",
+        "r 327 x __rz01\n",
+        "r 394 x __rb01\n",
+        "r 397 x __rz01\n",
+        "r 426 x __rb00\n",
+        "r 429 x __rz00\n",
+        "r 536 x __rz10\n",
+        "r 620 x __rz11\n",
+        "r 687 x __rb11\n",
+        "r 690 x __rz11\n",
+        "r 719 x __rb10\n",
+        "r 722 x __rz10\n",
+        "u rt_f_add\nu rt_i_to_f\nu rt_print_f\n",
+    ],
+    "expected_tail_from_compiled_object": True,
+    "screen_fragments": ["7", "7"],
+    "store_check_addr": 0x12E1,
+    "store_check_value": 0x00,
+    "extra_store_checks": [
+        {"addr": 0x12E2, "value": 0x00},
+        {"addr": 0x12E3, "value": 0xE0},
+        {"addr": 0x12E4, "value": 0x40},
+        {"addr": 0x12E5, "value": 0x00},
+        {"addr": 0x12E6, "value": 0x00},
+        {"addr": 0x12E7, "value": 0xE0},
+        {"addr": 0x12E8, "value": 0x40},
+    ],
+    "expected_alink_loads": [
+        "LIB/RT_F_ADD.OBJ",
+        "LIB/RT_I_TO_F.OBJ",
+        "LIB/RT_PRINT_F.OBJ",
+        "LIB/RT_F_ADDSUB_CORE.OBJ",
+        "LIB/RT_F_SPECIAL.OBJ",
+    ],
+    "unexpected_alink_loads": [
+        "LIB/RT_F_ABS.OBJ",
+        "LIB/RT_F_MIN.OBJ",
+        "LIB/RT_F_MAX.OBJ",
+        "LIB/RT_F_HYPOT.OBJ",
+        "LIB/RT_F_DIV.OBJ",
+        "LIB/RT_F_MUL.OBJ",
+        "LIB/RT_F_CMP.OBJ",
+        "LIB/RT_F_SQRT.OBJ",
+        "LIB/RT_F_MOD.OBJ",
+        "LIB/RT_F_SIGN.OBJ",
+        "LIB/RT_F_TRUNC.OBJ",
+        "LIB/RT_F_FLOOR.OBJ",
+        "LIB/RT_F_CEIL.OBJ",
+        "LIB/RT_F_ROUND.OBJ",
+        "LIB/RT_F_FRAC.OBJ",
+        "LIB/RT_F_SUB.OBJ",
+        "LIB/RT_F_CLAMP.OBJ",
+    ],
+}
+
 DIRECT_PRG_CASES["actc_asmblock_symbol_byte_relocations_linked"] = {
     "source": (
         "MODULE MAIN\r"

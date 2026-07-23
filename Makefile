@@ -199,6 +199,7 @@ ACTION_ACTC_ALINK_OBJECT_EMISSION_SHAPES := \
 	actc_real_function_loops_postfix_linked \
 	actc_real_function_loop_exit_postfix_linked \
 	actc_real_function_for_postfix_linked \
+	actc_real_function_dynamic_for_postfix_linked \
 	actc_real_function_finite_min_linked \
 	actc_real_function_finite_min_permuted_linked \
 	actc_asmblock_symbol_byte_relocations_linked \
