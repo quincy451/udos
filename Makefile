@@ -859,6 +859,7 @@ ACTION_ACTC_ALINK_MATH_RUNTIME_SHAPES := \
 	actc_runtime_math1_ftan_split_linked \
 	actc_runtime_math1_fatan_split_linked \
 	actc_runtime_math1_fatan2_split_linked \
+	actc_runtime_math1_fasin_split_linked \
 	actc_runtime_math1_fexp_split_linked \
 	actc_runtime_math1_fln_split_linked \
 	actc_runtime_math1_flog2_split_linked \
