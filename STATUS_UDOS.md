@@ -235,7 +235,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     leaf, while carrying child-object integer and string literal pools into the
     linked program image. Project objects are now emitted and documented only as
     `OBJ/*.OBJ`.
-  - `make vice-action-alink-prg-matrix` now enumerates 1382 direct-PRG
+  - `make vice-action-alink-prg-matrix` now enumerates 1383 direct-PRG
     object/link shapes from the probe table and validates ALINK output for each
     shape. The matrix includes object-code graph closure, rejection cases,
     link-selected runtime helper families, and seeded input-helper closure
@@ -323,24 +323,24 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     Pass N now owns the bounded two-control REAL-function extension. The shared
     sequential and depth-two nested fixtures use independent internal OBJ1 code
     exports, link through generic ALINK relocation/closure, and print `43` and
-    `143` from direct PRGs. Pass N is 7,122 bytes with 1,070 bytes free under
+    `143` from direct PRGs. Pass N is 7,129 bytes with 1,063 bytes free under
     its 1 KiB gate. At that pass-N checkpoint, loops, early returns,
     more/deeper controls, and reentrant frames remained.
     Pass O claims a third conditional and extends the same OBJ1 form to four
     controls per function and depth four. Its four-sequential and depth-four
-    direct PRGs print `43` and `154`; the 7,118-byte overlay retains 1,074 bytes
+    direct PRGs print `43` and `154`; the 7,132-byte overlay retains 1,060 bytes
     under the 1 KiB gate. Loops, early returns, controls beyond four, deeper
     nesting, and reentrant frames remain compiler work.
     Pass P adds immediate REAL-function returns inside those bounded controls
     while requiring a terminal fallback return. Its simple and depth-four
-    direct PRGs print `33` and `154`; the 7,142-byte overlay retains 1,050 bytes
+    direct PRGs print `33` and `154`; the 7,156-byte overlay retains 1,036 bytes
     under the 1 KiB gate. Loops, controls beyond four or depth four,
     unrestricted call-expression trees, and reentrant frames remain compiler
     work.
     Pass Q adds up to four bounded REAL-function `DO ... UNTIL ... OD` and
     `WHILE ... DO ... OD` loops with relocatable back-edge/exit exports. Its
     direct PRG prints `43` and stores binary32 4.0 and 3.0; Idun's generated
-    6502 path matches. The 7,146-byte overlay retains 1,046 bytes under the
+    6502 path matches. The 7,160-byte overlay retains 1,032 bytes under the
     1 KiB gate. Plain infinite `DO`, loop `EXIT`, mixed loop/conditional
     nesting, returns from inside loops, controls beyond four or depth four,
     unrestricted call-expression trees, and reentrant frames remain compiler
@@ -348,16 +348,16 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     Pass R adds plain `DO ... OD` plus unconditional `EXIT` targeting the
     nearest active `DO` or `WHILE`, while retaining the four-loop bound. Its
     direct PRG exits one plain and one guarded loop, prints `43`, and stores
-    binary32 4.0 and 3.0; Idun's generated-6502 path matches. The 7,329-byte
-    overlay retains 863 bytes under a dedicated 768-byte gate.
+    binary32 4.0 and 3.0; Idun's generated-6502 path matches. The 7,343-byte
+    overlay retains 849 bytes under a dedicated 768-byte gate.
     Pass S adds up to four nested or sequential local CARD-counter `FOR` loops
     with constant initial/final values and a nonzero constant signed step. Its
     ascending and descending direct PRG prints `47` and stores binary32 4.0 and
-    7.0; Idun's generated-6502 path matches. The 7,823-byte overlay retains 369
+    7.0; Idun's generated-6502 path matches. The 7,837-byte overlay retains 355
     bytes under a dedicated 256-byte gate.
     Pass T adds named CARD initial/final bounds and stages them once per loop
     entry. Its nested-loop direct PRG prints `77` and stores binary32 7.0 twice;
-    Idun's generated-6502 path matches. The 8,142-byte overlay retains 50 bytes
+    Idun's generated-6502 path matches. The 8,156-byte overlay retains 36 bytes
     under a dedicated 32-byte gate. General bound expressions, runtime steps,
     nested counter-to-REAL body composition, mixed loop/conditional nesting, returns
     from inside loops, more than four loops or deeper loop nesting,
