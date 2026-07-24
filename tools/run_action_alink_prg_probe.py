@@ -14183,6 +14183,56 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_F_POW.OBJ",
         ],
     },
+    "actc_runtime_math1_fatan2_split_linked": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL A\r"
+            "REAL B\r"
+            "REAL X\r"
+            "PROC MAIN()\r"
+            "A=REAL(1)\r"
+            "B=REAL(1)\r"
+            "X=FATan2(A,B)\r"
+            "PrintRE(X)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": [
+            "rt_i_to_f",
+            "rt_f_atan2",
+            "rt_f_div",
+            "rt_f_atan",
+            "rt_f_add",
+            "rt_f_sub",
+            "rt_f_mul",
+            "rt_f_addsub_core",
+            "rt_f_special",
+            "rt_print_f",
+            "rt_f_cmp",
+            "rt_f_tan",
+            "rt_f_pow",
+        ],
+        "expected_object_fragments": _REAL_PRINTRE_BINARY_OBJECT_FRAGMENTS,
+        "expected_tail": _real_printre_binary_tail(1, 1, "rt_f_atan2"),
+        "screen_fragments": ["0.785398"],
+        "expected_alink_loads": [
+            "LIB/RT_I_TO_F.OBJ",
+            "LIB/RT_F_ATAN2.OBJ",
+            "LIB/RT_F_DIV.OBJ",
+            "LIB/RT_F_SPECIAL.OBJ",
+            "LIB/RT_F_ATAN.OBJ",
+            "LIB/RT_F_SUB.OBJ",
+            "LIB/RT_F_ADDSUB_CORE.OBJ",
+            "LIB/RT_F_ADD.OBJ",
+            "LIB/RT_F_MUL.OBJ",
+            "LIB/RT_PRINT_F.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_F_CMP.OBJ",
+            "LIB/RT_F_TAN.OBJ",
+            "LIB/RT_F_POW.OBJ",
+        ],
+    },
     "actc_runtime_math1_fexp_split_linked": {
         "source": (
             "MODULE MAIN\r"
@@ -53898,9 +53948,9 @@ for _shape, _case in DIRECT_PRG_CASES.items():
     ):
         _case["expected_tail_from_compiled_object"] = True
         COMPILED_RUNTIME_LINK_ORACLE_SHAPES.append(_shape)
-if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 309:
+if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 310:
     raise RuntimeError(
-        "expected 309 compiled runtime link-oracle cases, found "
+        "expected 310 compiled runtime link-oracle cases, found "
         f"{len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES)}"
     )
 
