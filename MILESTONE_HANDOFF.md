@@ -72,7 +72,7 @@ Host and VICE validation cover the active development path:
 - `make -C udos PROOF_DEPS= RESIDENT_DEPS= RELEASE_DEPS= vice-action-actc-alink-launch-runtime-matrices`
   validates link-selected helper-family runtime paths
 
-Current status docs report the broad ALINK direct-PRG matrix at 1377 shapes and
+Current status docs report the broad ALINK direct-PRG matrix at 1378 shapes and
 the non-runtime source-backed ACTC object-emission matrix at 196 shapes. Treat
 those matrix counts as status facts to update whenever the probe tables change.
 
@@ -104,7 +104,7 @@ source local and returns `FMax(LENGTH(A,B),FAbs(A))`. Its direct PRG prints `5`,
 stores binary32 `5.0` in the module result and nested-call temporary, and loads
 only the `FAbs`/`FHypot`/`FMax` closure. Pass 7 recognizes `LENGTH` as a local
 function while traversing the intrinsic tree, so no unresolved `fmax` import is
-introduced. Pass 7 is 7,065 bytes with 1,127 bytes free in its 8 KiB window.
+introduced. Pass 7 is 7,096 bytes with 1,096 bytes free in its 8 KiB window.
 Function-to-function calls now stack-preserve caller parameters, locals, and
 live temporaries, so acyclic edges may point in either declaration direction.
 Self and mutual cycles remain hard errors.
@@ -123,7 +123,7 @@ static cells on the 6502 stack, stages the A/X result, restores those cells, and
 copies the result to an independent temporary. The rebuilt direct PRG prints
 `3`, VICE verifies binary32 3.0 in the result and preserved temporaries, and
 ALINK selects only the `FAbs`/`FMax`/`FMin`, conversion, and printing closure.
-Pass L is 6,137 bytes with 2,055 bytes free. Recursive/reentrant frames,
+Pass L is 6,141 bytes with 2,051 bytes free. Recursive/reentrant frames,
 unrestricted user-call argument trees, arbitrary signatures, and recursion
 remain compiler work.
 
@@ -131,7 +131,7 @@ remain compiler work.
 Pass M (`ACTC_OVLM.BIN`, id 22) maps `A<B` through `rt_f_cmp` and emits
 relocations to internal `__rf0`/`__re0` code exports. Calling `PICK` with both
 operand orders executes both arms; the rebuilt direct PRG prints `34`. Pass M
-is 7,006 bytes with 1,186 bytes free under its 1 KiB gate, while pass L retains
+is 7,010 bytes with 1,182 bytes free under its 1 KiB gate, while pass L retains
 its 2 KiB reserve. Pass M intentionally retains this one-control ownership; the
 separate bounded two-control extension follows.
 
@@ -141,7 +141,7 @@ Pass N claims at least one second conditional and allows at most two per REAL
 function, either sequentially or nested to depth two. Its independent
 `__rfNN`/`__reNN` export pairs remain ordinary OBJ1 relocation targets. The
 rebuilt direct PRGs print `43` and `143`; the nested case executes inner true,
-inner false, and outer false paths. Pass N is 7,128 bytes with 1,064 bytes free
+inner false, and outer false paths. Pass N is 7,132 bytes with 1,060 bytes free
 under its 1 KiB gate. At that pass-N checkpoint, loops, early returns, more
 than two controls, deeper nesting, and recursive/reentrant frames remained.
 
@@ -181,7 +181,7 @@ ordinary relocations to independent `__rbNN` back-edge and `__rzNN` post-loop
 exports without changing OBJ1. The rebuilt direct PRG exits one plain and one
 guarded loop, prints `43`, and stores FIRST=4.0 and SECOND=3.0; the Idun
 generated-6502 path produces the same values.
-Pass R is 7,342 bytes with 850 bytes free under a dedicated 768-byte gate.
+Pass R is 7,346 bytes with 846 bytes free under a dedicated 768-byte gate.
 
 `real_function_for_postfix.act` adds pass S (`ACTC_OVLS.BIN`, id 28). Pass S
 accepts up to four nested or sequential local CARD-counter `FOR` loops per
@@ -190,7 +190,7 @@ constant signed step. Inclusive unsigned comparisons plus carry-based
 overflow/underflow exits prevent wraparound. The rebuilt direct PRG runs an
 ascending default-step loop and descending `STEP -2` loop, prints `47`, and
 stores ASCENDING=4.0 and DESCENDING=7.0; the Idun generated-6502 path produces
-the same values. Pass S is 7,836 bytes with 356 bytes free under a dedicated
+the same values. Pass S is 7,840 bytes with 352 bytes free under a dedicated
 256-byte gate. Named CARD bounds are added by pass T below; general bound
 expressions/runtime steps, nested counter-to-REAL body composition, mixed
 loop/conditional nesting, returns from inside loops, more than four loops or
@@ -203,7 +203,7 @@ stages each bound once per loop entry. The rebuilt direct PRG nests
 `FOR J=I TO 3` and `FOR L=1 TO K`, prints `77`, and stores LOWER=7.0 and
 UPPER=7.0; Idun's generated-6502 path produces the same values. Complete
 `__rbNN`/`__rzNN` exports keep ALINK source-agnostic.
-Pass T is 8,155 bytes with 37 bytes free under a dedicated 32-byte gate.
+Pass T is 8,159 bytes with 33 bytes free under a dedicated 32-byte gate.
 General bound expressions,
 runtime steps, nested counter-to-REAL body composition, mixed controls, and
 returns inside loops remain compiler work.
@@ -219,12 +219,12 @@ public angle-builtin dispatch plus pass-P conditional/early-return lowering.
 `real_function_literal_clamp_comma_locals_postfix.act` adds four
 comma-grouped uninitialized REAL locals, multiplication, three comparisons,
 and three immediate returns; native and Idun generated-6502 execution both
-produce `-1`, `0`, and `1`. Pass U is 7,485 bytes with 707 bytes free under a
+produce `-1`, `0`, and `1`. Pass U is 7,489 bytes with 703 bytes free under a
 dedicated 640-byte gate; passes L through T retain their respective capacity
 gates.
 `DegToRad`, `RadToDeg`, `FPow`, `FSin`, `FCos`, `FTan`, `FATan`, `FATan2`,
-and `FASin` are separately selected OBJ modules; the remaining public MATH1
-gap is 15 routines.
+`FASin`, and `FACos` are separately selected OBJ modules; the remaining public
+MATH1 gap is 14 routines, beginning with `FSec`.
 
 The current matrix includes source-backed dynamic integer multiplication and
 division, assignment/store/readback, divide-by-zero, missing-helper, and stack
@@ -253,7 +253,7 @@ live VICE execution.
 Passes `ACTC_OVLC.BIN` through `ACTC_OVLF.BIN` now emit machine OBJ for REAL
 WHILE, runtime conditions, runtime sequences, and nested readbacks. All 102
 seeded runtime fixtures are machine objects, 194 runtime sequences retain
-static exact-byte coverage, and 311 complex compiled-runtime cases use an
+static exact-byte coverage, and 312 complex compiled-runtime cases use an
 independent object parser/relocator oracle. ALINK has no abstract-body compiler
 or runtime synthesis queues and is now 13,806 bytes.
 ALINK also stabilizes each paged object body selector before recursive import
@@ -410,6 +410,12 @@ one with canonical quiet NaN, preserves signed zero, and produces signed
 binary32 pi/2 at the endpoints. It imports only multiplication, subtraction,
 square root, and two-argument arctangent. The focused direct PRG prints
 `1.570796...` for `FASin(1)` while proving unrelated MATH1 roots remain absent.
+The 71-byte `RT_F_ACOS.OBJ` dependency root implements source-level
+`pi/2-FASin(x)` binary32 behavior, preserves exact endpoint results, and is
+safe when its destination aliases its input. It imports only `RT_F_ASIN.OBJ`
+and `RT_F_SUB.OBJ`; their transitive closure is 4,627 linked bytes. The
+focused direct PRG prints `3.141592...` for `FACos(-1)` while proving
+unrelated MATH1 roots remain absent.
 The 20-byte `RT_F_DEG_TO_RAD.OBJ` and `RT_F_RAD_TO_DEG.OBJ` wrappers each
 embed one binary32 scale factor and import only `RT_F_MUL.OBJ`; they are
 alias-safe and independently selected. Focused native VICE launches print
@@ -419,8 +425,8 @@ Focused ACTC -> ALINK -> direct-PRG launches select only conversion,
 truncation/floor/ceiling/rounding/fractional-part/remainder/hypotenuse/power/
 exponential/natural-logarithm/trigonometric dependencies, and REAL printing
 while proving sibling REAL helpers remain absent. Pass 6 is
-8,069 bytes with 123 bytes free under its enforced reserve. General REAL expression
-trees and the remaining 15
+8,077 bytes with 115 bytes free under its enforced reserve. General REAL expression
+trees and the remaining 14
 MATH1 routines are
 still compiler work.
 The complete `ACTION.DNP` includes all compiler passes, ACTEDIT, ACTDBG, and all
