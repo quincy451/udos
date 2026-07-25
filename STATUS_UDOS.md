@@ -235,7 +235,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     leaf, while carrying child-object integer and string literal pools into the
     linked program image. Project objects are now emitted and documented only as
     `OBJ/*.OBJ`.
-  - `make vice-action-alink-prg-matrix` now enumerates 1385 direct-PRG
+  - `make vice-action-alink-prg-matrix` now enumerates 1386 direct-PRG
     object/link shapes from the probe table and validates ALINK output for each
     shape. The matrix includes object-code graph closure, rejection cases,
     link-selected runtime helper families, and seeded input-helper closure
@@ -340,7 +340,7 @@ Command/backend status is tracked separately in `COMMAND_MATRIX.md`.
     Pass Q adds up to four bounded REAL-function `DO ... UNTIL ... OD` and
     `WHILE ... DO ... OD` loops with relocatable back-edge/exit exports. Its
     direct PRG prints `43` and stores binary32 4.0 and 3.0; Idun's generated
-    6502 path matches. The 7,160-byte overlay retains 1,032 bytes under the
+    6502 path matches. The 7,159-byte overlay retains 1,033 bytes under the
     1 KiB gate. Plain infinite `DO`, loop `EXIT`, mixed loop/conditional
     nesting, returns from inside loops, controls beyond four or depth four,
     unrestricted call-expression trees, and reentrant frames remain compiler
