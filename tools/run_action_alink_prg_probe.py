@@ -9614,6 +9614,10 @@ def _real_printre_facot_tail(value: int) -> bytes:
     return _real_printre_unary_tail(value, "rt_i_to_f", "rt_f_acot")
 
 
+def _real_printre_fversin_tail(value: int) -> bytes:
+    return _real_printre_unary_tail(value, "rt_i_to_f", "rt_f_versin")
+
+
 def _real_printre_fexp_tail(value: int) -> bytes:
     return _real_printre_unary_tail(value, "rt_i_to_f", "rt_f_exp")
 
@@ -14731,6 +14735,62 @@ DIRECT_PRG_CASES: dict[str, dict[str, object]] = {
             "LIB/RT_F_ASEC.OBJ",
             "LIB/RT_F_ACSC.OBJ",
             "LIB/RT_F_POW.OBJ",
+        ],
+    },
+    "actc_runtime_math1_fversin_split_linked": {
+        "source": (
+            "MODULE MAIN\r"
+            "REAL A\r"
+            "REAL X\r"
+            "PROC MAIN()\r"
+            "A=REAL(1)\r"
+            "X=FVersin(A)\r"
+            "PrintRE(X)\r"
+            "RETURN\r"
+        ),
+        "has_stub": False,
+        "runtime_library_objects": [
+            "rt_i_to_f",
+            "rt_f_versin",
+            "rt_f_cos",
+            "rt_f_wrap_pi",
+            "rt_f_mod",
+            "rt_f_div",
+            "rt_f_trunc",
+            "rt_f_mul",
+            "rt_f_sub",
+            "rt_f_cmp",
+            "rt_f_add",
+            "rt_f_addsub_core",
+            "rt_f_special",
+            "rt_print_f",
+            "rt_f_sin",
+            "rt_f_pow",
+            "rt_f_exp",
+        ],
+        "expected_object_fragments": _REAL_PRINTRE_UNARY_OBJECT_FRAGMENTS,
+        "expected_tail": _real_printre_fversin_tail(1),
+        "screen_fragments": ["0.459697"],
+        "expected_alink_loads": [
+            "LIB/RT_I_TO_F.OBJ",
+            "LIB/RT_F_VERSIN.OBJ",
+            "LIB/RT_F_COS.OBJ",
+            "LIB/RT_F_WRAP_PI.OBJ",
+            "LIB/RT_F_MOD.OBJ",
+            "LIB/RT_F_DIV.OBJ",
+            "LIB/RT_F_SPECIAL.OBJ",
+            "LIB/RT_F_TRUNC.OBJ",
+            "LIB/RT_F_MUL.OBJ",
+            "LIB/RT_F_SUB.OBJ",
+            "LIB/RT_F_ADDSUB_CORE.OBJ",
+            "LIB/RT_F_CMP.OBJ",
+            "LIB/RT_F_ADD.OBJ",
+            "LIB/RT_PRINT_F.OBJ",
+        ],
+        "unexpected_alink_loads": [
+            "LIB/RT_F_SIN.OBJ",
+            "LIB/RT_F_POW.OBJ",
+            "LIB/RT_F_EXP.OBJ",
         ],
     },
     "actc_runtime_math1_fexp_split_linked": {
@@ -54449,9 +54509,9 @@ for _shape, _case in DIRECT_PRG_CASES.items():
     ):
         _case["expected_tail_from_compiled_object"] = True
         COMPILED_RUNTIME_LINK_ORACLE_SHAPES.append(_shape)
-if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 318:
+if len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES) != 319:
     raise RuntimeError(
-        "expected 318 compiled runtime link-oracle cases, found "
+        "expected 319 compiled runtime link-oracle cases, found "
         f"{len(COMPILED_RUNTIME_LINK_ORACLE_SHAPES)}"
     )
 
